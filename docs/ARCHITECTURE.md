@@ -1,6 +1,6 @@
-# Architecture Principles — B.A.T.L.E.R. Alfred
+# Architecture Principles — B.U.T.L.E.R. Alfred
 
-This document defines the core architecture principles, directory boundaries, and separation of concerns for B.A.T.L.E.R. Alfred.
+This document defines the core architecture principles, directory boundaries, and separation of concerns for B.U.T.L.E.R. Alfred.
 
 ---
 
@@ -17,7 +17,7 @@ It should remain as vendor-independent as reasonably possible, shielding the cor
 The Cognitive Layer (`src/alfred/cognitive/`) represents Alfred's understanding of:
 
 - **Context**: Current operational environment, user state, and task scope.
-- **Memory**: Epodic, semantic, and working memories across interactions.
+- **Memory**: Episodic, semantic, and working memories across interactions.
 - **Projects**: High-level initiatives, goals, and trackable milestones.
 - **Decisions**: Historical choices, rationale, and decision boundaries.
 - **Dependencies**: Prerequisites, blockers, and inter-task relationships.

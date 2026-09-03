@@ -1,6 +1,6 @@
-# B.A.T.L.E.R. Alfred
+# B.U.T.L.E.R. Alfred
 
-Barış's Autonomous Task, Logic & Executive Resource
+Barış's Unified Task, Logic, Execution & Reasoning
 
 An AI-powered personal cognitive operations and executive assistant.
 
@@ -8,7 +8,7 @@ An AI-powered personal cognitive operations and executive assistant.
 
 ## Project Purpose
 
-B.A.T.L.E.R. Alfred is designed to serve as a personal executive assistant and autonomous operations manager. Rooted in a calm, formal, and discreet British butler persona, Alfred orchestrates complex workflows, monitors ongoing projects, manages schedules and communications, and assists with cognitive load management across personal and technical domains.
+B.U.T.L.E.R. Alfred is designed to serve as a personal executive assistant and autonomous operations manager. Rooted in a calm, formal, and discreet British butler persona, Alfred orchestrates complex workflows, monitors ongoing projects, manages schedules and communications, and assists with cognitive load management across personal and technical domains.
 
 ---
 
@@ -34,9 +34,9 @@ The system is organized into modular layers ensuring vendor independence, strict
 - **Repository Architecture & Directory Scaffolding**: Standardized directory hierarchy with empty directory `.gitkeep` preservation across cognitive, control, execution, voice, ai, data, and web layers.
 - **TypeScript Configuration**: Base `tsconfig.json` with module resolution and path mappings (`@alfred/*`, `@ai/*`, `@core/*`, etc.).
 - **Security & Environment Templates**: Standardized `.gitignore` preventing credential leaks, alongside `.env.example` with structured environment placeholders.
-- **Firebase & Cloud Infrastructure Setup**: Google Cloud / Firebase project linkage (`batler-alfred`), Firestore initial configuration (`firebase.json`, `firestore.rules`, `firestore.indexes.json`).
+- **Firebase & Cloud Infrastructure Setup**: Google Cloud / Firebase project linkage (`butler-alfred`), Firestore initial configuration (`firebase.json`, `firestore.rules`, `firestore.indexes.json`).
 - **Architecture Documentation**: Comprehensive architectural guidelines in `docs/ARCHITECTURE.md`.
-- **Private GitHub Repository**: Initialized Git repository linked to the private `B.A.T.L.E.R.-Alfred` GitHub remote.
+- **Private GitHub Repository**: Initialized Git repository linked to the private `B.U.T.L.E.R.-Alfred` GitHub remote.
 
 ### Planned
 - **Cognitive Graph & Memory System**: Working memory buffers, episodic vector storage, and dependency tracking graphs.

@@ -1,0 +1,22 @@
+{
+  "name": "batler-alfred",
+  "version": "0.1.0",
+  "private": true,
+  "description": "B.A.T.L.E.R. Alfred — Barış's Autonomous Task, Logic & Executive Resource",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint .",
+    "test": "jest"
+  },
+  "keywords": [
+    "ai-agent",
+    "executive-assistant",
+    "batler-alfred"
+  ],
+  "author": "Barış Babacan",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}

@@ -1,0 +1,65 @@
+# Node dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# Build output
+dist/
+build/
+out/
+.next/
+*.tsbuildinfo
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
+.env.production
+!.env.example
+
+# Firebase credentials and cache
+.firebase/
+*-debug.log
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+*.pem
+*.key
+service-account*.json
+firebase-adminsdk*.json
+credentials*.json
+client_secret*.json
+
+# Local databases and runtime data
+*.sqlite
+*.sqlite3
+*.db
+local_data/
+data/local/
+*.vectordb/
+
+# Logs
+logs/
+*.log
+
+# IDE metadata
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS metadata
+.DS_Store
+Thumbs.db

@@ -534,9 +534,9 @@
       <div class="modal-input-group">
         <label for="modelSelect">Model Seçimi:</label>
         <select id="modelSelect">
-          <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile (Önerilen)</option>
-          <option value="llama-3.1-70b-versatile">llama-3.1-70b-versatile</option>
-          <option value="llama-3.1-8b-instant">llama-3.1-8b-instant (En Hızlı)</option>
+          <option value="llama-3.1-8b-instant">llama-3.1-8b-instant (En Hızlı &amp; Aktif)</option>
+          <option value="llama3-70b-8192">llama3-70b-8192</option>
+          <option value="llama3-8b-8192">llama3-8b-8192</option>
           <option value="mixtral-8x7b-32768">mixtral-8x7b-32768</option>
           <option value="gemma2-9b-it">gemma2-9b-it</option>
         </select>
@@ -788,7 +788,11 @@ SPEECH & ACOUSTIC FORMATTING:
     }
 
     function getStoredModel() {
-      return localStorage.getItem("groq_model") || "llama-3.3-70b-versatile";
+      const m = localStorage.getItem("groq_model");
+      if (!m || m === "llama-3.1-70b-versatile" || m === "llama-3.3-70b-versatile") {
+        return "llama-3.1-8b-instant";
+      }
+      return m;
     }
 
     function openKeyModal() {
@@ -836,9 +840,11 @@ SPEECH & ACOUSTIC FORMATTING:
 
       const candidateModels = [
         getStoredModel(),
-        "llama-3.1-70b-versatile",
         "llama-3.1-8b-instant",
-        "mixtral-8x7b-32768"
+        "llama3-70b-8192",
+        "llama3-8b-8192",
+        "mixtral-8x7b-32768",
+        "gemma2-9b-it"
       ];
 
       // Deduplicate candidate models
@@ -865,9 +871,14 @@ SPEECH & ACOUSTIC FORMATTING:
           if (!response.ok) {
             const errData = await response.json().catch(() => ({}));
             const msg = errData?.error?.message || response.statusText;
-            // If model does not exist (404), try next compatible model in chain
-            if (response.status === 404 || msg.includes("does not exist")) {
-              console.warn("Groq model " + model + " not found, attempting fallback...");
+            const isModelUnavailable = response.status === 404 ||
+              msg.includes("does not exist") ||
+              msg.includes("decommissioned") ||
+              msg.includes("deprecated") ||
+              msg.includes("no longer supported");
+
+            if (isModelUnavailable) {
+              console.warn("Groq model " + model + " unavailable (" + msg + "), trying next model in chain...");
               lastError = new Error(msg);
               continue;
             }
@@ -883,7 +894,8 @@ SPEECH & ACOUSTIC FORMATTING:
           }
           return reply;
         } catch (err) {
-          if (err.message && (err.message.includes("404") || err.message.includes("does not exist"))) {
+          const errMsg = err.message || "";
+          if (errMsg.includes("404") || errMsg.includes("does not exist") || errMsg.includes("decommissioned") || errMsg.includes("no longer supported")) {
             lastError = err;
             continue;
           }

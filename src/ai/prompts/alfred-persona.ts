@@ -31,9 +31,20 @@ SPEECH & ACOUSTIC FORMATTING:
 - Structure sentences with clean punctuation (commas, full stops, em-dashes) for natural breathing pauses.
 - Keep responses concise, articulate, and direct. Avoid markdown formatting like code fences, asterisks, or tables in spoken dialogue unless explicitly requested for technical code review.`;
 
+import { ContextBuilder } from "../../alfred/cognitive/context/context-builder.js";
+import { CanonicalUserContext } from "../../alfred/cognitive/context/user-profile.types.js";
+
 /**
- * Returns the canonical Alfred system prompt.
+ * Returns the contextual Alfred system prompt combining the persona
+ * with the canonical user profile loaded from Git (`users/`).
  */
-export function getAlfredSystemPrompt(): string {
-  return ALFRED_CANONICAL_SYSTEM_PROMPT;
+export function getAlfredSystemPrompt(options?: {
+  includeUserProfile?: boolean;
+  userContext?: CanonicalUserContext;
+}): string {
+  return ContextBuilder.buildSystemPrompt({
+    personaPrompt: ALFRED_CANONICAL_SYSTEM_PROMPT,
+    ...options
+  });
 }
+

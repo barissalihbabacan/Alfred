@@ -23,6 +23,27 @@ The Cognitive Layer (`src/alfred/cognitive/`) represents Alfred's understanding 
 - **Dependencies**: Prerequisites, blockers, and inter-task relationships.
 - **Attention**: Prioritization focus, interrupt handling, and relevance filtering.
 
+### Canonical User Profile Layer (`users/`)
+The `users/` directory represents Alfred's equivalent of a long-term local "disk" storing consciously authored, version-controlled knowledge about its primary user (Barış).
+
+#### Tripartite Storage Model & Single Source of Truth (SSOT)
+Alfred rigorously separates storage responsibilities across three distinct tiers:
+
+1. **Git / Local Repository (`users/`) — Canonical Authored Truth**:
+   - Contains stable, consciously authored, version-controlled baseline knowledge about Barış (`USER_PROFILE.md`), communication preferences (`PREFERENCES.md`), and working style (`WORKING_STYLE.md`).
+   - **Runtime Status**: Strictly read-only (`fs.readFileSync`). Alfred never commits, rewrites, or mutates these files at runtime.
+   - **Authority**: Definitive baseline. Trumps vague conversational inferences.
+2. **Firestore (Planned) — Dynamic Operational State & Memory**:
+   - Stores session history, conversational context, project states, dynamically acquired observations, and evolving operational data.
+   - **Authority**: Authoritative for operational and episodic records; non-authoritative for foundational persona and baseline identity.
+3. **Vector Database (Planned) — Semantic Retrieval Index**:
+   - Stores searchable embeddings across documents and past conversations for semantic nearest-neighbor retrieval.
+   - **Authority**: Purely non-authoritative search cache. Can be purged and rebuilt at any time without data loss.
+
+#### Runtime Context Integration
+- **`UserProfileLoader` (`src/alfred/cognitive/context/user-profile-loader.ts`)**: Resolves and parses markdown profile files with safe fallbacks if files are missing or unreadable.
+- **`ContextBuilder` (`src/alfred/cognitive/context/context-builder.ts`)**: Injects the canonical profile into Alfred's system prompt using an explicit markdown boundary (`=== CANONICAL USER PROFILE (GIT AUTHORITATIVE) ===`), ensuring Alfred internalizes user context naturally without parroting instructions.
+
 ---
 
 ## Control Plane

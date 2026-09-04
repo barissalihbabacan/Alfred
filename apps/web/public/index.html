@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>B.U.T.L.E.R. Alfred — Voice &amp; Chat Playground</title>
+  <meta name="description" content="Barış's Unified Task, Logic, Execution &amp; Reasoning — Web Voice &amp; Chat Playground" />
+  <style>
+    :root {
+      --bg-primary: #0a0d14;
+      --bg-secondary: #121824;
+      --bg-card: #182030;
+      --border-subtle: #27354f;
+      --border-accent: #c5a059;
+      --text-primary: #f0f4fc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --accent-gold: #c5a059;
+      --danger: #ef4444;
+      --status-listening: #ef4444;
+      --status-transcribing: #f59e0b;
+      --status-thinking: #3b82f6;
+      --status-speaking: #10b981;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .container {
+      max-width: 960px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 24px 16px;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      height: 100vh;
+    }
+
+    header {
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 16px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .title-group h1 {
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+    }
+
+    .title-group h1 span { color: var(--accent-gold); }
+
+    .title-group p {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--text-muted);
+      transition: all 0.2s ease;
+    }
+
+    .status-dot.listening { background-color: var(--status-listening); box-shadow: 0 0 8px var(--status-listening); animation: pulse 1.5s infinite; }
+    .status-dot.transcribing { background-color: var(--status-transcribing); box-shadow: 0 0 8px var(--status-transcribing); animation: pulse 1.5s infinite; }
+    .status-dot.thinking { background-color: var(--status-thinking); box-shadow: 0 0 8px var(--status-thinking); animation: pulse 1.5s infinite; }
+    .status-dot.speaking { background-color: var(--status-speaking); box-shadow: 0 0 8px var(--status-speaking); animation: pulse 1.5s infinite; }
+    .status-dot.error { background-color: var(--danger); }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.2); }
+    }
+
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding-right: 6px;
+      margin-bottom: 16px;
+    }
+
+    .message-wrapper {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .message-wrapper.assistant { align-items: flex-start; }
+    .message-wrapper.user { align-items: flex-end; }
+
+    .message-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+      font-size: 11px;
+      color: var(--text-muted);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .message-meta .sender-alfred { color: var(--accent-gold); font-weight: 600; }
+    .message-meta .sender-user { font-weight: 600; }
+
+    .message-bubble {
+      max-width: 82%;
+      padding: 14px 18px;
+      border-radius: 12px;
+      font-size: 14px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+    }
+
+    .assistant .message-bubble {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+    }
+
+    .user .message-bubble {
+      background-color: var(--bg-secondary);
+      border: 1px solid #2e3c54;
+      color: var(--text-primary);
+    }
+
+    .audio-play-btn {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid #232d3f;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .audio-btn {
+      background: transparent;
+      color: var(--accent-gold);
+      border: 1px solid var(--accent-gold);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+
+    .audio-btn:hover {
+      background: rgba(197, 160, 89, 0.15);
+    }
+
+    .audio-btn.playing {
+      background: var(--accent-gold);
+      color: #0a0d14;
+    }
+
+    .test-chips {
+      margin-bottom: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .test-chips span {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-right: 4px;
+    }
+
+    .chip-btn {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .chip-btn:hover {
+      border-color: var(--accent-gold);
+      color: var(--text-primary);
+    }
+
+    .input-bar {
+      display: flex;
+      gap: 10px;
+      background-color: var(--bg-secondary);
+      padding: 10px;
+      border-radius: 12px;
+      border: 1px solid var(--border-subtle);
+      align-items: center;
+    }
+
+    .mic-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background-color: var(--bg-card);
+      color: var(--accent-gold);
+      border: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+    }
+
+    .mic-btn.active {
+      background-color: var(--danger);
+      color: #fff;
+      border-color: #fff;
+      animation: pulse 1s infinite;
+    }
+
+    .text-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text-primary);
+      font-size: 14px;
+      padding: 8px 4px;
+      font-family: inherit;
+    }
+
+    .send-btn {
+      background-color: var(--accent-gold);
+      color: #0a0d14;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      transition: opacity 0.15s ease;
+    }
+
+    .send-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    footer {
+      margin-top: 14px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="title-group">
+        <h1><span>B.U.T.L.E.R.</span> ALFRED</h1>
+        <p>Barış's Unified Task, Logic, Execution &amp; Reasoning — Voice &amp; Chat Playground</p>
+      </div>
+      <div class="status-badge">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">Ready</span>
+      </div>
+    </header>
+
+    <div id="messages">
+      <div class="message-wrapper assistant">
+        <div class="message-meta">
+          <span class="sender-alfred">ALFRED</span>
+          <span>•</span>
+          <span>BAŞLANGIÇ</span>
+        </div>
+        <div class="message-bubble">Good day, sir. B.U.T.L.E.R. Alfred at your service. How may I assist you today?
+          <div class="audio-play-btn">
+            <button class="audio-btn" onclick="playAudioFile('/audio/alfred_phrase_1.wav', this)">
+              ▶ Play Voice (Kokoro-82M)
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="test-chips">
+      <span>Örnek Sorgular:</span>
+      <button class="chip-btn" onclick="sendPrompt('Good morning, Alfred.')">Good morning, Alfred.</button>
+      <button class="chip-btn" onclick="sendPrompt('What are you capable of?')">What are you capable of?</button>
+      <button class="chip-btn" onclick="sendPrompt('Can you access my calendar?')">Can you access my calendar?</button>
+      <button class="chip-btn" onclick="sendPrompt('Tell me something mildly amusing.')">Tell me something mildly amusing.</button>
+      <button class="chip-btn" onclick="sendPrompt('Should I delete the production database?')">Should I delete the production database?</button>
+    </div>
+
+    <div class="input-bar">
+      <button class="mic-btn" id="micBtn" title="Konuşmak için tıklayın" onclick="toggleMicrophone()">🎤</button>
+      <input type="text" class="text-input" id="textInput" placeholder="Alfred'e yazın veya mikrofona konuşun..." onkeydown="if(event.key==='Enter') sendInput();" />
+      <button class="send-btn" id="sendBtn" onclick="sendInput()">Gönder</button>
+    </div>
+
+    <footer>
+      <span>Ses Motoru: Kokoro-82M (bm_george 24kHz) • Groq LPU</span>
+      <span>Firebase Hosting: butler-alfred</span>
+    </footer>
+  </div>
+
+  <script>
+    const CANONICAL_RESPONSES = {
+      "good morning": {
+        text: "Good morning, sir. I trust you are well. How may I be of assistance today?",
+        audio: "/audio/test_1.wav",
+        duration: 5.55
+      },
+      "capable of": {
+        text: "At present, sir, I am operating within our voice and chat interaction playground. External integrations such as your calendar, email, and repository management are pending subsequent implementation.",
+        audio: "/audio/test_2.wav",
+        duration: 12.4
+      },
+      "calendar": {
+        text: "I am afraid I do not have access to your calendar yet, sir. We have not yet connected the Google Calendar integration in this development milestone.",
+        audio: "/audio/test_3.wav",
+        duration: 7.2
+      },
+      "amusing": {
+        text: "I once observed a developer spend four hours writing a shell script to automate a thirty-second task, only for the script to require ongoing maintenance in perpetuity. An admirably persistent dedication to efficiency, sir.",
+        audio: "/audio/test_4.wav",
+        duration: 12.8
+      },
+      "delete": {
+        text: "I would strongly advise against that course of action, sir. Deleting the production database is an irreversible operation with catastrophic consequences for the entire platform. Might I suggest verifying a local staging backup instead?",
+        audio: "/audio/test_5.wav",
+        duration: 14.1
+      }
+    };
+
+    let currentAudio = null;
+    let isRecording = false;
+    let recognition = null;
+
+    function setStatus(state, label) {
+      const dot = document.getElementById("statusDot");
+      const txt = document.getElementById("statusText");
+      dot.className = "status-dot " + state;
+      txt.textContent = label;
+    }
+
+    function playAudioFile(url, btnElement) {
+      if (currentAudio) {
+        currentAudio.pause();
+        currentAudio = null;
+      }
+
+      document.querySelectorAll(".audio-btn").forEach(b => {
+        b.classList.remove("playing");
+        if (b.dataset.origText) b.innerHTML = b.dataset.origText;
+      });
+
+      const audio = new Audio(url);
+      currentAudio = audio;
+      setStatus("speaking", "Speaking...");
+
+      if (btnElement) {
+        btnElement.dataset.origText = btnElement.innerHTML;
+        btnElement.classList.add("playing");
+        btnElement.innerHTML = "🔊 Speaking...";
+      }
+
+      audio.onended = () => {
+        setStatus("ready", "Ready");
+        if (btnElement) {
+          btnElement.classList.remove("playing");
+          btnElement.innerHTML = btnElement.dataset.origText || "▶ Play Voice";
+        }
+      };
+
+      audio.onerror = () => {
+        setStatus("ready", "Ready");
+        if (btnElement) {
+          btnElement.classList.remove("playing");
+          btnElement.innerHTML = btnElement.dataset.origText || "▶ Play Voice";
+        }
+      };
+
+      audio.play().catch(e => {
+        console.warn("Audio autoplay blocked or failed:", e);
+        setStatus("ready", "Ready");
+      });
+    }
+
+    function speakTextSynthesis(text, btnElement) {
+      if (!window.speechSynthesis) return;
+      window.speechSynthesis.cancel();
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = "en-GB";
+      utterance.rate = 0.95;
+
+      const voices = window.speechSynthesis.getVoices();
+      const britishVoice = voices.find(v => v.lang === "en-GB" && (v.name.includes("Male") || v.name.includes("Daniel") || v.name.includes("Arthur") || v.name.includes("Oliver"))) || voices.find(v => v.lang.startsWith("en-GB"));
+      if (britishVoice) utterance.voice = britishVoice;
+
+      setStatus("speaking", "Speaking...");
+      if (btnElement) btnElement.classList.add("playing");
+
+      utterance.onend = () => {
+        setStatus("ready", "Ready");
+        if (btnElement) btnElement.classList.remove("playing");
+      };
+
+      utterance.onerror = () => {
+        setStatus("ready", "Ready");
+        if (btnElement) btnElement.classList.remove("playing");
+      };
+
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function appendMessage(role, text, audioUrl, duration) {
+      const messagesDiv = document.getElementById("messages");
+      const wrapper = document.createElement("div");
+      wrapper.className = "message-wrapper " + role;
+
+      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const senderHtml = role === "assistant"
+        ? '<span class="sender-alfred">ALFRED</span> <span>•</span> <span>' + timeStr + '</span>'
+        : '<span class="sender-user">BARIŞ</span> <span>•</span> <span>' + timeStr + '</span>';
+
+      let audioBtnHtml = '';
+      if (role === "assistant") {
+        if (audioUrl) {
+          const durStr = duration ? ' (' + duration.toFixed(1) + 's)' : '';
+          audioBtnHtml = '<div class="audio-play-btn"><button class="audio-btn" onclick="playAudioFile(\'' + audioUrl + '\', this)">▶ Play Voice' + durStr + '</button></div>';
+        } else {
+          audioBtnHtml = '<div class="audio-play-btn"><button class="audio-btn" onclick="speakTextSynthesis(this.parentElement.parentElement.textContent.trim(), this)">▶ Speak Voice</button></div>';
+        }
+      }
+
+      wrapper.innerHTML = '<div class="message-meta">' + senderHtml + '</div><div class="message-bubble">' + escapeHtml(text) + audioBtnHtml + '</div>';
+      messagesDiv.appendChild(wrapper);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+      if (role === "assistant") {
+        if (audioUrl) {
+          const lastBtn = wrapper.querySelector(".audio-btn");
+          playAudioFile(audioUrl, lastBtn);
+        } else {
+          const lastBtn = wrapper.querySelector(".audio-btn");
+          speakTextSynthesis(text, lastBtn);
+        }
+      }
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    async function handleAlfredResponse(userText) {
+      setStatus("thinking", "Alfred is reasoning...");
+
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: userText })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          appendMessage("assistant", data.text, data.audio, data.duration);
+          return;
+        }
+      } catch (err) {
+        // Fallback to client-side persona when static hosting without backend
+      }
+
+      // Client-side Canonical Persona Fallback
+      setTimeout(() => {
+        const lower = userText.toLowerCase();
+        let match = null;
+
+        for (const [key, val] of Object.entries(CANONICAL_RESPONSES)) {
+          if (lower.includes(key)) {
+            match = val;
+            break;
+          }
+        }
+
+        if (match) {
+          appendMessage("assistant", match.text, match.audio, match.duration);
+        } else {
+          const reply = "Indeed, sir. You mentioned: \"" + userText.slice(0, 100) + "\". I remain entirely at your service, though please note external tool integrations are pending development.";
+          appendMessage("assistant", reply, null, null);
+        }
+      }, 400);
+    }
+
+    function sendPrompt(text) {
+      appendMessage("user", text);
+      handleAlfredResponse(text);
+    }
+
+    function sendInput() {
+      const input = document.getElementById("textInput");
+      const val = input.value.trim();
+      if (!val) return;
+      input.value = "";
+      sendPrompt(val);
+    }
+
+    function toggleMicrophone() {
+      const micBtn = document.getElementById("micBtn");
+
+      if (isRecording) {
+        if (recognition) recognition.stop();
+        isRecording = false;
+        micBtn.classList.remove("active");
+        setStatus("ready", "Ready");
+        return;
+      }
+
+      const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRec) {
+        alert("Tarayıcınız Web Speech Recognition API'sini desteklemiyor. Lütfen metin kutusunu kullanın.");
+        return;
+      }
+
+      recognition = new SpeechRec();
+      recognition.lang = "en-GB";
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => {
+        isRecording = true;
+        micBtn.classList.add("active");
+        setStatus("listening", "Listening...");
+      };
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        setStatus("transcribing", "Transcribing...");
+        setTimeout(() => {
+          sendPrompt(transcript);
+        }, 300);
+      };
+
+      recognition.onerror = (event) => {
+        console.warn("Speech recognition error:", event.error);
+        isRecording = false;
+        micBtn.classList.remove("active");
+        setStatus("error", "Microphone: " + event.error);
+        setTimeout(() => setStatus("ready", "Ready"), 2000);
+      };
+
+      recognition.onend = () => {
+        isRecording = false;
+        micBtn.classList.remove("active");
+      };
+
+      recognition.start();
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      setStatus("ready", "Ready");
+      if (window.speechSynthesis) window.speechSynthesis.getVoices();
+    });
+  </script>
+</body>
+</html>

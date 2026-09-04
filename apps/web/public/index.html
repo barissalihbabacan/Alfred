@@ -703,21 +703,23 @@
       window.speechSynthesis.cancel();
 
       const utterance = new SpeechSynthesisUtterance(text);
-      const isTurkish = /[çğıöşüÇĞİÖŞÜ]/i.test(text) || /\b(efendim|merhaba|bugün|nasılsınız|yardımcı|hizmetinizdeyim|elbette)\b/i.test(text);
+      const voices = window.speechSynthesis.getVoices();
 
-      if (isTurkish) {
-        utterance.lang = "tr-TR";
-        utterance.rate = 1.0;
-        const voices = window.speechSynthesis.getVoices();
-        const trVoice = voices.find(v => v.lang === "tr-TR" || v.lang.startsWith("tr"));
-        if (trVoice) utterance.voice = trVoice;
-      } else {
-        utterance.lang = "en-GB";
-        utterance.rate = 0.95;
-        const voices = window.speechSynthesis.getVoices();
-        const britishVoice = voices.find(v => v.lang === "en-GB" && (v.name.includes("Male") || v.name.includes("Daniel") || v.name.includes("Arthur") || v.name.includes("Oliver"))) || voices.find(v => v.lang.startsWith("en-GB"));
-        if (britishVoice) utterance.voice = britishVoice;
-      }
+      // Tercih: Klasik İngiliz Uşak (British Butler) Profili
+      utterance.lang = "en-GB";
+      utterance.rate = 0.92;  // Ağırbaşlı, sakin uşak temposu
+      utterance.pitch = 0.88; // Derin, olgun beyefendi tınısı
+
+      // İngiliz erkek seslerini önceliklendir (George, Daniel, Arthur, Oliver, Male)
+      const britishVoice = voices.find(v => v.lang === "en-GB" && (
+        v.name.includes("George") ||
+        v.name.includes("Daniel") ||
+        v.name.includes("Arthur") ||
+        v.name.includes("Oliver") ||
+        v.name.includes("Male")
+      )) || voices.find(v => v.lang === "en-GB" || v.lang.startsWith("en_GB")) || voices.find(v => v.lang.startsWith("en"));
+
+      if (britishVoice) utterance.voice = britishVoice;
 
       setStatus("speaking", "Speaking...");
       if (btnElement) btnElement.classList.add("playing");

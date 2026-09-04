@@ -856,6 +856,11 @@
           bubble.innerHTML = renderMarkdown(text ? text + " [Response interrupted]" : "I apologize, sir. Communication was interrupted.");
           setStatus("ready", "Ready");
         },
+        showError(errMsg) {
+          bubble.className = "message-bubble error";
+          bubble.innerHTML = '<span style="color: var(--status-error, #f87171);">' + escapeHtml(errMsg || "Alfred is temporarily unavailable.") + '</span>';
+          setStatus("error", "Unavailable");
+        },
         remove() {
           wrapper.remove();
         }
@@ -954,8 +959,9 @@ SPEECH & ACOUSTIC FORMATTING:
       if (!lbl || !btn) return;
 
       try {
-        const res = await fetch("/api/health");
-        if (res.ok) {
+        const res = await fetch("/api/health", { signal: AbortSignal.timeout(3000) });
+        const contentType = res.headers.get("content-type") || "";
+        if (res.ok && contentType.includes("application/json")) {
           const data = await res.json();
           if (data.activeProvider === "ollama") {
             const isReady = data.providerStatus?.modelReady ?? true;
@@ -969,10 +975,22 @@ SPEECH & ACOUSTIC FORMATTING:
           }
         }
       } catch {
-        // Standalone or local mode
+        // Standalone or static hosting mode
       }
-      lbl.textContent = "Ollama: gemma4:12b-mlx";
-      btn.classList.add("configured");
+
+      if (location.protocol === "https:") {
+        const apiKey = getStoredApiKey();
+        if (apiKey && apiKey.startsWith("gsk_")) {
+          lbl.textContent = "Groq Cloud (Aktif)";
+          btn.classList.add("configured");
+        } else {
+          lbl.textContent = "AI Sağlayıcı Seçiniz";
+          btn.classList.remove("configured");
+        }
+      } else {
+        lbl.textContent = "Ollama: gemma4:12b-mlx";
+        btn.classList.add("configured");
+      }
     }
 
     function openProviderModal() {
@@ -1082,10 +1100,16 @@ SPEECH & ACOUSTIC FORMATTING:
             "Content-Type": "application/json",
             "Accept": "text/event-stream"
           },
-          body: JSON.stringify({ message: userText, stream: true })
+          body: JSON.stringify({ message: userText, stream: true }),
+          signal: AbortSignal.timeout(90000)
         });
 
-        if (res.ok && res.body) {
+        const contentType = res.headers.get("content-type") || "";
+        if (!res.ok || !contentType.includes("text/event-stream")) {
+          throw new Error("Sunucu /api/chat akışı desteklemiyor (" + (res.statusText || res.status) + ")");
+        }
+
+        if (res.body) {
           const reader = res.body.getReader();
           const decoder = new TextDecoder();
           let buffer = "";
@@ -1104,7 +1128,10 @@ SPEECH & ACOUSTIC FORMATTING:
               const dataStr = trimmed.replace(/^data:\s*/, "");
               try {
                 const event = JSON.parse(dataStr);
-                if (event.type === "thinking") {
+                if (event.type === "start") {
+                  setStatus("thinking", "Thinking...");
+                  streamMsg.setThinking();
+                } else if (event.type === "thinking") {
                   setStatus("thinking", "Thinking...");
                   streamMsg.setThinking();
                 } else if (event.type === "chunk") {
@@ -1112,8 +1139,10 @@ SPEECH & ACOUSTIC FORMATTING:
                   accumulatedText += (event.text || "");
                   streamMsg.updateText(accumulatedText);
                 } else if (event.type === "done") {
-                  streamMsg.finish();
-                  return;
+                  if (accumulatedText) {
+                    streamMsg.finish();
+                    return;
+                  }
                 } else if (event.type === "error") {
                   throw new Error(event.error || "Streaming error");
                 }
@@ -1124,8 +1153,11 @@ SPEECH & ACOUSTIC FORMATTING:
               }
             }
           }
-          streamMsg.finish();
-          return;
+          if (accumulatedText) {
+            streamMsg.finish();
+            return;
+          }
+          throw new Error("Sunucudan boş akış alındı");
         }
       } catch (err) {
         console.warn("Server /api/chat streaming failed, checking alternatives:", err);
@@ -1134,6 +1166,10 @@ SPEECH & ACOUSTIC FORMATTING:
       // 2. Doğrudan Tailscale Ollama Bağlantısı (Sunucu proxy'si kapalıysa doğrudan Ollama'ya bağlan)
       try {
         const ollamaBase = getStoredOllamaUrl();
+        if (location.protocol === "https:" && ollamaBase.startsWith("http://")) {
+          throw new Error("Mixed Content: HTTPS (" + location.origin + ") üzerinden HTTP yerel ağa (" + ollamaBase + ") doğrudan erişilemez.");
+        }
+
         const ollamaRes = await fetch(ollamaBase.replace(/\/+$/, "") + "/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1144,7 +1180,8 @@ SPEECH & ACOUSTIC FORMATTING:
               { role: "user", content: userText }
             ],
             stream: true
-          })
+          }),
+          signal: AbortSignal.timeout(90000)
         });
 
         if (ollamaRes.ok && ollamaRes.body) {
@@ -1175,14 +1212,18 @@ SPEECH & ACOUSTIC FORMATTING:
                   streamMsg.updateText(accumulatedText);
                 }
                 if (chunk.done) {
-                  streamMsg.finish();
-                  return;
+                  if (accumulatedText) {
+                    streamMsg.finish();
+                    return;
+                  }
                 }
               } catch {}
             }
           }
-          streamMsg.finish();
-          return;
+          if (accumulatedText) {
+            streamMsg.finish();
+            return;
+          }
         }
       } catch (ollamaErr) {
         console.warn("Direct Tailscale Ollama connection failed:", ollamaErr);
@@ -1205,27 +1246,9 @@ SPEECH & ACOUSTIC FORMATTING:
         streamMsg.interrupt(accumulatedText);
         return;
       }
-      streamMsg.remove();
 
-      // 4. İstemci Tarafı Kanonik Persona Fallback
-      setTimeout(() => {
-        const lower = userText.toLowerCase();
-        let match = null;
-
-        for (const [key, val] of Object.entries(CANONICAL_RESPONSES)) {
-          if (lower.includes(key)) {
-            match = val;
-            break;
-          }
-        }
-
-        if (match) {
-          appendMessage("assistant", match.text, match.audio, match.duration, match.fallbackAudio);
-        } else {
-          const reply = "Indeed, sir. You mentioned: \"" + userText.slice(0, 100) + "\". To enable live reasoning with my full gemma4:12b-mlx cognitive engine, please ensure the Ollama server is running at http://100.64.0.53:11434.";
-          appendMessage("assistant", reply, null, null);
-        }
-      }, 350);
+      // 4. Hata Durumu (Altyapı/bağlantı hatası durumunda gerçek hata UI durumu göster)
+      streamMsg.showError("Alfred is temporarily unavailable. (Connection to reasoning engine could not be completed)");
     }
 
     function sendPrompt(text) {

@@ -52,4 +52,34 @@ describe("ProviderRegistry and Factory Unit Tests", () => {
     expect(provider.id).toBe("groq");
     expect(provider.name).toBe("Groq Cloud");
   });
+
+  it("should retrieve Ollama provider via getAIProvider factory", () => {
+    const provider = getAIProvider("ollama");
+    expect(provider).toBeDefined();
+    expect(provider.id).toBe("ollama");
+    expect(provider.name).toBe("Ollama Local");
+  });
+
+  it("9. ALFRED_LLM_PROVIDER=ollama selects OllamaProvider", () => {
+    const orig = process.env.ALFRED_LLM_PROVIDER;
+    try {
+      process.env.ALFRED_LLM_PROVIDER = "ollama";
+      const provider = getAIProvider();
+      expect(provider.id).toBe("ollama");
+    } finally {
+      process.env.ALFRED_LLM_PROVIDER = orig;
+    }
+  });
+
+  it("10. ALFRED_LLM_PROVIDER=groq still selects GroqProvider", () => {
+    const orig = process.env.ALFRED_LLM_PROVIDER;
+    try {
+      process.env.ALFRED_LLM_PROVIDER = "groq";
+      const provider = getAIProvider();
+      expect(provider.id).toBe("groq");
+    } finally {
+      process.env.ALFRED_LLM_PROVIDER = orig;
+    }
+  });
 });
+

@@ -1,10 +1,12 @@
 import Groq from "groq-sdk";
 import {
   AIProvider,
+  AIChatStreamProvider,
   AISpeechToTextProvider,
   ChatMessage,
   ChatCompletionOptions,
   ChatCompletionResponse,
+  ChatStreamChunk,
   AudioTranscriptionOptions,
   AudioTranscriptionResponse
 } from "../types.js";
@@ -23,7 +25,7 @@ export interface GroqProviderOptions {
  * Encapsulates ultra-fast inference using Groq LPU hardware and models
  * (e.g., llama-3.3-70b-versatile, whisper-large-v3-turbo).
  */
-export class GroqProvider implements AIProvider, AISpeechToTextProvider {
+export class GroqProvider implements AIProvider, AIChatStreamProvider, AISpeechToTextProvider {
   public readonly id = "groq" as const;
   public readonly name = "Groq Cloud";
 
@@ -117,6 +119,68 @@ export class GroqProvider implements AIProvider, AISpeechToTextProvider {
           : undefined,
         raw: completion
       };
+    } catch (error) {
+      return handleGroqError(error, model);
+    }
+  }
+
+  /**
+   * Executes a streaming conversational chat completion using Groq Cloud.
+   * Yields incremental tokens as they arrive from Groq LPU.
+   */
+  public async *streamChat(
+    messages: ChatMessage[],
+    options?: ChatCompletionOptions
+  ): AsyncIterable<ChatStreamChunk> {
+    const client = this.getClient();
+    const model = options?.model || this.config.defaultModel;
+
+    try {
+      const groqMessages = messages.map((m) => ({
+        role: m.role as "system" | "user" | "assistant",
+        content: m.content,
+        name: m.name
+      }));
+
+      const stream = await client.chat.completions.create({
+        model,
+        messages: groqMessages,
+        temperature: options?.temperature ?? this.config.temperature,
+        max_tokens: options?.maxTokens ?? this.config.maxTokens,
+        top_p: options?.topP,
+        stop: options?.stop,
+        stream: true
+      });
+
+      for await (const chunk of stream) {
+        if (options?.signal?.aborted) {
+          break;
+        }
+
+        const choice = chunk.choices[0];
+        const content = choice?.delta?.content || undefined;
+        const finishReason = choice?.finish_reason || undefined;
+        const isDone = Boolean(finishReason);
+
+        const chunkUsage = (chunk as any).usage || (chunk as any).x_groq?.usage;
+
+        yield {
+          content,
+          done: isDone,
+          finishReason,
+          model: chunk.model || model,
+          usage: chunkUsage
+            ? {
+                promptTokens: chunkUsage.prompt_tokens,
+                completionTokens: chunkUsage.completion_tokens,
+                totalTokens: chunkUsage.total_tokens,
+                promptTime: chunkUsage.prompt_time,
+                completionTime: chunkUsage.completion_time,
+                totalTime: chunkUsage.total_time
+              }
+            : undefined
+        };
+      }
     } catch (error) {
       return handleGroqError(error, model);
     }

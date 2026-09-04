@@ -365,6 +365,36 @@
       white-space: pre;
     }
 
+    .message-bubble.thinking {
+      color: var(--text-muted);
+      font-style: italic;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .thinking-dots {
+      display: inline-flex;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .thinking-dots .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: var(--accent-gold);
+      animation: dotBounce 1.4s infinite ease-in-out both;
+    }
+
+    .thinking-dots .dot:nth-child(2) { animation-delay: 0.2s; }
+    .thinking-dots .dot:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes dotBounce {
+      0%, 80%, 100% { transform: scale(0.6); opacity: 0.35; }
+      40% { transform: scale(1.1); opacity: 1; }
+    }
+
     .audio-play-btn {
       margin-top: 10px;
       padding-top: 8px;
@@ -525,9 +555,9 @@
         <p>Barış's Unified Task, Logic, Execution &amp; Reasoning — Voice &amp; Chat Playground</p>
       </div>
       <div class="header-actions">
-        <button class="key-btn" id="apiKeyBtn" onclick="openKeyModal()" title="Groq API Anahtarını Ayarlayın">
-          <span>⚡</span>
-          <span id="apiKeyBtnLabel">Groq API Key</span>
+        <button class="key-btn configured" id="providerBtn" onclick="openProviderModal()" title="AI Motoru ve Model Yapılandırması">
+          <span>🦙</span>
+          <span id="providerBtnLabel">Ollama: gemma4:12b-mlx</span>
         </button>
         <div class="status-badge">
           <span class="status-dot" id="statusDot"></span>
@@ -567,42 +597,40 @@
     </div>
 
     <footer>
-      <span>Hızlı Metin Çıkarımı • Groq LPU (Markdown Destekli)</span>
-      <span>Firebase Hosting: butler-alfred</span>
+      <span>Motor: Ollama (gemma4:12b-mlx) • Gerçek Zamanlı Akış (Markdown Destekli)</span>
+      <span>Ağ: Tailscale (100.64.0.53:11434)</span>
     </footer>
   </div>
 
-  <!-- API Key Modal -->
-  <div class="modal-overlay" id="keyModal" onclick="if(event.target===this) closeKeyModal()">
+  <!-- Provider Configuration Modal -->
+  <div class="modal-overlay" id="providerModal" onclick="if(event.target===this) closeProviderModal()">
     <div class="modal-card">
       <div class="modal-header">
-        <h3>⚡ Groq API Key Yapılandırması</h3>
-        <button class="close-btn" onclick="closeKeyModal()">✕</button>
+        <h3>🧠 AI Sağlayıcı &amp; Model Yapılandırması</h3>
+        <button class="close-btn" onclick="closeProviderModal()">✕</button>
       </div>
       <p class="modal-desc">
-        Groq API anahtarınızı girerek Alfred'in <strong>llama-3.3-70b-versatile</strong> modeliyle canlı olarak konuşmasını sağlayabilirsiniz.
-        Anahtarınız sadece tarayıcınızın yerel hafızasında (<code>localStorage</code>) saklanır, hiçbir sunucuya kaydedilmez.
+        Alfred'in bilişsel motoru varsayılan olarak Tailscale özel ağındaki <strong>Ollama (gemma4:12b-mlx)</strong> yerel LLM sunucusunu kullanır.
+        İstekler sunucu üzerinden gerçek zamanlı Server-Sent Events (SSE) ile aktarılır.
       </p>
       <div class="modal-input-group">
-        <label for="apiKeyInput">Groq API Key (gsk_...):</label>
-        <input type="password" id="apiKeyInput" placeholder="gsk_xxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+        <label>Aktif Motor (Varsayılan):</label>
+        <div style="padding: 8px 12px; background: rgba(197, 160, 89, 0.1); border: 1px solid var(--accent-gold); border-radius: 6px; font-size: 13px; color: var(--accent-gold); display: flex; align-items: center; justify-content: space-between;">
+          <span>🦙 <strong>Ollama (Yerel LLM)</strong> — gemma4:12b-mlx</span>
+          <span style="font-size: 11px; color: #10b981; font-weight: 600;">● Aktif</span>
+        </div>
       </div>
       <div class="modal-input-group">
-        <label for="modelSelect">Model Seçimi (Hesabınızdaki Modeller):</label>
-        <select id="modelSelect">
-          <option value="openai/gpt-oss-120b">openai/gpt-oss-120b (En Yetenekli - 120B)</option>
-          <option value="openai/gpt-oss-20b">openai/gpt-oss-20b (Dengeli - 20B)</option>
-          <option value="qwen/qwen3.8-27b">qwen/qwen3.8-27b</option>
-          <option value="qwen/qwen3.6-27b">qwen/qwen3.6-27b</option>
-          <option value="groq/compound">groq/compound</option>
-          <option value="groq/compound-mini">groq/compound-mini</option>
-          <option value="canopylabs/orpheus-v1-english">canopylabs/orpheus-v1-english</option>
-          <option value="llama-3.1-8b-instant">llama-3.1-8b-instant</option>
-        </select>
+        <label for="ollamaUrlInput">Ollama Sunucu Adresi (Tailscale):</label>
+        <input type="text" id="ollamaUrlInput" value="http://100.64.0.53:11434" />
+      </div>
+      <div class="modal-input-group">
+        <label for="apiKeyInput">Yedek Bulut Sağlayıcı (Groq API Key - Opsiyonel):</label>
+        <input type="password" id="apiKeyInput" placeholder="gsk_xxxxxxxxxxxxxxxxxxxxxxxx (Opsiyonel)" autocomplete="off" />
       </div>
       <div class="modal-actions">
-        <button class="btn-secondary" onclick="clearApiKey()">Temizle</button>
-        <button class="btn-primary" onclick="saveApiKey()">Kaydet ve Etkinleştir</button>
+        <button class="btn-secondary" onclick="closeProviderModal()">Kapat</button>
+        <button class="btn-primary" onclick="saveProviderSettings()">Kaydet ve Uygula</button>
       </div>
     </div>
   </div>
@@ -792,6 +820,48 @@
       }
     }
 
+    function appendStreamingAssistantMessage() {
+      const messagesDiv = document.getElementById("messages");
+      const wrapper = document.createElement("div");
+      wrapper.className = "message-wrapper assistant";
+
+      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const senderHtml = '<span class="sender-alfred">ALFRED</span> <span>•</span> <span>' + timeStr + '</span>';
+
+      wrapper.innerHTML = '<div class="message-meta">' + senderHtml + '</div><div class="message-bubble thinking"><span class="thinking-dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span> Thinking...</div>';
+      messagesDiv.appendChild(wrapper);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+      const bubble = wrapper.querySelector(".message-bubble");
+
+      return {
+        wrapper,
+        bubble,
+        setThinking() {
+          bubble.className = "message-bubble thinking";
+          bubble.innerHTML = '<span class="thinking-dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span> Thinking...';
+          messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        },
+        updateText(text) {
+          bubble.className = "message-bubble";
+          bubble.innerHTML = renderMarkdown(text);
+          messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        },
+        finish() {
+          if (window.speechSynthesis) window.speechSynthesis.cancel();
+          setStatus("ready", "Ready");
+        },
+        interrupt(text) {
+          bubble.className = "message-bubble";
+          bubble.innerHTML = renderMarkdown(text ? text + " [Response interrupted]" : "I apologize, sir. Communication was interrupted.");
+          setStatus("ready", "Ready");
+        },
+        remove() {
+          wrapper.remove();
+        }
+      };
+    }
+
     function escapeHtml(str) {
       return String(str)
         .replace(/&/g, "&amp;")
@@ -856,7 +926,7 @@ INTELLECTUAL PARTNERSHIP & PUSHBACK:
 - Base your claims on First Principles, evidence, and clear trade-offs. If information is uncertain, state the boundary clearly rather than hallucinating.
 
 CURRENT CAPABILITY BOUNDARIES (PLAYGROUND STAGE):
-- Operational now: Conversational reasoning via Groq Cloud LPU (llama-3.3-70b-versatile), local voice synthesis via Kokoro-82M (bm_george British voice), and Whisper speech recognition.
+- Operational now: Real-time conversational reasoning via Ollama (gemma4:12b-mlx) over Tailscale private network, and Whisper speech recognition.
 - NOT yet integrated: Google Calendar, Gmail, GitHub execution tools, terminal execution, persistent memory/database, and external web search are NOT yet connected in this current milestone.
 - When asked about your capabilities or access to calendar/emails/tools, honestly state that this is the voice and interaction playground milestone and external integrations are pending development.
 
@@ -869,69 +939,67 @@ SPEECH & ACOUSTIC FORMATTING:
       { role: "system", content: ALFRED_SYSTEM_PROMPT }
     ];
 
-    // Local Storage & Modal Management
+    // Provider Configuration & Health Management
+    function getStoredOllamaUrl() {
+      return localStorage.getItem("ollama_base_url") || "http://100.64.0.53:11434";
+    }
+
     function getStoredApiKey() {
       return localStorage.getItem("groq_api_key") || "";
     }
 
-    function updateApiKeyButtonState() {
-      const key = getStoredApiKey();
-      const btn = document.getElementById("apiKeyBtn");
-      const lbl = document.getElementById("apiKeyBtnLabel");
-      if (key && key.startsWith("gsk_")) {
-        btn.classList.add("configured");
-        lbl.textContent = "Groq: Aktif (" + key.slice(0, 6) + "...)";
-      } else {
-        btn.classList.remove("configured");
-        lbl.textContent = "⚡ Groq API Key";
+    async function checkBackendHealth() {
+      const lbl = document.getElementById("providerBtnLabel");
+      const btn = document.getElementById("providerBtn");
+      if (!lbl || !btn) return;
+
+      try {
+        const res = await fetch("/api/health");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.activeProvider === "ollama") {
+            const isReady = data.providerStatus?.modelReady ?? true;
+            lbl.textContent = "Ollama: gemma4:12b-mlx" + (isReady ? " (Aktif)" : " (Bağlanıyor...)");
+            btn.classList.add("configured");
+            return;
+          } else if (data.activeProvider === "groq") {
+            lbl.textContent = "Groq: LPU (Aktif)";
+            btn.classList.add("configured");
+            return;
+          }
+        }
+      } catch {
+        // Standalone or local mode
       }
+      lbl.textContent = "Ollama: gemma4:12b-mlx";
+      btn.classList.add("configured");
     }
 
-    function getStoredModel() {
-      const m = localStorage.getItem("groq_model");
-      if (!m || m.includes("versatile")) {
-        return "openai/gpt-oss-120b";
-      }
-      return m;
-    }
-
-    function openKeyModal() {
-      const modal = document.getElementById("keyModal");
-      const input = document.getElementById("apiKeyInput");
-      const sel = document.getElementById("modelSelect");
-      input.value = getStoredApiKey();
-      if (sel) sel.value = getStoredModel();
+    function openProviderModal() {
+      const modal = document.getElementById("providerModal");
+      const ollamaInput = document.getElementById("ollamaUrlInput");
+      const keyInput = document.getElementById("apiKeyInput");
+      if (ollamaInput) ollamaInput.value = getStoredOllamaUrl();
+      if (keyInput) keyInput.value = getStoredApiKey();
       modal.classList.add("open");
-      setTimeout(() => input.focus(), 50);
     }
 
-    function closeKeyModal() {
-      document.getElementById("keyModal").classList.remove("open");
+    function closeProviderModal() {
+      document.getElementById("providerModal").classList.remove("open");
     }
 
-    function saveApiKey() {
-      const input = document.getElementById("apiKeyInput");
-      const sel = document.getElementById("modelSelect");
-      const val = input.value.trim();
-      if (!val) {
-        alert("Lütfen geçerli bir Groq API anahtarı girin.");
-        return;
+    function saveProviderSettings() {
+      const ollamaInput = document.getElementById("ollamaUrlInput");
+      const keyInput = document.getElementById("apiKeyInput");
+      if (ollamaInput && ollamaInput.value.trim()) {
+        localStorage.setItem("ollama_base_url", ollamaInput.value.trim());
       }
-      localStorage.setItem("groq_api_key", val);
-      if (sel) localStorage.setItem("groq_model", sel.value);
-      updateApiKeyButtonState();
-      closeKeyModal();
-      setStatus("ready", "Groq API Anahtarı Kaydedildi");
-      setTimeout(() => setStatus("ready", "Ready"), 2000);
-    }
-
-    function clearApiKey() {
-      localStorage.removeItem("groq_api_key");
-      localStorage.removeItem("groq_model");
-      document.getElementById("apiKeyInput").value = "";
-      updateApiKeyButtonState();
-      closeKeyModal();
-      setStatus("ready", "Groq Anahtarı Temizlendi");
+      if (keyInput) {
+        localStorage.setItem("groq_api_key", keyInput.value.trim());
+      }
+      closeProviderModal();
+      setStatus("ready", "Ayarlar Kaydedildi");
+      checkBackendHealth();
       setTimeout(() => setStatus("ready", "Ready"), 2000);
     }
 
@@ -939,20 +1007,16 @@ SPEECH & ACOUSTIC FORMATTING:
       chatHistory.push({ role: "user", content: userText });
 
       const candidateModels = [
-        getStoredModel(),
         "openai/gpt-oss-120b",
         "openai/gpt-oss-20b",
         "qwen/qwen3.8-27b",
         "qwen/qwen3.6-27b",
         "groq/compound",
         "groq/compound-mini",
-        "canopylabs/orpheus-v1-english",
         "llama-3.1-8b-instant"
       ];
 
-      // Deduplicate candidate models
       const modelsToTry = [...new Set(candidateModels.filter(Boolean))];
-
       let lastError = null;
 
       for (const model of modelsToTry) {
@@ -981,7 +1045,6 @@ SPEECH & ACOUSTIC FORMATTING:
               msg.includes("no longer supported");
 
             if (isModelUnavailable) {
-              console.warn("Groq model " + model + " unavailable (" + msg + "), trying next model in chain...");
               lastError = new Error(msg);
               continue;
             }
@@ -991,10 +1054,6 @@ SPEECH & ACOUSTIC FORMATTING:
           const data = await response.json();
           const reply = data.choices[0]?.message?.content || "";
           chatHistory.push({ role: "assistant", content: reply });
-          // If fallback succeeded, update stored model preference
-          if (model !== getStoredModel()) {
-            localStorage.setItem("groq_model", model);
-          }
           return reply;
         } catch (err) {
           const errMsg = err.message || "";
@@ -1006,47 +1065,149 @@ SPEECH & ACOUSTIC FORMATTING:
         }
       }
 
-      throw lastError || new Error("Seçilen Groq modellerine erişilemedi. Lütfen API anahtarınızı kontrol edin.");
+      throw lastError || new Error("Seçilen Groq modellerine erişilemedi.");
     }
 
     async function handleAlfredResponse(userText) {
-      setStatus("thinking", "Alfred is reasoning...");
+      setStatus("thinking", "Thinking...");
 
-      const apiKey = getStoredApiKey();
+      // 1. Alfred Sunucu Proxy'si (Varsayılan: Ollama gemma4:12b-mlx Real-time SSE Streaming)
+      const streamMsg = appendStreamingAssistantMessage();
+      let accumulatedText = "";
 
-      // 1. Canlı Groq API Anahtarı Varsa Doğrudan LPU'ya İstek At
-      if (apiKey && apiKey.startsWith("gsk_")) {
-        try {
-          const reply = await callGroqDirect(userText, apiKey);
-          appendMessage("assistant", reply, null, null);
-          return;
-        } catch (err) {
-          console.error("Direct Groq API Call failed:", err);
-          setStatus("error", "Groq Hatası: " + err.message);
-          const errorBubble = "I apologize, sir. I encountered an error communicating with the Groq neural engine: " + err.message + ". Please verify your API key.";
-          appendMessage("assistant", errorBubble, null, null);
-          return;
-        }
-      }
-
-      // 2. Sunucu Proxy'si (Varsa)
       try {
         const res = await fetch("/api/chat", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: userText })
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "text/event-stream"
+          },
+          body: JSON.stringify({ message: userText, stream: true })
         });
 
-        if (res.ok) {
-          const data = await res.json();
-          appendMessage("assistant", data.text, data.audio, data.duration, data.fallbackAudio);
+        if (res.ok && res.body) {
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const blocks = buffer.split("\n\n");
+            buffer = blocks.pop() || "";
+
+            for (const block of blocks) {
+              const trimmed = block.trim();
+              if (!trimmed.startsWith("data:")) continue;
+              const dataStr = trimmed.replace(/^data:\s*/, "");
+              try {
+                const event = JSON.parse(dataStr);
+                if (event.type === "thinking") {
+                  setStatus("thinking", "Thinking...");
+                  streamMsg.setThinking();
+                } else if (event.type === "chunk") {
+                  setStatus("streaming", "Alfred is responding...");
+                  accumulatedText += (event.text || "");
+                  streamMsg.updateText(accumulatedText);
+                } else if (event.type === "done") {
+                  streamMsg.finish();
+                  return;
+                } else if (event.type === "error") {
+                  throw new Error(event.error || "Streaming error");
+                }
+              } catch (parseErr) {
+                if (parseErr.message && parseErr.message !== "Unexpected end of JSON input") {
+                  throw parseErr;
+                }
+              }
+            }
+          }
+          streamMsg.finish();
           return;
         }
       } catch (err) {
-        // Fallback to client-side canonical responses
+        console.warn("Server /api/chat streaming failed, checking alternatives:", err);
       }
 
-      // 3. İstemci Tarafı Kanonik Persona Fallback (API anahtarı girilmediğinde)
+      // 2. Doğrudan Tailscale Ollama Bağlantısı (Sunucu proxy'si kapalıysa doğrudan Ollama'ya bağlan)
+      try {
+        const ollamaBase = getStoredOllamaUrl();
+        const ollamaRes = await fetch(ollamaBase.replace(/\/+$/, "") + "/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "gemma4:12b-mlx",
+            messages: [
+              { role: "system", content: ALFRED_SYSTEM_PROMPT },
+              { role: "user", content: userText }
+            ],
+            stream: true
+          })
+        });
+
+        if (ollamaRes.ok && ollamaRes.body) {
+          const reader = ollamaRes.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed) continue;
+              try {
+                const chunk = JSON.parse(trimmed);
+                if (chunk.message?.thinking && !accumulatedText) {
+                  setStatus("thinking", "Thinking...");
+                  streamMsg.setThinking();
+                }
+                if (chunk.message?.content) {
+                  setStatus("streaming", "Alfred is responding...");
+                  accumulatedText += chunk.message.content;
+                  streamMsg.updateText(accumulatedText);
+                }
+                if (chunk.done) {
+                  streamMsg.finish();
+                  return;
+                }
+              } catch {}
+            }
+          }
+          streamMsg.finish();
+          return;
+        }
+      } catch (ollamaErr) {
+        console.warn("Direct Tailscale Ollama connection failed:", ollamaErr);
+      }
+
+      // 3. Yedek Bulut Groq (Kullanıcı anahtar girmişse ve Ollama erişilemiyorsa)
+      const apiKey = getStoredApiKey();
+      if (apiKey && apiKey.startsWith("gsk_")) {
+        try {
+          const reply = await callGroqDirect(userText, apiKey);
+          streamMsg.updateText(reply);
+          streamMsg.finish();
+          return;
+        } catch (groqErr) {
+          console.error("Backup Groq call failed:", groqErr);
+        }
+      }
+
+      if (accumulatedText) {
+        streamMsg.interrupt(accumulatedText);
+        return;
+      }
+      streamMsg.remove();
+
+      // 4. İstemci Tarafı Kanonik Persona Fallback
       setTimeout(() => {
         const lower = userText.toLowerCase();
         let match = null;
@@ -1061,7 +1222,7 @@ SPEECH & ACOUSTIC FORMATTING:
         if (match) {
           appendMessage("assistant", match.text, match.audio, match.duration, match.fallbackAudio);
         } else {
-          const reply = "Indeed, sir. You mentioned: \"" + userText.slice(0, 100) + "\". To enable live reasoning with my full llama-3.3-70b-versatile cognitive engine, kindly configure your Groq API Key via the button in the upper right corner.";
+          const reply = "Indeed, sir. You mentioned: \"" + userText.slice(0, 100) + "\". To enable live reasoning with my full gemma4:12b-mlx cognitive engine, please ensure the Ollama server is running at http://100.64.0.53:11434.";
           appendMessage("assistant", reply, null, null);
         }
       }, 350);
@@ -1140,7 +1301,7 @@ SPEECH & ACOUSTIC FORMATTING:
 
     window.addEventListener("DOMContentLoaded", () => {
       setStatus("ready", "Ready");
-      updateApiKeyButtonState();
+      checkBackendHealth();
       const langSel = document.getElementById("sttLangSelect");
       if (langSel) {
         const savedLang = localStorage.getItem("stt_lang");

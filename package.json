@@ -12,6 +12,7 @@
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
     "test:groq": "tsx scripts/test-groq.ts",
+    "test:ollama": "tsx scripts/test-ollama.ts",
     "test:tts": "tsx scripts/test-tts.ts",
     "eval:voices": "tsx scripts/evaluate-voices.ts",
     "dev:web": "next dev apps/web -p 3000",

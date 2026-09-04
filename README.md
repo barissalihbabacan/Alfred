@@ -47,36 +47,45 @@ Projenin ilk çalışan dikey dilimi olan **Web Voice & Chat Playground** (`apps
                                Metin Transkripti
                                       │
                                       ▼
-                                POST /api/chat
-                                      │
-                      ┌───────────────┴───────────────┐
-                      ▼                               ▼
-          Alfred Persona Yönergesi            Groq LPU Çıkarımı
-       (docs/persona/ALFRED_PERSONA)       (llama-3.3-70b-versatile)
-                      │                               │
-                      └───────────────┬───────────────┘
-                                      │
-                                Alfred Yanıtı
-                                      │
-                                      ▼
-                      ┌───────────────────────────────┐
-                      │     Hızlı & Zengin Arayüz     │
-                      │  - Anlık Markdown render      │
-                      │  - Kalın (**bold**), kod blok │
-                      │  - Sıfır ses sentez gecikmesi │
-                      └───────────────────────────────┘
+                                 POST /api/chat (SSE Stream)
+                                       │
+                      ┌────────────────┴────────────────┐
+                      ▼                                 ▼
+           Ollama Yerel Çıkarım                 Groq Cloud LPU
+        (gemma4:12b-mlx via Tailscale)    (llama-3.3-70b-versatile)
+                      │                                 │
+                      ├─► Düşünce Tokenları (thinking)  │
+                      │     └─► Arayüz: "Thinking..."   │
+                      │                                 │
+                      └─► İçerik Tokenları (content) ───┘
+                                       │
+                                       ▼ (SSE: text/event-stream)
+                      ┌─────────────────────────────────┐
+                      │     Gerçek Zamanlı Akış (UI)    │
+                      │  - "Thinking..." puls gösterge  │
+                      │  - Kademeli metin akışı (TTFT)  │
+                      │  - Güvenli Markdown ayrıştırma  │
+                      │  - Kesinti korumalı tampon      │
+                      └─────────────────────────────────┘
 ```
 
+### ⚡ Gerçek Zamanlı Akış & "Thinking..." Durum Makinesi
+Oyun Alanı (`apps/web/`), istek/yanıt modeli yerine Server-Sent Events (SSE) tabanlı gerçek zamanlı bir akış mimarisine sahiptir:
+- **Düşünce İzolasyonu (Gemma 4)**: Gemma 4 modelleri yanıt oluşturmadan önce kendi içinde muhakeme/düşünce tokenları (`message.thinking`) üretir. Arka uç bu tokenları yakalar ve kullanıcıya asla iç düşünceleri göstermeden yalnızca `{ type: "thinking" }` sinyali iletir.
+- **Arayüz Geçişi**: Sohbet balonunda beliren zarif üç noktalı "Thinking..." göstergesi, ilk gerçek yanıt tokenı (TTFT) ulaştığı anda gecikmesiz olarak kademeli metin akışına evrilir.
+- **Kademeli Markdown & Kesinti Koruması**: `**kalın**`, kod blokları ve listeler akış sırasında parçalanmadan güvenle derlenir. Bağlantı kesilirse o ana kadar üretilen yanıt kaybolmaz (`[Response interrupted]`).
+
 ### ⚡ Oyun Alanında Ses Sentezi (Kokoro-82M) Tasarım Kararı
-> **Tasarım Kararı**: Alfred'in detaylı, teknik ve uzun yanıtlarında metinden-sese (TTS) dönüştürme hem çıkarım gecikmesini artırmakta hem de uzun konuşmaları dinlemeyi sıkıcı ve verimsiz hale getirmekteydi. Bu nedenle Web Oyun Alanında (`apps/web/`) otomatik Kokoro seslendirmesi doğrudan kaldırılmıştır. Arayüz; anlık, akıcı ve güvenli Markdown (`**kalın**`, `*italik*`, kod blokları) destekli hızlı metin okuma deneyimine odaklanmıştır. Kokoro-82M ses motoru mimari çekirdekte (`src/voice/providers/kokoro/`) çevrimdışı CLI araçları ve toplu sentezleme testleri için korunmaktadır.
+> **Tasarım Kararı**: Alfred'in detaylı, teknik ve uzun yanıtlarında metinden-sese (TTS) dönüştürme hem çıkarım gecikmesini artırmakta hem de uzun konuşmaları dinlemeyi sıkıcı ve verimsiz hale getirmekteydi. Bu nedenle Web Oyun Alanında (`apps/web/`) otomatik Kokoro seslendirmesi doğrudan kaldırılmıştır. Arayüz; anlık, akıcı ve güvenli Markdown (`**kalın**`, `*italik*`, kod blokları) destekli hızlı metin okuma ve gerçek zamanlı token akışı deneyimine odaklanmıştır. Kokoro-82M ses motoru mimari çekirdekte (`src/voice/providers/kokoro/`) çevrimdışı CLI araçları ve toplu sentezleme testleri için korunmaktadır.
 
 ### Arayüz Durum Göstergesi
 
 Oyun alanında durum anlık olarak üst bilgi rozetinden izlenebilir:
 - `● Ready`: Sistem hazır, kullanıcı girdisi bekliyor.
 - `● Listening...`: Mikrofon aktif, ses dalgası kaydediliyor.
-- `● Transcribing...`: Whisper STT ses kaydını metne dönüştürüyor.
-- `● Alfred is reasoning...`: Groq LPU ve Alfred persona modeli düşünüyor.
+- `● Transcribing audio...`: Whisper STT ses kaydını metne dönüştürüyor.
+- `● Thinking...`: Model mantıksal muhakeme (reasoning) evresinde; iç düşünceler kullanıcıya yansıtılmaksızın arka planda işleniyor.
+- `● Alfred is responding...`: İlk içerik tokenı ile birlikte anlık metin akışı gerçekleşiyor.
 - `● Error`: Güvenli ve maskelenmiş kullanıcı bilgilendirme uyarısı.
 
 ---
@@ -122,16 +131,46 @@ Alfred'in konuşma yeteneği harici bir bulut servisine veya API anahtarına iht
 > [!NOTE]
 > **Web Oyun Alanı Notu**: Web arayüzünde (`apps/web/`) uzun cevaplarda oluşan dinleme yorgunluğunu önlemek ve anlık metin akışı sağlamak amacıyla otomatik seslendirme kaldırılmıştır. Kokoro-82M motoru mimaride korunmakta olup yukarıdaki CLI komutlarıyla yerel olarak çalıştırılabilir ve test edilebilir.
 
----
+## Yapay Zeka Sağlayıcı Altyapısı (Groq LPU & Ollama Local)
 
-## Yapay Zeka Sağlayıcı Altyapısı (Groq LPU)
+Alfred'in bilişsel çekirdeği sağlayıcı bağımsız bir sözleşmeyle (`AIProvider`) çalışır ve iki güçlü çıkarım motorunu destekler:
 
-Alfred'in bilişsel çekirdeği sağlayıcı bağımsız bir sözleşmeyle (`AIProvider`) çalışır:
+```
+                          Alfred Runtime
+                                │
+                           AIProvider
+                                ├── OllamaProvider (Yerel / Tailscale Özel Ağı)
+                                └── GroqProvider   (Bulut / LPU Ultra Hızlı)
+```
 
-- **Varsayılan Sağlayıcı**: **Groq Cloud** (`src/ai/providers/groq/`) — LPU donanımı sayesinde ultra düşük gecikme:
-  - Sohbet / Akıl Yürütme: `llama-3.3-70b-versatile` (`GROQ_MODEL`)
-  - Konuşma Tanıma (STT): `whisper-large-v3-turbo` (`GROQ_STT_MODEL`)
-- **Çevrimdışı / Anahtarsız Yedek (Fallback)**: `GROQ_API_KEY` ortamda bulunmadığında, sistem çökmek yerine deterministik persona yanıt motoruna geçerek yerel arayüzün ve ses sentezinin test edilmesine olanak tanır.
+### 1. Yerel Ollama Motoru (`src/ai/providers/ollama/`)
+Geliştirme ve yerel testlerde varsayılan LLM sağlayıcısıdır:
+- **Varsayılan Model**: **`gemma4:12b-mlx`** (`OLLAMA_MODEL`)
+- **Uç Nokta**: `http://100.64.0.53:11434` (`OLLAMA_BASE_URL`, Tailscale özel ağı üzerinden)
+- **Sağlık & Teşhis**: `/api/health` uç noktası ve `checkHealth()` metodu sunucu erişilebilirliğini ve model varlığını tarayıcıya iç ağ detaylarını sızdırmadan raporlar.
+- **Canlı Doğrulama ve Persona Testi**:
+  ```bash
+  # Ollama sunucu erişimi, model durumu ve 7 persona promptunu test et
+  npm run test:ollama
+  ```
+
+### 2. Groq Cloud LPU Motoru (`src/ai/providers/groq/`)
+Bulut ortamında ultra düşük gecikmeli çıkarım ve konuşma tanıma (STT) sağlar:
+- **Sohbet / Akıl Yürütme**: `llama-3.3-70b-versatile` (`GROQ_MODEL`)
+- **Konuşma Tanıma (STT)**: `whisper-large-v3-turbo` (`GROQ_STT_MODEL`)
+
+### 3. Sağlayıcı Seçimi ve Geçiş (Provider Switching)
+Ortam değişkeni ile çalışma zamanında kolayca geçiş yapılır:
+```ini
+# Ollama'yı aktif yap (Varsayılan):
+ALFRED_LLM_PROVIDER=ollama
+
+# Groq'u aktif yap:
+ALFRED_LLM_PROVIDER=groq
+```
+
+> [!TIP]
+> **Gemma 4 Düşünme Modeli ve Token Kısıtı**: `gemma4:12b-mlx`, yerleşik derin akıl yürütme (thinking) yeteneğine sahiptir. Ollama çıktısında tamamlama tokenları (`num_predict`) hem düşünme zincirini hem de yanıtı kapsar. Yanıtların kesilmemesi için `maxTokens` en az 1000–1500 olarak yapılandırılmış, varsayılan zaman aşımı süresi `OLLAMA_TIMEOUT_MS=120000` (120 saniye) olarak belirlenmiştir.
 
 ---
 

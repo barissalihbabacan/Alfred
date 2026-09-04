@@ -1,4 +1,4 @@
-export type ProviderId = "groq" | "openai" | "google" | "anthropic" | "local" | string;
+export type ProviderId = "groq" | "ollama" | "openai" | "google" | "anthropic" | "local" | string;
 
 export type ChatRole = "system" | "user" | "assistant" | "tool";
 
@@ -63,6 +63,28 @@ export interface AIChatProvider {
 }
 
 /**
+ * An incremental chunk emitted during a streaming conversational completion.
+ */
+export interface ChatStreamChunk {
+  content?: string;
+  thinking?: string;
+  done?: boolean;
+  finishReason?: string;
+  model?: string;
+  usage?: ChatCompletionUsage;
+}
+
+/**
+ * Interface for AI providers supporting streaming conversational text completions.
+ */
+export interface AIChatStreamProvider {
+  streamChat(
+    messages: ChatMessage[],
+    options?: ChatCompletionOptions
+  ): AsyncIterable<ChatStreamChunk>;
+}
+
+/**
  * Interface for AI providers supporting speech-to-text audio transcription (e.g. Whisper).
  */
 export interface AISpeechToTextProvider {
@@ -71,9 +93,9 @@ export interface AISpeechToTextProvider {
 
 /**
  * Unified AI Provider interface.
- * Implements chat capabilities and optionally speech-to-text capabilities.
+ * Implements chat capabilities and optionally streaming and speech-to-text capabilities.
  */
-export interface AIProvider extends AIChatProvider, Partial<AISpeechToTextProvider> {
+export interface AIProvider extends AIChatProvider, Partial<AIChatStreamProvider>, Partial<AISpeechToTextProvider> {
   readonly id: ProviderId;
   readonly name: string;
 

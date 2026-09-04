@@ -38,32 +38,35 @@ Its primary objective is enabling real-time human interaction with Alfred throug
                                 Transcribed Text
                                        │
                                        ▼
-                               POST /api/chat
-                                       │
-                       ┌───────────────┴───────────────┐
-                       ▼                               ▼
-            Alfred Persona Prompt             Groq LPU Inference
-          (docs/persona/ALFRED_PERSONA)     (llama-3.3-70b-versatile)
-                       │                               │
-                       └───────────────┬───────────────┘
-                                       │
-                                Alfred Response
-                                       │
-                                       ▼
-                               Local Kokoro TTS
-                           (Kokoro-82M ONNX Runtime)
-                        Voice: bm_george (en-GB 24kHz)
-                                       │
-                                       ▼
-                       Base64 24kHz Mono WAV Audio URL
-                                       │
-                                       ▼
-                     ┌───────────────────────────────────┐
-                     │    Browser UI & Audio Playback    │
-                     │  - Text message rendered in chat  │
-                     │  - Spoken audio played via Web    │
-                     │  - Re-listen via [▶ Play Voice]   │
-                     └───────────────────────────────────┘
+                                POST /api/chat
+                                        │
+                        ┌───────────────┴───────────────┐
+                        ▼                               ▼
+             Alfred Persona Prompt            Primary: Ollama Gemma 4
+           (docs/persona/ALFRED_PERSONA)      (gemma4:12b-mlx via Tailscale)
+                        │                     Fallback: Groq Cloud LPU
+                        │                     (llama-3.3-70b-versatile)
+                        └───────────────┬───────────────┘
+                                        │
+                                 Alfred Response
+                                 (Real-Time SSE)
+                                        │
+                                        ▼
+                                Local Kokoro TTS
+                            (Kokoro-82M ONNX Runtime)
+                         Voice: bm_george (en-GB 24kHz)
+                                        │
+                                        ▼
+                        Base64 24kHz Mono WAV Audio URL
+                                        │
+                                        ▼
+                      ┌───────────────────────────────────┐
+                      │    Browser UI & Audio Playback    │
+                      │  - Incremental streaming text     │
+                      │  - "Thinking..." state indicator  │
+                      │  - Spoken audio played via Web    │
+                      │  - Re-listen via [▶ Play Voice]   │
+                      └───────────────────────────────────┘
 ```
 
 ---
@@ -135,20 +138,28 @@ Create `.env` or `.env.local` in the project root:
 NODE_ENV=development
 PORT=3000
 
-# Groq Cloud (LLM Reasoning & Whisper STT)
+# LLM Provider Configuration (ollama | groq)
+LLM_PROVIDER=ollama
+
+# Local Ollama Backend (Default)
+OLLAMA_BASE_URL=http://100.64.0.53:11434
+OLLAMA_MODEL=gemma4:12b-mlx
+OLLAMA_TIMEOUT_MS=60000
+
+# Groq Cloud (Secondary LLM Reasoning & Whisper STT)
 GROQ_API_KEY=gsk_your_groq_api_key_here
 GROQ_MODEL=llama-3.3-70b-versatile
 GROQ_STT_MODEL=whisper-large-v3-turbo
 
-# Local Text-to-Speech (Kokoro-82M)
+# Text-to-Speech (Kokoro-82M / Web Speech fallback)
 TTS_PROVIDER=kokoro
 TTS_VOICE=bm_george
 TTS_LANGUAGE=en-GB
 TTS_SPEED=0.95
 ```
 
-> **Note on Local Testing without Groq API Key**:  
-> If `GROQ_API_KEY` is not present in the local environment, the server automatically uses a deterministic persona generator that reflects Alfred's British butler tone, capability boundaries, and pushback rules, paired with full Kokoro neural voice synthesis.
+> **Note on LLM Provider Fallbacks**:  
+> The web playground defaults to Ollama (`gemma4:12b-mlx` over Tailscale). If Ollama is unreachable, it can automatically leverage Groq Cloud (if configured) or a local deterministic persona fallback.
 
 ---
 

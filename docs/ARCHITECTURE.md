@@ -75,12 +75,42 @@ Alfred Cognitive Core
          │
     ┌────┴────────────────────────┬──────────────────────┬─────────────┐
     ▼                             ▼                      ▼             ▼
-  Groq (Initial)          OpenAI (Planned)       Google (Planned)   Anthropic / Local
-(LPU Inference & STT)
+  Ollama (Local Default)     Groq (Cloud / STT)     OpenAI (Planned)   Anthropic / Google
+(gemma4:12b-mlx via Tailscale) (LPU Inference & Whisper)
 ```
 
-- **Initial Provider**: **Groq Cloud** (`src/ai/providers/groq/`) is configured as the initial provider, leveraging fast inference (`llama-3.3-70b-versatile` by default) and Whisper-based Speech-to-Text (`whisper-large-v3-turbo`).
-- **Vendor Independence**: Neither Alfred's persona nor the control plane imports Groq directly. Any provider can be substituted or complemented via the `AI_PROVIDER` configuration variable or registry registration.
+- **Supported Providers**:
+  - **Ollama Provider** (`src/ai/providers/ollama/`): Default local LLM provider running `gemma4:12b-mlx` over private Tailscale network (`http://100.64.0.53:11434`), supporting native chat completions, real-time NDJSON streaming, parameter mapping, and health diagnostics.
+  - **Groq Cloud** (`src/ai/providers/groq/`): Cloud provider leveraging fast LPU inference (`llama-3.3-70b-versatile`), streaming completions, and Whisper-based Speech-to-Text (`whisper-large-v3-turbo`).
+- **Vendor Independence & Unified Factory**: Neither Alfred's persona nor API routes import providers directly. All components depend on `AIProvider` through `getAIProvider()` (`src/ai/providers/factory.ts`), switchable via `ALFRED_LLM_PROVIDER=ollama` or `ALFRED_LLM_PROVIDER=groq`.
+
+### Real-Time Streaming & "Thinking..." Architecture
+B.U.T.L.E.R. Alfred incorporates a real-time text streaming pipeline supporting progressive token rendering and transparent reasoning states:
+
+```
+Browser (Playground UI)
+       │
+       │ POST /api/chat { message, history, stream: true }
+       ▼
+Server-Sent Events (SSE) Route (`apps/web/app/api/chat/route.ts`)
+       │
+       │ AsyncIterable<ChatStreamChunk>
+       ▼
+AIProvider.streamChat() (Ollama / Groq)
+       │
+       ├─► Gemma 4 internal reasoning tokens (message.thinking)
+       │     └─► SSE Event: { "type": "thinking" } (NO internal thoughts exposed)
+       │           └─► UI State: "Thinking..." (subtle pulsing indicator)
+       │
+       └─► First content token arrives (TTFT ~25s after thinking phase)
+             └─► SSE Event: { "type": "chunk", "text": "..." }
+                   └─► UI State: "Streaming" (instant transition, progressive rendering)
+```
+
+- **Thinking Isolation**: Gemma 4 models emit internal reasoning chains (via `message.thinking` or `<thought>` structures). The pipeline guarantees zero leakage: internal thoughts are strictly trapped, filtered out, and used solely to drive the subtle "Thinking..." UI state.
+- **Client State Machine**: `Idle` ➔ `Sending` ➔ `Thinking` (pulsing indicator in chat bubble) ➔ `Streaming` (progressive markdown rendering) ➔ `Idle` (completion).
+- **Interruption Preservation**: In case of network interruption or stream abortion, previously received text is retained (`[Response interrupted]`) rather than wiped out with a generic error dialog.
+- **Safe Markdown Rendering**: Incomplete markdown tokens (e.g. unclosed `**` or code fences) gracefully render as plain text until the closing boundary arrives, ensuring no broken syntax or layout thrashing.
 
 ---
 

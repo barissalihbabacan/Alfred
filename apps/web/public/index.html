@@ -747,13 +747,15 @@
         ? '<span class="sender-alfred">ALFRED</span> <span>•</span> <span>' + timeStr + '</span>'
         : '<span class="sender-user">BARIŞ</span> <span>•</span> <span>' + timeStr + '</span>';
 
+      const isTurkish = /[çğıöşüÇĞİÖŞÜ]/i.test(text) || /\b(efendim|merhaba|bugün|nasılsınız|yardımcı|hizmetinizdeyim|elbette|selam|aleyküm)\b/i.test(text);
+
       let audioBtnHtml = '';
       if (role === "assistant") {
         if (audioUrl) {
           const durStr = duration ? ' (' + duration.toFixed(1) + 's)' : '';
           const fbArg = fallbackUrl ? ",'" + fallbackUrl + "'" : ",''";
           audioBtnHtml = '<div class="audio-play-btn"><button class="audio-btn" onclick="playAudioFile(\'' + audioUrl + '\', this' + fbArg + ')">▶ Play Voice' + durStr + '</button></div>';
-        } else {
+        } else if (!isTurkish) {
           audioBtnHtml = '<div class="audio-play-btn"><button class="audio-btn" onclick="speakTextSynthesis(this.parentElement.parentElement.textContent.trim(), this)">▶ Speak Voice</button></div>';
         }
       }
@@ -766,9 +768,11 @@
         if (audioUrl) {
           const lastBtn = wrapper.querySelector(".audio-btn");
           playAudioFile(audioUrl, lastBtn, fallbackUrl);
-        } else {
+        } else if (!isTurkish) {
           const lastBtn = wrapper.querySelector(".audio-btn");
           speakTextSynthesis(text, lastBtn);
+        } else {
+          setStatus("ready", "Ready");
         }
       }
     }

@@ -11,12 +11,15 @@
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
-    "test:groq": "tsx scripts/test-groq.ts"
+    "test:groq": "tsx scripts/test-groq.ts",
+    "test:tts": "tsx scripts/test-tts.ts",
+    "eval:voices": "tsx scripts/evaluate-voices.ts"
   },
   "keywords": [
     "ai-agent",
     "executive-assistant",
-    "butler-alfred"
+    "butler-alfred",
+    "kokoro-tts"
   ],
   "author": "Barış Babacan",
   "license": "UNLICENSED",
@@ -28,6 +31,7 @@
   },
   "dependencies": {
     "dotenv": "^17.4.2",
-    "groq-sdk": "^1.6.0"
+    "groq-sdk": "^1.6.0",
+    "kokoro-js": "^1.2.1"
   }
 }

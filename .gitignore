@@ -63,3 +63,23 @@ logs/
 # OS metadata
 .DS_Store
 Thumbs.db
+
+# Local TTS, ML models and cache
+models/
+.cache/
+.transformers/
+huggingface/
+*.onnx
+*.onnx_data
+*.bin
+*.safetensors
+*.pt
+
+# Generated audio artifacts and test outputs
+audio_output/
+artifacts/audio/
+test_output/
+*.wav
+*.mp3
+*.ogg
+*.pcm

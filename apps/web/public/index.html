@@ -399,6 +399,25 @@
       align-items: center;
     }
 
+    .lang-select {
+      background-color: var(--bg-card);
+      color: var(--accent-gold);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-size: 12px;
+      font-weight: 500;
+      outline: none;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: border-color 0.2s ease;
+    }
+
+    .lang-select:hover,
+    .lang-select:focus {
+      border-color: var(--accent-gold);
+    }
+
     .mic-btn {
       width: 42px;
       height: 42px;
@@ -505,6 +524,10 @@
     </div>
 
     <div class="input-bar">
+      <select class="lang-select" id="sttLangSelect" title="Konuşma Tanıma Dili (STT)">
+        <option value="tr-TR" selected>🇹🇷 TR</option>
+        <option value="en-GB">🇬🇧 EN</option>
+      </select>
       <button class="mic-btn" id="micBtn" title="Konuşmak için tıklayın" onclick="toggleMicrophone()">🎤</button>
       <input type="text" class="text-input" id="textInput" placeholder="Alfred'e yazın veya mikrofona konuşun..." onkeydown="if(event.key==='Enter') sendInput();" />
       <button class="send-btn" id="sendBtn" onclick="sendInput()">Gönder</button>
@@ -983,6 +1006,11 @@ SPEECH & ACOUSTIC FORMATTING:
       sendPrompt(val);
     }
 
+    function getSelectedSttLanguage() {
+      const sel = document.getElementById("sttLangSelect");
+      return sel ? sel.value : (localStorage.getItem("stt_lang") || "tr-TR");
+    }
+
     function toggleMicrophone() {
       const micBtn = document.getElementById("micBtn");
 
@@ -1001,14 +1029,15 @@ SPEECH & ACOUSTIC FORMATTING:
       }
 
       recognition = new SpeechRec();
-      recognition.lang = "en-GB";
+      const lang = getSelectedSttLanguage();
+      recognition.lang = lang;
       recognition.interimResults = false;
       recognition.maxAlternatives = 1;
 
       recognition.onstart = () => {
         isRecording = true;
         micBtn.classList.add("active");
-        setStatus("listening", "Listening...");
+        setStatus("listening", "Dinleniyor (" + (lang === "tr-TR" ? "Türkçe" : "English") + ")...");
       };
 
       recognition.onresult = (event) => {
@@ -1038,6 +1067,14 @@ SPEECH & ACOUSTIC FORMATTING:
     window.addEventListener("DOMContentLoaded", () => {
       setStatus("ready", "Ready");
       updateApiKeyButtonState();
+      const langSel = document.getElementById("sttLangSelect");
+      if (langSel) {
+        const savedLang = localStorage.getItem("stt_lang");
+        if (savedLang) langSel.value = savedLang;
+        langSel.addEventListener("change", () => {
+          localStorage.setItem("stt_lang", langSel.value);
+        });
+      }
       if (window.speechSynthesis) window.speechSynthesis.getVoices();
     });
   </script>

@@ -308,7 +308,7 @@
         </div>
         <div class="message-bubble">Good day, sir. B.U.T.L.E.R. Alfred at your service. How may I assist you today?
           <div class="audio-play-btn">
-            <button class="audio-btn" onclick="playAudioFile('/audio/alfred_phrase_1.wav', this)">
+            <button class="audio-btn" onclick="playAudioFile('/audio/alfred_phrase_1.mp3', this, '/audio/alfred_phrase_1.wav')">
               ▶ Play Voice (Kokoro-82M)
             </button>
           </div>
@@ -341,27 +341,32 @@
     const CANONICAL_RESPONSES = {
       "good morning": {
         text: "Good morning, sir. I trust you are well. How may I be of assistance today?",
-        audio: "/audio/test_1.wav",
+        audio: "/audio/test_1.mp3",
+        fallbackAudio: "/audio/test_1.wav",
         duration: 5.55
       },
       "capable of": {
         text: "At present, sir, I am operating within our voice and chat interaction playground. External integrations such as your calendar, email, and repository management are pending subsequent implementation.",
-        audio: "/audio/test_2.wav",
+        audio: "/audio/test_2.mp3",
+        fallbackAudio: "/audio/test_2.wav",
         duration: 12.4
       },
       "calendar": {
         text: "I am afraid I do not have access to your calendar yet, sir. We have not yet connected the Google Calendar integration in this development milestone.",
-        audio: "/audio/test_3.wav",
+        audio: "/audio/test_3.mp3",
+        fallbackAudio: "/audio/test_3.wav",
         duration: 7.2
       },
       "amusing": {
         text: "I once observed a developer spend four hours writing a shell script to automate a thirty-second task, only for the script to require ongoing maintenance in perpetuity. An admirably persistent dedication to efficiency, sir.",
-        audio: "/audio/test_4.wav",
+        audio: "/audio/test_4.mp3",
+        fallbackAudio: "/audio/test_4.wav",
         duration: 12.8
       },
       "delete": {
         text: "I would strongly advise against that course of action, sir. Deleting the production database is an irreversible operation with catastrophic consequences for the entire platform. Might I suggest verifying a local staging backup instead?",
-        audio: "/audio/test_5.wav",
+        audio: "/audio/test_5.mp3",
+        fallbackAudio: "/audio/test_5.wav",
         duration: 14.1
       }
     };
@@ -369,6 +374,26 @@
     let currentAudio = null;
     let isRecording = false;
     let recognition = null;
+    let audioUnlocked = false;
+
+    function unlockAudioContext() {
+      if (audioUnlocked) return;
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+          const ctx = new AudioCtx();
+          if (ctx.state === "suspended") {
+            ctx.resume();
+          }
+        }
+        audioUnlocked = true;
+      } catch (e) {
+        // Silent ignore
+      }
+    }
+
+    document.addEventListener("pointerdown", unlockAudioContext, { once: true, passive: true });
+    document.addEventListener("keydown", unlockAudioContext, { once: true, passive: true });
 
     function setStatus(state, label) {
       const dot = document.getElementById("statusDot");
@@ -377,7 +402,9 @@
       txt.textContent = label;
     }
 
-    function playAudioFile(url, btnElement) {
+    function playAudioFile(url, btnElement, fallbackUrl) {
+      unlockAudioContext();
+
       if (currentAudio) {
         currentAudio.pause();
         currentAudio = null;
@@ -388,7 +415,10 @@
         if (b.dataset.origText) b.innerHTML = b.dataset.origText;
       });
 
-      const audio = new Audio(url);
+      const audio = new Audio();
+      // Ensure cross-origin or same-origin behaves gracefully
+      audio.preload = "auto";
+      audio.src = url;
       currentAudio = audio;
       setStatus("speaking", "Speaking...");
 
@@ -398,7 +428,7 @@
         btnElement.innerHTML = "🔊 Speaking...";
       }
 
-      audio.onended = () => {
+      const resetBtn = () => {
         setStatus("ready", "Ready");
         if (btnElement) {
           btnElement.classList.remove("playing");
@@ -406,18 +436,29 @@
         }
       };
 
-      audio.onerror = () => {
-        setStatus("ready", "Ready");
-        if (btnElement) {
-          btnElement.classList.remove("playing");
-          btnElement.innerHTML = btnElement.dataset.origText || "▶ Play Voice";
+      audio.onended = resetBtn;
+
+      audio.onerror = (e) => {
+        if (fallbackUrl && audio.src !== fallbackUrl) {
+          console.info("Trying audio fallback format:", fallbackUrl);
+          audio.src = fallbackUrl;
+          audio.play().catch(resetBtn);
+          return;
         }
+        resetBtn();
       };
 
-      audio.play().catch(e => {
-        console.warn("Audio autoplay blocked or failed:", e);
-        setStatus("ready", "Ready");
-      });
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(e => {
+          // In Safari / Chrome without explicit user gesture on this exact tick
+          resetBtn();
+          if (e.name === "NotSupportedError" && fallbackUrl) {
+            audio.src = fallbackUrl;
+            audio.play().catch(() => {});
+          }
+        });
+      }
     }
 
     function speakTextSynthesis(text, btnElement) {
@@ -448,7 +489,7 @@
       window.speechSynthesis.speak(utterance);
     }
 
-    function appendMessage(role, text, audioUrl, duration) {
+    function appendMessage(role, text, audioUrl, duration, fallbackUrl) {
       const messagesDiv = document.getElementById("messages");
       const wrapper = document.createElement("div");
       wrapper.className = "message-wrapper " + role;
@@ -462,7 +503,8 @@
       if (role === "assistant") {
         if (audioUrl) {
           const durStr = duration ? ' (' + duration.toFixed(1) + 's)' : '';
-          audioBtnHtml = '<div class="audio-play-btn"><button class="audio-btn" onclick="playAudioFile(\'' + audioUrl + '\', this)">▶ Play Voice' + durStr + '</button></div>';
+          const fbArg = fallbackUrl ? ",'" + fallbackUrl + "'" : ",''";
+          audioBtnHtml = '<div class="audio-play-btn"><button class="audio-btn" onclick="playAudioFile(\'' + audioUrl + '\', this' + fbArg + ')">▶ Play Voice' + durStr + '</button></div>';
         } else {
           audioBtnHtml = '<div class="audio-play-btn"><button class="audio-btn" onclick="speakTextSynthesis(this.parentElement.parentElement.textContent.trim(), this)">▶ Speak Voice</button></div>';
         }
@@ -475,7 +517,7 @@
       if (role === "assistant") {
         if (audioUrl) {
           const lastBtn = wrapper.querySelector(".audio-btn");
-          playAudioFile(audioUrl, lastBtn);
+          playAudioFile(audioUrl, lastBtn, fallbackUrl);
         } else {
           const lastBtn = wrapper.querySelector(".audio-btn");
           speakTextSynthesis(text, lastBtn);
@@ -519,7 +561,7 @@
         }
 
         if (match) {
-          appendMessage("assistant", match.text, match.audio, match.duration);
+          appendMessage("assistant", match.text, match.audio, match.duration, match.fallbackAudio);
         } else {
           const reply = "Indeed, sir. You mentioned: \"" + userText.slice(0, 100) + "\". I remain entirely at your service, though please note external tool integrations are pending development.";
           appendMessage("assistant", reply, null, null);

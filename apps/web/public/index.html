@@ -532,13 +532,16 @@
         <input type="password" id="apiKeyInput" placeholder="gsk_xxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
       </div>
       <div class="modal-input-group">
-        <label for="modelSelect">Model Seçimi:</label>
+        <label for="modelSelect">Model Seçimi (Hesabınızdaki Modeller):</label>
         <select id="modelSelect">
-          <option value="llama-3.1-8b-instant">llama-3.1-8b-instant (En Hızlı &amp; Aktif)</option>
-          <option value="llama3-70b-8192">llama3-70b-8192</option>
-          <option value="llama3-8b-8192">llama3-8b-8192</option>
-          <option value="mixtral-8x7b-32768">mixtral-8x7b-32768</option>
-          <option value="gemma2-9b-it">gemma2-9b-it</option>
+          <option value="openai/gpt-oss-120b">openai/gpt-oss-120b (En Yetenekli - 120B)</option>
+          <option value="openai/gpt-oss-20b">openai/gpt-oss-20b (Dengeli - 20B)</option>
+          <option value="qwen/qwen3.8-27b">qwen/qwen3.8-27b</option>
+          <option value="qwen/qwen3.6-27b">qwen/qwen3.6-27b</option>
+          <option value="groq/compound">groq/compound</option>
+          <option value="groq/compound-mini">groq/compound-mini</option>
+          <option value="canopylabs/orpheus-v1-english">canopylabs/orpheus-v1-english</option>
+          <option value="llama-3.1-8b-instant">llama-3.1-8b-instant</option>
         </select>
       </div>
       <div class="modal-actions">
@@ -789,8 +792,8 @@ SPEECH & ACOUSTIC FORMATTING:
 
     function getStoredModel() {
       const m = localStorage.getItem("groq_model");
-      if (!m || m === "llama-3.1-70b-versatile" || m === "llama-3.3-70b-versatile") {
-        return "llama-3.1-8b-instant";
+      if (!m || m.includes("versatile")) {
+        return "openai/gpt-oss-120b";
       }
       return m;
     }
@@ -840,11 +843,14 @@ SPEECH & ACOUSTIC FORMATTING:
 
       const candidateModels = [
         getStoredModel(),
-        "llama-3.1-8b-instant",
-        "llama3-70b-8192",
-        "llama3-8b-8192",
-        "mixtral-8x7b-32768",
-        "gemma2-9b-it"
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-20b",
+        "qwen/qwen3.8-27b",
+        "qwen/qwen3.6-27b",
+        "groq/compound",
+        "groq/compound-mini",
+        "canopylabs/orpheus-v1-english",
+        "llama-3.1-8b-instant"
       ];
 
       // Deduplicate candidate models

@@ -21,14 +21,6 @@ interface Message {
   isThinking?: boolean;
 }
 
-const TEST_PROMPTS = [
-  "Good morning, Alfred.",
-  "What are you capable of?",
-  "Can you access my calendar?",
-  "Tell me something mildly amusing.",
-  "Should I delete the production database?"
-];
-
 function escapeHtml(str: string): string {
   return String(str)
     .replace(/&/g, "&amp;")
@@ -81,7 +73,7 @@ export default function VoiceChatPlayground() {
     {
       id: "init-0",
       role: "assistant",
-      text: "Good day, sir. B.U.T.L.E.R. Alfred at your service. How may I assist you today?",
+      text: "Good day, sir. B.U.T.L.E.R. Alfred at your service.",
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     }
   ]);
@@ -632,43 +624,6 @@ export default function VoiceChatPlayground() {
           );
         })}
         <div ref={messagesEndRef} />
-      </div>
-
-      {/* Quick Test Prompt Chips */}
-      <div style={{
-        marginBottom: "12px",
-        display: "flex",
-        flexWrap: "wrap",
-        gap: "6px",
-        alignItems: "center"
-      }}>
-        <span style={{ fontSize: "11px", color: "var(--text-muted)", marginRight: "4px" }}>Test queries:</span>
-        {TEST_PROMPTS.map((prompt, idx) => (
-          <button
-            key={idx}
-            onClick={() => handleSendMessage(prompt)}
-            disabled={isBusy}
-            style={{
-              backgroundColor: "var(--bg-card)",
-              border: "1px solid var(--border-subtle)",
-              color: "var(--text-secondary)",
-              padding: "4px 10px",
-              borderRadius: "6px",
-              fontSize: "12px",
-              transition: "border-color 0.15s",
-              opacity: isBusy ? 0.5 : 1,
-              cursor: isBusy ? "not-allowed" : "pointer"
-            }}
-            onMouseOver={(e) => {
-              if (!isBusy) e.currentTarget.style.borderColor = "var(--accent-gold)";
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.borderColor = "var(--border-subtle)";
-            }}
-          >
-            {prompt}
-          </button>
-        ))}
       </div>
 
       {/* Input Bar: Text Box + Mic Button + Send Button */}

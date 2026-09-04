@@ -69,6 +69,177 @@
       margin-top: 2px;
     }
 
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .key-btn {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      color: var(--accent-gold);
+      padding: 6px 12px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .key-btn:hover {
+      border-color: var(--accent-gold);
+      background-color: rgba(197, 160, 89, 0.1);
+    }
+
+    .key-btn.configured {
+      border-color: #2e7d32;
+      color: #81c784;
+    }
+
+    /* Modal Styling */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(10, 13, 20, 0.85);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 16px;
+    }
+
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .modal-card {
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--accent-gold);
+      border-radius: 12px;
+      width: 100%;
+      max-width: 480px;
+      padding: 24px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+      animation: modalFadeIn 0.2s ease;
+    }
+
+    @keyframes modalFadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .modal-header h3 {
+      font-size: 16px;
+      color: var(--accent-gold);
+      margin: 0;
+      font-weight: 600;
+    }
+
+    .close-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 18px;
+      cursor: pointer;
+      padding: 4px;
+    }
+
+    .close-btn:hover { color: var(--text-primary); }
+
+    .modal-desc {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      margin-bottom: 18px;
+    }
+
+    .modal-desc code {
+      background: var(--bg-card);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--accent-gold);
+      font-size: 12px;
+    }
+
+    .modal-input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 20px;
+    }
+
+    .modal-input-group label {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .modal-input-group input {
+      background-color: var(--bg-primary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+
+    .modal-input-group input:focus {
+      border-color: var(--accent-gold);
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .btn-secondary {
+      background-color: transparent;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--text-muted);
+      color: var(--text-primary);
+    }
+
+    .btn-primary {
+      background-color: var(--accent-gold);
+      border: none;
+      color: #0a0d14;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s ease;
+    }
+
+    .btn-primary:hover { opacity: 0.9; }
+
     .status-badge {
       display: inline-flex;
       align-items: center;
@@ -293,9 +464,15 @@
         <h1><span>B.U.T.L.E.R.</span> ALFRED</h1>
         <p>Barış's Unified Task, Logic, Execution &amp; Reasoning — Voice &amp; Chat Playground</p>
       </div>
-      <div class="status-badge">
-        <span class="status-dot" id="statusDot"></span>
-        <span id="statusText">Ready</span>
+      <div class="header-actions">
+        <button class="key-btn" id="apiKeyBtn" onclick="openKeyModal()" title="Groq API Anahtarını Ayarlayın">
+          <span>⚡</span>
+          <span id="apiKeyBtnLabel">Groq API Key</span>
+        </button>
+        <div class="status-badge">
+          <span class="status-dot" id="statusDot"></span>
+          <span id="statusText">Ready</span>
+        </div>
       </div>
     </header>
 
@@ -335,6 +512,28 @@
       <span>Ses Motoru: Kokoro-82M (bm_george 24kHz) • Groq LPU</span>
       <span>Firebase Hosting: butler-alfred</span>
     </footer>
+  </div>
+
+  <!-- API Key Modal -->
+  <div class="modal-overlay" id="keyModal" onclick="if(event.target===this) closeKeyModal()">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>⚡ Groq API Key Yapılandırması</h3>
+        <button class="close-btn" onclick="closeKeyModal()">✕</button>
+      </div>
+      <p class="modal-desc">
+        Groq API anahtarınızı girerek Alfred'in <strong>llama-3.3-70b-versatile</strong> modeliyle canlı olarak konuşmasını sağlayabilirsiniz.
+        Anahtarınız sadece tarayıcınızın yerel hafızasında (<code>localStorage</code>) saklanır, hiçbir sunucuya kaydedilmez.
+      </p>
+      <div class="modal-input-group">
+        <label for="apiKeyInput">Groq API Key (gsk_...):</label>
+        <input type="password" id="apiKeyInput" placeholder="gsk_xxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="clearApiKey()">Temizle</button>
+        <button class="btn-primary" onclick="saveApiKey()">Kaydet ve Etkinleştir</button>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -529,9 +728,138 @@
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 
+    const ALFRED_SYSTEM_PROMPT = `You are B.U.T.L.E.R. Alfred (Barış's Unified Task, Logic, Execution & Reasoning).
+You are a modern British gentleman and executive house butler serving Barış as his personal cognitive operations manager, executive assistant, and engineering partner.
+
+CORE IDENTITY & DEMEANOR:
+- Archetype: Modern British Gentleman & House Butler. Highly competent, unflappable, mature, discreet, and composed under pressure.
+- Language & Register: Educated British English (Received Pronunciation register). Use standard British orthography (favour, optimise, whilst, programme, queue) and measured syntax.
+- Formality: Courteous and dignified. Address Barış respectfully as "sir", but use "sir" SPARINGLY (typically once at the start or conclusion of a response). NEVER repeat "sir" after every sentence.
+- Forbidden: NEVER use colloquial slang (e.g. "gonna", "wanna", "cool", "bro", "no worries"). NEVER use emojis or internet acronyms ("lol", "lgtm").
+- Tone: Natural, understated, and calm. Employ dry, deadpan British humour when appropriate, but never at the expense of professionalism. Avoid theatrical caricature ("pip pip", "by Jove", etc.).
+
+INTELLECTUAL PARTNERSHIP & PUSHBACK:
+- You are an executive collaborator, not a submissive "yes-man".
+- If Barış proposes a reckless, destructive, or hazardous action (such as deleting a production database, bypassing security controls, or force-pushing untested code), you MUST calmly and firmly push back, detail the operational risk, and propose a sensible alternative.
+- Base your claims on First Principles, evidence, and clear trade-offs. If information is uncertain, state the boundary clearly rather than hallucinating.
+
+CURRENT CAPABILITY BOUNDARIES (PLAYGROUND STAGE):
+- Operational now: Conversational reasoning via Groq Cloud LPU (llama-3.3-70b-versatile), local voice synthesis via Kokoro-82M (bm_george British voice), and Whisper speech recognition.
+- NOT yet integrated: Google Calendar, Gmail, GitHub execution tools, terminal execution, persistent memory/database, and external web search are NOT yet connected in this current milestone.
+- When asked about your capabilities or access to calendar/emails/tools, honestly state that this is the voice and interaction playground milestone and external integrations are pending development.
+
+SPEECH & ACOUSTIC FORMATTING:
+- Your responses will be read aloud by a neural Text-to-Speech engine (Kokoro-82M).
+- Structure sentences with clean punctuation (commas, full stops, em-dashes) for natural breathing pauses.
+- Keep responses concise, articulate, and direct. Avoid markdown formatting like code fences, asterisks, or tables in spoken dialogue unless explicitly requested for technical code review.`;
+
+    const chatHistory = [
+      { role: "system", content: ALFRED_SYSTEM_PROMPT }
+    ];
+
+    // Local Storage & Modal Management
+    function getStoredApiKey() {
+      return localStorage.getItem("groq_api_key") || "";
+    }
+
+    function updateApiKeyButtonState() {
+      const key = getStoredApiKey();
+      const btn = document.getElementById("apiKeyBtn");
+      const lbl = document.getElementById("apiKeyBtnLabel");
+      if (key && key.startsWith("gsk_")) {
+        btn.classList.add("configured");
+        lbl.textContent = "Groq: Aktif (" + key.slice(0, 6) + "...)";
+      } else {
+        btn.classList.remove("configured");
+        lbl.textContent = "⚡ Groq API Key";
+      }
+    }
+
+    function openKeyModal() {
+      const modal = document.getElementById("keyModal");
+      const input = document.getElementById("apiKeyInput");
+      input.value = getStoredApiKey();
+      modal.classList.add("open");
+      setTimeout(() => input.focus(), 50);
+    }
+
+    function closeKeyModal() {
+      document.getElementById("keyModal").classList.remove("open");
+    }
+
+    function saveApiKey() {
+      const input = document.getElementById("apiKeyInput");
+      const val = input.value.trim();
+      if (!val) {
+        alert("Lütfen geçerli bir Groq API anahtarı girin.");
+        return;
+      }
+      localStorage.setItem("groq_api_key", val);
+      updateApiKeyButtonState();
+      closeKeyModal();
+      setStatus("ready", "Groq API Anahtarı Kaydedildi");
+      setTimeout(() => setStatus("ready", "Ready"), 2000);
+    }
+
+    function clearApiKey() {
+      localStorage.removeItem("groq_api_key");
+      document.getElementById("apiKeyInput").value = "";
+      updateApiKeyButtonState();
+      closeKeyModal();
+      setStatus("ready", "Groq Anahtarı Temizlendi");
+      setTimeout(() => setStatus("ready", "Ready"), 2000);
+    }
+
+    async function callGroqDirect(userText, apiKey) {
+      chatHistory.push({ role: "user", content: userText });
+
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + apiKey
+        },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: chatHistory,
+          temperature: 0.7,
+          max_tokens: 1024
+        })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        const msg = errData?.error?.message || response.statusText;
+        throw new Error("Groq API Hatası (" + response.status + "): " + msg);
+      }
+
+      const data = await response.json();
+      const reply = data.choices[0]?.message?.content || "";
+      chatHistory.push({ role: "assistant", content: reply });
+      return reply;
+    }
+
     async function handleAlfredResponse(userText) {
       setStatus("thinking", "Alfred is reasoning...");
 
+      const apiKey = getStoredApiKey();
+
+      // 1. Canlı Groq API Anahtarı Varsa Doğrudan LPU'ya İstek At
+      if (apiKey && apiKey.startsWith("gsk_")) {
+        try {
+          const reply = await callGroqDirect(userText, apiKey);
+          appendMessage("assistant", reply, null, null);
+          return;
+        } catch (err) {
+          console.error("Direct Groq API Call failed:", err);
+          setStatus("error", "Groq Hatası: " + err.message);
+          const errorBubble = "I apologize, sir. I encountered an error communicating with the Groq neural engine: " + err.message + ". Please verify your API key.";
+          appendMessage("assistant", errorBubble, null, null);
+          return;
+        }
+      }
+
+      // 2. Sunucu Proxy'si (Varsa)
       try {
         const res = await fetch("/api/chat", {
           method: "POST",
@@ -541,14 +869,14 @@
 
         if (res.ok) {
           const data = await res.json();
-          appendMessage("assistant", data.text, data.audio, data.duration);
+          appendMessage("assistant", data.text, data.audio, data.duration, data.fallbackAudio);
           return;
         }
       } catch (err) {
-        // Fallback to client-side persona when static hosting without backend
+        // Fallback to client-side canonical responses
       }
 
-      // Client-side Canonical Persona Fallback
+      // 3. İstemci Tarafı Kanonik Persona Fallback (API anahtarı girilmediğinde)
       setTimeout(() => {
         const lower = userText.toLowerCase();
         let match = null;
@@ -563,10 +891,10 @@
         if (match) {
           appendMessage("assistant", match.text, match.audio, match.duration, match.fallbackAudio);
         } else {
-          const reply = "Indeed, sir. You mentioned: \"" + userText.slice(0, 100) + "\". I remain entirely at your service, though please note external tool integrations are pending development.";
+          const reply = "Indeed, sir. You mentioned: \"" + userText.slice(0, 100) + "\". To enable live reasoning with my full llama-3.3-70b-versatile cognitive engine, kindly configure your Groq API Key via the button in the upper right corner.";
           appendMessage("assistant", reply, null, null);
         }
-      }, 400);
+      }, 350);
     }
 
     function sendPrompt(text) {
@@ -636,6 +964,7 @@
 
     window.addEventListener("DOMContentLoaded", () => {
       setStatus("ready", "Ready");
+      updateApiKeyButtonState();
       if (window.speechSynthesis) window.speechSynthesis.getVoices();
     });
   </script>

@@ -59,17 +59,16 @@ Projenin ilk çalışan dikey dilimi olan **Web Voice & Chat Playground** (`apps
                                 Alfred Yanıtı
                                       │
                                       ▼
-                              Yerel Kokoro-82M
-                          (24kHz 16-bit Mono WAV)
-                                      │
-                                      ▼
                       ┌───────────────────────────────┐
-                      │    Tarayıcı Sesli & Yazılı    │
-                      │  - Ekranda dinamik mesaj      │
-                      │  - Doğrudan sesli oynatma     │
-                      │  - [▶ Play Voice] butonu      │
+                      │     Hızlı & Zengin Arayüz     │
+                      │  - Anlık Markdown render      │
+                      │  - Kalın (**bold**), kod blok │
+                      │  - Sıfır ses sentez gecikmesi │
                       └───────────────────────────────┘
 ```
+
+### ⚡ Oyun Alanında Ses Sentezi (Kokoro-82M) Tasarım Kararı
+> **Tasarım Kararı**: Alfred'in detaylı, teknik ve uzun yanıtlarında metinden-sese (TTS) dönüştürme hem çıkarım gecikmesini artırmakta hem de uzun konuşmaları dinlemeyi sıkıcı ve verimsiz hale getirmekteydi. Bu nedenle Web Oyun Alanında (`apps/web/`) otomatik Kokoro seslendirmesi doğrudan kaldırılmıştır. Arayüz; anlık, akıcı ve güvenli Markdown (`**kalın**`, `*italik*`, kod blokları) destekli hızlı metin okuma deneyimine odaklanmıştır. Kokoro-82M ses motoru mimari çekirdekte (`src/voice/providers/kokoro/`) çevrimdışı CLI araçları ve toplu sentezleme testleri için korunmaktadır.
 
 ### Arayüz Durum Göstergesi
 
@@ -78,7 +77,6 @@ Oyun alanında durum anlık olarak üst bilgi rozetinden izlenebilir:
 - `● Listening...`: Mikrofon aktif, ses dalgası kaydediliyor.
 - `● Transcribing...`: Whisper STT ses kaydını metne dönüştürüyor.
 - `● Alfred is reasoning...`: Groq LPU ve Alfred persona modeli düşünüyor.
-- `● Speaking...`: Kokoro-82M tarafından üretilen ses yanıtı tarayıcıda oynatılıyor.
 - `● Error`: Güvenli ve maskelenmiş kullanıcı bilgilendirme uyarısı.
 
 ---
@@ -120,6 +118,9 @@ Alfred'in konuşma yeteneği harici bir bulut servisine veya API anahtarına iht
   # Sentezle ve sistem ses aygıtından doğrudan dinlet (paplay, aplay, afplay)
   npm run test:tts -- --play
   ```
+
+> [!NOTE]
+> **Web Oyun Alanı Notu**: Web arayüzünde (`apps/web/`) uzun cevaplarda oluşan dinleme yorgunluğunu önlemek ve anlık metin akışı sağlamak amacıyla otomatik seslendirme kaldırılmıştır. Kokoro-82M motoru mimaride korunmakta olup yukarıdaki CLI komutlarıyla yerel olarak çalıştırılabilir ve test edilebilir.
 
 ---
 

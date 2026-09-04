@@ -326,6 +326,45 @@
       color: var(--text-primary);
     }
 
+    .message-bubble strong {
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .message-bubble em {
+      font-style: italic;
+      color: #e2e8f0;
+    }
+
+    .message-bubble del {
+      text-decoration: line-through;
+      color: var(--text-muted);
+    }
+
+    .message-bubble .inline-code {
+      background-color: rgba(255, 255, 255, 0.08);
+      color: #f1c40f;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.9em;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .message-bubble .code-block {
+      background-color: #0b0f19;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin: 8px 0;
+      overflow-x: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.45;
+      color: #e2e8f0;
+      white-space: pre;
+    }
+
     .audio-play-btn {
       margin-top: 10px;
       padding-top: 8px;
@@ -504,13 +543,7 @@
           <span>•</span>
           <span>BAŞLANGIÇ</span>
         </div>
-        <div class="message-bubble">Good day, sir. B.U.T.L.E.R. Alfred at your service. How may I assist you today?
-          <div class="audio-play-btn">
-            <button class="audio-btn" onclick="playAudioFile('/audio/alfred_phrase_1.mp3', this, '/audio/alfred_phrase_1.wav')">
-              ▶ Play Voice (Kokoro-82M)
-            </button>
-          </div>
-        </div>
+        <div class="message-bubble">Good day, sir. B.U.T.L.E.R. Alfred at your service. How may I assist you today?</div>
       </div>
     </div>
 
@@ -534,7 +567,7 @@
     </div>
 
     <footer>
-      <span>Ses Motoru: Kokoro-82M (bm_george 24kHz) • Groq LPU</span>
+      <span>Hızlı Metin Çıkarımı • Groq LPU (Markdown Destekli)</span>
       <span>Firebase Hosting: butler-alfred</span>
     </footer>
   </div>
@@ -749,36 +782,60 @@
 
       const isTurkish = /[çğıöşüÇĞİÖŞÜ]/i.test(text) || /\b(efendim|merhaba|bugün|nasılsınız|yardımcı|hizmetinizdeyim|elbette|selam|aleyküm)\b/i.test(text);
 
-      let audioBtnHtml = '';
-      if (role === "assistant") {
-        if (audioUrl) {
-          const durStr = duration ? ' (' + duration.toFixed(1) + 's)' : '';
-          const fbArg = fallbackUrl ? ",'" + fallbackUrl + "'" : ",''";
-          audioBtnHtml = '<div class="audio-play-btn"><button class="audio-btn" onclick="playAudioFile(\'' + audioUrl + '\', this' + fbArg + ')">▶ Play Voice' + durStr + '</button></div>';
-        } else if (!isTurkish) {
-          audioBtnHtml = '<div class="audio-play-btn"><button class="audio-btn" onclick="speakTextSynthesis(this.parentElement.parentElement.textContent.trim(), this)">▶ Speak Voice</button></div>';
-        }
-      }
-
-      wrapper.innerHTML = '<div class="message-meta">' + senderHtml + '</div><div class="message-bubble">' + escapeHtml(text) + audioBtnHtml + '</div>';
+      wrapper.innerHTML = '<div class="message-meta">' + senderHtml + '</div><div class="message-bubble">' + renderMarkdown(text) + '</div>';
       messagesDiv.appendChild(wrapper);
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
 
       if (role === "assistant") {
-        if (audioUrl) {
-          const lastBtn = wrapper.querySelector(".audio-btn");
-          playAudioFile(audioUrl, lastBtn, fallbackUrl);
-        } else if (!isTurkish) {
-          const lastBtn = wrapper.querySelector(".audio-btn");
-          speakTextSynthesis(text, lastBtn);
-        } else {
-          setStatus("ready", "Ready");
-        }
+        if (window.speechSynthesis) window.speechSynthesis.cancel();
+        setStatus("ready", "Ready");
       }
     }
 
     function escapeHtml(str) {
-      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function renderMarkdown(text) {
+      if (!text) return "";
+      let html = escapeHtml(text);
+
+      // Multi-line code blocks: ```lang ... ```
+      const codeBlocks = [];
+      html = html.replace(/```(?:([a-zA-Z0-9_-]+)\n)?([\s\S]*?)```/g, (m, lang, code) => {
+        const idx = codeBlocks.length;
+        const cleanCode = code.replace(/^\n+|\n+$/g, "");
+        codeBlocks.push('<pre class="code-block"><code>' + cleanCode + '</code></pre>');
+        return '§§CODEBLOCK' + idx + '§§';
+      });
+
+      // Inline code: `code`
+      const inlineCodes = [];
+      html = html.replace(/`([^`\n]+)`/g, (m, c) => {
+        const idx = inlineCodes.length;
+        inlineCodes.push('<code class="inline-code">' + c + '</code>');
+        return '§§INLINECODE' + idx + '§§';
+      });
+
+      // Bold + Italic: ***text***
+      html = html.replace(/\*\*\*([^\*]+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+      // Bold: **text**
+      html = html.replace(/\*\*([^\*]+?)\*\*/g, '<strong>$1</strong>');
+      // Italic: *text*
+      html = html.replace(/\*([^\*]+?)\*/g, '<em>$1</em>');
+      // Strikethrough: ~~text~~
+      html = html.replace(/~~([^~]+?)~~/g, '<del>$1</del>');
+
+      // Restore protected code blocks & inline codes
+      html = html.replace(/§§INLINECODE(\d+)§§/g, (m, idx) => inlineCodes[Number(idx)]);
+      html = html.replace(/§§CODEBLOCK(\d+)§§/g, (m, idx) => codeBlocks[Number(idx)]);
+
+      return html;
     }
 
     const ALFRED_SYSTEM_PROMPT = `You are B.U.T.L.E.R. Alfred (Barış's Unified Task, Logic, Execution & Reasoning).

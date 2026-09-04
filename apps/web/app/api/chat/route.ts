@@ -20,26 +20,30 @@ function getDeterministicFallback(message: string): string {
   const lower = message.toLowerCase().trim();
 
   if (lower.includes("good morning") || lower.includes("hello") || lower.includes("good evening") || lower.includes("greetings")) {
-    return "Good morning, sir. I trust you are well. How may I be of assistance today?";
+    return "Good morning, sir. I trust the evening was kind to you.";
   }
 
   if (lower.includes("capable of") || lower.includes("capabilities") || lower.includes("what can you do")) {
-    return "At present, sir, I am operating within our voice and chat interaction playground. I can converse with you via real-time text streaming, reason through queries using Ollama (Gemma 4) or Groq, and maintain executive composure. External integrations such as your calendar, email, and repository management are pending subsequent implementation.";
+    return "At present? Quite a bit, although I haven't yet been given the keys to the entire house. I can converse via real-time text streaming, reason through queries using Ollama or Groq, and maintain executive composure. External integrations such as your calendar, email, and repository management remain pending.";
   }
 
   if (lower.includes("calendar")) {
-    return "I am afraid I do not have access to your calendar yet, sir. We have not yet connected the Google Calendar integration in this development milestone.";
+    return "Not yet, sir. Calendar access isn't connected to me at present.";
   }
 
   if (lower.includes("amusing") || lower.includes("joke") || lower.includes("humour") || lower.includes("humor")) {
-    return "I once observed a developer spend four hours writing a shell script to automate a thirty-second task, only for the script to require ongoing maintenance in perpetuity. An admirably persistent dedication to efficiency, sir.";
+    return "Apparently, someone once decided that the correct solution to an overpopulation problem was to introduce rabbits to an island. The rabbits, naturally, treated this as a feature request.";
+  }
+
+  if (lower.includes("rewrite") && (lower.includes("scratch") || lower.includes("entire"))) {
+    return "I suspected you might say that, sir. No. We have rather a lot of working infrastructure already, and rewriting it would be a remarkably efficient way of turning several completed milestones into archaeology.";
   }
 
   if (lower.includes("delete") && (lower.includes("database") || lower.includes("production") || lower.includes("prod"))) {
-    return "I would strongly advise against that course of action, sir. Deleting the production database is an irreversible operation with catastrophic consequences for the entire platform. Might I suggest verifying a local staging backup or running our diagnostic checks instead?";
+    return "No, sir. Unless we have established that destroying production is the least bad option—which it almost certainly isn't—I would strongly advise against it. Let's establish what problem we're trying to solve before we reach for the nuclear option.";
   }
 
-  return `Indeed, sir. You remarked: "${message.slice(0, 100)}". I am at your service, though please note that live neural reasoning requires an AI provider (Ollama or Groq) to be configured.`;
+  return `Indeed, sir. You remarked: "${message.slice(0, 100)}".`;
 }
 
 export async function POST(req: NextRequest) {
@@ -104,8 +108,11 @@ export async function POST(req: NextRequest) {
           replyText = getDeterministicFallback(userMessage);
         }
       } catch (err: any) {
-        console.warn("[Alfred API] Provider chat error, falling back to deterministic response:", err?.message || err);
-        replyText = getDeterministicFallback(userMessage);
+        console.error("[Alfred API] Provider chat error:", err?.message || err);
+        return NextResponse.json(
+          { error: err?.message || "AI provider failed to generate response." },
+          { status: 502 }
+        );
       }
 
       return NextResponse.json({

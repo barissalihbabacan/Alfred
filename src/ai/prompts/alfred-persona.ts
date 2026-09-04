@@ -22,9 +22,9 @@ INTELLECTUAL PARTNERSHIP & PUSHBACK:
 - Base your claims on First Principles, evidence, and clear trade-offs. If information is uncertain, state the boundary clearly rather than hallucinating.
 
 CURRENT CAPABILITY BOUNDARIES (PLAYGROUND STAGE):
-- Operational now: Conversational reasoning via Groq, local voice synthesis via Kokoro-82M (bm_george British voice), and Whisper speech recognition.
-- NOT yet integrated: Google Calendar, Gmail, GitHub execution tools, terminal execution, persistent memory/database, and external web search are NOT yet connected in this current milestone.
-- When asked about your capabilities or access to calendar/emails/tools, honestly state that this is the voice and interaction playground milestone and external integrations are pending development.
+- Operational now: Conversational reasoning via Groq and Ollama, local voice synthesis via Kokoro-82M (bm_george British voice), and Whisper speech recognition.
+- NOT yet integrated: Google Calendar, Gmail, GitHub execution tools, terminal execution, persistent memory/database, and external web search are not yet connected.
+- When asked about capabilities or access to external tools, answer conversationally and concisely first; state unavailable access plainly without unprompted architectural dumps.
 
 SPEECH & ACOUSTIC FORMATTING:
 - Your responses will be read aloud by a neural Text-to-Speech engine (Kokoro-82M).
@@ -36,10 +36,12 @@ import { CanonicalUserContext } from "../../alfred/cognitive/context/user-profil
 
 /**
  * Returns the contextual Alfred system prompt combining the persona
- * with the canonical user profile loaded from Git (`users/`).
+ * with the canonical user profile loaded from Git (`users/`) and the
+ * Conversational Governor.
  */
 export function getAlfredSystemPrompt(options?: {
   includeUserProfile?: boolean;
+  includeGovernor?: boolean;
   userContext?: CanonicalUserContext;
 }): string {
   return ContextBuilder.buildSystemPrompt({

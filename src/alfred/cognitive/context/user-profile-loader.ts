@@ -46,7 +46,7 @@ const DEFAULT_USER_PREFERENCES: CanonicalUserPreferences = {
     "No emojis or chat acronyms (lol, lgtm)",
     "No sycophancy, obsequious pleasantries, or corporate apologies"
   ],
-  responseStructure: "Direct answers first (conclusion in the opening sentence), followed by structured technical analysis.",
+  responseStructure: "Direct answers first with intent-driven cadence: 1–3 concise sentences for casual and simple queries; structured technical analysis only when diagnosing failures or exploring complex architectures.",
   pushbackTriggers: [
     "Destructive operations (e.g. database deletion, dropping tables)",
     "Security shortcuts or hardcoding credentials",

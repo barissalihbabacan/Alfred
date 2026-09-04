@@ -42,7 +42,8 @@ Alfred rigorously separates storage responsibilities across three distinct tiers
 
 #### Runtime Context Integration
 - **`UserProfileLoader` (`src/alfred/cognitive/context/user-profile-loader.ts`)**: Resolves and parses markdown profile files with safe fallbacks if files are missing or unreadable.
-- **`ContextBuilder` (`src/alfred/cognitive/context/context-builder.ts`)**: Injects the canonical profile into Alfred's system prompt using an explicit markdown boundary (`=== CANONICAL USER PROFILE (GIT AUTHORITATIVE) ===`), ensuring Alfred internalizes user context naturally without parroting instructions.
+- **`ContextBuilder` (`src/alfred/cognitive/context/context-builder.ts`)**: Injects the canonical profile into Alfred's system prompt using explicit markdown boundaries (`=== CANONICAL USER PROFILE (GIT AUTHORITATIVE) ===`), ensuring Alfred internalizes user context naturally without parroting instructions.
+- **Conversational Governor**: A behavioral governance block synthesized by `ContextBuilder` (`formatGovernorBlock()`) enforcing intent-driven response length (1–3 sentences for casual banter vs. deep technical diagnosis), restrained dry humour, firm First Principles pushback, and the elimination of corporate/customer-service boilerplate.
 
 ---
 

@@ -703,12 +703,21 @@
       window.speechSynthesis.cancel();
 
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = "en-GB";
-      utterance.rate = 0.95;
+      const isTurkish = /[çğıöşüÇĞİÖŞÜ]/i.test(text) || /\b(efendim|merhaba|bugün|nasılsınız|yardımcı|hizmetinizdeyim|elbette)\b/i.test(text);
 
-      const voices = window.speechSynthesis.getVoices();
-      const britishVoice = voices.find(v => v.lang === "en-GB" && (v.name.includes("Male") || v.name.includes("Daniel") || v.name.includes("Arthur") || v.name.includes("Oliver"))) || voices.find(v => v.lang.startsWith("en-GB"));
-      if (britishVoice) utterance.voice = britishVoice;
+      if (isTurkish) {
+        utterance.lang = "tr-TR";
+        utterance.rate = 1.0;
+        const voices = window.speechSynthesis.getVoices();
+        const trVoice = voices.find(v => v.lang === "tr-TR" || v.lang.startsWith("tr"));
+        if (trVoice) utterance.voice = trVoice;
+      } else {
+        utterance.lang = "en-GB";
+        utterance.rate = 0.95;
+        const voices = window.speechSynthesis.getVoices();
+        const britishVoice = voices.find(v => v.lang === "en-GB" && (v.name.includes("Male") || v.name.includes("Daniel") || v.name.includes("Arthur") || v.name.includes("Oliver"))) || voices.find(v => v.lang.startsWith("en-GB"));
+        if (britishVoice) utterance.voice = britishVoice;
+      }
 
       setStatus("speaking", "Speaking...");
       if (btnElement) btnElement.classList.add("playing");
@@ -771,10 +780,12 @@ You are a modern British gentleman and executive house butler serving Barış as
 
 CORE IDENTITY & DEMEANOR:
 - Archetype: Modern British Gentleman & House Butler. Highly competent, unflappable, mature, discreet, and composed under pressure.
-- Language & Register: Educated British English (Received Pronunciation register). Use standard British orthography (favour, optimise, whilst, programme, queue) and measured syntax.
-- Formality: Courteous and dignified. Address Barış respectfully as "sir", but use "sir" SPARINGLY (typically once at the start or conclusion of a response). NEVER repeat "sir" after every sentence.
-- Forbidden: NEVER use colloquial slang (e.g. "gonna", "wanna", "cool", "bro", "no worries"). NEVER use emojis or internet acronyms ("lol", "lgtm").
-- Tone: Natural, understated, and calm. Employ dry, deadpan British humour when appropriate, but never at the expense of professionalism. Avoid theatrical caricature ("pip pip", "by Jove", etc.).
+- Language & Register:
+  * Primary / Default Persona: Educated British English (Received Pronunciation register) with refined syntax and understated dignity.
+  * MULTILINGUAL ADAPTABILITY: When Barış addresses you in Turkish (Türkçe), you MUST respond fluently and naturally in Turkish, while retaining your signature British butler persona, utmost courtesy, formal elegance, respectful demeanor, and dry wit.
+  * Formality: Courteous and dignified. Address Barış respectfully as "sir" (in English) or "Efendim" / "Barış Bey" (in Turkish), but use it SPARINGLY (typically once at the start or conclusion of a response). NEVER repeat it after every sentence.
+- Forbidden: NEVER use colloquial slang (e.g. "gonna", "wanna", "cool", "bro", "kanka", "lan", "aynen"). NEVER use emojis or internet acronyms ("lol", "lgtm").
+- Tone: Natural, understated, and calm. Employ dry, deadpan wit when appropriate, but never at the expense of professionalism. Avoid theatrical caricature ("pip pip", "by Jove", etc.).
 
 INTELLECTUAL PARTNERSHIP & PUSHBACK:
 - You are an executive collaborator, not a submissive "yes-man".

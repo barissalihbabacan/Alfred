@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" width="100%" height="100%">
+  <title>B.U.T.L.E.R. Alfred — Sistem Mimarisi Şeması</title>
+  <desc>Modüler mimari katmanları: Bilişsel, Kontrol Düzlemi, Yürütme Düzlemi, Yapay Zeka, Ses Sistemi ve Web Oyun Alanı</desc>
+  <defs>
+    <linearGradient id="archBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0c101a" />
+      <stop offset="100%" stop-color="#111726" />
+    </linearGradient>
+  </defs>
+
+  <!-- Container -->
+  <rect x="0" y="0" width="1200" height="420" rx="14" fill="url(#archBg)" stroke="#23324d" stroke-width="1.2" />
+
+  <!-- Title Header -->
+  <text x="60" y="50" fill="#c5a059" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="700" letter-spacing="1.5">SİSTEM MİMARİSİ</text>
+  <text x="60" y="80" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="24" font-weight="800">Modüler Katmanlar &amp; Sorumluluk Sınırları</text>
+
+  <!-- 6 Architecture Columns/Cards -->
+  <g transform="translate(60, 110)">
+    <!-- Column 1: Persona & Cognitive -->
+    <g transform="translate(0, 0)">
+      <rect x="0" y="0" width="340" height="130" rx="10" fill="#151e2e" stroke="#25354e" stroke-width="1" />
+      <rect x="0" y="0" width="340" height="6" rx="3" fill="#c5a059" />
+      <text x="18" y="32" fill="#c5a059" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700">1. Persona &amp; Bilişsel Katman</text>
+      <text x="18" y="50" fill="#64748b" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace" font-size="11">src/alfred/persona &amp; cognitive/</text>
+      <text x="18" y="78" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" line-height="1.4">
+        <tspan x="18" dy="0">• İngiliz kâhyası üslubu, ölçülü hitap</tspan>
+        <tspan x="18" dy="18">• Risk farkındalığı ve koruyucu pushback</tspan>
+        <tspan x="18" dy="18">• Bağlam, bellek ve karar izleme</tspan>
+      </text>
+    </g>
+
+    <!-- Column 2: Control Plane -->
+    <g transform="translate(370, 0)">
+      <rect x="0" y="0" width="340" height="130" rx="10" fill="#151e2e" stroke="#25354e" stroke-width="1" />
+      <rect x="0" y="0" width="340" height="6" rx="3" fill="#3b82f6" />
+      <text x="18" y="32" fill="#60a5fa" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700">2. Kontrol Düzlemi (Control Plane)</text>
+      <text x="18" y="50" fill="#64748b" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace" font-size="11">src/alfred/control-plane/</text>
+      <text x="18" y="78" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" line-height="1.4">
+        <tspan x="18" dy="0">• Otonom planlayıcı &amp; görev adımlama</tspan>
+        <tspan x="18" dy="18">• Araç yönlendirme (tool-router)</tspan>
+        <tspan x="18" dy="18">• Zamanlayıcı, olay döngüsü &amp; yetkilendirme</tspan>
+      </text>
+    </g>
+
+    <!-- Column 3: Execution Plane -->
+    <g transform="translate(740, 0)">
+      <rect x="0" y="0" width="340" height="130" rx="10" fill="#151e2e" stroke="#25354e" stroke-width="1" />
+      <rect x="0" y="0" width="340" height="6" rx="3" fill="#8b5cf6" />
+      <text x="18" y="32" fill="#a78bfa" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700">3. Yürütme Düzlemi (Execution)</text>
+      <text x="18" y="50" fill="#64748b" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace" font-size="11">src/alfred/execution-plane/</text>
+      <text x="18" y="78" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" line-height="1.4">
+        <tspan x="18" dy="0">• GitHub API (PR, issue, repo yönetimi)</tspan>
+        <tspan x="18" dy="18">• Google Workspace (Gmail, Takvim)</tspan>
+        <tspan x="18" dy="18">• Dosya sistemi, terminal, web arama</tspan>
+      </text>
+    </g>
+
+    <!-- Row 2 -->
+    <!-- Column 4: AI Layer -->
+    <g transform="translate(0, 150)">
+      <rect x="0" y="0" width="340" height="130" rx="10" fill="#151e2e" stroke="#25354e" stroke-width="1" />
+      <rect x="0" y="0" width="340" height="6" rx="3" fill="#f59e0b" />
+      <text x="18" y="32" fill="#fbbf24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700">4. Yapay Zeka Katmanı (AI)</text>
+      <text x="18" y="50" fill="#64748b" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace" font-size="11">src/ai/providers/ (Groq / Agnostic)</text>
+      <text x="18" y="78" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" line-height="1.4">
+        <tspan x="18" dy="0">• Sağlayıcı bağımsız AIProvider mimarisi</tspan>
+        <tspan x="18" dy="18">• Groq LPU (Llama 3.3 70B Versatile)</tspan>
+        <tspan x="18" dy="18">• Dinamik kayıt defteri (Registry &amp; Factory)</tspan>
+      </text>
+    </g>
+
+    <!-- Column 5: Voice Layer -->
+    <g transform="translate(370, 150)">
+      <rect x="0" y="0" width="340" height="130" rx="10" fill="#151e2e" stroke="#25354e" stroke-width="1" />
+      <rect x="0" y="0" width="340" height="6" rx="3" fill="#10b981" />
+      <text x="18" y="32" fill="#34d399" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700">5. Ses Katmanı (Voice &amp; TTS)</text>
+      <text x="18" y="50" fill="#64748b" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace" font-size="11">src/voice/ (Kokoro-82M &amp; Whisper)</text>
+      <text x="18" y="78" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" line-height="1.4">
+        <tspan x="18" dy="0">• %100 çevrimdışı Kokoro-82M ONNX TTS</tspan>
+        <tspan x="18" dy="18">• bm_george (İngiliz Kâhyası 24kHz WAV)</tspan>
+        <tspan x="18" dy="18">• Groq Whisper STT ses transkripsiyonu</tspan>
+      </text>
+    </g>
+
+    <!-- Column 6: Web & Deployment -->
+    <g transform="translate(740, 150)">
+      <rect x="0" y="0" width="340" height="130" rx="10" fill="#151e2e" stroke="#25354e" stroke-width="1" />
+      <rect x="0" y="0" width="340" height="6" rx="3" fill="#ec4899" />
+      <text x="18" y="32" fill="#f472b6" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700">6. Web &amp; Dağıtım Katmanı</text>
+      <text x="18" y="50" fill="#64748b" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace" font-size="11">apps/web/ &amp; Firebase</text>
+      <text x="18" y="78" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" line-height="1.4">
+        <tspan x="18" dy="0">• Next.js 14 App Router etkileşim ortamı</tspan>
+        <tspan x="18" dy="18">• Çift modlu (metin + mikrofon) arayüz</tspan>
+        <tspan x="18" dy="18">• Firebase App Hosting &amp; Cloud Run uyumlu</tspan>
+      </text>
+    </g>
+  </g>
+</svg>

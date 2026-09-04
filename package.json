@@ -13,7 +13,10 @@
     "test:integration": "vitest run tests/integration",
     "test:groq": "tsx scripts/test-groq.ts",
     "test:tts": "tsx scripts/test-tts.ts",
-    "eval:voices": "tsx scripts/evaluate-voices.ts"
+    "eval:voices": "tsx scripts/evaluate-voices.ts",
+    "dev:web": "next dev apps/web -p 3000",
+    "build:web": "next build apps/web",
+    "start:web": "next start apps/web -p 3000"
   },
   "keywords": [
     "ai-agent",
@@ -30,8 +33,13 @@
     "vitest": "^5.0.0"
   },
   "dependencies": {
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
     "dotenv": "^17.4.2",
     "groq-sdk": "^1.6.0",
-    "kokoro-js": "^1.2.1"
+    "kokoro-js": "^1.2.1",
+    "next": "^14.2.35",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   }
 }

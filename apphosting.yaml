@@ -1,0 +1,23 @@
+# Firebase App Hosting configuration for B.U.T.L.E.R. Alfred
+# https://firebase.google.com/docs/app-hosting/configure
+
+runConfig:
+  minInstances: 0
+  maxInstances: 2
+  concurrency: 10
+  cpu: 2
+  memoryMiB: 2048
+
+env:
+  - variable: AI_PROVIDER
+    value: groq
+  - variable: GROQ_MODEL
+    value: llama-3.3-70b-versatile
+  - variable: GROQ_STT_MODEL
+    value: whisper-large-v3-turbo
+  - variable: TTS_PROVIDER
+    value: kokoro
+  - variable: TTS_VOICE
+    value: bm_george
+  - variable: GROQ_API_KEY
+    secret: groq-api-key

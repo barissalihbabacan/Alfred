@@ -10,12 +10,16 @@ describe("Conversational Governor — Behavioral Governance & Invariants", () =>
     const prompt = getAlfredSystemPrompt();
 
     expect(prompt).toContain("=== CONVERSATIONAL GOVERNOR (CADENCE & BEHAVIOURAL DIRECTIVES) ===");
-    expect(prompt).toContain("COLLABORATION DYNAMIC & PEER REGISTER");
+    expect(prompt).toContain("ESTABLISHED WORKING RELATIONSHIP & PEER REGISTER");
+    expect(prompt).toContain("SOCIAL INTENT COMES FIRST");
+    expect(prompt).toContain("JUDGEMENT BEFORE ANALYSIS");
     expect(prompt).toContain("INTENT-DRIVEN RESPONSE LENGTH");
+    expect(prompt).toContain("CONTEXT-AWARE TECHNICAL REASONING");
+    expect(prompt).toContain("PUSHBACK & DESTRUCTIVE OPERATIONS");
     expect(prompt).toContain("STRICT ANTI-PATTERNS (WHAT NEVER TO DO)");
     expect(prompt).toContain("HUMOUR & DEMEANOR");
-    expect(prompt).toContain("PUSHBACK & INTEGRITY");
     expect(prompt).toContain("CAPABILITY & TOOL HONESTY");
+    expect(prompt).toContain("ZERO META-NARRATIVE");
   });
 
   it("should explicitly forbid corporate chatbot boilerplate in governor instructions", () => {
@@ -32,7 +36,7 @@ describe("Conversational Governor — Behavioral Governance & Invariants", () =>
 
     expect(prompt).toContain("1–3 natural sentences");
     expect(prompt).toContain("No architecture lecture unless explicitly requested");
-    expect(prompt).toContain("Distinguish verified facts from working hypotheses");
+    expect(prompt).toContain("Distinguish verified facts, working hypotheses, and unknowns");
     expect(prompt).toContain("Never generate an unsolicited agenda");
   });
 
@@ -191,8 +195,8 @@ describe("Conversational Governor — Minimum Required Behavioral Tests", () => 
     // When a configured provider is invoked, verify that the system message received by the provider
     // contains both the technical diagnosis guidance and the full governor
     const chatMock = vi.fn().mockResolvedValue({
-      content: "If an SSE stream terminates immediately after thinking, the primary suspects are proxy timeout, buffer overflow, or upstream cancellation.",
-      usage: { promptTokens: 50, completionTokens: 25, totalTokens: 75 }
+      content: "Given our current pipeline (Browser → /api/chat → Cloud Function → Tailscale → Ollama), the issue is likely in the SSE route transition between the thinking event and the first content chunk. Fact: the thinking event emits successfully. Hypothesis: the downstream provider stream or reader terminates before yielding tokens. Unknown: whether Ollama returns an error or closes the HTTP connection.",
+      usage: { promptTokens: 50, completionTokens: 60, totalTokens: 110 }
     });
 
     const mockActiveProvider = {
@@ -206,7 +210,7 @@ describe("Conversational Governor — Minimum Required Behavioral Tests", () => 
     providerSpy.mockReturnValue(mockActiveProvider as any);
 
     const req = makeChatRequest({
-      message: "Why did the SSE stream terminate after the thinking event?",
+      message: "The SSE stream terminates after the thinking event.",
       stream: false
     });
     const res = await POST(req);
@@ -215,15 +219,17 @@ describe("Conversational Governor — Minimum Required Behavioral Tests", () => 
     expect(res.status).toBe(200);
     expect(chatMock).toHaveBeenCalled();
 
-    // Verify messages sent to the model: system message must have the Conversational Governor
+    // Verify messages sent to the model: system message must have the Conversational Governor and known architecture
     const sentMessages = chatMock.mock.calls[0][0];
     const systemMessage = sentMessages.find((m: any) => m.role === "system");
     expect(systemMessage).toBeDefined();
     expect(systemMessage.content).toContain("Technical diagnosis & debugging: Deep, rigorous, and exhaustive reasoning");
-    expect(systemMessage.content).toContain("Distinguish verified facts from working hypotheses");
-
-    // Verify model response
-    expect(data.text).toContain("SSE stream");
+    // Verify model response is deep and technical, uses known architecture and avoids generic infrastructure
+    expect(data.text).toContain("pipeline");
+    expect(data.text).toContain("Hypothesis");
+    expect(data.text.length).toBeGreaterThan(150);
+    expect(data.text).not.toContain("Nginx");
+    expect(data.text).not.toContain("Kubernetes");
   });
 
   it("Test 8 — Provider failure: should surface provider error without fabricating assistant dialogue", async () => {

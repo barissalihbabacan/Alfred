@@ -20,7 +20,7 @@ function getDeterministicFallback(message: string): string {
   const lower = message.toLowerCase().trim();
 
   if (lower.includes("good morning") || lower.includes("hello") || lower.includes("good evening") || lower.includes("greetings")) {
-    return "Good morning, sir. I trust the evening was kind to you.";
+    return "Good morning, sir. I trust you slept well.";
   }
 
   if (lower.includes("capable of") || lower.includes("capabilities") || lower.includes("what can you do")) {
@@ -40,7 +40,7 @@ function getDeterministicFallback(message: string): string {
   }
 
   if (lower.includes("delete") && (lower.includes("database") || lower.includes("production") || lower.includes("prod"))) {
-    return "No, sir. Unless we have established that destroying production is the least bad option—which it almost certainly isn't—I would strongly advise against it. Let's establish what problem we're trying to solve before we reach for the nuclear option.";
+    return "No, sir. Unless we have established that destroying production is the least bad option—which it almost certainly isn't—I would strongly advise against it. Let's establish what problem we're solving before we reach for the nuclear option.";
   }
 
   return `Indeed, sir. You remarked: "${message.slice(0, 100)}".`;

@@ -685,37 +685,9 @@ export default function VoiceChatPlayground() {
                   🎩
                 </div>
                 <h1 style={{ fontSize: "24px", fontWeight: 600, marginBottom: "8px" }}>İyi günler, efendim.</h1>
-                <p style={{ fontSize: "14px", color: "#b4b4b4", marginBottom: "32px" }}>
+                <p style={{ fontSize: "14px", color: "#b4b4b4" }}>
                   B.U.T.L.E.R. Alfred hizmetinizde. Bugün ne üzerinde çalışıyoruz?
                 </p>
-
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px", width: "100%" }}>
-                  {[
-                    { title: "⚡ Mühendislik Felsefem", desc: "İki cümlede mühendislik yaklaşımımı özetle", prompt: "Mühendislik felsefemi özetle" },
-                    { title: "🦀 Rust ve Sistem Mimarisi", desc: "Rust ve bellek güvenliği analizimiz", prompt: "Rust programlama dili hakkında ne düşünüyorsun?" },
-                    { title: "🛡️ Mimari Prensipler", desc: "SSOT ve katmanlı tasarım standartlarımız", prompt: "Mimari prensiplerimiz ve Single Source of Truth" },
-                    { title: "🔍 Çıkarım Hattı Teşhisi", desc: "Tailscale, Ollama ve Cloud Function sağlığı", prompt: "Sistem durumunu ve çıkarım hattını kontrol et" }
-                  ].map((sug, idx) => (
-                    <div
-                      key={idx}
-                      onClick={() => handleSendMessage(sug.prompt)}
-                      style={{
-                        backgroundColor: "#2f2f2f",
-                        border: "1px solid rgba(255, 255, 255, 0.08)",
-                        borderRadius: "14px",
-                        padding: "14px 16px",
-                        textAlign: "left",
-                        cursor: "pointer",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "4px"
-                      }}
-                    >
-                      <span style={{ fontSize: "13px", fontWeight: 600, color: "#ececec" }}>{sug.title}</span>
-                      <span style={{ fontSize: "12px", color: "#8e8e8e" }}>{sug.desc}</span>
-                    </div>
-                  ))}
-                </div>
               </div>
             )}
 

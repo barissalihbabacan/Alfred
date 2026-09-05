@@ -1062,24 +1062,6 @@
             <div class="welcome-avatar">🎩</div>
             <h1 class="welcome-title">İyi günler, efendim.</h1>
             <p class="welcome-subtitle">B.U.T.L.E.R. Alfred hizmetinizde. Bugün ne üzerinde çalışıyoruz?</p>
-            <div class="suggestions-grid">
-              <div class="suggestion-card" onclick="useSuggestion('Mühendislik felsefemi özetle')">
-                <span class="suggestion-title">⚡ Mühendislik Felsefem</span>
-                <span class="suggestion-prompt">İki cümlede mühendislik yaklaşımımı özetle</span>
-              </div>
-              <div class="suggestion-card" onclick="useSuggestion('Rust programlama dili hakkında ne düşünüyorsun?')">
-                <span class="suggestion-title">🦀 Rust ve Sistem Mimarisi</span>
-                <span class="suggestion-prompt">Rust ve bellek güvenliği analizimiz</span>
-              </div>
-              <div class="suggestion-card" onclick="useSuggestion('Mimari prensiplerimiz ve Single Source of Truth')">
-                <span class="suggestion-title">🛡️ Mimari Prensipler</span>
-                <span class="suggestion-prompt">SSOT ve katmanlı tasarım standartlarımız</span>
-              </div>
-              <div class="suggestion-card" onclick="useSuggestion('Sistem durumunu ve çıkarım hattını kontrol et')">
-                <span class="suggestion-title">🔍 Çıkarım Hattı Teşhisi</span>
-                <span class="suggestion-prompt">Tailscale, Ollama ve Cloud Function sağlığı</span>
-              </div>
-            </div>
           </div>
 
           <!-- Message History Rows -->
@@ -1280,13 +1262,6 @@
       input.style.height = "auto";
       document.getElementById("sendBtn").classList.remove("active");
       sendMessage(text);
-    }
-
-    function useSuggestion(text) {
-      const input = document.getElementById("userInput");
-      input.value = text;
-      handleTextareaInput(input);
-      handleSendClick();
     }
 
     function scrollToBottom() {

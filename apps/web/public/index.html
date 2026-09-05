@@ -1364,17 +1364,21 @@
       if (!text) return "";
 
       // Extract <think> blocks
+      const isThinkClosed = /<\/think>/i.test(text);
+      const isOpen = !isThinkClosed;
+
       const thoughts = [];
       const mainText = text.replace(/<think>([\s\S]*?)(?:<\/think>|$)/gi, (_, thoughtContent) => {
-        const trimmed = thoughtContent.trim();
-        if (trimmed) thoughts.push(trimmed);
+        if (thoughtContent.trim() || !isThinkClosed) {
+          thoughts.push(thoughtContent.trim());
+        }
         return "";
       }).trim();
 
       let thoughtHtml = "";
       if (thoughts.length > 0) {
         thoughtHtml = thoughts.map(t => `
-          <details class="thought-container">
+          <details class="thought-container"${isOpen ? " open" : ""}>
             <summary class="thought-header">
               <svg class="thought-chevron-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
               <span>Düşünce Süreci</span>
@@ -1427,20 +1431,60 @@
       return thoughtHtml + html;
     }
 
+    function copyAssistantMessage(btn) {
+      const body = btn.closest(".assistant-body");
+      if (!body) return;
+      const textEl = body.querySelector(".assistant-text");
+      if (!textEl) return;
+
+      const clone = textEl.cloneNode(true);
+      clone.querySelectorAll(".thought-container").forEach(el => el.remove());
+      const textToCopy = clone.innerText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
+
+      copyTextToClipboard(textToCopy, btn);
+    }
+
+    function copyTextToClipboard(text, btn) {
+      const applySuccess = () => {
+        btn.innerHTML = `<span class="copied-anim">${SVG_ICONS.check} <span>Kopyalandı</span></span>`;
+        setTimeout(() => {
+          btn.innerHTML = `${SVG_ICONS.copy} <span>Kopyala</span>`;
+        }, 2000);
+      };
+
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(applySuccess).catch(() => {
+          fallbackCopy(text);
+          applySuccess();
+        });
+      } else {
+        fallbackCopy(text);
+        applySuccess();
+      }
+    }
+
+    function fallbackCopy(text) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      ta.style.top = "-9999px";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try {
+        document.execCommand("copy");
+      } catch (e) {
+        console.warn("Fallback copy failed:", e);
+      }
+      document.body.removeChild(ta);
+    }
+
     function copyCode(btn) {
       const container = btn.closest(".code-container");
       const code = container.querySelector("code").innerText;
-      navigator.clipboard.writeText(code).then(() => {
-        btn.innerHTML = `<span class="copied-anim">${SVG_ICONS.check} <span>Kopyalandı</span></span>`;
-        setTimeout(() => { btn.innerHTML = `<span>${SVG_ICONS.copy} <span>Kopyala</span></span>`; }, 2000);
-      });
-    }
-
-    function copyText(text, btn) {
-      navigator.clipboard.writeText(text).then(() => {
-        btn.innerHTML = `<span class="copied-anim">${SVG_ICONS.check} <span>Kopyalandı</span></span>`;
-        setTimeout(() => { btn.innerHTML = `${SVG_ICONS.copy} <span>Kopyala</span>`; }, 2000);
-      });
+      copyTextToClipboard(code, btn);
     }
 
     function speakText(text) {
@@ -1586,7 +1630,7 @@
           const cleanAnswer = fullText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim() || fullText;
           actionsContainer.style.display = "flex";
           actionsContainer.innerHTML = `
-            <button class="assistant-action-btn" onclick="copyText(${JSON.stringify(cleanAnswer)}, this)">${SVG_ICONS.copy} <span>Kopyala</span></button>
+            <button class="assistant-action-btn" onclick="copyAssistantMessage(this)">${SVG_ICONS.copy} <span>Kopyala</span></button>
           `;
           scrollToBottom();
         },
@@ -1755,7 +1799,7 @@
                   </div>
                   <div class="assistant-text">${renderMarkdown(msg.content)}</div>
                   <div class="assistant-actions">
-                    <button class="assistant-action-btn" onclick="copyText(${JSON.stringify(msg.content.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim() || msg.content)}, this)">${SVG_ICONS.copy} <span>Kopyala</span></button>
+                    <button class="assistant-action-btn" onclick="copyAssistantMessage(this)">${SVG_ICONS.copy} <span>Kopyala</span></button>
                   </div>
                 </div>
               `;

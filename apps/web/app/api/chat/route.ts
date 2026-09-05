@@ -295,7 +295,8 @@ export async function POST(req: NextRequest) {
             provider: provider.id
           });
 
-          let hasStartedContent = false;
+          let hasEmittedThinkTag = false;
+          let hasClosedThinkTag = false;
 
           for await (const chunk of provider.streamChat(messages, {
             temperature: 0.6,
@@ -306,19 +307,34 @@ export async function POST(req: NextRequest) {
               break;
             }
 
-            // Thinking event without leaking internal reasoning
-            if (chunk.thinking && !hasStartedContent) {
-              sendEvent({ type: "thinking" });
+            // Stream thinking tokens
+            if (chunk.thinking) {
+              if (!hasEmittedThinkTag) {
+                hasEmittedThinkTag = true;
+                accumulatedText += "<think>\n";
+                sendEvent({ type: "chunk", text: "<think>\n" });
+              }
+              accumulatedText += chunk.thinking;
+              sendEvent({ type: "chunk", text: chunk.thinking });
             }
 
             // Content tokens
             if (chunk.content) {
-              hasStartedContent = true;
+              if (hasEmittedThinkTag && !hasClosedThinkTag) {
+                hasClosedThinkTag = true;
+                accumulatedText += "\n</think>\n\n";
+                sendEvent({ type: "chunk", text: "\n</think>\n\n" });
+              }
               accumulatedText += chunk.content;
               sendEvent({ type: "chunk", text: chunk.content });
             }
 
             if (chunk.done) {
+              if (hasEmittedThinkTag && !hasClosedThinkTag) {
+                hasClosedThinkTag = true;
+                accumulatedText += "\n</think>\n\n";
+                sendEvent({ type: "chunk", text: "\n</think>\n\n" });
+              }
               sendEvent({
                 type: "done",
                 finishReason: chunk.finishReason,

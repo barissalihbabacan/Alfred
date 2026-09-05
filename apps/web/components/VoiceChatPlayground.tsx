@@ -35,21 +35,43 @@ function escapeHtml(str: string): string {
     .replace(/'/g, "&#39;");
 }
 
+function fallbackCopy(text: string) {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.left = "-9999px";
+  ta.style.top = "-9999px";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try {
+    document.execCommand("copy");
+  } catch (e) {
+    console.warn("Fallback copy failed:", e);
+  }
+  document.body.removeChild(ta);
+}
+
 function renderMarkdown(text: string): string {
   if (!text) return "";
 
   // Extract <think> blocks
+  const isThinkClosed = /<\/think>/i.test(text);
+  const isOpen = !isThinkClosed;
+
   const thoughts: string[] = [];
   const mainText = text.replace(/<think>([\s\S]*?)(?:<\/think>|$)/gi, (_, thoughtContent) => {
-    const trimmed = thoughtContent.trim();
-    if (trimmed) thoughts.push(trimmed);
+    if (thoughtContent.trim() || !isThinkClosed) {
+      thoughts.push(thoughtContent.trim());
+    }
     return "";
   }).trim();
 
   let thoughtHtml = "";
   if (thoughts.length > 0) {
     thoughtHtml = thoughts.map(t => `
-      <details class="thought-container">
+      <details class="thought-container"${isOpen ? " open" : ""}>
         <summary class="thought-header">
           <svg class="thought-chevron-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
           <span>Düşünce Süreci</span>
@@ -1011,12 +1033,21 @@ export default function VoiceChatPlayground() {
                       <button
                         onClick={() => {
                           const clean = msg.text.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim() || msg.text;
-                          navigator.clipboard.writeText(clean).then(() => {
+                          const doCopy = () => {
                             setCopiedId(msg.id);
                             setTimeout(() => {
                               setCopiedId(curr => (curr === msg.id ? null : curr));
                             }, 2000);
-                          });
+                          };
+                          if (navigator.clipboard && window.isSecureContext) {
+                            navigator.clipboard.writeText(clean).then(doCopy).catch(() => {
+                              fallbackCopy(clean);
+                              doCopy();
+                            });
+                          } else {
+                            fallbackCopy(clean);
+                            doCopy();
+                          }
                         }}
                         style={{ background: "none", border: "none", color: "#8e8e8e", cursor: "pointer", fontSize: "12px", padding: "2px 6px", display: "inline-flex", alignItems: "center", gap: "4px" }}
                         title="Kopyala"

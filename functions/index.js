@@ -429,6 +429,8 @@ export const api = onRequest({ cors: true }, async (req, res) => {
       const reader = ollamaRes.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
+      let hasEmittedThinkTag = false;
+      let hasClosedThinkTag = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -444,13 +446,29 @@ export const api = onRequest({ cors: true }, async (req, res) => {
           try {
             const chunk = JSON.parse(trimmed);
             if (chunk.message?.thinking) {
-              sendEvent({ type: "thinking" });
+              if (!hasEmittedThinkTag) {
+                hasEmittedThinkTag = true;
+                accumulatedText += "<think>\n";
+                sendEvent({ type: "chunk", text: "<think>\n" });
+              }
+              accumulatedText += chunk.message.thinking;
+              sendEvent({ type: "chunk", text: chunk.message.thinking });
             }
             if (chunk.message?.content) {
+              if (hasEmittedThinkTag && !hasClosedThinkTag) {
+                hasClosedThinkTag = true;
+                accumulatedText += "\n</think>\n\n";
+                sendEvent({ type: "chunk", text: "\n</think>\n\n" });
+              }
               accumulatedText += chunk.message.content;
               sendEvent({ type: "chunk", text: chunk.message.content });
             }
             if (chunk.done) {
+              if (hasEmittedThinkTag && !hasClosedThinkTag) {
+                hasClosedThinkTag = true;
+                accumulatedText += "\n</think>\n\n";
+                sendEvent({ type: "chunk", text: "\n</think>\n\n" });
+              }
               sendEvent({ type: "done" });
 
               // Persist assistant message to Firestore

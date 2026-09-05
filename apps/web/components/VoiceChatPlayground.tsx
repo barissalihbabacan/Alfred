@@ -477,7 +477,7 @@ export default function VoiceChatPlayground() {
             borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
             backgroundColor: "#171717"
           }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", userSelect: "none" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", flex: 1, userSelect: "none" }}>
               <div style={{
                 width: "32px",
                 height: "32px",
@@ -497,7 +497,7 @@ export default function VoiceChatPlayground() {
                   <path d="M6 14.5h12" />
                 </svg>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "1px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "1px", flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                   <span style={{ fontSize: "13px", fontWeight: 700, letterSpacing: "0.06em", color: "#ececec" }}>B.U.T.L.E.R.</span>
                   <span style={{
@@ -514,28 +514,6 @@ export default function VoiceChatPlayground() {
                 <span style={{ fontSize: "10px", color: "#737373", fontWeight: 500, letterSpacing: "0.02em" }}>Executive Intelligence</span>
               </div>
             </div>
-            <button
-              onClick={handleNewConversation}
-              style={{
-                width: "30px",
-                height: "30px",
-                borderRadius: "8px",
-                border: "1px solid transparent",
-                background: "transparent",
-                color: "#8e8e8e",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                transition: "all 0.15s ease"
-              }}
-              title="Yeni Sohbet (⌘K)"
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 20h9" />
-                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-              </svg>
-            </button>
           </div>
 
           {/* Primary Action Button */}

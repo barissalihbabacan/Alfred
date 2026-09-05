@@ -803,6 +803,88 @@
       40% { transform: scale(1.1); opacity: 1; }
     }
 
+    /* Skeleton Loading */
+    @keyframes skeletonShimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+
+    .skeleton-shimmer {
+      background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.04) 25%,
+        rgba(255, 255, 255, 0.09) 50%,
+        rgba(255, 255, 255, 0.04) 75%
+      );
+      background-size: 200% 100%;
+      animation: skeletonShimmer 1.8s infinite ease-in-out;
+      border-radius: 4px;
+    }
+
+    .conv-skeleton-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      border-radius: 8px;
+    }
+
+    .conv-skeleton-icon {
+      width: 14px;
+      height: 14px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+
+    .conv-skeleton-text {
+      height: 12px;
+      border-radius: 4px;
+    }
+
+    /* Message Area Skeleton */
+    .message-skeleton-wrap {
+      padding: 16px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .message-skeleton-row {
+      display: flex;
+      gap: 14px;
+      width: 100%;
+    }
+
+    .message-skeleton-row.user {
+      justify-content: flex-end;
+    }
+
+    .message-skeleton-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .message-skeleton-body {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-width: 550px;
+      flex: 1;
+    }
+
+    .message-skeleton-line {
+      height: 14px;
+      border-radius: 6px;
+    }
+
+    .message-skeleton-user-pill {
+      height: 42px;
+      width: 180px;
+      border-radius: 20px 20px 4px 20px;
+    }
+
     @keyframes pulse {
       0%, 100% { opacity: 1; transform: scale(1); }
       50% { opacity: 0.5; transform: scale(1.15); }
@@ -1127,10 +1209,22 @@
       <!-- Conversations History List -->
       <div class="conversations-section" id="conversationsList">
         <div class="conv-group-label">Son Sohbetler</div>
-        <!-- Loaded dynamically from Firestore -->
         <div id="conversationsContainer">
-          <div class="conv-item active" id="currentConvItem">
-            <span class="conv-item-title">Mevcut Sohbet</span>
+          <div class="conv-skeleton-item">
+            <div class="skeleton-shimmer conv-skeleton-icon"></div>
+            <div class="skeleton-shimmer conv-skeleton-text" style="width: 75%;"></div>
+          </div>
+          <div class="conv-skeleton-item">
+            <div class="skeleton-shimmer conv-skeleton-icon"></div>
+            <div class="skeleton-shimmer conv-skeleton-text" style="width: 60%;"></div>
+          </div>
+          <div class="conv-skeleton-item">
+            <div class="skeleton-shimmer conv-skeleton-icon"></div>
+            <div class="skeleton-shimmer conv-skeleton-text" style="width: 85%;"></div>
+          </div>
+          <div class="conv-skeleton-item">
+            <div class="skeleton-shimmer conv-skeleton-icon"></div>
+            <div class="skeleton-shimmer conv-skeleton-text" style="width: 70%;"></div>
           </div>
         </div>
       </div>
@@ -1671,11 +1765,57 @@
       }
     }
 
+    function renderConversationsSkeleton() {
+      const container = document.getElementById("conversationsContainer");
+      if (!container) return;
+      container.innerHTML = `
+        <div class="conv-skeleton-item">
+          <div class="skeleton-shimmer conv-skeleton-icon"></div>
+          <div class="skeleton-shimmer conv-skeleton-text" style="width: 75%;"></div>
+        </div>
+        <div class="conv-skeleton-item">
+          <div class="skeleton-shimmer conv-skeleton-icon"></div>
+          <div class="skeleton-shimmer conv-skeleton-text" style="width: 60%;"></div>
+        </div>
+        <div class="conv-skeleton-item">
+          <div class="skeleton-shimmer conv-skeleton-icon"></div>
+          <div class="skeleton-shimmer conv-skeleton-text" style="width: 85%;"></div>
+        </div>
+        <div class="conv-skeleton-item">
+          <div class="skeleton-shimmer conv-skeleton-icon"></div>
+          <div class="skeleton-shimmer conv-skeleton-text" style="width: 70%;"></div>
+        </div>
+      `;
+    }
+
+    function renderMessagesSkeleton() {
+      const list = document.getElementById("messagesList");
+      if (!list) return;
+      list.innerHTML = `
+        <div class="message-skeleton-wrap">
+          <div class="message-skeleton-row user">
+            <div class="skeleton-shimmer message-skeleton-user-pill"></div>
+          </div>
+          <div class="message-skeleton-row">
+            <div class="skeleton-shimmer message-skeleton-avatar"></div>
+            <div class="message-skeleton-body">
+              <div class="skeleton-shimmer message-skeleton-line" style="width: 85%;"></div>
+              <div class="skeleton-shimmer message-skeleton-line" style="width: 70%;"></div>
+              <div class="skeleton-shimmer message-skeleton-line" style="width: 45%;"></div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
     async function loadConversation(id) {
-      if (!id || id === currentConversationId) return;
+      if (!id) return;
       try {
         currentConversationId = id;
         localStorage.setItem("alfred_conversation_id", id);
+        highlightActiveConversation(id);
+        hideWelcomeScreen();
+        renderMessagesSkeleton();
 
         const res = await fetch(`/api/chat?conversationId=${encodeURIComponent(id)}`);
         if (!res.ok) return;
@@ -1732,14 +1872,23 @@
       });
     }
 
-    async function refreshConversationsList() {
+    async function refreshConversationsList(showSkeleton = false) {
+      const container = document.getElementById("conversationsContainer");
+      if (showSkeleton && container) {
+        renderConversationsSkeleton();
+      }
       try {
         const res = await fetch("/api/chat?userId=guest_default");
         if (!res.ok) return;
         const data = await res.json();
         if (data.success && Array.isArray(data.conversations)) {
-          const container = document.getElementById("conversationsContainer");
+          if (!container) return;
           container.innerHTML = "";
+
+          if (data.conversations.length === 0) {
+            container.innerHTML = `<div style="padding: 12px 10px; font-size: 12px; color: var(--text-muted);">Henüz kayıtlı sohbet bulunmuyor.</div>`;
+            return;
+          }
 
           for (const conv of data.conversations) {
             const item = document.createElement("div");

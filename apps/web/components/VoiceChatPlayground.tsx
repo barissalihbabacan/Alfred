@@ -122,6 +122,8 @@ export default function VoiceChatPlayground() {
   const [isRecording, setIsRecording] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [conversationsLoading, setConversationsLoading] = useState(true);
+  const [messagesLoading, setMessagesLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [sttLang, setSttLang] = useState("tr-TR");
@@ -143,7 +145,8 @@ export default function VoiceChatPlayground() {
   }, [messages, state, scrollToBottom]);
 
   // Load conversations list and restore active conversation from Firestore
-  const fetchConversations = useCallback(async () => {
+  const fetchConversations = useCallback(async (showSkeleton = false) => {
+    if (showSkeleton) setConversationsLoading(true);
     try {
       const res = await fetch("/api/chat?userId=guest_default");
       if (res.ok) {
@@ -154,6 +157,8 @@ export default function VoiceChatPlayground() {
       }
     } catch (err) {
       console.warn("Failed to fetch conversation list:", err);
+    } finally {
+      setConversationsLoading(false);
     }
   }, []);
 
@@ -161,6 +166,7 @@ export default function VoiceChatPlayground() {
     try {
       setConversationId(id);
       localStorage.setItem("alfred_conversation_id", id);
+      setMessagesLoading(true);
 
       const res = await fetch(`/api/chat?conversationId=${encodeURIComponent(id)}`);
       if (res.ok) {
@@ -179,11 +185,13 @@ export default function VoiceChatPlayground() {
       }
     } catch (err) {
       console.warn("Failed to load conversation:", err);
+    } finally {
+      setMessagesLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchConversations();
+    fetchConversations(true);
     const savedConvId = localStorage.getItem("alfred_conversation_id");
     if (savedConvId) {
       loadConversation(savedConvId);
@@ -519,6 +527,21 @@ export default function VoiceChatPlayground() {
         .dot-bounce { animation: dotBounce 1.4s infinite ease-in-out both; }
         .conv-item-wrap:hover .conv-item-del-btn { opacity: 0.7; }
         .conv-item-del-btn:hover { opacity: 1 !important; background-color: rgba(239, 68, 68, 0.15) !important; color: #ef4444 !important; }
+        @keyframes skeletonShimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+        .skeleton-shimmer {
+          background: linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0.04) 25%,
+            rgba(255, 255, 255, 0.1) 50%,
+            rgba(255, 255, 255, 0.04) 75%
+          );
+          background-size: 200% 100%;
+          animation: skeletonShimmer 1.8s infinite ease-in-out;
+          border-radius: 4px;
+        }
         @keyframes copyPop {
           0% { transform: scale(0.85); opacity: 0; }
           50% { transform: scale(1.12); }
@@ -644,7 +667,16 @@ export default function VoiceChatPlayground() {
             Geçmiş Sohbetler
           </div>
 
-          {conversations.length === 0 ? (
+          {conversationsLoading ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px", padding: "4px 0" }}>
+              {[75, 60, 85, 70].map((w, idx) => (
+                <div key={idx} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "9px 10px", borderRadius: "8px" }}>
+                  <div className="skeleton-shimmer" style={{ width: "14px", height: "14px", borderRadius: "4px", flexShrink: 0 }} />
+                  <div className="skeleton-shimmer" style={{ height: "12px", width: `${w}%`, borderRadius: "4px" }} />
+                </div>
+              ))}
+            </div>
+          ) : conversations.length === 0 ? (
             <div style={{ padding: "12px 8px", fontSize: "12px", color: "#737373" }}>
               Henüz kayıtlı sohbet bulunmuyor.
             </div>
@@ -841,8 +873,23 @@ export default function VoiceChatPlayground() {
         {/* Scrollable Message List */}
         <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
           <div style={{ maxWidth: "48rem", width: "100%", margin: "0 auto", padding: "24px 20px 140px", display: "flex", flexDirection: "column", gap: "24px" }}>
-            {/* Empty / Welcome State */}
-            {messages.length === 0 && (
+            {/* Message Skeleton Loading */}
+            {messagesLoading ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "24px", padding: "16px 0" }}>
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <div className="skeleton-shimmer" style={{ width: "180px", height: "42px", borderRadius: "20px 20px 4px 20px" }} />
+                </div>
+                <div style={{ display: "flex", gap: "14px", width: "100%" }}>
+                  <div className="skeleton-shimmer" style={{ width: "32px", height: "32px", borderRadius: "50%", flexShrink: 0 }} />
+                  <div style={{ display: "flex", flexDirection: "column", gap: "10px", flex: 1, maxWidth: "550px" }}>
+                    <div className="skeleton-shimmer" style={{ width: "85%", height: "14px", borderRadius: "4px" }} />
+                    <div className="skeleton-shimmer" style={{ width: "70%", height: "14px", borderRadius: "4px" }} />
+                    <div className="skeleton-shimmer" style={{ width: "45%", height: "14px", borderRadius: "4px" }} />
+                  </div>
+                </div>
+              </div>
+            ) : messages.length === 0 ? (
+              /* Empty / Welcome State */
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", margin: "auto auto", padding: "40px 16px 20px" }}>
                 <div style={{
                   width: "56px",
@@ -867,7 +914,7 @@ export default function VoiceChatPlayground() {
                   B.U.T.L.E.R. Alfred hizmetinizde. Bugün ne üzerinde çalışıyoruz?
                 </p>
               </div>
-            )}
+            ) : null}
 
             {/* Render Messages */}
             {messages.map((msg) => (

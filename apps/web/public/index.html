@@ -788,150 +788,6 @@
       padding: 4px 0;
     }
 
-    .thinking-chevron {
-      display: inline-flex;
-      align-items: center;
-      color: var(--accent-gold);
-      margin-right: 2px;
-      transition: transform 0.2s ease;
-    }
-
-    .thought-container {
-      margin-bottom: 12px;
-      border-radius: 8px;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      overflow: hidden;
-      transition: border-color 0.2s ease, box-shadow 0.2s ease;
-    }
-
-    .thought-container.live {
-      border-color: rgba(197, 160, 89, 0.35);
-      background: rgba(197, 160, 89, 0.025);
-      box-shadow: 0 0 16px rgba(197, 160, 89, 0.08);
-    }
-
-    .thought-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      padding: 8px 12px;
-      cursor: pointer;
-      user-select: none;
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--text-muted);
-      transition: background 0.15s ease, color 0.15s ease;
-      list-style: none;
-    }
-
-    .thought-header::-webkit-details-marker {
-      display: none;
-    }
-
-    .thought-header:hover {
-      background: rgba(255, 255, 255, 0.05);
-      color: var(--text-primary);
-    }
-
-    .thought-header-left {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .thought-chevron-icon {
-      transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-      flex-shrink: 0;
-      color: var(--text-muted);
-    }
-
-    .thought-container[open] .thought-chevron-icon,
-    .thought-container.open .thought-chevron-icon {
-      transform: rotate(90deg);
-      color: var(--accent-gold);
-    }
-
-    .thought-live-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 2px 8px;
-      border-radius: 12px;
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--accent-gold);
-      background: rgba(197, 160, 89, 0.12);
-      border: 1px solid rgba(197, 160, 89, 0.25);
-      letter-spacing: 0.02em;
-    }
-
-    .thought-live-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background-color: var(--accent-gold);
-      box-shadow: 0 0 6px rgba(197, 160, 89, 0.8);
-      animation: livePulse 1.2s infinite ease-in-out;
-    }
-
-    @keyframes livePulse {
-      0%, 100% { opacity: 0.35; transform: scale(0.85); }
-      50% { opacity: 1; transform: scale(1.15); }
-    }
-
-    .thought-cursor {
-      display: inline-block;
-      width: 2px;
-      height: 13px;
-      background-color: var(--accent-gold);
-      margin-left: 3px;
-      vertical-align: middle;
-      animation: cursorBlink 0.8s infinite;
-    }
-
-    @keyframes cursorBlink {
-      0%, 100% { opacity: 0; }
-      50% { opacity: 1; }
-    }
-
-    .thought-body {
-      padding: 10px 14px 14px 14px;
-      font-size: 12.5px;
-      line-height: 1.6;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      color: #9ca3af;
-      border-top: 1px solid rgba(255, 255, 255, 0.05);
-      white-space: pre-wrap;
-      word-break: break-word;
-      background: rgba(0, 0, 0, 0.2);
-      max-height: 340px;
-      overflow-y: auto;
-    }
-
-    .thought-body::-webkit-scrollbar {
-      width: 4px;
-    }
-    .thought-body::-webkit-scrollbar-track {
-      background: transparent;
-    }
-    .thought-body::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.12);
-      border-radius: 4px;
-    }
-    .thought-body::-webkit-scrollbar-thumb:hover {
-      background: var(--accent-gold);
-    }
-
-    .thought-container:not(details):not(.open) .thought-body {
-      display: none;
-    }
-
-    .thought-container:not(details).open .thought-body {
-      display: block;
-    }
-
     .thinking-dot {
       width: 6px;
       height: 6px;
@@ -1434,53 +1290,16 @@
       chevron: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`
     };
 
-    function renderMarkdown(text, isLive = false) {
+    function renderMarkdown(text) {
       if (!text) return "";
 
-      // Extract <think> blocks
-      const hasThink = text.includes("<think>");
-      const isThinkClosed = /<\/think>/i.test(text);
-      const isCurrentlyThinking = isLive && hasThink && !isThinkClosed;
-
-      const thoughts = [];
-      const mainText = text.replace(/<think>([\s\S]*?)(?:<\/think>|$)/gi, (_, thoughtContent) => {
-        if (thoughtContent.trim() || isCurrentlyThinking) {
-          thoughts.push(thoughtContent.trim());
-        }
+      // Completely remove <think>...</think> or unclosed <think>... from display
+      const cleanText = text.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
+      if (!cleanText) {
         return "";
-      }).trim();
-
-      let thoughtHtml = "";
-      if (thoughts.length > 0) {
-        thoughtHtml = thoughts.map(t => {
-          const content = escapeHtml(t);
-          const cursor = isCurrentlyThinking ? '<span class="thought-cursor"></span>' : '';
-          const liveBadge = isCurrentlyThinking
-            ? `<span class="thought-live-badge"><span class="thought-live-dot"></span><span>Düşünüyor...</span></span>`
-            : "";
-          const openAttr = isCurrentlyThinking ? " open" : "";
-          const liveClass = isCurrentlyThinking ? " live" : "";
-
-          return `
-            <details class="thought-container${liveClass}"${openAttr}>
-              <summary class="thought-header">
-                <div class="thought-header-left">
-                  <svg class="thought-chevron-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                  <span>Düşünce Süreci</span>
-                </div>
-                ${liveBadge}
-              </summary>
-              <div class="thought-body">${content || (isCurrentlyThinking ? '<span style="color: var(--text-muted); font-style: italic;">Akıl yürütülüyor...</span>' : '')}${cursor}</div>
-            </details>
-          `;
-        }).join("");
       }
 
-      if (!mainText) {
-        return thoughtHtml;
-      }
-
-      let html = escapeHtml(mainText);
+      let html = escapeHtml(cleanText);
 
       // Multi-line code blocks with copy button
       html = html.replace(/```(?:([a-zA-Z0-9_-]+)\n)?([\s\S]*?)```/g, (_m, lang, code) => {
@@ -1516,7 +1335,7 @@
         return `<p>${trimmed.replace(/\n/g, "<br/>")}</p>`;
       }).join("");
 
-      return thoughtHtml + html;
+      return html;
     }
 
     function copyAssistantMessage(btn) {
@@ -1525,10 +1344,7 @@
       const textEl = body.querySelector(".assistant-text");
       if (!textEl) return;
 
-      const clone = textEl.cloneNode(true);
-      clone.querySelectorAll(".thought-container").forEach(el => el.remove());
-      const textToCopy = clone.innerText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
-
+      const textToCopy = textEl.innerText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
       copyTextToClipboard(textToCopy, btn);
     }
 
@@ -1683,7 +1499,6 @@
           </div>
           <div class="assistant-text">
             <div class="thinking-bubble">
-              <span class="thinking-chevron">${SVG_ICONS.chevron}</span>
               <span class="thinking-dot"></span>
               <span class="thinking-dot"></span>
               <span class="thinking-dot"></span>
@@ -1702,25 +1517,24 @@
 
       return {
         update(fullText) {
-          const isCurrentlyThinking = fullText.includes("<think>") && !/<\/think>/i.test(fullText);
-          const wasOpenCompleted = textContainer.querySelector(".thought-container:not(.live)[open]") !== null;
-          textContainer.innerHTML = renderMarkdown(fullText, isCurrentlyThinking);
-          if (wasOpenCompleted) {
-            textContainer.querySelectorAll(".thought-container").forEach(el => el.setAttribute("open", ""));
-          }
-          const thoughtBody = textContainer.querySelector(".thought-body");
-          if (thoughtBody && isCurrentlyThinking) {
-            thoughtBody.scrollTop = thoughtBody.scrollHeight;
+          const rendered = renderMarkdown(fullText);
+          if (rendered) {
+            textContainer.innerHTML = rendered;
+          } else {
+            textContainer.innerHTML = `
+              <div class="thinking-bubble">
+                <span class="thinking-dot"></span>
+                <span class="thinking-dot"></span>
+                <span class="thinking-dot"></span>
+                <span>Düşünüyor...</span>
+              </div>
+            `;
           }
           scrollToBottom();
         },
         finish(fullText) {
-          const wasOpenCompleted = textContainer.querySelector(".thought-container:not(.live)[open]") !== null;
-          textContainer.innerHTML = renderMarkdown(fullText, false);
-          if (wasOpenCompleted) {
-            textContainer.querySelectorAll(".thought-container").forEach(el => el.setAttribute("open", ""));
-          }
-          const cleanAnswer = fullText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim() || fullText;
+          const rendered = renderMarkdown(fullText);
+          textContainer.innerHTML = rendered || "<em>(Yanıt boş)</em>";
           actionsContainer.style.display = "flex";
           actionsContainer.innerHTML = `
             <button class="assistant-action-btn" onclick="copyAssistantMessage(this)">${SVG_ICONS.copy} <span>Kopyala</span></button>

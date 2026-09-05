@@ -53,53 +53,16 @@ function fallbackCopy(text: string) {
   document.body.removeChild(ta);
 }
 
-function renderMarkdown(text: string, isLive: boolean = false): string {
+function renderMarkdown(text: string): string {
   if (!text) return "";
 
-  // Extract <think> blocks
-  const hasThink = text.includes("<think>");
-  const isThinkClosed = /<\/think>/i.test(text);
-  const isCurrentlyThinking = isLive && hasThink && !isThinkClosed;
-
-  const thoughts: string[] = [];
-  const mainText = text.replace(/<think>([\s\S]*?)(?:<\/think>|$)/gi, (_, thoughtContent) => {
-    if (thoughtContent.trim() || isCurrentlyThinking) {
-      thoughts.push(thoughtContent.trim());
-    }
+  // Completely remove <think>...</think> or unclosed <think>... from display
+  const cleanText = text.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
+  if (!cleanText) {
     return "";
-  }).trim();
-
-  let thoughtHtml = "";
-  if (thoughts.length > 0) {
-    thoughtHtml = thoughts.map(t => {
-      const content = escapeHtml(t);
-      const cursor = isCurrentlyThinking ? '<span class="thought-cursor"></span>' : '';
-      const liveBadge = isCurrentlyThinking
-        ? `<span class="thought-live-badge"><span class="thought-live-dot"></span><span>Düşünüyor...</span></span>`
-        : "";
-      const openAttr = isCurrentlyThinking ? " open" : "";
-      const liveClass = isCurrentlyThinking ? " live" : "";
-
-      return `
-        <details class="thought-container${liveClass}"${openAttr}>
-          <summary class="thought-header">
-            <div class="thought-header-left">
-              <svg class="thought-chevron-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-              <span>Düşünce Süreci</span>
-            </div>
-            ${liveBadge}
-          </summary>
-          <div class="thought-body">${content || (isCurrentlyThinking ? '<span style="color: #8e8e8e; font-style: italic;">Akıl yürütülüyor...</span>' : '')}${cursor}</div>
-        </details>
-      `;
-    }).join("");
   }
 
-  if (!mainText) {
-    return thoughtHtml;
-  }
-
-  let html = escapeHtml(mainText);
+  let html = escapeHtml(cleanText);
 
   // Multi-line code blocks: ```lang ... ```
   const codeBlocks: string[] = [];
@@ -148,7 +111,7 @@ function renderMarkdown(text: string, isLive: boolean = false): string {
   html = html.replace(/§§INLINECODE(\d+)§§/g, (_m, idx) => inlineCodes[Number(idx)]);
   html = html.replace(/§§CODEBLOCK(\d+)§§/g, (_m, idx) => codeBlocks[Number(idx)]);
 
-  return thoughtHtml + html;
+  return html;
 }
 
 export default function VoiceChatPlayground() {
@@ -556,125 +519,6 @@ export default function VoiceChatPlayground() {
         .dot-bounce { animation: dotBounce 1.4s infinite ease-in-out both; }
         .conv-item-wrap:hover .conv-item-del-btn { opacity: 0.7; }
         .conv-item-del-btn:hover { opacity: 1 !important; background-color: rgba(239, 68, 68, 0.15) !important; color: #ef4444 !important; }
-        .thought-container {
-          margin-bottom: 12px;
-          border-radius: 8px;
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          overflow: hidden;
-          transition: border-color 0.2s ease, box-shadow 0.2s ease;
-        }
-        .thought-container.live {
-          border-color: rgba(197, 160, 89, 0.35);
-          background: rgba(197, 160, 89, 0.025);
-          box-shadow: 0 0 16px rgba(197, 160, 89, 0.08);
-        }
-        .thought-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 8px;
-          padding: 8px 12px;
-          cursor: pointer;
-          user-select: none;
-          font-size: 13px;
-          font-weight: 500;
-          color: #8e8e8e;
-          transition: background 0.15s ease, color 0.15s ease;
-          list-style: none;
-        }
-        .thought-header::-webkit-details-marker {
-          display: none;
-        }
-        .thought-header:hover {
-          background: rgba(255, 255, 255, 0.05);
-          color: #ececec;
-        }
-        .thought-header-left {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-        .thought-chevron-icon {
-          transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-          flex-shrink: 0;
-          color: #8e8e8e;
-        }
-        .thought-container[open] .thought-chevron-icon,
-        .thought-container.open .thought-chevron-icon {
-          transform: rotate(90deg);
-          color: #c5a059;
-        }
-        .thought-live-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          padding: 2px 8px;
-          border-radius: 12px;
-          font-size: 11px;
-          font-weight: 600;
-          color: #c5a059;
-          background: rgba(197, 160, 89, 0.12);
-          border: 1px solid rgba(197, 160, 89, 0.25);
-          letter-spacing: 0.02em;
-        }
-        .thought-live-dot {
-          width: 6px;
-          height: 6px;
-          border-radius: 50%;
-          background-color: #c5a059;
-          box-shadow: 0 0 6px rgba(197, 160, 89, 0.8);
-          animation: livePulse 1.2s infinite ease-in-out;
-        }
-        @keyframes livePulse {
-          0%, 100% { opacity: 0.35; transform: scale(0.85); }
-          50% { opacity: 1; transform: scale(1.15); }
-        }
-        .thought-cursor {
-          display: inline-block;
-          width: 2px;
-          height: 13px;
-          background-color: #c5a059;
-          margin-left: 3px;
-          vertical-align: middle;
-          animation: cursorBlink 0.8s infinite;
-        }
-        @keyframes cursorBlink {
-          0%, 100% { opacity: 0; }
-          50% { opacity: 1; }
-        }
-        .thought-body {
-          padding: 10px 14px 14px 14px;
-          font-size: 12.5px;
-          line-height: 1.6;
-          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-          color: #9ca3af;
-          border-top: 1px solid rgba(255, 255, 255, 0.05);
-          white-space: pre-wrap;
-          word-break: break-word;
-          background: rgba(0, 0, 0, 0.2);
-          max-height: 340px;
-          overflow-y: auto;
-        }
-        .thought-body::-webkit-scrollbar {
-          width: 4px;
-        }
-        .thought-body::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .thought-body::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.12);
-          border-radius: 4px;
-        }
-        .thought-body::-webkit-scrollbar-thumb:hover {
-          background: #c5a059;
-        }
-        .thought-container:not(details):not(.open) .thought-body {
-          display: none;
-        }
-        .thought-container:not(details).open .thought-body {
-          display: block;
-        }
         @keyframes copyPop {
           0% { transform: scale(0.85); opacity: 0; }
           50% { transform: scale(1.12); }
@@ -1091,24 +935,19 @@ export default function VoiceChatPlayground() {
                           }
                     }
                   >
-                    {msg.isThinking ? (
+                    {msg.isThinking || !renderMarkdown(msg.text) ? (
                       <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "#8e8e8e", fontSize: "14px", padding: "4px 0" }}>
-                        <span style={{ display: "inline-flex", alignItems: "center", color: "#c5a059", marginRight: "2px" }}>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="9 18 15 12 9 6" />
-                          </svg>
-                        </span>
                         <span className="dot-bounce" style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#c5a059" }} />
                         <span className="dot-bounce" style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#c5a059", animationDelay: "-0.16s" }} />
                         <span className="dot-bounce" style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#c5a059", animationDelay: "-0.32s" }} />
                         <span>Düşünüyor...</span>
                       </div>
                     ) : (
-                      <div dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text, state === "Streaming" && msg.id === messages[messages.length - 1]?.id) }} />
+                      <div dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }} />
                     )}
                   </div>
 
-                  {msg.role === "assistant" && !msg.isThinking && msg.text && (
+                  {msg.role === "assistant" && !msg.isThinking && renderMarkdown(msg.text) && (
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "6px", opacity: 0.8 }}>
                       <button
                         onClick={() => {

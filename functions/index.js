@@ -451,34 +451,16 @@ export const api = onRequest({ cors: true }, async (req, res) => {
           if (!trimmed) continue;
           try {
             const chunk = JSON.parse(trimmed);
-            if (chunk.message?.thinking) {
-              if (!hasEmittedThinkTag) {
-                hasEmittedThinkTag = true;
-                accumulatedText += "<think>\n";
-                sendEvent({ type: "chunk", text: "<think>\n" });
-              }
-              accumulatedText += chunk.message.thinking;
-              sendEvent({ type: "chunk", text: chunk.message.thinking });
-            }
             if (chunk.message?.content) {
-              if (hasEmittedThinkTag && !hasClosedThinkTag) {
-                hasClosedThinkTag = true;
-                accumulatedText += "\n</think>\n\n";
-                sendEvent({ type: "chunk", text: "\n</think>\n\n" });
-              }
               accumulatedText += chunk.message.content;
               sendEvent({ type: "chunk", text: chunk.message.content });
             }
             if (chunk.done) {
-              if (hasEmittedThinkTag && !hasClosedThinkTag) {
-                hasClosedThinkTag = true;
-                accumulatedText += "\n</think>\n\n";
-                sendEvent({ type: "chunk", text: "\n</think>\n\n" });
-              }
               sendEvent({ type: "done" });
 
               // Persist assistant message to Firestore
-              if (accumulatedText) {
+              const cleanContent = accumulatedText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
+              if (cleanContent) {
                 try {
                   const asstMsgRef = convRef.collection("messages").doc();
                   await db.runTransaction(async (tx) => {
@@ -489,7 +471,7 @@ export const api = onRequest({ cors: true }, async (req, res) => {
 
                     tx.set(asstMsgRef, {
                       role: "assistant",
-                      content: accumulatedText,
+                      content: cleanContent,
                       sequence: asstSeq,
                       status: "completed",
                       provider: "ollama",
@@ -517,7 +499,8 @@ export const api = onRequest({ cors: true }, async (req, res) => {
 
       sendEvent({ type: "done" });
 
-      if (accumulatedText) {
+      const cleanContent = accumulatedText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
+      if (cleanContent) {
         try {
           const asstMsgRef = convRef.collection("messages").doc();
           await db.runTransaction(async (tx) => {
@@ -528,7 +511,7 @@ export const api = onRequest({ cors: true }, async (req, res) => {
 
             tx.set(asstMsgRef, {
               role: "assistant",
-              content: accumulatedText,
+              content: cleanContent,
               sequence: asstSeq,
               status: "completed",
               provider: "ollama",
@@ -552,13 +535,14 @@ export const api = onRequest({ cors: true }, async (req, res) => {
       console.error("Cloud Function Ollama stream failed:", err);
 
       // Persist interrupted message if partially generated
-      if (accumulatedText) {
+      const cleanInterrupted = accumulatedText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
+      if (cleanInterrupted) {
         try {
           const asstMsgRef = convRef.collection("messages").doc();
           const asstNow = Timestamp.now();
           await asstMsgRef.set({
             role: "assistant",
-            content: accumulatedText,
+            content: cleanInterrupted,
             sequence: userSeq + 1,
             status: "interrupted",
             provider: "ollama",

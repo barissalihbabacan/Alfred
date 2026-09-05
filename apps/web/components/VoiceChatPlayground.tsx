@@ -668,14 +668,25 @@ export default function VoiceChatPlayground() {
           </div>
 
           {conversationsLoading ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px", padding: "4px 0" }}>
+            <>
               {[75, 60, 85, 70].map((w, idx) => (
-                <div key={idx} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "9px 10px", borderRadius: "8px" }}>
-                  <div className="skeleton-shimmer" style={{ width: "14px", height: "14px", borderRadius: "4px", flexShrink: 0 }} />
+                <div
+                  key={idx}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    height: "36px",
+                    boxSizing: "border-box",
+                    padding: "8px 10px",
+                    borderRadius: "8px"
+                  }}
+                >
+                  <div className="skeleton-shimmer" style={{ width: "14px", height: "14px", borderRadius: "3px", flexShrink: 0 }} />
                   <div className="skeleton-shimmer" style={{ height: "12px", width: `${w}%`, borderRadius: "4px" }} />
                 </div>
               ))}
-            </div>
+            </>
           ) : conversations.length === 0 ? (
             <div style={{ padding: "12px 8px", fontSize: "12px", color: "#737373" }}>
               Henüz kayıtlı sohbet bulunmuyor.
@@ -690,6 +701,8 @@ export default function VoiceChatPlayground() {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
+                  height: "36px",
+                  boxSizing: "border-box",
                   padding: "8px 10px",
                   borderRadius: "8px",
                   color: conv.id === conversationId ? "#ffffff" : "#b4b4b4",

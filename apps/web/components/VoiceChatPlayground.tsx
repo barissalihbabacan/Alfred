@@ -465,52 +465,118 @@ export default function VoiceChatPlayground() {
         flexShrink: 0
       }}>
         {/* Sidebar Header */}
-        <div style={{ padding: "14px 14px 10px", display: "flex", flexDirection: "column", gap: "12px" }}>
-          <div style={{ display: "flex", alignItems: "center", width: "100%", padding: "0 4px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 600, fontSize: "14px", width: "100%", flex: 1 }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#c5a059" }}>
-                <path d="M3 18h18" />
-                <path d="M6 18V8a1.5 1.5 0 0 1 1.5-1.5h9A1.5 1.5 0 0 1 18 8v10" />
-                <path d="M6 14.5h12" />
-              </svg>
-              <span>B.U.T.L.E.R.</span>
-              <span style={{
-                fontSize: "10px",
-                padding: "2px 6px",
-                borderRadius: "9999px",
-                backgroundColor: "rgba(197, 160, 89, 0.15)",
+        <div style={{ display: "flex", flexDirection: "column", flexShrink: 0 }}>
+          {/* Top Horizon Bar (52px, matches main top-bar) */}
+          <div style={{
+            height: "52px",
+            minHeight: "52px",
+            padding: "0 14px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+            backgroundColor: "#171717"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", userSelect: "none" }}>
+              <div style={{
+                width: "32px",
+                height: "32px",
+                borderRadius: "9px",
+                background: "linear-gradient(135deg, rgba(197, 160, 89, 0.18) 0%, rgba(140, 109, 50, 0.08) 100%)",
+                border: "1px solid rgba(197, 160, 89, 0.35)",
                 color: "#c5a059",
-                border: "1px solid rgba(197, 160, 89, 0.3)"
-              }}>ALFRED</span>
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 2px 8px rgba(0, 0, 0, 0.25)",
+                flexShrink: 0
+              }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 18h18" />
+                  <path d="M6 18V8a1.5 1.5 0 0 1 1.5-1.5h9A1.5 1.5 0 0 1 18 8v10" />
+                  <path d="M6 14.5h12" />
+                </svg>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "1px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span style={{ fontSize: "13px", fontWeight: 700, letterSpacing: "0.06em", color: "#ececec" }}>B.U.T.L.E.R.</span>
+                  <span style={{
+                    fontSize: "9px",
+                    padding: "1px 5px",
+                    borderRadius: "9999px",
+                    backgroundColor: "rgba(197, 160, 89, 0.15)",
+                    color: "#c5a059",
+                    border: "1px solid rgba(197, 160, 89, 0.35)",
+                    fontWeight: 700,
+                    letterSpacing: "0.04em"
+                  }}>ALFRED</span>
+                </div>
+                <span style={{ fontSize: "10px", color: "#737373", fontWeight: 500, letterSpacing: "0.02em" }}>Executive Intelligence</span>
+              </div>
             </div>
-          </div>
-
-          <button
-            onClick={handleNewConversation}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              width: "100%",
-              backgroundColor: "transparent",
-              border: "1px solid rgba(255, 255, 255, 0.1)",
-              borderRadius: "10px",
-              padding: "10px 12px",
-              color: "#ececec",
-              fontSize: "13px",
-              fontWeight: 500,
-              cursor: "pointer"
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <button
+              onClick={handleNewConversation}
+              style={{
+                width: "30px",
+                height: "30px",
+                borderRadius: "8px",
+                border: "1px solid transparent",
+                background: "transparent",
+                color: "#8e8e8e",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "all 0.15s ease"
+              }}
+              title="Yeni Sohbet (⌘K)"
+            >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 20h9" />
                 <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
               </svg>
-              <span>Yeni Sohbet</span>
-            </div>
-            <span style={{ fontSize: "11px", color: "#737373" }}>+</span>
-          </button>
+            </button>
+          </div>
+
+          {/* Primary Action Button */}
+          <div style={{ padding: "10px 12px 6px" }}>
+            <button
+              onClick={handleNewConversation}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                width: "100%",
+                height: "38px",
+                backgroundColor: "rgba(255, 255, 255, 0.04)",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                borderRadius: "10px",
+                padding: "0 12px",
+                color: "#ececec",
+                fontSize: "13px",
+                fontWeight: 500,
+                cursor: "pointer",
+                transition: "all 0.15s ease"
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#ececec" }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c5a059" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                <span>Yeni Sohbet</span>
+              </div>
+              <span style={{
+                fontSize: "10px",
+                color: "#737373",
+                backgroundColor: "rgba(255, 255, 255, 0.06)",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                borderRadius: "4px",
+                padding: "2px 5px",
+                fontWeight: 600
+              }}>⌘K</span>
+            </button>
+          </div>
         </div>
 
         {/* Conversations List */}

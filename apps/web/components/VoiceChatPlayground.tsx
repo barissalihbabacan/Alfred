@@ -979,29 +979,27 @@ export default function VoiceChatPlayground() {
             pointerEvents: "auto"
           }}>
             <button
-              onClick={toggleRecording}
+              onClick={() => setShowSettingsModal(true)}
               style={{
                 width: "36px",
                 height: "36px",
                 borderRadius: "50%",
-                background: isRecording ? "#ef4444" : "transparent",
+                background: "transparent",
                 border: "none",
-                color: isRecording ? "#fff" : "#b4b4b4",
+                color: "#b4b4b4",
                 fontSize: "17px",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 cursor: "pointer",
                 marginBottom: "2px",
-                animation: isRecording ? "pulse 1s infinite" : "none"
+                transition: "background 0.15s, color 0.15s"
               }}
-              title="Sesli Konuşma"
+              title="Araçlar ve Model Ayarları"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                <line x1="12" y1="19" x2="12" y2="23" />
-                <line x1="8" y1="23" x2="16" y2="23" />
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
             </button>
 
@@ -1027,6 +1025,34 @@ export default function VoiceChatPlayground() {
                 padding: "6px 0"
               }}
             />
+
+            <button
+              onClick={toggleRecording}
+              style={{
+                width: "36px",
+                height: "36px",
+                borderRadius: "50%",
+                background: isRecording ? "#ef4444" : "transparent",
+                border: "none",
+                color: isRecording ? "#fff" : "#b4b4b4",
+                fontSize: "17px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                marginBottom: "2px",
+                animation: isRecording ? "pulse 1s infinite" : "none",
+                transition: "background 0.15s, color 0.15s"
+              }}
+              title="Sesli Konuşma"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                <line x1="12" y1="19" x2="12" y2="23" />
+                <line x1="8" y1="23" x2="16" y2="23" />
+              </svg>
+            </button>
 
             {isBusy ? (
               <button

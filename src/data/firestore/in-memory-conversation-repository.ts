@@ -145,6 +145,11 @@ export class InMemoryConversationRepository implements IConversationRepository {
     return userConvs.map((c) => ({ ...c }));
   }
 
+  async deleteConversation(conversationId: string): Promise<void> {
+    this.conversations.delete(conversationId);
+    this.messages.delete(conversationId);
+  }
+
   /**
    * Clears all stored data. Useful between unit test cases.
    */

@@ -62,6 +62,11 @@ export interface IConversationRepository {
    * Lists all conversations for a user.
    */
   listConversations(userId: string, limit?: number): Promise<ConversationDocument[]>;
+
+  /**
+   * Deletes a conversation and its messages.
+   */
+  deleteConversation(conversationId: string): Promise<void>;
 }
 
 /**

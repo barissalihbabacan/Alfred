@@ -171,6 +171,28 @@ export default function VoiceChatPlayground() {
     }
   };
 
+  const handleDeleteConversation = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (!window.confirm("Bu sohbeti silmek istediğinizden emin misiniz?")) return;
+
+    try {
+      const res = await fetch(`/api/chat?conversationId=${encodeURIComponent(id)}`, {
+        method: "DELETE"
+      });
+      if (!res.ok) {
+        throw new Error("Sohbet silinemedi");
+      }
+
+      if (conversationId === id) {
+        handleNewConversation();
+      }
+      await fetchConversations();
+    } catch (err) {
+      console.error("Delete conversation failed:", err);
+      alert("Sohbet silinirken bir hata oluştu.");
+    }
+  };
+
   const handleTextareaInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputText(e.target.value);
     e.target.style.height = "auto";
@@ -352,8 +374,15 @@ export default function VoiceChatPlayground() {
 
     rec.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript;
-      setInputText(transcript);
-      handleSendMessage(transcript);
+      setInputText((prev) => {
+        const next = prev ? prev + " " + transcript : transcript;
+        if (textareaRef.current) {
+          textareaRef.current.style.height = "auto";
+          textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 160) + "px";
+          textareaRef.current.focus();
+        }
+        return next;
+      });
     };
 
     rec.onerror = () => {
@@ -446,6 +475,8 @@ export default function VoiceChatPlayground() {
           40% { transform: scale(1.1); opacity: 1; }
         }
         .dot-bounce { animation: dotBounce 1.4s infinite ease-in-out both; }
+        .conv-item-wrap:hover .conv-item-del-btn { opacity: 0.7; }
+        .conv-item-del-btn:hover { opacity: 1 !important; background-color: rgba(239, 68, 68, 0.15) !important; color: #ef4444 !important; }
       `}</style>
 
       {/* Sidebar */}
@@ -571,28 +602,58 @@ export default function VoiceChatPlayground() {
             conversations.map((conv) => (
               <div
                 key={conv.id}
+                className="conv-item-wrap"
                 onClick={() => loadConversation(conv.id)}
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "8px",
+                  justifyContent: "space-between",
                   padding: "8px 10px",
                   borderRadius: "8px",
                   color: conv.id === conversationId ? "#ffffff" : "#b4b4b4",
                   backgroundColor: conv.id === conversationId ? "#2a2a2a" : "transparent",
                   fontSize: "13px",
                   cursor: "pointer",
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis"
+                  userSelect: "none"
                 }}
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: "#8e8e8e" }}>
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                </svg>
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {conv.title || "Sohbet"}
-                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0, flex: 1 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: "#8e8e8e" }}>
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {conv.title || "Sohbet"}
+                  </span>
+                </div>
+                <button
+                  className="conv-item-del-btn"
+                  onClick={(e) => handleDeleteConversation(e, conv.id)}
+                  style={{
+                    opacity: 0,
+                    width: "24px",
+                    height: "24px",
+                    borderRadius: "6px",
+                    border: "none",
+                    background: "transparent",
+                    color: "#8e8e8e",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    transition: "all 0.15s ease",
+                    flexShrink: 0,
+                    marginLeft: "6px"
+                  }}
+                  title="Sohbeti Sil"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 6h18" />
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    <line x1="10" y1="11" x2="10" y2="17" />
+                    <line x1="14" y1="11" x2="14" y2="17" />
+                  </svg>
+                </button>
               </div>
             ))
           )}
@@ -676,13 +737,9 @@ export default function VoiceChatPlayground() {
               </svg>
             </button>
             <div
-              onClick={() => setShowSettingsModal(true)}
-              style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontWeight: 600, fontSize: "14px" }}
+              style={{ display: "flex", alignItems: "center", padding: "6px 10px", fontWeight: 600, fontSize: "14px", color: "#ececec", userSelect: "none" }}
             >
               <span>gemma4:12b-mlx</span>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#8e8e8e" }}>
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
             </div>
           </div>
 

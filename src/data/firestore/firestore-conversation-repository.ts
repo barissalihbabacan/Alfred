@@ -298,6 +298,26 @@ export class FirestoreConversationRepository implements IConversationRepository 
       };
     });
   }
+
+  /**
+   * Deletes a conversation and its messages subcollection from Firestore.
+   */
+  async deleteConversation(conversationId: string): Promise<void> {
+    const convRef = this.db.collection("conversations").doc(conversationId);
+    
+    // Batch delete messages in subcollection
+    const messagesSnap = await convRef.collection("messages").get();
+    if (!messagesSnap.empty) {
+      const batch = this.db.batch();
+      messagesSnap.docs.forEach((doc) => {
+        batch.delete(doc.ref);
+      });
+      await batch.commit();
+    }
+
+    // Delete conversation document
+    await convRef.delete();
+  }
 }
 
 let defaultRepoInstance: FirestoreConversationRepository | null = null;

@@ -107,6 +107,40 @@ export async function GET(req: NextRequest) {
 }
 
 /**
+ * DELETE /api/chat
+ * Deletes a conversation by its ID.
+ * Query parameters:
+ * - conversationId: The ID of the conversation to delete
+ */
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const conversationId = searchParams.get("conversationId");
+
+    if (!conversationId) {
+      return NextResponse.json(
+        { error: "A 'conversationId' parameter is required." },
+        { status: 400 }
+      );
+    }
+
+    const repo = getConversationRepository();
+    await repo.deleteConversation(conversationId);
+
+    return NextResponse.json({
+      success: true,
+      deletedConversationId: conversationId
+    });
+  } catch (err: any) {
+    console.error("[Alfred API DELETE] Error:", err);
+    return NextResponse.json(
+      { error: err?.message || "Failed to delete conversation." },
+      { status: 500 }
+    );
+  }
+}
+
+/**
  * POST /api/chat
  * Main conversation endpoint with atomic Firestore persistence and SSE streaming.
  */

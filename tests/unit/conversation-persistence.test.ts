@@ -289,6 +289,29 @@ describe("Milestone: Persistent Conversation History", () => {
       expect(assembled[assembled.length - 1].role).toBe("user");
       expect(assembled[assembled.length - 1].content).toBe("What was my first message in this window?");
     });
+
+    it("Scenario 6: Delete Conversation removes conversation metadata and all associated messages", async () => {
+      const conv = await repo.createConversation({
+        userId: testUserId,
+        title: "To Be Deleted"
+      });
+
+      await repo.appendMessage({
+        conversationId: conv.id,
+        role: "user",
+        content: "Ephemeral question"
+      });
+
+      expect((await repo.getMessages(conv.id)).length).toBe(1);
+      expect(await repo.getConversation(conv.id)).not.toBeNull();
+
+      await repo.deleteConversation(conv.id);
+
+      expect(await repo.getConversation(conv.id)).toBeNull();
+      expect((await repo.getMessages(conv.id)).length).toBe(0);
+      const remainingList = await repo.listConversations(testUserId);
+      expect(remainingList.find((c) => c.id === conv.id)).toBeUndefined();
+    });
   });
 
   describe("Deterministic Title Generator", () => {

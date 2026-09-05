@@ -262,6 +262,33 @@
       flex: 1;
     }
 
+    .conv-item-delete {
+      opacity: 0;
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+      flex-shrink: 0;
+      margin-left: 6px;
+    }
+
+    .conv-item:hover .conv-item-delete {
+      opacity: 0.7;
+    }
+
+    .conv-item-delete:hover {
+      opacity: 1 !important;
+      background-color: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
+    }
+
     /* Sidebar Footer */
     .sidebar-footer {
       padding: 12px 14px;
@@ -387,25 +414,11 @@
     .model-selector {
       display: flex;
       align-items: center;
-      gap: 6px;
-      background: transparent;
-      border: 1px solid transparent;
-      border-radius: 8px;
       padding: 6px 10px;
       font-size: 14px;
       font-weight: 600;
       color: var(--text-primary);
-      cursor: pointer;
-      transition: background 0.15s;
-    }
-
-    .model-selector:hover {
-      background-color: var(--bg-surface);
-    }
-
-    .model-selector .chevron {
-      font-size: 10px;
-      color: var(--text-muted);
+      user-select: none;
     }
 
     .top-right {
@@ -1118,10 +1131,9 @@
           <button class="icon-btn" id="sidebarToggleBtn" onclick="toggleSidebar()" title="Kenar Çubuğunu Aç/Kapat">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
           </button>
-          <button class="model-selector" onclick="openProviderModal()">
+          <div class="model-selector">
             <span id="topModelLabel">gemma4:12b-mlx</span>
-            <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-          </button>
+          </div>
         </div>
         <div class="top-right">
           <select class="lang-toggle" id="sttLangSelect" title="Konuşma Tanıma Dili">
@@ -1240,7 +1252,8 @@
       check: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
       speaker: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`,
       chat: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px; flex-shrink: 0; color: var(--text-muted);"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
-      alert: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; margin-right: 4px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`
+      alert: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -2px; margin-right: 4px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+      trash: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`
     };
 
     function renderMarkdown(text) {
@@ -1643,16 +1656,46 @@
             const item = document.createElement("div");
             item.className = "conv-item" + (conv.id === currentConversationId ? " active" : "");
             item.dataset.id = conv.id;
-            item.onclick = () => loadConversation(conv.id);
+            item.onclick = (e) => {
+              if (e.target.closest(".conv-item-delete")) return;
+              loadConversation(conv.id);
+            };
             item.innerHTML = `
-              ${SVG_ICONS.chat}
-              <span class="conv-item-title">${escapeHtml(conv.title || "Sohbet")}</span>
+              <div style="display: flex; align-items: center; min-width: 0; flex: 1;">
+                ${SVG_ICONS.chat}
+                <span class="conv-item-title">${escapeHtml(conv.title || "Sohbet")}</span>
+              </div>
+              <button class="conv-item-delete" onclick="handleDeleteConversation(event, '${escapeHtml(conv.id)}')" title="Sohbeti Sil">
+                ${SVG_ICONS.trash}
+              </button>
             `;
             container.appendChild(item);
           }
         }
       } catch (err) {
         console.warn("Could not load conversations list:", err);
+      }
+    }
+
+    async function handleDeleteConversation(event, id) {
+      event.stopPropagation();
+      if (!confirm("Bu sohbeti silmek istediğinizden emin misiniz?")) return;
+
+      try {
+        const res = await fetch(`/api/chat?conversationId=${encodeURIComponent(id)}`, {
+          method: "DELETE"
+        });
+        if (!res.ok) {
+          throw new Error("Sohbet silinemedi");
+        }
+
+        if (currentConversationId === id) {
+          startNewConversation();
+        }
+        await refreshConversationsList();
+      } catch (err) {
+        console.error("Delete conversation failed:", err);
+        alert("Sohbet silinirken bir hata oluştu.");
       }
     }
 
@@ -1686,9 +1729,10 @@
       recognition.onresult = (event) => {
         const transcript = event.results[0][0].transcript;
         const input = document.getElementById("userInput");
-        input.value = transcript;
+        const existingVal = input.value;
+        input.value = existingVal ? existingVal + " " + transcript : transcript;
         handleTextareaInput(input);
-        handleSendClick();
+        input.focus();
       };
 
       recognition.onerror = (event) => {

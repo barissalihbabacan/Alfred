@@ -16,9 +16,14 @@ interface Message {
   role: "user" | "assistant";
   text: string;
   audioUrl?: string;
-  duration?: number;
   timestamp: string;
   isThinking?: boolean;
+}
+
+interface ConversationSummary {
+  id: string;
+  title: string;
+  lastMessageAt?: string;
 }
 
 function escapeHtml(str: string): string {
@@ -36,10 +41,19 @@ function renderMarkdown(text: string): string {
 
   // Multi-line code blocks: ```lang ... ```
   const codeBlocks: string[] = [];
-  html = html.replace(/```(?:([a-zA-Z0-9_-]+)\n)?([\s\S]*?)```/g, (_m, _lang, code) => {
+  html = html.replace(/```(?:([a-zA-Z0-9_-]+)\n)?([\s\S]*?)```/g, (_m, lang, code) => {
     const idx = codeBlocks.length;
     const cleanCode = code.replace(/^\n+|\n+$/g, "");
-    codeBlocks.push(`<pre class="code-block"><code>${cleanCode}</code></pre>`);
+    const language = lang || "code";
+    codeBlocks.push(`
+      <div class="code-container">
+        <div class="code-header">
+          <span>${language}</span>
+          <button class="copy-code-btn" onclick="navigator.clipboard.writeText(decodeURIComponent('${encodeURIComponent(cleanCode)}')).then(()=>this.innerText='✓ Kopyalandı')">📋 Kopyala</button>
+        </div>
+        <pre class="code-content"><code>${cleanCode}</code></pre>
+      </div>
+    `);
     return `§§CODEBLOCK${idx}§§`;
   });
 
@@ -60,6 +74,14 @@ function renderMarkdown(text: string): string {
   // Strikethrough: ~~text~~
   html = html.replace(/~~([^~]+?)~~/g, "<del>$1</del>");
 
+  // Paragraphs
+  html = html.split("\n\n").map(para => {
+    const trimmed = para.trim();
+    if (!trimmed) return "";
+    if (trimmed.startsWith("§§CODEBLOCK")) return trimmed;
+    return `<p>${trimmed.replace(/\n/g, "<br/>")}</p>`;
+  }).join("");
+
   // Restore protected code blocks & inline codes
   html = html.replace(/§§INLINECODE(\d+)§§/g, (_m, idx) => inlineCodes[Number(idx)]);
   html = html.replace(/§§CODEBLOCK(\d+)§§/g, (_m, idx) => codeBlocks[Number(idx)]);
@@ -69,25 +91,20 @@ function renderMarkdown(text: string): string {
 
 export default function VoiceChatPlayground() {
   const [state, setState] = useState<AssistantState>("Idle");
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "init-0",
-      role: "assistant",
-      text: "Good day, sir. B.U.T.L.E.R. Alfred at your service.",
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    }
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
-  const [currentlyPlayingId, setCurrentlyPlayingId] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [sttLang, setSttLang] = useState("tr-TR");
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const currentAudioElementRef = useRef<HTMLAudioElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -97,138 +114,111 @@ export default function VoiceChatPlayground() {
     scrollToBottom();
   }, [messages, state, scrollToBottom]);
 
-  // Restore persistent conversation history from Firestore on component mount
-  useEffect(() => {
+  // Load conversations list and restore active conversation from Firestore
+  const fetchConversations = useCallback(async () => {
     try {
-      const savedConvId = localStorage.getItem("alfred_conversation_id");
-      if (savedConvId) {
-        setConversationId(savedConvId);
-        fetch(`/api/chat?conversationId=${encodeURIComponent(savedConvId)}`)
-          .then((res) => (res.ok ? res.json() : null))
-          .then((data) => {
-            if (data?.success && Array.isArray(data.messages) && data.messages.length > 0) {
-              const loaded: Message[] = data.messages.map((m: any) => ({
-                id: m.id || "msg-" + m.sequence,
-                role: m.role,
-                text: m.content,
-                timestamp: m.createdAt
-                  ? new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                  : new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-              }));
-              setMessages(loaded);
-            }
-          })
-          .catch((err) => {
-            console.warn("[Playground] Could not restore conversation history:", err);
-          });
+      const res = await fetch("/api/chat?userId=guest_default");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.conversations)) {
+          setConversations(data.conversations);
+        }
       }
-    } catch {}
-  }, []);
-
-  const handleNewConversation = () => {
-    try {
-      localStorage.removeItem("alfred_conversation_id");
-    } catch {}
-    setConversationId(null);
-    setMessages([
-      {
-        id: "init-" + Date.now(),
-        role: "assistant",
-        text: "Good day, sir. B.U.T.L.E.R. Alfred at your service.",
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-      }
-    ]);
-  };
-
-  // Clean up audio playback on unmount
-  useEffect(() => {
-    return () => {
-      if (currentAudioElementRef.current) {
-        currentAudioElementRef.current.pause();
-        currentAudioElementRef.current = null;
-      }
-    };
-  }, []);
-
-  // Play audio helper with error handling
-  const playAudio = useCallback((audioUrl: string, messageId: string) => {
-    try {
-      if (currentAudioElementRef.current) {
-        currentAudioElementRef.current.pause();
-        currentAudioElementRef.current = null;
-      }
-
-      const audio = new Audio(audioUrl);
-      currentAudioElementRef.current = audio;
-      setCurrentlyPlayingId(messageId);
-      setState("Speaking");
-
-      audio.onended = () => {
-        setCurrentlyPlayingId(null);
-        setState("Idle");
-      };
-
-      audio.onerror = (e) => {
-        console.error("Audio playback error:", e);
-        setCurrentlyPlayingId(null);
-        setState("Idle");
-        setErrorMessage("Unable to play audio response in browser.");
-      };
-
-      const playPromise = audio.play();
-      if (playPromise !== undefined) {
-        playPromise.catch((err) => {
-          console.warn("Autoplay was prevented or audio failed:", err);
-          setCurrentlyPlayingId(null);
-          setState("Idle");
-          setErrorMessage("Browser audio autoplay was restricted. Please click 'Play Voice' to listen.");
-        });
-      }
-    } catch (err: any) {
-      console.error("Audio instantiation failed:", err);
-      setErrorMessage("Audio playback failure.");
-      setState("Idle");
+    } catch (err) {
+      console.warn("Failed to fetch conversation list:", err);
     }
   }, []);
 
-  // Send text message to /api/chat with streaming SSE
+  const loadConversation = useCallback(async (id: string) => {
+    try {
+      setConversationId(id);
+      localStorage.setItem("alfred_conversation_id", id);
+
+      const res = await fetch(`/api/chat?conversationId=${encodeURIComponent(id)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.messages)) {
+          const loaded: Message[] = data.messages.map((m: any) => ({
+            id: m.id || "msg-" + m.sequence,
+            role: m.role,
+            text: m.content,
+            timestamp: m.createdAt
+              ? new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+              : new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+          }));
+          setMessages(loaded);
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to load conversation:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchConversations();
+    const savedConvId = localStorage.getItem("alfred_conversation_id");
+    if (savedConvId) {
+      loadConversation(savedConvId);
+    }
+  }, [fetchConversations, loadConversation]);
+
+  const handleNewConversation = () => {
+    setConversationId(null);
+    localStorage.removeItem("alfred_conversation_id");
+    setMessages([]);
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  };
+
+  const handleTextareaInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputText(e.target.value);
+    e.target.style.height = "auto";
+    e.target.style.height = Math.min(e.target.scrollHeight, 160) + "px";
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
   const handleSendMessage = async (textToSend?: string) => {
-    const messageText = (textToSend ?? inputText).trim();
-    if (!messageText || state === "Thinking" || state === "Streaming" || state === "Transcribing") return;
+    const text = (textToSend ?? inputText).trim();
+    if (!text || state === "Thinking" || state === "Streaming" || state === "Transcribing") {
+      return;
+    }
 
     setErrorMessage(null);
     setInputText("");
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
 
-    const userMessage: Message = {
+    const userMsg: Message = {
       id: "user-" + Date.now(),
       role: "user",
-      text: messageText,
+      text,
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     };
 
-    const assistantId = "asst-" + Date.now();
-    const placeholderAssistantMessage: Message = {
-      id: assistantId,
+    const asstId = "asst-" + Date.now();
+    const placeholderAsst: Message = {
+      id: asstId,
       role: "assistant",
       text: "",
       isThinking: true,
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     };
 
-    // Filter out previous unfinished/placeholder messages
-    const historySource = messages.filter((m) => !m.isThinking && m.text.trim().length > 0);
-    const newMessages = [...historySource, userMessage, placeholderAssistantMessage];
-    setMessages(newMessages);
+    setMessages((prev) => [...prev, userMsg, placeholderAsst]);
     setState("Thinking");
 
     let accumulatedText = "";
+    abortControllerRef.current = new AbortController();
 
     try {
-      const history = historySource.slice(-10).map((m) => ({
-        role: m.role,
-        content: m.text
-      }));
-
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: {
@@ -236,11 +226,11 @@ export default function VoiceChatPlayground() {
           "Accept": "text/event-stream"
         },
         body: JSON.stringify({
-          message: messageText,
+          message: text,
           conversationId: conversationId || undefined,
-          history,
           stream: true
-        })
+        }),
+        signal: abortControllerRef.current.signal
       });
 
       if (!res.ok) {
@@ -249,7 +239,7 @@ export default function VoiceChatPlayground() {
       }
 
       if (!res.body) {
-        throw new Error("No response body received from server.");
+        throw new Error("No response stream received.");
       }
 
       const reader = res.body.getReader();
@@ -274,21 +264,20 @@ export default function VoiceChatPlayground() {
             if (event.type === "start") {
               if (event.conversationId) {
                 setConversationId(event.conversationId);
-                try {
-                  localStorage.setItem("alfred_conversation_id", event.conversationId);
-                } catch {}
+                localStorage.setItem("alfred_conversation_id", event.conversationId);
+                fetchConversations();
               }
             } else if (event.type === "thinking") {
               setState("Thinking");
               setMessages((prev) =>
-                prev.map((m) => (m.id === assistantId ? { ...m, isThinking: true } : m))
+                prev.map((m) => (m.id === asstId ? { ...m, isThinking: true } : m))
               );
             } else if (event.type === "chunk") {
               setState("Streaming");
               accumulatedText += (event.text || "");
               setMessages((prev) =>
                 prev.map((m) =>
-                  m.id === assistantId
+                  m.id === asstId
                     ? { ...m, text: accumulatedText, isThinking: false }
                     : m
                 )
@@ -300,500 +289,756 @@ export default function VoiceChatPlayground() {
             }
           } catch (parseErr: any) {
             if (parseErr.message && parseErr.message !== "Unexpected end of JSON input") {
-              throw parseErr;
+              console.warn("Parse error:", parseErr);
             }
           }
         }
       }
 
       setState("Idle");
-    } catch (error: any) {
-      console.error("Chat error:", error);
-      setState("Error");
-      setErrorMessage(error?.message || "Failed to communicate with Alfred server.");
-
-      if (accumulatedText) {
+    } catch (err: any) {
+      if (err.name === "AbortError") {
+        setState("Idle");
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === assistantId
-              ? { ...m, text: accumulatedText + " [Response interrupted]", isThinking: false }
+            m.id === asstId
+              ? { ...m, text: accumulatedText + "\n\n*(Yanıt durduruldu)*", isThinking: false }
               : m
           )
         );
       } else {
-        setMessages((prev) => prev.filter((m) => m.id !== assistantId));
+        setState("Error");
+        setErrorMessage(err?.message || "Communication failed.");
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === asstId
+              ? { ...m, text: "⚠️ İletişim sırasında bir hata oluştu.", isThinking: false }
+              : m
+          )
+        );
       }
+    } finally {
+      abortControllerRef.current = null;
     }
   };
 
-  // Start microphone recording
-  const startRecording = async () => {
-    setErrorMessage(null);
+  const handleStopStreaming = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+  };
 
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setState("Error");
-      setErrorMessage("Microphone access is not supported by your browser environment.");
+  const toggleRecording = () => {
+    if (isRecording) {
+      setIsRecording(false);
+      setState("Idle");
       return;
     }
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      audioChunksRef.current = [];
+    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRec) {
+      alert("Tarayıcınız Web Speech API mikrofon girişini desteklemiyor.");
+      return;
+    }
 
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : MediaRecorder.isTypeSupported("audio/webm")
-        ? "audio/webm"
-        : "audio/ogg";
+    const rec = new SpeechRec();
+    rec.lang = sttLang;
+    rec.interimResults = false;
 
-      const recorder = new MediaRecorder(stream, { mimeType });
-      mediaRecorderRef.current = recorder;
-
-      recorder.ondataavailable = (event) => {
-        if (event.data && event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      recorder.onstop = async () => {
-        stream.getTracks().forEach((track) => track.stop());
-
-        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
-        if (audioBlob.size === 0) {
-          setState("Idle");
-          return;
-        }
-
-        await processAudioTranscription(audioBlob);
-      };
-
-      recorder.start(250);
+    rec.onstart = () => {
       setIsRecording(true);
       setState("Listening");
-    } catch (err: any) {
-      console.error("Microphone permission or access error:", err);
-      setState("Error");
-      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-        setErrorMessage("Microphone permission was denied. Please allow microphone access in your browser settings.");
-      } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
-        setErrorMessage("No microphone audio input device was found.");
-      } else {
-        setErrorMessage("Microphone access failed: " + (err.message || "Unknown error"));
-      }
-    }
-  };
+    };
 
-  // Stop microphone recording
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      mediaRecorderRef.current.stop();
+    rec.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setInputText(transcript);
+      handleSendMessage(transcript);
+    };
+
+    rec.onerror = () => {
       setIsRecording(false);
-      setState("Transcribing");
-    }
+      setState("Idle");
+    };
+
+    rec.onend = () => {
+      setIsRecording(false);
+      setState("Idle");
+    };
+
+    rec.start();
   };
 
-  // Process audio chunk via /api/stt
-  const processAudioTranscription = async (blob: Blob) => {
-    setState("Transcribing");
-    try {
-      const formData = new FormData();
-      formData.append("audio", blob, "recording.webm");
-
-      const res = await fetch("/api/stt", {
-        method: "POST",
-        body: formData
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || `STT failed with status ${res.status}`);
-      }
-
-      const data = await res.json();
-      const transcribedText = data.text?.trim();
-
-      if (!transcribedText) {
-        setState("Idle");
-        setErrorMessage("No clear speech was recognized. Please speak clearly into the microphone.");
-        return;
-      }
-
-      await handleSendMessage(transcribedText);
-    } catch (err: any) {
-      console.error("STT error:", err);
-      setState("Error");
-      setErrorMessage(err?.message || "Speech-to-text service failure.");
-    }
+  const playVoice = (text: string) => {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    const isTurkish = /[çğıöşüÇĞİÖŞÜ]/i.test(text);
+    utterance.lang = isTurkish ? "tr-TR" : "en-GB";
+    utterance.rate = 1.0;
+    setState("Speaking");
+    utterance.onend = () => setState("Idle");
+    utterance.onerror = () => setState("Idle");
+    window.speechSynthesis.speak(utterance);
   };
 
-  const isBusy = state === "Thinking" || state === "Streaming" || state === "Listening" || state === "Transcribing";
+  const isBusy = state === "Thinking" || state === "Streaming";
 
   return (
     <div style={{
-      maxWidth: "960px",
-      margin: "0 auto",
-      padding: "24px 16px",
       display: "flex",
-      flexDirection: "column",
-      minHeight: "100vh"
+      height: "100vh",
+      width: "100vw",
+      backgroundColor: "#212121",
+      color: "#ececec",
+      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+      overflow: "hidden"
     }}>
       <style>{`
+        .code-container {
+          margin: 14px 0;
+          border-radius: 8px;
+          overflow: hidden;
+          background: #141414;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .code-header {
+          background: #1e1e1e;
+          padding: 6px 14px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          font-size: 11px;
+          color: #8e8e8e;
+          font-family: monospace;
+          text-transform: uppercase;
+        }
+        .copy-code-btn {
+          background: transparent;
+          border: none;
+          color: #b4b4b4;
+          font-size: 11px;
+          cursor: pointer;
+        }
+        .copy-code-btn:hover { color: #fff; }
+        .code-content {
+          padding: 14px;
+          overflow-x: auto;
+          font-family: monospace;
+          font-size: 13px;
+          line-height: 1.5;
+          color: #e6edf3;
+        }
+        .inline-code {
+          background: rgba(255, 255, 255, 0.1);
+          padding: 2px 6px;
+          border-radius: 4px;
+          font-family: monospace;
+          font-size: 13px;
+          color: #f6d899;
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.5; transform: scale(1.1); }
+        }
         @keyframes dotBounce {
           0%, 80%, 100% { transform: scale(0.6); opacity: 0.35; }
           40% { transform: scale(1.1); opacity: 1; }
         }
-        .dot-bounce {
-          animation: dotBounce 1.4s infinite ease-in-out both;
-        }
-        .markdown-content strong {
-          font-weight: 600;
-          color: #f8fafc;
-        }
-        .markdown-content em {
-          font-style: italic;
-          color: #e2e8f0;
-        }
-        .markdown-content code.inline-code {
-          background: rgba(255, 255, 255, 0.08);
-          padding: 2px 6px;
-          border-radius: 4px;
-          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-          font-size: 0.9em;
-          color: #c5a059;
-        }
-        .markdown-content pre.code-block {
-          background: #0d121d;
-          border: 1px solid #27354f;
-          padding: 12px;
-          border-radius: 8px;
-          overflow-x: auto;
-          margin: 8px 0;
-          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-          font-size: 0.88em;
-          color: #f0f4fc;
-        }
+        .dot-bounce { animation: dotBounce 1.4s infinite ease-in-out both; }
       `}</style>
 
-      {/* Header */}
-      <header style={{
-        borderBottom: "1px solid var(--border-subtle)",
-        paddingBottom: "16px",
-        marginBottom: "20px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between"
-      }}>
-        <div>
-          <h1 style={{
-            fontSize: "20px",
-            fontWeight: 600,
-            letterSpacing: "0.05em",
-            color: "var(--text-primary)",
-            display: "flex",
-            alignItems: "center",
-            gap: "8px"
-          }}>
-            <span style={{ color: "var(--accent-gold)" }}>B.U.T.L.E.R.</span> ALFRED
-          </h1>
-          <p style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "2px" }}>
-            Barış&apos;s Unified Task, Logic, Execution &amp; Reasoning — Real-Time Streaming Playground
-          </p>
-        </div>
-
-        {/* Actions & Status Indicator */}
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          {conversationId && (
-            <button
-              onClick={handleNewConversation}
-              style={{
-                backgroundColor: "var(--bg-card)",
-                border: "1px solid var(--border-subtle)",
-                color: "var(--accent-gold)",
-                padding: "6px 14px",
-                borderRadius: "9999px",
-                fontSize: "12px",
-                fontWeight: 500,
-                cursor: "pointer",
-                transition: "all 0.2s ease"
-              }}
-              title="Start a fresh conversation"
-            >
-              + New Conversation
-            </button>
-          )}
-
-          <div style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "8px",
-            backgroundColor: "var(--bg-card)",
-            border: "1px solid var(--border-subtle)",
-            padding: "6px 14px",
-            borderRadius: "9999px",
-            fontSize: "13px",
-            fontWeight: 500
-          }}>
-            <span style={{
-              width: "8px",
-              height: "8px",
-              borderRadius: "50%",
-              backgroundColor:
-                state === "Listening" ? "var(--status-listening)" :
-                state === "Transcribing" ? "var(--status-transcribing)" :
-                state === "Thinking" ? "var(--status-thinking)" :
-                state === "Streaming" ? "var(--accent-gold)" :
-                state === "Speaking" ? "var(--status-speaking)" :
-                state === "Error" ? "var(--danger)" : "var(--text-muted)",
-              boxShadow:
-                state !== "Idle" && state !== "Error" ? "0 0 8px currentColor" : "none",
-              animation: state !== "Idle" && state !== "Error" ? "pulse 1.5s infinite" : "none"
-            }} />
-            <span style={{ color: "var(--text-secondary)" }}>
-              {state === "Idle" && "Ready"}
-              {state === "Listening" && "Listening..."}
-              {state === "Transcribing" && "Transcribing audio..."}
-              {state === "Thinking" && "Thinking..."}
-              {state === "Streaming" && "Alfred is responding..."}
-              {state === "Speaking" && "Speaking..."}
-              {state === "Error" && "Error"}
-            </span>
-          </div>
-        </div>
-      </header>
-
-      {/* Error Banner */}
-      {errorMessage && (
-        <div style={{
-          backgroundColor: "rgba(239, 68, 68, 0.15)",
-          border: "1px solid var(--danger)",
-          color: "#fca5a5",
-          padding: "10px 16px",
-          borderRadius: "8px",
-          marginBottom: "16px",
-          fontSize: "13px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center"
-        }}>
-          <span>⚠️ {errorMessage}</span>
-          <button
-            onClick={() => setErrorMessage(null)}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "#fca5a5",
-              cursor: "pointer",
-              fontSize: "16px",
-              marginLeft: "12px"
-            }}
-          >
-            ✕
-          </button>
-        </div>
-      )}
-
-      {/* Conversation Thread */}
-      <div style={{
-        flex: 1,
-        overflowY: "auto",
+      {/* Sidebar */}
+      <aside style={{
+        width: sidebarOpen ? "260px" : "0px",
+        minWidth: sidebarOpen ? "260px" : "0px",
+        height: "100%",
+        backgroundColor: "#171717",
+        borderRight: "1px solid rgba(255, 255, 255, 0.08)",
         display: "flex",
         flexDirection: "column",
-        gap: "16px",
-        paddingRight: "6px",
-        marginBottom: "16px"
+        transition: "all 0.25s ease",
+        overflow: "hidden",
+        zIndex: 40
       }}>
-        {messages.map((msg) => {
-          const isAssistant = msg.role === "assistant";
-          const isPlayingThis = currentlyPlayingId === msg.id;
+        {/* Sidebar Header */}
+        <div style={{ padding: "14px 14px 10px", display: "flex", flexDirection: "column", gap: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 600, fontSize: "14px" }}>
+              <span>🎩</span>
+              <span>B.U.T.L.E.R.</span>
+              <span style={{
+                fontSize: "10px",
+                padding: "2px 6px",
+                borderRadius: "9999px",
+                backgroundColor: "rgba(197, 160, 89, 0.15)",
+                color: "#c5a059",
+                border: "1px solid rgba(197, 160, 89, 0.3)"
+              }}>ALFRED</span>
+            </div>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              style={{ background: "none", border: "none", color: "#8e8e8e", cursor: "pointer", fontSize: "16px" }}
+              title="Kenar Çubuğunu Gizle"
+            >
+              ✕
+            </button>
+          </div>
 
-          return (
+          <button
+            onClick={handleNewConversation}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              width: "100%",
+              backgroundColor: "transparent",
+              border: "1px solid rgba(255, 255, 255, 0.1)",
+              borderRadius: "10px",
+              padding: "10px 12px",
+              color: "#ececec",
+              fontSize: "13px",
+              fontWeight: 500,
+              cursor: "pointer"
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span>✏️</span>
+              <span>Yeni Sohbet</span>
+            </div>
+            <span style={{ fontSize: "11px", color: "#737373" }}>+</span>
+          </button>
+        </div>
+
+        {/* Conversations List */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "8px 10px", display: "flex", flexDirection: "column", gap: "4px" }}>
+          <div style={{ fontSize: "11px", fontWeight: 600, color: "#737373", padding: "10px 8px 4px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            Geçmiş Sohbetler
+          </div>
+
+          {conversations.length === 0 ? (
+            <div style={{ padding: "12px 8px", fontSize: "12px", color: "#737373" }}>
+              Henüz kayıtlı sohbet bulunmuyor.
+            </div>
+          ) : (
+            conversations.map((conv) => (
+              <div
+                key={conv.id}
+                onClick={() => loadConversation(conv.id)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "8px 10px",
+                  borderRadius: "8px",
+                  color: conv.id === conversationId ? "#ffffff" : "#b4b4b4",
+                  backgroundColor: conv.id === conversationId ? "#2a2a2a" : "transparent",
+                  fontSize: "13px",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis"
+                }}
+              >
+                <span>💬</span>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {conv.title || "Sohbet"}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Sidebar Footer */}
+        <div style={{
+          padding: "12px 14px",
+          borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          backgroundColor: "#171717"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div style={{
+              width: "28px",
+              height: "28px",
+              borderRadius: "50%",
+              background: "linear-gradient(135deg, #c5a059, #8c6d32)",
+              color: "#121212",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: 700,
+              fontSize: "12px"
+            }}>
+              B
+            </div>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <span style={{ fontSize: "13px", fontWeight: 600 }}>Barış</span>
+              <span style={{ fontSize: "11px", color: "#737373" }}>Systems Architect</span>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowSettingsModal(true)}
+            style={{ background: "none", border: "none", color: "#8e8e8e", cursor: "pointer", fontSize: "15px" }}
+            title="Ayarlar"
+          >
+            ⚙️
+          </button>
+        </div>
+      </aside>
+
+      {/* Main Chat Area */}
+      <main style={{ flex: 1, height: "100%", display: "flex", flexDirection: "column", position: "relative", backgroundColor: "#212121" }}>
+        {/* Top Bar */}
+        <header style={{
+          height: "52px",
+          minHeight: "52px",
+          padding: "0 16px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          borderBottom: "1px solid rgba(255, 255, 255, 0.08)"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            {!sidebarOpen && (
+              <button
+                onClick={() => setSidebarOpen(true)}
+                style={{ background: "transparent", border: "none", color: "#b4b4b4", cursor: "pointer", fontSize: "18px", padding: "4px" }}
+                title="Kenar Çubuğunu Aç"
+              >
+                ☰
+              </button>
+            )}
             <div
-              key={msg.id}
+              onClick={() => setShowSettingsModal(true)}
+              style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontWeight: 600, fontSize: "14px" }}
+            >
+              <span>Alfred 4.0 (gemma4:12b-mlx)</span>
+              <span style={{ fontSize: "10px", color: "#8e8e8e" }}>▼</span>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <select
+              value={sttLang}
+              onChange={(e) => setSttLang(e.target.value)}
               style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: isAssistant ? "flex-start" : "flex-end"
+                background: "#2f2f2f",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                color: "#b4b4b4",
+                borderRadius: "6px",
+                padding: "4px 8px",
+                fontSize: "12px"
               }}
             >
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                marginBottom: "4px",
-                fontSize: "11px",
-                color: "var(--text-muted)",
-                letterSpacing: "0.04em",
-                textTransform: "uppercase"
-              }}>
-                {isAssistant ? (
-                  <span style={{ color: "var(--accent-gold)", fontWeight: 600 }}>ALFRED</span>
-                ) : (
-                  <span style={{ fontWeight: 600 }}>BARIŞ</span>
-                )}
-                <span>•</span>
-                <span>{msg.timestamp}</span>
-              </div>
+              <option value="tr-TR">🇹🇷 TR</option>
+              <option value="en-GB">🇬🇧 EN</option>
+            </select>
 
-              <div style={{
-                maxWidth: "80%",
-                padding: "14px 18px",
-                borderRadius: "12px",
-                backgroundColor: isAssistant ? "var(--bg-card)" : "var(--bg-secondary)",
-                border: isAssistant ? "1px solid var(--border-subtle)" : "1px solid #2e3c54",
-                color: "var(--text-primary)",
-                lineHeight: "1.55",
-                fontSize: "14px",
-                whiteSpace: "pre-wrap"
-              }}>
-                {msg.isThinking ? (
-                  <div style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    color: "var(--text-muted)",
-                    fontStyle: "italic",
-                    fontSize: "13px"
-                  }}>
-                    <span style={{ display: "inline-flex", gap: "4px", alignItems: "center" }}>
-                      <span className="dot-bounce" style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "var(--accent-gold)" }} />
-                      <span className="dot-bounce" style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "var(--accent-gold)", animationDelay: "0.2s" }} />
-                      <span className="dot-bounce" style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "var(--accent-gold)", animationDelay: "0.4s" }} />
-                    </span>
-                    <span>Thinking...</span>
-                  </div>
-                ) : isAssistant ? (
-                  <div
-                    className="markdown-content"
-                    dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }}
-                  />
-                ) : (
-                  msg.text
-                )}
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "12px",
+              color: "#b4b4b4",
+              padding: "4px 10px",
+              borderRadius: "9999px",
+              backgroundColor: "rgba(255, 255, 255, 0.04)",
+              border: "1px solid rgba(255, 255, 255, 0.08)"
+            }}>
+              <span style={{
+                width: "7px",
+                height: "7px",
+                borderRadius: "50%",
+                backgroundColor:
+                  state === "Listening" ? "#ef4444" :
+                  state === "Thinking" ? "#3b82f6" :
+                  state === "Streaming" ? "#c5a059" :
+                  state === "Speaking" ? "#10b981" :
+                  state === "Error" ? "#ef4444" : "#10b981",
+                animation: state !== "Idle" ? "pulse 1.2s infinite" : "none"
+              }} />
+              <span>{state === "Idle" ? "Ready" : state}</span>
+            </div>
+          </div>
+        </header>
 
-                {/* Voice Playback Button for Alfred's responses (if audio exists) */}
-                {isAssistant && msg.audioUrl && (
-                  <div style={{ marginTop: "10px", paddingTop: "8px", borderTop: "1px solid #232d3f" }}>
-                    <button
-                      onClick={() => playAudio(msg.audioUrl!, msg.id)}
-                      disabled={isBusy}
+        {/* Scrollable Message List */}
+        <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+          <div style={{ maxWidth: "48rem", width: "100%", margin: "0 auto", padding: "24px 20px 140px", display: "flex", flexDirection: "column", gap: "24px" }}>
+            {/* Empty / Welcome State */}
+            {messages.length === 0 && (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", margin: "auto auto", padding: "40px 16px 20px" }}>
+                <div style={{
+                  width: "56px",
+                  height: "56px",
+                  borderRadius: "50%",
+                  background: "radial-gradient(circle at center, #d8b26e 0%, #a47e33 100%)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "26px",
+                  marginBottom: "20px",
+                  boxShadow: "0 8px 24px rgba(197, 160, 89, 0.25)"
+                }}>
+                  🎩
+                </div>
+                <h1 style={{ fontSize: "24px", fontWeight: 600, marginBottom: "8px" }}>İyi günler, efendim.</h1>
+                <p style={{ fontSize: "14px", color: "#b4b4b4", marginBottom: "32px" }}>
+                  B.U.T.L.E.R. Alfred hizmetinizde. Bugün ne üzerinde çalışıyoruz?
+                </p>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px", width: "100%" }}>
+                  {[
+                    { title: "⚡ Mühendislik Felsefem", desc: "İki cümlede mühendislik yaklaşımımı özetle", prompt: "Mühendislik felsefemi özetle" },
+                    { title: "🦀 Rust ve Sistem Mimarisi", desc: "Rust ve bellek güvenliği analizimiz", prompt: "Rust programlama dili hakkında ne düşünüyorsun?" },
+                    { title: "🛡️ Mimari Prensipler", desc: "SSOT ve katmanlı tasarım standartlarımız", prompt: "Mimari prensiplerimiz ve Single Source of Truth" },
+                    { title: "🔍 Çıkarım Hattı Teşhisi", desc: "Tailscale, Ollama ve Cloud Function sağlığı", prompt: "Sistem durumunu ve çıkarım hattını kontrol et" }
+                  ].map((sug, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => handleSendMessage(sug.prompt)}
                       style={{
-                        background: isPlayingThis ? "var(--accent-gold)" : "transparent",
-                        color: isPlayingThis ? "#0a0d14" : "var(--accent-gold)",
-                        border: "1px solid var(--accent-gold)",
-                        borderRadius: "6px",
-                        padding: "4px 10px",
-                        fontSize: "12px",
-                        fontWeight: 500,
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "6px",
-                        transition: "all 0.15s ease"
+                        backgroundColor: "#2f2f2f",
+                        border: "1px solid rgba(255, 255, 255, 0.08)",
+                        borderRadius: "14px",
+                        padding: "14px 16px",
+                        textAlign: "left",
+                        cursor: "pointer",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "4px"
                       }}
                     >
-                      {isPlayingThis ? "🔊 Speaking..." : "▶ Play Voice"}
-                      {msg.duration && !isPlayingThis && (
-                        <span style={{ opacity: 0.8, fontSize: "11px" }}>({msg.duration.toFixed(1)}s)</span>
-                      )}
-                    </button>
+                      <span style={{ fontSize: "13px", fontWeight: 600, color: "#ececec" }}>{sug.title}</span>
+                      <span style={{ fontSize: "12px", color: "#8e8e8e" }}>{sug.desc}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Render Messages */}
+            {messages.map((msg) => (
+              <div
+                key={msg.id}
+                style={{
+                  display: "flex",
+                  width: "100%",
+                  justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
+                  gap: "14px"
+                }}
+              >
+                {msg.role === "assistant" && (
+                  <div style={{
+                    width: "32px",
+                    height: "32px",
+                    borderRadius: "50%",
+                    background: "radial-gradient(circle at center, #c5a059 0%, #8c6d32 100%)",
+                    color: "#121212",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "15px",
+                    flexShrink: 0,
+                    marginTop: "2px"
+                  }}>
+                    🎩
                   </div>
                 )}
-              </div>
-            </div>
-          );
-        })}
-        <div ref={messagesEndRef} />
-      </div>
 
-      {/* Input Bar: Text Box + Mic Button + Send Button */}
-      <div style={{
-        display: "flex",
-        gap: "10px",
-        backgroundColor: "var(--bg-secondary)",
-        padding: "10px",
-        borderRadius: "12px",
-        border: "1px solid var(--border-subtle)",
-        alignItems: "center"
-      }}>
-        {/* Microphone Button */}
-        <button
-          onClick={isRecording ? stopRecording : startRecording}
-          disabled={state === "Thinking" || state === "Streaming" || state === "Transcribing"}
-          title={isRecording ? "Click to stop recording" : "Click to speak with Alfred"}
+                <div style={{
+                  maxWidth: msg.role === "user" ? "78%" : "100%",
+                  flex: msg.role === "assistant" ? 1 : undefined
+                }}>
+                  {msg.role === "assistant" && (
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", fontWeight: 600, color: "#c5a059", marginBottom: "4px" }}>
+                      <span>ALFRED</span>
+                      <span style={{ color: "#737373", fontWeight: "normal" }}>•</span>
+                      <span style={{ color: "#737373", fontWeight: "normal" }}>{msg.timestamp}</span>
+                    </div>
+                  )}
+
+                  <div
+                    style={
+                      msg.role === "user"
+                        ? {
+                            backgroundColor: "#2f2f2f",
+                            color: "#ececec",
+                            padding: "12px 18px",
+                            borderRadius: "20px 20px 4px 20px",
+                            fontSize: "15px",
+                            lineHeight: "1.55",
+                            whiteSpace: "pre-wrap",
+                            wordBreak: "break-word"
+                          }
+                        : {
+                            fontSize: "15px",
+                            lineHeight: "1.68",
+                            color: "#ececec",
+                            wordBreak: "break-word"
+                          }
+                    }
+                  >
+                    {msg.isThinking ? (
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "#8e8e8e", fontSize: "14px", padding: "4px 0" }}>
+                        <span className="dot-bounce" style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#c5a059" }} />
+                        <span className="dot-bounce" style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#c5a059", animationDelay: "-0.16s" }} />
+                        <span className="dot-bounce" style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#c5a059", animationDelay: "-0.32s" }} />
+                        <span>Düşünüyor...</span>
+                      </div>
+                    ) : (
+                      <div dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }} />
+                    )}
+                  </div>
+
+                  {msg.role === "assistant" && !msg.isThinking && msg.text && (
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "6px", opacity: 0.8 }}>
+                      <button
+                        onClick={() => navigator.clipboard.writeText(msg.text)}
+                        style={{ background: "none", border: "none", color: "#8e8e8e", cursor: "pointer", fontSize: "12px", padding: "2px 6px" }}
+                        title="Kopyala"
+                      >
+                        📋 Kopyala
+                      </button>
+                      <button
+                        onClick={() => playVoice(msg.text)}
+                        style={{ background: "none", border: "none", color: "#8e8e8e", cursor: "pointer", fontSize: "12px", padding: "2px 6px" }}
+                        title="Seslendir"
+                      >
+                        🔊 Seslendir
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {errorMessage && (
+              <div style={{
+                backgroundColor: "rgba(239, 68, 68, 0.15)",
+                border: "1px solid #ef4444",
+                color: "#fca5a5",
+                padding: "10px 16px",
+                borderRadius: "8px",
+                fontSize: "13px"
+              }}>
+                ⚠️ {errorMessage}
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
+          </div>
+        </div>
+
+        {/* Floating Bottom Input Dock */}
+        <div style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          background: "linear-gradient(180deg, rgba(33, 33, 33, 0) 0%, rgba(33, 33, 33, 0.95) 25%, #212121 100%)",
+          padding: "16px 20px 20px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          pointerEvents: "none"
+        }}>
+          <div style={{
+            maxWidth: "48rem",
+            width: "100%",
+            backgroundColor: "#2f2f2f",
+            border: "1px solid rgba(255, 255, 255, 0.12)",
+            borderRadius: "26px",
+            padding: "10px 14px 10px 16px",
+            display: "flex",
+            alignItems: "flex-end",
+            gap: "10px",
+            boxShadow: "0 10px 30px rgba(0, 0, 0, 0.4)",
+            pointerEvents: "auto"
+          }}>
+            <button
+              onClick={toggleRecording}
+              style={{
+                width: "36px",
+                height: "36px",
+                borderRadius: "50%",
+                background: isRecording ? "#ef4444" : "transparent",
+                border: "none",
+                color: isRecording ? "#fff" : "#b4b4b4",
+                fontSize: "17px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                marginBottom: "2px",
+                animation: isRecording ? "pulse 1s infinite" : "none"
+              }}
+              title="Sesli Konuşma"
+            >
+              🎤
+            </button>
+
+            <textarea
+              ref={textareaRef}
+              value={inputText}
+              onChange={handleTextareaInput}
+              onKeyDown={handleKeyDown}
+              rows={1}
+              placeholder="Alfred'e mesaj yazın..."
+              style={{
+                flex: 1,
+                background: "transparent",
+                border: "none",
+                outline: "none",
+                color: "#ececec",
+                fontSize: "15px",
+                lineHeight: "1.5",
+                fontFamily: "inherit",
+                resize: "none",
+                maxHeight: "160px",
+                minHeight: "24px",
+                padding: "6px 0"
+              }}
+            />
+
+            {isBusy ? (
+              <button
+                onClick={handleStopStreaming}
+                style={{
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "50%",
+                  backgroundColor: "#ffffff",
+                  border: "none",
+                  color: "#000",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  marginBottom: "2px"
+                }}
+                title="Durdur"
+              >
+                ■
+              </button>
+            ) : (
+              <button
+                onClick={() => handleSendMessage()}
+                disabled={!inputText.trim()}
+                style={{
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "50%",
+                  backgroundColor: inputText.trim() ? "#ffffff" : "rgba(255, 255, 255, 0.1)",
+                  border: "none",
+                  color: inputText.trim() ? "#000000" : "#737373",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: inputText.trim() ? "pointer" : "not-allowed",
+                  transition: "all 0.2s ease",
+                  marginBottom: "2px"
+                }}
+                title="Gönder"
+              >
+                ↑
+              </button>
+            )}
+          </div>
+
+          <p style={{ fontSize: "11px", color: "#737373", marginTop: "8px", textAlign: "center", pointerEvents: "auto" }}>
+            B.U.T.L.E.R. Alfred — Barış's Unified Task, Logic, Execution &amp; Reasoning
+          </p>
+        </div>
+      </main>
+
+      {/* Settings Modal */}
+      {showSettingsModal && (
+        <div
+          onClick={() => setShowSettingsModal(false)}
           style={{
-            width: "42px",
-            height: "42px",
-            borderRadius: "50%",
-            backgroundColor: isRecording ? "var(--danger)" : "var(--bg-card)",
-            color: isRecording ? "#ffffff" : "var(--accent-gold)",
-            border: isRecording ? "2px solid #ffffff" : "1px solid var(--border-subtle)",
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            background: "rgba(0, 0, 0, 0.75)",
+            backdropFilter: "blur(6px)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: "18px",
-            transition: "all 0.2s ease",
-            flexShrink: 0,
-            cursor: isBusy ? "not-allowed" : "pointer"
+            zIndex: 1000,
+            padding: "16px"
           }}
         >
-          {isRecording ? "⏹" : "🎤"}
-        </button>
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: "#262626",
+              border: "1px solid rgba(255, 255, 255, 0.1)",
+              borderRadius: "16px",
+              width: "100%",
+              maxWidth: "460px",
+              padding: "24px",
+              boxShadow: "0 20px 50px rgba(0, 0, 0, 0.6)"
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+              <h3 style={{ fontSize: "16px", fontWeight: 600 }}>Sistem &amp; Model Yapılandırması</h3>
+              <button
+                onClick={() => setShowSettingsModal(false)}
+                style={{ background: "none", border: "none", color: "#8e8e8e", cursor: "pointer", fontSize: "18px" }}
+              >
+                ✕
+              </button>
+            </div>
 
-        {/* Text Input */}
-        <input
-          ref={inputRef}
-          type="text"
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              handleSendMessage();
-            }
-          }}
-          disabled={isBusy || isRecording}
-          placeholder={isRecording ? "Listening... Speak now, then click Stop." : "Address Alfred via text..."}
-          style={{
-            flex: 1,
-            backgroundColor: "transparent",
-            border: "none",
-            outline: "none",
-            color: "var(--text-primary)",
-            fontSize: "14px",
-            padding: "8px 4px"
-          }}
-        />
+            <p style={{ fontSize: "13px", color: "#b4b4b4", lineHeight: "1.5", marginBottom: "16px" }}>
+              Alfred varsayılan olarak Tailscale özel ağınızdaki yerel <strong>Ollama (gemma4:12b-mlx)</strong> motorunu kullanır.
+            </p>
 
-        {/* Send Button */}
-        <button
-          onClick={() => handleSendMessage()}
-          disabled={!inputText.trim() || isBusy || isRecording}
-          style={{
-            backgroundColor: inputText.trim() && !isBusy ? "var(--accent-gold)" : "var(--bg-card)",
-            color: inputText.trim() && !isBusy ? "#0a0d14" : "var(--text-muted)",
-            border: "none",
-            padding: "8px 16px",
-            borderRadius: "8px",
-            fontWeight: 600,
-            fontSize: "13px",
-            transition: "background-color 0.15s ease",
-            cursor: inputText.trim() && !isBusy ? "pointer" : "not-allowed"
-          }}
-        >
-          Send
-        </button>
-      </div>
+            <div style={{ marginBottom: "14px" }}>
+              <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#b4b4b4", marginBottom: "6px" }}>
+                Aktif Motor:
+              </label>
+              <div style={{
+                padding: "10px 12px",
+                background: "rgba(197, 160, 89, 0.1)",
+                border: "1px solid #c5a059",
+                borderRadius: "8px",
+                fontSize: "13px",
+                color: "#c5a059",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between"
+              }}>
+                <span>🦙 <strong>Ollama</strong> — gemma4:12b-mlx</span>
+                <span style={{ fontSize: "11px", color: "#10b981", fontWeight: 600 }}>● Aktif</span>
+              </div>
+            </div>
 
-      {/* Footer Info */}
-      <footer style={{
-        marginTop: "16px",
-        display: "flex",
-        justifyContent: "space-between",
-        fontSize: "11px",
-        color: "var(--text-muted)"
-      }}>
-        <span>Engine: Ollama (gemma4:12b-mlx) [Default] / Groq Cloud LPU</span>
-        <span>Target: Local / Tailscale Network</span>
-      </footer>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "20px" }}>
+              <button
+                onClick={() => setShowSettingsModal(false)}
+                style={{
+                  backgroundColor: "#c5a059",
+                  border: "none",
+                  color: "#000",
+                  padding: "8px 18px",
+                  borderRadius: "8px",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                Tamam
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

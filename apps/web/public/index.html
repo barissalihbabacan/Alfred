@@ -62,8 +62,10 @@
       display: flex;
       flex-direction: column;
       border-right: 1px solid var(--border-subtle);
-      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), margin-left 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: margin-left 0.35s cubic-bezier(0.4, 0, 0.2, 1), transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
       z-index: 50;
+      overflow: hidden;
+      flex-shrink: 0;
     }
 
     .sidebar.collapsed {
@@ -990,9 +992,6 @@
             <span>B.U.T.L.E.R.</span>
             <span class="brand-badge">ALFRED</span>
           </div>
-          <button class="icon-btn" onclick="toggleSidebar()" title="Kenar Çubuğunu Gizle">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-          </button>
         </div>
         <button class="new-chat-btn" onclick="startNewConversation()">
           <div class="new-chat-left">

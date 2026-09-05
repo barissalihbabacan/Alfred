@@ -454,12 +454,15 @@ export default function VoiceChatPlayground() {
         minWidth: sidebarOpen ? "260px" : "0px",
         height: "100%",
         backgroundColor: "#171717",
-        borderRight: "1px solid rgba(255, 255, 255, 0.08)",
+        borderRight: sidebarOpen ? "1px solid rgba(255, 255, 255, 0.08)" : "none",
         display: "flex",
         flexDirection: "column",
-        transition: "all 0.25s ease",
+        transition: "width 0.35s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease",
+        opacity: sidebarOpen ? 1 : 0,
         overflow: "hidden",
-        zIndex: 40
+        whiteSpace: "nowrap",
+        zIndex: 40,
+        flexShrink: 0
       }}>
         {/* Sidebar Header */}
         <div style={{ padding: "14px 14px 10px", display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -476,13 +479,6 @@ export default function VoiceChatPlayground() {
                 border: "1px solid rgba(197, 160, 89, 0.3)"
               }}>ALFRED</span>
             </div>
-            <button
-              onClick={() => setSidebarOpen(false)}
-              style={{ background: "none", border: "none", color: "#8e8e8e", cursor: "pointer", fontSize: "16px" }}
-              title="Kenar Çubuğunu Gizle"
-            >
-              ✕
-            </button>
           </div>
 
           <button
@@ -601,15 +597,28 @@ export default function VoiceChatPlayground() {
           borderBottom: "1px solid rgba(255, 255, 255, 0.08)"
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            {!sidebarOpen && (
-              <button
-                onClick={() => setSidebarOpen(true)}
-                style={{ background: "transparent", border: "none", color: "#b4b4b4", cursor: "pointer", fontSize: "18px", padding: "4px" }}
-                title="Kenar Çubuğunu Aç"
-              >
-                ☰
-              </button>
-            )}
+            <button
+              id="sidebarToggleBtn"
+              onClick={() => setSidebarOpen((prev) => !prev)}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "#b4b4b4",
+                cursor: "pointer",
+                padding: "6px 8px",
+                borderRadius: "8px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "background 0.15s, color 0.15s"
+              }}
+              title="Kenar Çubuğunu Aç/Kapat"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <line x1="9" y1="3" x2="9" y2="21" />
+              </svg>
+            </button>
             <div
               onClick={() => setShowSettingsModal(true)}
               style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontWeight: 600, fontSize: "14px" }}

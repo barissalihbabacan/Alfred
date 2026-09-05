@@ -37,7 +37,33 @@ function escapeHtml(str: string): string {
 
 function renderMarkdown(text: string): string {
   if (!text) return "";
-  let html = escapeHtml(text);
+
+  // Extract <think> blocks
+  const thoughts: string[] = [];
+  const mainText = text.replace(/<think>([\s\S]*?)(?:<\/think>|$)/gi, (_, thoughtContent) => {
+    const trimmed = thoughtContent.trim();
+    if (trimmed) thoughts.push(trimmed);
+    return "";
+  }).trim();
+
+  let thoughtHtml = "";
+  if (thoughts.length > 0) {
+    thoughtHtml = thoughts.map(t => `
+      <details class="thought-container">
+        <summary class="thought-header">
+          <svg class="thought-chevron-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <span>Düşünce Süreci</span>
+        </summary>
+        <div class="thought-body">${escapeHtml(t)}</div>
+      </details>
+    `).join("");
+  }
+
+  if (!mainText) {
+    return thoughtHtml;
+  }
+
+  let html = escapeHtml(mainText);
 
   // Multi-line code blocks: ```lang ... ```
   const codeBlocks: string[] = [];
@@ -86,7 +112,7 @@ function renderMarkdown(text: string): string {
   html = html.replace(/§§INLINECODE(\d+)§§/g, (_m, idx) => inlineCodes[Number(idx)]);
   html = html.replace(/§§CODEBLOCK(\d+)§§/g, (_m, idx) => codeBlocks[Number(idx)]);
 
-  return html;
+  return thoughtHtml + html;
 }
 
 export default function VoiceChatPlayground() {
@@ -98,6 +124,7 @@ export default function VoiceChatPlayground() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [sttLang, setSttLang] = useState("tr-TR");
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
@@ -493,6 +520,67 @@ export default function VoiceChatPlayground() {
         .dot-bounce { animation: dotBounce 1.4s infinite ease-in-out both; }
         .conv-item-wrap:hover .conv-item-del-btn { opacity: 0.7; }
         .conv-item-del-btn:hover { opacity: 1 !important; background-color: rgba(239, 68, 68, 0.15) !important; color: #ef4444 !important; }
+        .thought-container {
+          margin-bottom: 12px;
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          overflow: hidden;
+        }
+        .thought-header {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 12px;
+          cursor: pointer;
+          user-select: none;
+          font-size: 13px;
+          font-weight: 500;
+          color: #8e8e8e;
+          transition: background 0.15s ease, color 0.15s ease;
+          list-style: none;
+        }
+        .thought-header::-webkit-details-marker {
+          display: none;
+        }
+        .thought-header:hover {
+          background: rgba(255, 255, 255, 0.05);
+          color: #ececec;
+        }
+        .thought-chevron-icon {
+          transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+          flex-shrink: 0;
+          color: #8e8e8e;
+        }
+        .thought-container[open] .thought-chevron-icon,
+        .thought-container.open .thought-chevron-icon {
+          transform: rotate(90deg);
+          color: #c5a059;
+        }
+        .thought-body {
+          padding: 10px 14px 14px 14px;
+          font-size: 13px;
+          line-height: 1.6;
+          color: #9ca3af;
+          border-top: 1px solid rgba(255, 255, 255, 0.05);
+          white-space: pre-wrap;
+          word-break: break-word;
+          background: rgba(0, 0, 0, 0.15);
+        }
+        .thought-container:not(details):not(.open) .thought-body {
+          display: none;
+        }
+        .thought-container:not(details).open .thought-body {
+          display: block;
+        }
+        @keyframes copyPop {
+          0% { transform: scale(0.85); opacity: 0; }
+          50% { transform: scale(1.12); }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        .copied-anim {
+          animation: copyPop 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
       `}</style>
 
       {/* Sidebar */}
@@ -903,6 +991,11 @@ export default function VoiceChatPlayground() {
                   >
                     {msg.isThinking ? (
                       <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "#8e8e8e", fontSize: "14px", padding: "4px 0" }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", color: "#c5a059", marginRight: "2px" }}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="9 18 15 12 9 6" />
+                          </svg>
+                        </span>
                         <span className="dot-bounce" style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#c5a059" }} />
                         <span className="dot-bounce" style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#c5a059", animationDelay: "-0.16s" }} />
                         <span className="dot-bounce" style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#c5a059", animationDelay: "-0.32s" }} />
@@ -916,26 +1009,34 @@ export default function VoiceChatPlayground() {
                   {msg.role === "assistant" && !msg.isThinking && msg.text && (
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "6px", opacity: 0.8 }}>
                       <button
-                        onClick={() => navigator.clipboard.writeText(msg.text)}
+                        onClick={() => {
+                          const clean = msg.text.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim() || msg.text;
+                          navigator.clipboard.writeText(clean).then(() => {
+                            setCopiedId(msg.id);
+                            setTimeout(() => {
+                              setCopiedId(curr => (curr === msg.id ? null : curr));
+                            }, 2000);
+                          });
+                        }}
                         style={{ background: "none", border: "none", color: "#8e8e8e", cursor: "pointer", fontSize: "12px", padding: "2px 6px", display: "inline-flex", alignItems: "center", gap: "4px" }}
                         title="Kopyala"
                       >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                        </svg>
-                        <span>Kopyala</span>
-                      </button>
-                      <button
-                        onClick={() => playVoice(msg.text)}
-                        style={{ background: "none", border: "none", color: "#8e8e8e", cursor: "pointer", fontSize: "12px", padding: "2px 6px", display: "inline-flex", alignItems: "center", gap: "4px" }}
-                        title="Seslendir"
-                      >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
-                        </svg>
-                        <span>Seslendir</span>
+                        {copiedId === msg.id ? (
+                          <span className="copied-anim" style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: "#10b981" }}>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                            <span>Kopyalandı</span>
+                          </span>
+                        ) : (
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                            </svg>
+                            <span>Kopyala</span>
+                          </span>
+                        )}
                       </button>
                     </div>
                   )}

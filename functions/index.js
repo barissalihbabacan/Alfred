@@ -400,9 +400,15 @@ export const api = onRequest({ cors: true }, async (req, res) => {
       "Connection": "keep-alive",
       "X-Accel-Buffering": "no"
     });
+    if (typeof res.flushHeaders === "function") {
+      res.flushHeaders();
+    }
 
     const sendEvent = (obj) => {
       res.write(`data: ${JSON.stringify(obj)}\n\n`);
+      if (typeof res.flush === "function") {
+        res.flush();
+      }
     };
 
     sendEvent({ type: "start", conversationId: convId, provider: "ollama", model: ollamaModel });

@@ -255,6 +255,33 @@ export const api = onRequest({ cors: true }, async (req, res) => {
     }
   }
 
+  // Conversation delete endpoint: DELETE /chat or DELETE /conversation
+  if ((path.endsWith("/chat") || path.endsWith("/conversation")) && req.method === "DELETE") {
+    try {
+      const conversationId = (req.query?.conversationId || req.query?.id || "").toString();
+      if (!conversationId) {
+        res.status(400).json({ error: "conversationId is required." });
+        return;
+      }
+
+      const convRef = db.collection("conversations").doc(conversationId);
+      const messagesSnap = await convRef.collection("messages").get();
+      if (!messagesSnap.empty) {
+        const batch = db.batch();
+        messagesSnap.docs.forEach((doc) => batch.delete(doc.ref));
+        await batch.commit();
+      }
+
+      await convRef.delete();
+      res.status(200).json({ success: true, deletedConversationId: conversationId });
+      return;
+    } catch (err) {
+      console.error("Cloud Function conversation deletion failed:", err);
+      res.status(500).json({ error: "Failed to delete conversation." });
+      return;
+    }
+  }
+
   // Chat endpoint: POST /chat or POST /api/chat
   if (path.endsWith("/chat")) {
     if (req.method !== "POST") {

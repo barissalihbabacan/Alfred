@@ -466,8 +466,8 @@ export default function VoiceChatPlayground() {
       }}>
         {/* Sidebar Header */}
         <div style={{ padding: "14px 14px 10px", display: "flex", flexDirection: "column", gap: "12px" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 600, fontSize: "14px" }}>
+          <div style={{ display: "flex", alignItems: "center", width: "100%", padding: "0 4px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 600, fontSize: "14px", width: "100%", flex: 1 }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#c5a059" }}>
                 <path d="M3 18h18" />
                 <path d="M6 18V8a1.5 1.5 0 0 1 1.5-1.5h9A1.5 1.5 0 0 1 18 8v10" />

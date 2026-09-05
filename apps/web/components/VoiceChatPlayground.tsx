@@ -1061,18 +1061,19 @@ export default function VoiceChatPlayground() {
                   width: "36px",
                   height: "36px",
                   borderRadius: "50%",
-                  backgroundColor: "#ffffff",
+                  backgroundColor: "transparent",
                   border: "none",
-                  color: "#000",
+                  color: "#ef4444",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   cursor: "pointer",
-                  marginBottom: "2px"
+                  marginBottom: "2px",
+                  transition: "background 0.15s, color 0.15s"
                 }}
                 title="Durdur"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="4" y="4" width="16" height="16" rx="2" />
                 </svg>
               </button>
@@ -1084,19 +1085,19 @@ export default function VoiceChatPlayground() {
                   width: "36px",
                   height: "36px",
                   borderRadius: "50%",
-                  backgroundColor: inputText.trim() ? "#ffffff" : "rgba(255, 255, 255, 0.1)",
+                  backgroundColor: "transparent",
                   border: "none",
-                  color: inputText.trim() ? "#000000" : "#737373",
+                  color: inputText.trim() ? "#ececec" : "#737373",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   cursor: inputText.trim() ? "pointer" : "not-allowed",
-                  transition: "all 0.2s ease",
+                  transition: "all 0.15s ease",
                   marginBottom: "2px"
                 }}
                 title="Gönder"
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="12" y1="19" x2="12" y2="5" />
                   <polyline points="5 12 12 5 19 12" />
                 </svg>

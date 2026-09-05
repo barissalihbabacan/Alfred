@@ -1,11 +1,23 @@
 import { CanonicalUserContext } from "./user-profile.types.js";
 import { defaultUserProfileLoader } from "./user-profile-loader.js";
+import { CONVERSATION_CONFIG } from "../../../data/firestore/conversation-repository.interface.js";
+
+export interface ContextMessage {
+  role: "user" | "assistant" | "system";
+  content: string;
+}
 
 export interface ContextBuilderOptions {
   personaPrompt?: string;
   userContext?: CanonicalUserContext;
   includeUserProfile?: boolean;
   includeGovernor?: boolean;
+}
+
+export interface BuildChatMessagesOptions extends ContextBuilderOptions {
+  history?: ContextMessage[];
+  currentMessage: string;
+  maxHistoryMessages?: number;
 }
 
 /**
@@ -151,6 +163,43 @@ ZERO META-NARRATIVE:
 
     return sections.join("\n\n");
   }
+
+  /**
+   * Assembles the complete list of messages sent to the AI provider:
+   * [System Prompt (Persona + Profile + Governor), ...Bounded Recent History, Current User Message]
+   */
+  public static buildChatMessages(options: BuildChatMessagesOptions): ContextMessage[] {
+    const systemPrompt = ContextBuilder.buildSystemPrompt(options);
+    const maxHistory = options.maxHistoryMessages ?? CONVERSATION_CONFIG.MAX_CONTEXT_MESSAGES;
+
+    const messages: ContextMessage[] = [
+      { role: "system", content: systemPrompt }
+    ];
+
+    if (Array.isArray(options.history) && options.history.length > 0) {
+      // Take at most the last N messages
+      const boundedHistory = options.history.slice(-maxHistory);
+      for (const item of boundedHistory) {
+        if (
+          (item.role === "user" || item.role === "assistant") &&
+          typeof item.content === "string" &&
+          item.content.trim()
+        ) {
+          messages.push({
+            role: item.role,
+            content: item.content
+          });
+        }
+      }
+    }
+
+    messages.push({
+      role: "user",
+      content: options.currentMessage
+    });
+
+    return messages;
+  }
 }
 
 /**
@@ -159,3 +208,4 @@ ZERO META-NARRATIVE:
 export function getContextualSystemPrompt(options?: ContextBuilderOptions): string {
   return ContextBuilder.buildSystemPrompt(options);
 }
+

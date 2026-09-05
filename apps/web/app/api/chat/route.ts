@@ -2,13 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAlfredSystemPrompt } from "../../../../../src/ai/prompts/alfred-persona.js";
 import { getAIProvider } from "../../../../../src/ai/providers/factory.js";
 import { ChatMessage } from "../../../../../src/ai/providers/types.js";
+import { getConversationRepository } from "../../../../../src/data/firestore/index.js";
+import { ContextBuilder } from "../../../../../src/alfred/cognitive/context/context-builder.js";
+import { CONVERSATION_CONFIG } from "../../../../../src/data/firestore/conversation-repository.interface.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 interface ChatRequestBody {
   message?: string;
-  history?: Array<{ role: "user" | "assistant"; content: string }>;
+  conversationId?: string;
+  userId?: string;
   stream?: boolean;
 }
 
@@ -46,6 +50,66 @@ function getDeterministicFallback(message: string): string {
   return `Indeed, sir. You remarked: "${message.slice(0, 100)}".`;
 }
 
+/**
+ * GET /api/chat
+ * Retrieves conversation metadata and bounded messages for restoring chat state on client reload.
+ * Query parameters:
+ * - conversationId: Retrieve specific conversation and its messages
+ * - userId: List conversations for a user
+ */
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const conversationId = searchParams.get("conversationId");
+    const userId = searchParams.get("userId");
+
+    const repo = getConversationRepository();
+
+    if (conversationId) {
+      const conversation = await repo.getConversation(conversationId);
+      if (!conversation) {
+        return NextResponse.json(
+          { error: "Conversation not found" },
+          { status: 404 }
+        );
+      }
+
+      const messages = await repo.getMessages(conversationId, {
+        limit: CONVERSATION_CONFIG.MAX_CONTEXT_MESSAGES * 2
+      });
+
+      return NextResponse.json({
+        success: true,
+        conversation,
+        messages
+      });
+    }
+
+    if (userId) {
+      const conversations = await repo.listConversations(userId);
+      return NextResponse.json({
+        success: true,
+        conversations
+      });
+    }
+
+    return NextResponse.json(
+      { error: "A 'conversationId' or 'userId' parameter is required." },
+      { status: 400 }
+    );
+  } catch (err: any) {
+    console.error("[Alfred API GET] Error:", err);
+    return NextResponse.json(
+      { error: err?.message || "Failed to retrieve conversation." },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * POST /api/chat
+ * Main conversation endpoint with atomic Firestore persistence and SSE streaming.
+ */
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as ChatRequestBody;
@@ -58,39 +122,52 @@ export async function POST(req: NextRequest) {
     }
 
     const userMessage = body.message.trim();
-    if (userMessage.length > 2000) {
+    if (userMessage.length > CONVERSATION_CONFIG.MAX_MESSAGE_LENGTH) {
       return NextResponse.json(
-        { error: "Message exceeds maximum allowed length of 2000 characters." },
+        { error: `Message exceeds maximum allowed length of ${CONVERSATION_CONFIG.MAX_MESSAGE_LENGTH} characters.` },
         { status: 400 }
       );
     }
 
-    // Validate and sanitize ephemeral conversation history (max 10 turns)
-    const sanitizedHistory: ChatMessage[] = [];
-    if (Array.isArray(body.history)) {
-      for (const item of body.history.slice(-10)) {
-        if (
-          (item.role === "user" || item.role === "assistant") &&
-          typeof item.content === "string" &&
-          item.content.length <= 2000
-        ) {
-          sanitizedHistory.push({
-            role: item.role,
-            content: item.content
-          });
-        }
+    const repo = getConversationRepository();
+    const userId = body.userId || "guest_default";
+
+    // 1. Resolve or create conversation
+    let convId = body.conversationId;
+    if (convId) {
+      const existing = await repo.getConversation(convId);
+      if (!existing) {
+        const created = await repo.createConversation({ userId, customId: convId });
+        convId = created.id;
       }
+    } else {
+      const created = await repo.createConversation({ userId });
+      convId = created.id;
     }
 
-    const messages: ChatMessage[] = [
-      { role: "system", content: getAlfredSystemPrompt() },
-      ...sanitizedHistory,
-      { role: "user", content: userMessage }
-    ];
+    // 2. Atomically persist user message to Firestore
+    const userMsgDoc = await repo.appendMessage({
+      conversationId: convId,
+      role: "user",
+      content: userMessage
+    });
+
+    // 3. Load bounded recent history prior to current message for LLM context
+    const recentHistoryDocs = await repo.getMessages(convId, {
+      limit: CONVERSATION_CONFIG.MAX_CONTEXT_MESSAGES,
+      beforeSequence: userMsgDoc.sequence
+    });
+
+    // 4. Assemble context using ContextBuilder (Persona + Canonical User Profile + Governor + Bounded History + Current Message)
+    const messages = ContextBuilder.buildChatMessages({
+      personaPrompt: getAlfredSystemPrompt(),
+      history: recentHistoryDocs.map((m) => ({ role: m.role, content: m.content })),
+      currentMessage: userMessage
+    }) as ChatMessage[];
 
     const isStreamingRequested = body.stream !== false;
 
-    // Non-streaming fallback if client explicitly requests stream: false
+    // 5A. Non-streaming fallback if stream: false requested
     if (!isStreamingRequested) {
       let replyText = "";
       let providerName = "fallback-persona";
@@ -107,8 +184,24 @@ export async function POST(req: NextRequest) {
         } else {
           replyText = getDeterministicFallback(userMessage);
         }
+
+        // Persist assistant message
+        await repo.appendMessage({
+          conversationId: convId,
+          role: "assistant",
+          content: replyText,
+          status: "completed",
+          provider: providerName
+        });
       } catch (err: any) {
         console.error("[Alfred API] Provider chat error:", err?.message || err);
+        await repo.appendMessage({
+          conversationId: convId,
+          role: "assistant",
+          content: "",
+          status: "error",
+          provider: providerName
+        });
         return NextResponse.json(
           { error: err?.message || "AI provider failed to generate response." },
           { status: 502 }
@@ -117,14 +210,18 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         success: true,
+        conversationId: convId,
         text: replyText,
         provider: providerName
       });
     }
 
-    // Streaming response with Server-Sent Events (text/event-stream)
+    // 5B. Streaming response with Server-Sent Events (text/event-stream)
     const encoder = new TextEncoder();
     const abortController = new AbortController();
+    let accumulatedText = "";
+    let providerName = "fallback-persona";
+    let isStreamCompleted = false;
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -137,15 +234,32 @@ export async function POST(req: NextRequest) {
           const provider = getAIProvider();
           if (!provider.isConfigured() || typeof provider.streamChat !== "function") {
             // Stream deterministic fallback
-            sendEvent({ type: "start", provider: "fallback-persona" });
+            sendEvent({ type: "start", conversationId: convId, provider: "fallback-persona" });
             const fallback = getDeterministicFallback(userMessage);
+            accumulatedText = fallback;
             sendEvent({ type: "chunk", text: fallback });
             sendEvent({ type: "done" });
+
+            // Persist fallback assistant message
+            await repo.appendMessage({
+              conversationId: convId!,
+              role: "assistant",
+              content: accumulatedText,
+              status: "completed",
+              provider: "fallback-persona"
+            });
+
+            isStreamCompleted = true;
             controller.close();
             return;
           }
 
-          sendEvent({ type: "start", provider: provider.id });
+          providerName = provider.id;
+          sendEvent({
+            type: "start",
+            conversationId: convId,
+            provider: provider.id
+          });
 
           let hasStartedContent = false;
 
@@ -158,15 +272,15 @@ export async function POST(req: NextRequest) {
               break;
             }
 
-            // If the model is producing reasoning / thinking tokens:
-            // Send "thinking" event WITHOUT exposing any internal thoughts
+            // Thinking event without leaking internal reasoning
             if (chunk.thinking && !hasStartedContent) {
               sendEvent({ type: "thinking" });
             }
 
-            // Send actual content tokens to the user
+            // Content tokens
             if (chunk.content) {
               hasStartedContent = true;
+              accumulatedText += chunk.content;
               sendEvent({ type: "chunk", text: chunk.content });
             }
 
@@ -179,6 +293,18 @@ export async function POST(req: NextRequest) {
             }
           }
 
+          // Persist completed assistant message
+          if (!abortController.signal.aborted && accumulatedText) {
+            await repo.appendMessage({
+              conversationId: convId!,
+              role: "assistant",
+              content: accumulatedText,
+              status: "completed",
+              provider: providerName
+            });
+            isStreamCompleted = true;
+          }
+
           controller.close();
         } catch (streamError: any) {
           console.error("[Alfred API] Stream generation error:", streamError);
@@ -186,11 +312,40 @@ export async function POST(req: NextRequest) {
             type: "error",
             error: streamError?.message || "An error occurred during streaming."
           });
+
+          // Record partial message or error state if needed
+          try {
+            if (accumulatedText) {
+              await repo.appendMessage({
+                conversationId: convId!,
+                role: "assistant",
+                content: accumulatedText,
+                status: "interrupted",
+                provider: providerName
+              });
+            }
+          } catch (persistErr) {
+            console.error("[Alfred API] Failed to persist interrupted message:", persistErr);
+          }
+
           controller.close();
         }
       },
-      cancel() {
+      async cancel() {
         abortController.abort();
+        if (!isStreamCompleted && accumulatedText) {
+          try {
+            await repo.appendMessage({
+              conversationId: convId!,
+              role: "assistant",
+              content: accumulatedText,
+              status: "interrupted",
+              provider: providerName
+            });
+          } catch (cancelErr) {
+            console.error("[Alfred API] Failed to persist cancelled stream message:", cancelErr);
+          }
+        }
       }
     });
 

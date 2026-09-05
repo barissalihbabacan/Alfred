@@ -33,16 +33,25 @@ Alfred rigorously separates storage responsibilities across three distinct tiers
    - Contains stable, consciously authored, version-controlled baseline knowledge about Barış (`USER_PROFILE.md`), communication preferences (`PREFERENCES.md`), and working style (`WORKING_STYLE.md`).
    - **Runtime Status**: Strictly read-only (`fs.readFileSync`). Alfred never commits, rewrites, or mutates these files at runtime.
    - **Authority**: Definitive baseline. Trumps vague conversational inferences.
-2. **Firestore (Planned) — Dynamic Operational State & Memory**:
-   - Stores session history, conversational context, project states, dynamically acquired observations, and evolving operational data.
-   - **Authority**: Authoritative for operational and episodic records; non-authoritative for foundational persona and baseline identity.
-3. **Vector Database (Planned) — Semantic Retrieval Index**:
+2. **Firestore (`src/data/firestore/`) — Dynamic Operational State & Persistent Conversation History**:
+   - Stores durable conversation records and messages across restarts and sessions:
+     - `conversations/{conversationId}`: `userId`, `title`, `messageCount`, timestamps.
+     - `conversations/{conversationId}/messages/{messageId}`: `role`, `content`, atomic `sequence` (1..N), `status` (`completed` | `interrupted` | `error`), provider/model metadata.
+   - Provides transactional atomic sequence allocation, bounded context window retrieval (`MAX_CONTEXT_MESSAGES = 10`), deterministic title generation, and user isolation.
+   - **Authority**: Authoritative for runtime conversation history and operational state; non-authoritative for canonical user profile and persona rules.
+3. **Vector Database (Future Milestone) — Semantic Retrieval Index**:
    - Stores searchable embeddings across documents and past conversations for semantic nearest-neighbor retrieval.
    - **Authority**: Purely non-authoritative search cache. Can be purged and rebuilt at any time without data loss.
 
+#### Data Layer Abstraction (`src/data/firestore/`)
+- **`IConversationRepository` (`conversation-repository.interface.ts`)**: Pure abstract contract decoupling conversation persistence from database drivers.
+- **`FirestoreConversationRepository` (`firestore-conversation-repository.ts`)**: Production implementation leveraging Firestore transactions for atomic sequence numbers and subcollection ordering.
+- **`InMemoryConversationRepository` (`in-memory-conversation-repository.ts`)**: In-memory test repository ensuring full unit test suite passes with zero credentials and zero emulator dependencies.
+- **`getConversationRepository()` (`factory.ts`)**: Dynamic repository factory detecting credentials/environment and providing the active repository singleton.
+
 #### Runtime Context Integration
 - **`UserProfileLoader` (`src/alfred/cognitive/context/user-profile-loader.ts`)**: Resolves and parses markdown profile files with safe fallbacks if files are missing or unreadable.
-- **`ContextBuilder` (`src/alfred/cognitive/context/context-builder.ts`)**: Injects the canonical profile into Alfred's system prompt using explicit markdown boundaries (`=== CANONICAL USER PROFILE (GIT AUTHORITATIVE) ===`), ensuring Alfred internalizes user context naturally without parroting instructions.
+- **`ContextBuilder` (`src/alfred/cognitive/context/context-builder.ts`)**: Injects the canonical profile into Alfred's system prompt using explicit markdown boundaries (`=== CANONICAL USER PROFILE (GIT AUTHORITATIVE) ===`), ensuring Alfred internalizes user context naturally without parroting instructions. Also provides `buildChatMessages()` combining system prompt, bounded recent history from Firestore, and current user message.
 - **Conversational Governor**: A behavioral governance block synthesized by `ContextBuilder` (`formatGovernorBlock()`) enforcing intent-driven response length (1–3 sentences for casual banter vs. deep technical diagnosis), restrained dry humour, firm First Principles pushback, and the elimination of corporate/customer-service boilerplate.
 
 ---

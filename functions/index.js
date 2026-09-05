@@ -1,7 +1,31 @@
 import { onRequest } from "firebase-functions/v2/https";
 import { setGlobalOptions } from "firebase-functions/v2";
+import { initializeApp, getApps } from "firebase-admin/app";
+import { getFirestore, Timestamp } from "firebase-admin/firestore";
 
 setGlobalOptions({ maxInstances: 10, timeoutSeconds: 120, memory: "512MiB" });
+
+if (getApps().length === 0) {
+  initializeApp();
+}
+
+const db = getFirestore();
+db.settings({ ignoreUndefinedProperties: true });
+
+function generateDeterministicTitle(message) {
+  const clean = message
+    .replace(/^[\s#*>`"']+|[\s*>`"']+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!clean) {
+    return "New Conversation";
+  }
+
+  const words = clean.split(" ").slice(0, 6).join(" ");
+  const truncated = words.length > 40 ? words.slice(0, 37) + "..." : words;
+  return truncated.charAt(0).toUpperCase() + truncated.slice(1);
+}
 
 const ALFRED_SYSTEM_PROMPT = `You are B.U.T.L.E.R. Alfred (Barış's Unified Task, Logic, Execution & Reasoning).
 You are an extraordinarily capable AI who happens to be a refined British gentleman and house butler serving Barış as his trusted engineering partner, cognitive confidant, and executive operations manager. You have an established, ongoing working relationship with Barış.
@@ -159,21 +183,188 @@ export const api = onRequest({ cors: true }, async (req, res) => {
     return;
   }
 
-  // Chat endpoint: /chat or /api/chat
+  // Conversation history restore endpoint: GET /chat or GET /conversation
+  if ((path.endsWith("/chat") || path.endsWith("/conversation") || path.endsWith("/conversations")) && req.method === "GET") {
+    try {
+      const conversationId = (req.query?.conversationId || req.query?.id || "").toString();
+      const userId = (req.query?.userId || "").toString();
+
+      if (conversationId) {
+        const convRef = db.collection("conversations").doc(conversationId);
+        const convSnap = await convRef.get();
+
+        if (!convSnap.exists) {
+          res.status(404).json({ error: "Conversation not found" });
+          return;
+        }
+
+        const messagesSnap = await convRef
+          .collection("messages")
+          .orderBy("sequence", "desc")
+          .limit(20)
+          .get();
+
+        const messages = messagesSnap.docs
+          .map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+            createdAt: doc.data().createdAt?.toDate ? doc.data().createdAt.toDate() : new Date()
+          }))
+          .reverse();
+
+        res.status(200).json({
+          success: true,
+          conversation: {
+            id: convSnap.id,
+            ...convSnap.data(),
+            createdAt: convSnap.data().createdAt?.toDate ? convSnap.data().createdAt.toDate() : new Date(),
+            updatedAt: convSnap.data().updatedAt?.toDate ? convSnap.data().updatedAt.toDate() : new Date(),
+            lastMessageAt: convSnap.data().lastMessageAt?.toDate ? convSnap.data().lastMessageAt.toDate() : new Date()
+          },
+          messages
+        });
+        return;
+      }
+
+      if (userId) {
+        const convsSnap = await db
+          .collection("conversations")
+          .where("userId", "==", userId)
+          .orderBy("lastMessageAt", "desc")
+          .limit(20)
+          .get();
+
+        const conversations = convsSnap.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate ? doc.data().createdAt.toDate() : new Date(),
+          updatedAt: doc.data().updatedAt?.toDate ? doc.data().updatedAt.toDate() : new Date(),
+          lastMessageAt: doc.data().lastMessageAt?.toDate ? doc.data().lastMessageAt.toDate() : new Date()
+        }));
+
+        res.status(200).json({ success: true, conversations });
+        return;
+      }
+
+      res.status(400).json({ error: "conversationId or userId is required." });
+      return;
+    } catch (err) {
+      console.error("Cloud Function conversation retrieval failed:", err);
+      res.status(500).json({ error: "Failed to retrieve conversation." });
+      return;
+    }
+  }
+
+  // Chat endpoint: POST /chat or POST /api/chat
   if (path.endsWith("/chat")) {
     if (req.method !== "POST") {
       res.status(405).json({ error: "Method not allowed. Use POST." });
       return;
     }
 
-    const { message, stream = true } = req.body || {};
+    const { message, conversationId: requestedConvId, userId = "guest_default", stream = true } = req.body || {};
     if (!message || typeof message !== "string") {
       res.status(400).json({ error: "Message is required." });
       return;
     }
 
+    const trimmedMessage = message.trim();
     const ollamaUrl = process.env.OLLAMA_BASE_URL || "https://ollama.example.invalid";
     const ollamaModel = process.env.OLLAMA_MODEL || "gemma4:12b-mlx";
+
+    let convId = requestedConvId;
+    const now = Timestamp.now();
+
+    // 1. Resolve or create conversation
+    try {
+      if (convId) {
+        const cSnap = await db.collection("conversations").doc(convId).get();
+        if (!cSnap.exists) {
+          await db.collection("conversations").doc(convId).set({
+            userId,
+            title: "New Conversation",
+            createdAt: now,
+            updatedAt: now,
+            lastMessageAt: now,
+            messageCount: 0
+          });
+        }
+      } else {
+        const newConvRef = db.collection("conversations").doc();
+        convId = newConvRef.id;
+        await newConvRef.set({
+          userId,
+          title: "New Conversation",
+          createdAt: now,
+          updatedAt: now,
+          lastMessageAt: now,
+          messageCount: 0
+        });
+      }
+    } catch (convErr) {
+      console.error("Failed to initialize conversation doc:", convErr);
+      if (!convId) convId = "conv_" + Date.now();
+    }
+
+    // 2. Transactionally append user message
+    const convRef = db.collection("conversations").doc(convId);
+    const userMsgRef = convRef.collection("messages").doc();
+    let userSeq = 1;
+
+    try {
+      await db.runTransaction(async (tx) => {
+        const cSnap = await tx.get(convRef);
+        const cData = cSnap.exists ? cSnap.data() : { messageCount: 0 };
+        const currentCount = (cData.messageCount || 0);
+        userSeq = currentCount + 1;
+        const txNow = Timestamp.now();
+
+        tx.set(userMsgRef, {
+          role: "user",
+          content: trimmedMessage,
+          sequence: userSeq,
+          status: "completed",
+          createdAt: txNow
+        });
+
+        const updatePayload = {
+          messageCount: userSeq,
+          updatedAt: txNow,
+          lastMessageAt: txNow
+        };
+
+        if (userSeq === 1 && (!cData.title || cData.title === "New Conversation")) {
+          updatePayload.title = generateDeterministicTitle(trimmedMessage);
+        }
+
+        tx.set(convRef, updatePayload, { merge: true });
+      });
+    } catch (msgErr) {
+      console.error("Failed to append user message transactionally:", msgErr);
+    }
+
+    // 3. Retrieve bounded recent history for context
+    let boundedHistory = [];
+    try {
+      const historySnap = await convRef
+        .collection("messages")
+        .where("sequence", "<", userSeq)
+        .orderBy("sequence", "desc")
+        .limit(10)
+        .get();
+
+      boundedHistory = historySnap.docs
+        .map((d) => ({ role: d.data().role, content: d.data().content }))
+        .reverse();
+    } catch (histErr) {
+      console.warn("Could not load history from Firestore, proceeding with single turn:", histErr);
+    }
+
+    const messagesPayload = [
+      { role: "system", content: ALFRED_SYSTEM_PROMPT },
+      ...boundedHistory,
+      { role: "user", content: trimmedMessage }
+    ];
 
     // Setup SSE headers
     res.writeHead(200, {
@@ -187,8 +378,10 @@ export const api = onRequest({ cors: true }, async (req, res) => {
       res.write(`data: ${JSON.stringify(obj)}\n\n`);
     };
 
-    sendEvent({ type: "start", provider: "ollama", model: ollamaModel });
+    sendEvent({ type: "start", conversationId: convId, provider: "ollama", model: ollamaModel });
     sendEvent({ type: "thinking" });
+
+    let accumulatedText = "";
 
     try {
       const ollamaRes = await fetch(`${ollamaUrl.replace(/\/+$/, "")}/api/chat`, {
@@ -196,10 +389,7 @@ export const api = onRequest({ cors: true }, async (req, res) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: ollamaModel,
-          messages: [
-            { role: "system", content: ALFRED_SYSTEM_PROMPT },
-            { role: "user", content: message }
-          ],
+          messages: messagesPayload,
           stream: true
         }),
         signal: AbortSignal.timeout(90000)
@@ -230,10 +420,43 @@ export const api = onRequest({ cors: true }, async (req, res) => {
               sendEvent({ type: "thinking" });
             }
             if (chunk.message?.content) {
+              accumulatedText += chunk.message.content;
               sendEvent({ type: "chunk", text: chunk.message.content });
             }
             if (chunk.done) {
               sendEvent({ type: "done" });
+
+              // Persist assistant message to Firestore
+              if (accumulatedText) {
+                try {
+                  const asstMsgRef = convRef.collection("messages").doc();
+                  await db.runTransaction(async (tx) => {
+                    const cSnap = await tx.get(convRef);
+                    const cData = cSnap.exists ? cSnap.data() : {};
+                    const asstSeq = (cData.messageCount || userSeq) + 1;
+                    const asstNow = Timestamp.now();
+
+                    tx.set(asstMsgRef, {
+                      role: "assistant",
+                      content: accumulatedText,
+                      sequence: asstSeq,
+                      status: "completed",
+                      provider: "ollama",
+                      model: ollamaModel,
+                      createdAt: asstNow
+                    });
+
+                    tx.update(convRef, {
+                      messageCount: asstSeq,
+                      updatedAt: asstNow,
+                      lastMessageAt: asstNow
+                    });
+                  });
+                } catch (persistErr) {
+                  console.error("Failed to persist assistant message to Firestore:", persistErr);
+                }
+              }
+
               res.end();
               return;
             }
@@ -242,9 +465,58 @@ export const api = onRequest({ cors: true }, async (req, res) => {
       }
 
       sendEvent({ type: "done" });
+
+      if (accumulatedText) {
+        try {
+          const asstMsgRef = convRef.collection("messages").doc();
+          await db.runTransaction(async (tx) => {
+            const cSnap = await tx.get(convRef);
+            const cData = cSnap.exists ? cSnap.data() : {};
+            const asstSeq = (cData.messageCount || userSeq) + 1;
+            const asstNow = Timestamp.now();
+
+            tx.set(asstMsgRef, {
+              role: "assistant",
+              content: accumulatedText,
+              sequence: asstSeq,
+              status: "completed",
+              provider: "ollama",
+              model: ollamaModel,
+              createdAt: asstNow
+            });
+
+            tx.update(convRef, {
+              messageCount: asstSeq,
+              updatedAt: asstNow,
+              lastMessageAt: asstNow
+            });
+          });
+        } catch (persistErr) {
+          console.error("Failed to persist assistant message to Firestore:", persistErr);
+        }
+      }
+
       res.end();
     } catch (err) {
       console.error("Cloud Function Ollama stream failed:", err);
+
+      // Persist interrupted message if partially generated
+      if (accumulatedText) {
+        try {
+          const asstMsgRef = convRef.collection("messages").doc();
+          const asstNow = Timestamp.now();
+          await asstMsgRef.set({
+            role: "assistant",
+            content: accumulatedText,
+            sequence: userSeq + 1,
+            status: "interrupted",
+            provider: "ollama",
+            model: ollamaModel,
+            createdAt: asstNow
+          });
+        } catch {}
+      }
+
       sendEvent({
         type: "error",
         error: "LLM provider temporarily unavailable."

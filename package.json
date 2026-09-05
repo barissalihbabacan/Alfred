@@ -29,6 +29,7 @@
   "license": "UNLICENSED",
   "devDependencies": {
     "@types/node": "^26.4.1",
+    "firebase-admin": "^14.3.0",
     "tsx": "^4.23.13",
     "typescript": "^5.4.0",
     "vitest": "^5.0.0"

@@ -81,6 +81,7 @@ export default function VoiceChatPlayground() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [currentlyPlayingId, setCurrentlyPlayingId] = useState<string | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -95,6 +96,49 @@ export default function VoiceChatPlayground() {
   useEffect(() => {
     scrollToBottom();
   }, [messages, state, scrollToBottom]);
+
+  // Restore persistent conversation history from Firestore on component mount
+  useEffect(() => {
+    try {
+      const savedConvId = localStorage.getItem("alfred_conversation_id");
+      if (savedConvId) {
+        setConversationId(savedConvId);
+        fetch(`/api/chat?conversationId=${encodeURIComponent(savedConvId)}`)
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (data?.success && Array.isArray(data.messages) && data.messages.length > 0) {
+              const loaded: Message[] = data.messages.map((m: any) => ({
+                id: m.id || "msg-" + m.sequence,
+                role: m.role,
+                text: m.content,
+                timestamp: m.createdAt
+                  ? new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                  : new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+              }));
+              setMessages(loaded);
+            }
+          })
+          .catch((err) => {
+            console.warn("[Playground] Could not restore conversation history:", err);
+          });
+      }
+    } catch {}
+  }, []);
+
+  const handleNewConversation = () => {
+    try {
+      localStorage.removeItem("alfred_conversation_id");
+    } catch {}
+    setConversationId(null);
+    setMessages([
+      {
+        id: "init-" + Date.now(),
+        role: "assistant",
+        text: "Good day, sir. B.U.T.L.E.R. Alfred at your service.",
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      }
+    ]);
+  };
 
   // Clean up audio playback on unmount
   useEffect(() => {
@@ -191,7 +235,12 @@ export default function VoiceChatPlayground() {
           "Content-Type": "application/json",
           "Accept": "text/event-stream"
         },
-        body: JSON.stringify({ message: messageText, history, stream: true })
+        body: JSON.stringify({
+          message: messageText,
+          conversationId: conversationId || undefined,
+          history,
+          stream: true
+        })
       });
 
       if (!res.ok) {
@@ -222,7 +271,14 @@ export default function VoiceChatPlayground() {
           const dataStr = trimmed.replace(/^data:\s*/, "");
           try {
             const event = JSON.parse(dataStr);
-            if (event.type === "thinking") {
+            if (event.type === "start") {
+              if (event.conversationId) {
+                setConversationId(event.conversationId);
+                try {
+                  localStorage.setItem("alfred_conversation_id", event.conversationId);
+                } catch {}
+              }
+            } else if (event.type === "thinking") {
               setState("Thinking");
               setMessages((prev) =>
                 prev.map((m) => (m.id === assistantId ? { ...m, isThinking: true } : m))
@@ -444,42 +500,64 @@ export default function VoiceChatPlayground() {
           </p>
         </div>
 
-        {/* Status Indicator */}
-        <div style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "8px",
-          backgroundColor: "var(--bg-card)",
-          border: "1px solid var(--border-subtle)",
-          padding: "6px 14px",
-          borderRadius: "9999px",
-          fontSize: "13px",
-          fontWeight: 500
-        }}>
-          <span style={{
-            width: "8px",
-            height: "8px",
-            borderRadius: "50%",
-            backgroundColor:
-              state === "Listening" ? "var(--status-listening)" :
-              state === "Transcribing" ? "var(--status-transcribing)" :
-              state === "Thinking" ? "var(--status-thinking)" :
-              state === "Streaming" ? "var(--accent-gold)" :
-              state === "Speaking" ? "var(--status-speaking)" :
-              state === "Error" ? "var(--danger)" : "var(--text-muted)",
-            boxShadow:
-              state !== "Idle" && state !== "Error" ? "0 0 8px currentColor" : "none",
-            animation: state !== "Idle" && state !== "Error" ? "pulse 1.5s infinite" : "none"
-          }} />
-          <span style={{ color: "var(--text-secondary)" }}>
-            {state === "Idle" && "Ready"}
-            {state === "Listening" && "Listening..."}
-            {state === "Transcribing" && "Transcribing audio..."}
-            {state === "Thinking" && "Thinking..."}
-            {state === "Streaming" && "Alfred is responding..."}
-            {state === "Speaking" && "Speaking..."}
-            {state === "Error" && "Error"}
-          </span>
+        {/* Actions & Status Indicator */}
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          {conversationId && (
+            <button
+              onClick={handleNewConversation}
+              style={{
+                backgroundColor: "var(--bg-card)",
+                border: "1px solid var(--border-subtle)",
+                color: "var(--accent-gold)",
+                padding: "6px 14px",
+                borderRadius: "9999px",
+                fontSize: "12px",
+                fontWeight: 500,
+                cursor: "pointer",
+                transition: "all 0.2s ease"
+              }}
+              title="Start a fresh conversation"
+            >
+              + New Conversation
+            </button>
+          )}
+
+          <div style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "8px",
+            backgroundColor: "var(--bg-card)",
+            border: "1px solid var(--border-subtle)",
+            padding: "6px 14px",
+            borderRadius: "9999px",
+            fontSize: "13px",
+            fontWeight: 500
+          }}>
+            <span style={{
+              width: "8px",
+              height: "8px",
+              borderRadius: "50%",
+              backgroundColor:
+                state === "Listening" ? "var(--status-listening)" :
+                state === "Transcribing" ? "var(--status-transcribing)" :
+                state === "Thinking" ? "var(--status-thinking)" :
+                state === "Streaming" ? "var(--accent-gold)" :
+                state === "Speaking" ? "var(--status-speaking)" :
+                state === "Error" ? "var(--danger)" : "var(--text-muted)",
+              boxShadow:
+                state !== "Idle" && state !== "Error" ? "0 0 8px currentColor" : "none",
+              animation: state !== "Idle" && state !== "Error" ? "pulse 1.5s infinite" : "none"
+            }} />
+            <span style={{ color: "var(--text-secondary)" }}>
+              {state === "Idle" && "Ready"}
+              {state === "Listening" && "Listening..."}
+              {state === "Transcribing" && "Transcribing audio..."}
+              {state === "Thinking" && "Thinking..."}
+              {state === "Streaming" && "Alfred is responding..."}
+              {state === "Speaking" && "Speaking..."}
+              {state === "Error" && "Error"}
+            </span>
+          </div>
         </div>
       </header>
 

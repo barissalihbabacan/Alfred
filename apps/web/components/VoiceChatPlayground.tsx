@@ -100,7 +100,9 @@ export default function VoiceChatPlayground() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [sttLang, setSttLang] = useState("tr-TR");
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
 
+  const toolsBtnRef = useRef<HTMLButtonElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const currentAudioElementRef = useRef<HTMLAudioElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -161,6 +163,20 @@ export default function VoiceChatPlayground() {
       loadConversation(savedConvId);
     }
   }, [fetchConversations, loadConversation]);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (toolsBtnRef.current && !toolsBtnRef.current.contains(e.target as Node)) {
+        setToolsMenuOpen(false);
+      }
+    };
+    if (toolsMenuOpen) {
+      document.addEventListener("click", handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener("click", handleOutsideClick);
+    };
+  }, [toolsMenuOpen]);
 
   const handleNewConversation = () => {
     setConversationId(null);
@@ -979,14 +995,18 @@ export default function VoiceChatPlayground() {
             pointerEvents: "auto"
           }}>
             <button
-              onClick={() => setShowSettingsModal(true)}
+              ref={toolsBtnRef}
+              onClick={(e) => {
+                e.stopPropagation();
+                setToolsMenuOpen((prev) => !prev);
+              }}
               style={{
                 width: "36px",
                 height: "36px",
                 borderRadius: "50%",
                 background: "transparent",
                 border: "none",
-                color: "#b4b4b4",
+                color: toolsMenuOpen ? "#ececec" : "#b4b4b4",
                 fontSize: "17px",
                 display: "flex",
                 alignItems: "center",
@@ -995,9 +1015,23 @@ export default function VoiceChatPlayground() {
                 marginBottom: "2px",
                 transition: "background 0.15s, color 0.15s"
               }}
-              title="Araçlar ve Model Ayarları"
+              title="Araçlar"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{
+                  transform: toolsMenuOpen ? "rotate(45deg)" : "rotate(0deg)",
+                  transformOrigin: "center",
+                  transition: "transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s ease"
+                }}
+              >
                 <line x1="12" y1="5" x2="12" y2="19" />
                 <line x1="5" y1="12" x2="19" y2="12" />
               </svg>

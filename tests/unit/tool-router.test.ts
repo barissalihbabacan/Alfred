@@ -46,9 +46,10 @@ describe("Tool Registry & Router Suite", () => {
   });
 
   describe("ToolRegistry", () => {
-    it("has get_current_time and ssh_connect pre-registered by default", () => {
+    it("has get_current_time, ssh_connect, and ssh_list_directory pre-registered by default", () => {
       expect(registry.has("get_current_time")).toBe(true);
       expect(registry.has("ssh_connect")).toBe(true);
+      expect(registry.has("ssh_list_directory")).toBe(true);
       const tool = registry.get("get_current_time");
       expect(tool).toBeInstanceOf(GetCurrentTimeTool);
     });

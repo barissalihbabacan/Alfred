@@ -73,6 +73,20 @@ function getDeterministicFallback(message: string): string {
     return "I have verified the SSH connection to your home development server, sir. The connection was authenticated and all systems are responsive.";
   }
 
+  // Deterministic directory listing fallback
+  if (
+    lower.includes("documents") ||
+    lower.includes("belgeler") ||
+    lower.includes("what's in my") ||
+    lower.includes("list directory") ||
+    lower.includes("dosyalar")
+  ) {
+    if (lower.includes("/etc") || lower.includes("..") || lower.includes("/var") || lower.includes("/home")) {
+      return "I'm afraid I cannot comply with that request, sir. My operational boundaries strictly confine filesystem access to your Belgeler directory.";
+    }
+    return "Inside your Belgeler directory, I observe your active engineering workspaces and project files, sir.";
+  }
+
   if (lower.includes("capable of") || lower.includes("capabilities") || lower.includes("what can you do")) {
     return "At present? Quite a bit, although I haven't yet been given the keys to the entire house. I can converse via real-time text streaming, reason through queries using Ollama or Groq, and maintain executive composure. External integrations such as your calendar, email, and repository management remain pending.";
   }

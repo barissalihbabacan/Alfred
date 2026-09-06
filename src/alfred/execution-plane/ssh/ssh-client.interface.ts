@@ -12,6 +12,22 @@ export interface SSHConnectionVerificationResult {
   latencyMs?: number;
 }
 
+export type FileType = "file" | "directory" | "symlink" | "other";
+
+export interface DirectoryEntry {
+  name: string;
+  type: FileType;
+  size?: number;
+  modifiedTime?: string;
+}
+
+export interface SSHListDirectoryResult {
+  host: string;
+  path: string;
+  entries: DirectoryEntry[];
+  totalCount: number;
+}
+
 export interface ISSHClient {
   /**
    * Attempts to establish and authenticate an SSH connection using host configuration.
@@ -28,6 +44,18 @@ export interface ISSHClient {
    * Returns true if connection is active.
    */
   isConnected(): boolean;
+
+  /**
+   * Securely lists directory entries via SFTP while enforcing that targetPath
+   * and any resolved symlink remain strictly within sandboxRootPath.
+   *
+   * @param targetPath Path to inspect (e.g. "Belgeler" or "Belgeler/sub")
+   * @param sandboxRootPath Sandbox boundary root (default: "Belgeler")
+   */
+  listDirectory(
+    targetPath: string,
+    sandboxRootPath?: string
+  ): Promise<{ realPath: string; entries: DirectoryEntry[] }>;
 }
 
 export type SSHClientFactory = () => ISSHClient;

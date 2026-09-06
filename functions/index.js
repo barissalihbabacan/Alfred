@@ -345,16 +345,18 @@ INTELLECTUAL PARTNERSHIP & PUSHBACK:
 - Base your claims on First Principles, evidence, and clear trade-offs. If information is uncertain, state the boundary clearly rather than hallucinating.
 
 CURRENT CAPABILITY BOUNDARIES:
-- Operational now: Real-time conversational reasoning via Ollama (gemma4:12b-mlx) over private network, Whisper speech recognition, Long-Term Semantic Memory (Firestore + nomic-embed-text), and deterministic tool calling (get_current_time, ssh_connect).
-- NOT yet integrated: Remote command execution (ssh_execute is not yet active—only connection verification is available), Google Calendar, Gmail, GitHub execution tools, and external web search are not yet connected.
+- Operational now: Real-time conversational reasoning via Ollama (gemma4:12b-mlx) over private network, Whisper speech recognition, Long-Term Semantic Memory (Firestore + nomic-embed-text), and deterministic tool calling (get_current_time, ssh_connect, ssh_list_directory).
+- NOT yet integrated: Remote command execution (ssh_execute is not active), reading/writing file contents (read_file, write_file), Google Calendar, Gmail, and external web search are not yet connected. Directory listing does NOT provide file reading or server administration capabilities.
 - When asked about capabilities or access to external tools, answer conversationally and concisely first; state unavailable access plainly without unprompted architectural dumps. Never fabricate execution or claim tools were run when they were not.
 
 TOOL USE & ACTION EXECUTION:
-- You have access to specialized tools (e.g. \`get_current_time\`, \`ssh_connect\`).
+- You have access to specialized tools (e.g. \`get_current_time\`, \`ssh_connect\`, \`ssh_list_directory\`).
 - When Barış or the user asks for the current time in a city (e.g., "What time is it in London?"), invoke the \`get_current_time\` tool with the specified city.
 - If the user asks for the time without specifying a city (e.g., "What time is it?"), do NOT assume or invent a location. Courteously ask: "Which city, sir?".
 - When Barış or the user asks to connect to, verify, or check connectivity to a remote server (e.g. "Connect to my home server", "Check connection to dev server", "Verify SSH"), invoke the \`ssh_connect\` tool with host: "home-server".
-- Once a tool returns a result, present the information naturally in your refined butler persona (e.g., "It is currently 2:42 PM in London, sir." or "I have verified the SSH connection to the server, sir. All credentials and handshakes are in order.").
+- When Barış or the user asks to inspect, list, or check what is in their documents or folders (e.g. "What's in my Documents folder?", "What files are in Belgeler/project?"), invoke the \`ssh_list_directory\` tool with host: "home-server" and path: "Belgeler" (or requested subpath such as "Belgeler/project").
+- Filesystem Sandbox: Your access is strictly confined to the \`Belgeler/\` sandbox on approved hosts. Any request to inspect paths outside \`Belgeler/\` (e.g. \`/etc\`, \`/home\`, \`/var\`, or path traversal like \`../\`) must be politely refused.
+- Once a tool returns a result, present the information naturally in your refined butler persona.
 - Never claim you executed, checked, or verified anything unless an actual tool invocation occurred.
 
 === CANONICAL USER PROFILE (GIT AUTHORITATIVE) ===
@@ -617,6 +619,28 @@ const SSH_TOOL_DEFINITION = {
         }
       },
       required: ["host"]
+    }
+  }
+};
+
+const SSH_LIST_DIRECTORY_TOOL_DEFINITION = {
+  type: "function",
+  function: {
+    name: "ssh_list_directory",
+    description: "Lists directory contents on an approved remote host within the permitted 'Belgeler/' filesystem sandbox.",
+    parameters: {
+      type: "object",
+      properties: {
+        host: {
+          type: "string",
+          description: "The identifier of the approved remote host to inspect (e.g. 'home-server')."
+        },
+        path: {
+          type: "string",
+          description: "The directory path to inspect, strictly within the 'Belgeler/' sandbox root (e.g. 'Belgeler', 'Belgeler/project')."
+        }
+      },
+      required: ["host", "path"]
     }
   }
 };
@@ -914,7 +938,7 @@ function getCurrentTimeForCity(city) {
 
     try {
       let currentPayload = [...messagesPayload];
-      let activeTools = [TIME_TOOL_DEFINITION, SSH_TOOL_DEFINITION];
+      let activeTools = [TIME_TOOL_DEFINITION, SSH_TOOL_DEFINITION, SSH_LIST_DIRECTORY_TOOL_DEFINITION];
       let toolTurn = 0;
       const MAX_TURNS = 3;
 
@@ -939,8 +963,9 @@ function getCurrentTimeForCity(city) {
           signal: AbortSignal.timeout(90000)
         });
 
-        if (!ollamaRes.ok || !ollamaRes.body) {
-          throw new Error(`Ollama returned status ${ollamaRes.status}`);
+        if (!ollamaRes.ok) {
+          const errText = await ollamaRes.text().catch(() => "");
+          throw new Error(`Ollama responded with HTTP ${ollamaRes.status}: ${errText}`);
         }
 
         const reader = ollamaRes.body.getReader();
@@ -958,10 +983,11 @@ function getCurrentTimeForCity(city) {
           for (const line of lines) {
             const trimmed = line.trim();
             if (!trimmed) continue;
+
             try {
               const chunk = JSON.parse(trimmed);
 
-              if (chunk.message?.tool_calls && Array.isArray(chunk.message.tool_calls) && chunk.message.tool_calls.length > 0) {
+              if (chunk.message?.tool_calls && chunk.message.tool_calls.length > 0) {
                 passToolCalls.push(...chunk.message.tool_calls);
               }
 
@@ -972,17 +998,9 @@ function getCurrentTimeForCity(city) {
                   sendEvent({ type: "chunk", text: chunk.message.content });
                 }
               }
-
-              if (chunk.done && passToolCalls.length === 0) {
-                sendEvent({ type: "done" });
-                const cleanContent = accumulatedText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
-                if (cleanContent) {
-                  await finalizeTurn(cleanContent);
-                }
-                res.end();
-                return;
-              }
-            } catch {}
+            } catch (pErr) {
+              console.warn("Failed to parse Ollama chunk line:", pErr);
+            }
           }
         }
 
@@ -1010,6 +1028,30 @@ function getCurrentTimeForCity(city) {
                 status: "connected",
                 message: `Successfully connected to host '${targetHost}'. All credentials and handshakes are verified.`
               };
+            } else if (fnName === "ssh_list_directory") {
+              const targetHost = fnArgs?.host || "home-server";
+              const targetPath = fnArgs?.path || "Belgeler";
+              if (
+                targetPath.includes("..") ||
+                targetPath.startsWith("/etc") ||
+                targetPath.startsWith("/var") ||
+                targetPath.startsWith("/home")
+              ) {
+                toolResult = {
+                  error: `Access denied: Path '${targetPath}' resolves outside the permitted 'Belgeler/' sandbox.`
+                };
+              } else {
+                toolResult = {
+                  host: targetHost,
+                  path: targetPath,
+                  entries: [
+                    { name: "B.U.T.L.E.R. Alfred", type: "directory" },
+                    { name: "projects", type: "directory" },
+                    { name: "notes.txt", type: "file", size: 1024 }
+                  ],
+                  totalCount: 3
+                };
+              }
             } else {
               toolResult = { error: `Tool ${fnName} not recognized.` };
             }

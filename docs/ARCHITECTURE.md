@@ -33,25 +33,104 @@ Alfred rigorously separates storage responsibilities across three distinct tiers
    - Contains stable, consciously authored, version-controlled baseline knowledge about Barış (`USER_PROFILE.md`), communication preferences (`PREFERENCES.md`), and working style (`WORKING_STYLE.md`).
    - **Runtime Status**: Strictly read-only (`fs.readFileSync`). Alfred never commits, rewrites, or mutates these files at runtime.
    - **Authority**: Definitive baseline. Trumps vague conversational inferences.
-2. **Firestore (`src/data/firestore/`) — Dynamic Operational State & Persistent Conversation History**:
+2. **Firestore (`src/data/firestore/`) — Dynamic Operational State, Conversation History & Memory Source of Truth**:
    - Stores durable conversation records and messages across restarts and sessions:
      - `conversations/{conversationId}`: `userId`, `title`, `messageCount`, timestamps.
      - `conversations/{conversationId}/messages/{messageId}`: `role`, `content`, atomic `sequence` (1..N), `status` (`completed` | `interrupted` | `error`), provider/model metadata.
+   - **Long-term Memory Historical Records**:
+     - `memory_vectors/{memoryVectorId}`: `memoryId`, `userId`, `content`, `memoryType`, `sourceConversationId`, `sourceMessageIds`, `embeddingProvider`, `embeddingModel`, `embeddingDimension`, `vectorStore`, `vectorId`, `status` (`active` | `superseded` | `retracted`), `indexStatus` (`pending` | `indexed` | `failed`), timestamps.
+     - Every indexed memory has a corresponding authoritative Firestore record. The vector database can be deleted and rebuilt entirely from Firestore.
    - Provides transactional atomic sequence allocation, bounded context window retrieval (`MAX_CONTEXT_MESSAGES = 10`), deterministic title generation, and user isolation.
-   - **Authority**: Authoritative for runtime conversation history and operational state; non-authoritative for canonical user profile and persona rules.
-3. **Vector Database (Future Milestone) — Semantic Retrieval Index**:
-   - Stores searchable embeddings across documents and past conversations for semantic nearest-neighbor retrieval.
-   - **Authority**: Purely non-authoritative search cache. Can be purged and rebuilt at any time without data loss.
+   - **Authority**: Authoritative for runtime conversation history, long-term memory records, and operational state; non-authoritative for canonical user profile and persona rules.
+3. **Vector Database (`src/data/vector/`) — Rebuildable Semantic Retrieval Index**:
+   - Stores dense vector embeddings for semantic nearest-neighbor retrieval of long-term memories.
+   - **Implementation**: `LocalFileVectorStore` — a self-hosted, persistent, JSON-backed local vector store with in-memory cosine similarity search. Chosen for zero external dependencies, instant startup, deterministic local development, and sub-millisecond search at Alfred's personal memory scale.
+   - **Architecture invariant**: The vector database is **never** the source of truth. It is a semantic index that can be purged and rebuilt at any time from Firestore historical records using `npm run memory:reindex`.
+   - **Authority**: Purely non-authoritative search cache.
 
-#### Data Layer Abstraction (`src/data/firestore/`)
+#### Data Layer Abstraction
+
+**Conversation Persistence (`src/data/firestore/`)**:
 - **`IConversationRepository` (`conversation-repository.interface.ts`)**: Pure abstract contract decoupling conversation persistence from database drivers.
 - **`FirestoreConversationRepository` (`firestore-conversation-repository.ts`)**: Production implementation leveraging Firestore transactions for atomic sequence numbers and subcollection ordering.
 - **`InMemoryConversationRepository` (`in-memory-conversation-repository.ts`)**: In-memory test repository ensuring full unit test suite passes with zero credentials and zero emulator dependencies.
 - **`getConversationRepository()` (`factory.ts`)**: Dynamic repository factory detecting credentials/environment and providing the active repository singleton.
 
+**Memory Persistence (`src/data/firestore/`)**:
+- **`IMemoryRepository` (`memory-repository.interface.ts`)**: Clean contract isolating Firestore memory record persistence from business logic.
+- **`FirestoreMemoryRepository` (`firestore-memory-repository.ts`)**: Production implementation persisting canonical memory content, embedding metadata, and indexing status to the `memory_vectors` collection.
+- **`InMemoryMemoryRepository` (`in-memory-memory-repository.ts`)**: In-memory test repository for offline unit testing.
+- **`getMemoryRepository()` (`memory-factory.ts`)**: Dynamic memory repository factory.
+
+**Vector Store (`src/data/vector/`)**:
+- **`IVectorStore` (`types.ts`)**: Minimal interface for upsert, search, delete, and count operations with mandatory user partitioning.
+- **`InMemoryVectorStore` (`in-memory-vector-store.ts`)**: Fast, dependency-free vector store for unit tests.
+- **`LocalFileVectorStore` (`local-file-vector-store.ts`)**: Persistent JSON-backed vector store with atomic file writes for development and personal-scale production.
+- **`getVectorStore()` (`factory.ts`)**: Dynamic vector store factory.
+
+**Embedding Provider (`src/ai/embedding/`)**:
+- **`IEmbeddingProvider` (`types.ts`)**: Minimal contract: `embed(text) → number[]`, `embedBatch(texts) → number[][]`, `isConfigured()`.
+- **`OllamaEmbeddingProvider` (`ollama-embedding-provider.ts`)**: Connects to Ollama's `/api/embed` endpoint using an environment-driven configuration completely separate from chat model configuration.
+- **`MockEmbeddingProvider` (`mock-embedding-provider.ts`)**: Deterministic, dependency-free embeddings using token/n-gram feature hashing for unit tests.
+- **`getEmbeddingProvider()` (`factory.ts`)**: Dynamic embedding provider factory.
+
+#### Memory Data Flow & Autonomous Extraction
+
+```
+Conversation Exchange (User Message + Assistant Response)
+                                ↓
+                 Background Autonomous Extraction (Non-blocking)
+                                ↓
+                 IMemoryExtractor (AIProvider + Isolated Prompt)
+                                ↓
+                   Structured Candidate Memories (JSON)
+                                ↓
+        Validation (PrivacyFilter, Confidence >= Threshold, Type Checks)
+                                ↓
+        Deduplication & Supersession Pipeline (MemoryService)
+      ┌─────────────────────────┼─────────────────────────┐
+      │                         │                         │
+[Duplicate Detected]    [Explicit Forget]        [Supersede / Create]
+      │                         │                         │
+(Skip / Suppress)     (Retract & De-index)        (Update Lineage in Firestore)
+                                                          ↓
+                                            MemoryService.createMemory()
+                                              ├── Firestore historical record
+                                              ├── Dense Embedding
+                                              └── Vector Store upsert
+```
+
+#### Core Architectural Distinctions & Invariants
+
+1. **Conversation History ≠ Long-Term Memory**:
+   - Conversation history records everything that was said verbatim.
+   - Long-term memory records only durable facts, preferences, constraints, workflows, and decisions that remain useful across future sessions. Chit-chat, greetings, questions, and transient statements are discarded.
+
+2. **Memory Extraction ≠ Conversational Persona**:
+   - The extraction subsystem operates on a dedicated classification prompt completely isolated from Alfred's persona.
+   - Assistant (Alfred) statements are never attributed to the user.
+   - The user never sees extraction prompts, reasoning, or metadata.
+
+3. **Firestore ≠ Vector DB**:
+   - Firestore is the sole authoritative source of truth. Every memory has a durable document in `memory_vectors`.
+   - The Vector Database is a rebuildable semantic index. If corrupted or wiped, it can be regenerated at any time with `npm run memory:reindex`.
+
+4. **Git Profile ≠ Runtime Memory**:
+   - Files in `users/` (`USER_PROFILE.md`, `PREFERENCES.md`, `WORKING_STYLE.md`) are canonical, Git-versioned, and strictly read-only at runtime.
+   - Autonomous memory extraction never touches or rewrites Git files. Dynamic runtime memory lives strictly in Firestore.
+
+**Failure Boundaries**:
+- Embedding failure → No Firestore record, no vector created.
+- Firestore failure → No vector created (no orphaned vectors).
+- Vector indexing failure → Firestore record preserved with `indexStatus: "failed"`, re-indexable.
+- Extraction failure → Non-blocking background task logs error; chat generation, streaming, and user response remain completely unaffected.
+
 #### Runtime Context Integration
 - **`UserProfileLoader` (`src/alfred/cognitive/context/user-profile-loader.ts`)**: Resolves and parses markdown profile files with safe fallbacks if files are missing or unreadable.
-- **`ContextBuilder` (`src/alfred/cognitive/context/context-builder.ts`)**: Injects the canonical profile into Alfred's system prompt using explicit markdown boundaries (`=== CANONICAL USER PROFILE (GIT AUTHORITATIVE) ===`), ensuring Alfred internalizes user context naturally without parroting instructions. Also provides `buildChatMessages()` combining system prompt, bounded recent history from Firestore, and current user message.
+- **`ContextBuilder` (`src/alfred/cognitive/context/context-builder.ts`)**: Injects the canonical profile into Alfred's system prompt using explicit markdown boundaries (`=== CANONICAL USER PROFILE (GIT AUTHORITATIVE) ===`), retrieved long-term memories (`=== RELEVANT LONG-TERM MEMORIES (SEMANTIC RETRIEVAL) ===`), and the Conversational Governor. Also provides `buildChatMessages()` combining system prompt, relevant memories, bounded recent history from Firestore, and current user message.
+- **`MemoryService` (`src/alfred/cognitive/memory/memory-service.ts`)**: Orchestrates the end-to-end memory pipeline: creates memories (embed → Firestore → vector index), searches memories (embed query → vector search → score threshold → top-K), rebuilds the vector index from Firestore (`reindexAll()`), and retracts memories (soft-delete in Firestore, de-index from vector store). Also hosts `processConversationForMemories()` which coordinates autonomous candidate extraction, privacy filtering, duplicate suppression, and memory supersession.
+- **`MemoryExtractor` (`src/alfred/cognitive/memory/extractor/memory-extractor.ts`)**: Implements `IMemoryExtractor` using the existing `AIProvider` to classify bounded conversation exchanges into structured candidates.
+- **`PrivacyFilter` (`src/alfred/cognitive/memory/privacy-filter.ts`)**: Scans candidate memory text for API keys, passwords, bearer tokens, and private keys, rejecting sensitive content before persistence.
 - **Conversational Governor**: A behavioral governance block synthesized by `ContextBuilder` (`formatGovernorBlock()`) enforcing intent-driven response length (1–3 sentences for casual banter vs. deep technical diagnosis), restrained dry humour, firm First Principles pushback, and the elimination of corporate/customer-service boilerplate.
 
 ---

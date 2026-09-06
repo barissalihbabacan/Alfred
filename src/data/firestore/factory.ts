@@ -7,7 +7,7 @@ let cachedRepo: IConversationRepository | null = null;
 /**
  * Determines whether real Firestore credentials or an emulator are available.
  */
-function hasFirestoreCredentials(): boolean {
+export function hasFirestoreCredentials(): boolean {
   // If emulator host is present, Firestore is available locally
   if (process.env.FIRESTORE_EMULATOR_HOST) {
     return true;

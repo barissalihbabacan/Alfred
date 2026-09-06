@@ -15,6 +15,13 @@ export function getProjectInfo() {
     name: PROJECT_NAME,
     repository: REPOSITORY_NAME,
     version: VERSION,
-    status: "bootstrap"
+    status: "operational"
   };
 }
+
+// Cognitive Memory & Data layer exports
+export * from "./data/firestore/index.js";
+export * from "./data/vector/index.js";
+export * from "./ai/embedding/index.js";
+export * from "./alfred/cognitive/memory/index.js";
+export * from "./alfred/cognitive/context/index.js";

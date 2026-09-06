@@ -5,6 +5,7 @@ import { ChatMessage } from "../../../../../src/ai/providers/types.js";
 import { getConversationRepository } from "../../../../../src/data/firestore/index.js";
 import { ContextBuilder } from "../../../../../src/alfred/cognitive/context/context-builder.js";
 import { CONVERSATION_CONFIG } from "../../../../../src/data/firestore/conversation-repository.interface.js";
+import { getMemoryService, RetrievedMemory } from "../../../../../src/alfred/cognitive/memory/index.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -192,9 +193,19 @@ export async function POST(req: NextRequest) {
       beforeSequence: userMsgDoc.sequence
     });
 
-    // 4. Assemble context using ContextBuilder (Persona + Canonical User Profile + Governor + Bounded History + Current Message)
+    // 4. Retrieve relevant long-term semantic memories (bounded & non-blocking)
+    let relevantMemories: RetrievedMemory[] = [];
+    try {
+      const memoryService = getMemoryService();
+      relevantMemories = await memoryService.searchMemories(userMessage, userId);
+    } catch (memErr: any) {
+      console.warn("[Alfred API] Semantic memory retrieval bypassed (continuing chat):", memErr?.message || memErr);
+    }
+
+    // 5. Assemble context using ContextBuilder (Persona + Canonical User Profile + Governor + Relevant Memories + Bounded History + Current Message)
     const messages = ContextBuilder.buildChatMessages({
       personaPrompt: getAlfredSystemPrompt(),
+      relevantMemories,
       history: recentHistoryDocs.map((m) => ({ role: m.role, content: m.content })),
       currentMessage: userMessage
     }) as ChatMessage[];
@@ -220,13 +231,30 @@ export async function POST(req: NextRequest) {
         }
 
         // Persist assistant message
-        await repo.appendMessage({
+        const assistantMsgDoc = await repo.appendMessage({
           conversationId: convId,
           role: "assistant",
           content: replyText,
           status: "completed",
           provider: providerName
         });
+
+        // Trigger autonomous memory extraction asynchronously (non-blocking)
+        void (async () => {
+          try {
+            const memoryService = getMemoryService();
+            await memoryService.processConversationForMemories({
+              currentMessage: userMessage,
+              userId,
+              conversationId: convId,
+              recentMessages: recentHistoryDocs.map((m) => ({ role: m.role, content: m.content })),
+              assistantResponse: replyText,
+              sourceMessageIds: [userMsgDoc.id, assistantMsgDoc.id]
+            });
+          } catch (memExtErr: any) {
+            console.warn("[Alfred API] Background memory extraction error:", memExtErr?.message || memExtErr);
+          }
+        })();
       } catch (err: any) {
         console.error("[Alfred API] Provider chat error:", err?.message || err);
         await repo.appendMessage({
@@ -322,7 +350,7 @@ export async function POST(req: NextRequest) {
           // Persist completed assistant message
           const cleanCompleted = accumulatedText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
           if (!abortController.signal.aborted && cleanCompleted) {
-            await repo.appendMessage({
+            const assistantMsgDoc = await repo.appendMessage({
               conversationId: convId!,
               role: "assistant",
               content: cleanCompleted,
@@ -330,6 +358,23 @@ export async function POST(req: NextRequest) {
               provider: providerName
             });
             isStreamCompleted = true;
+
+            // Trigger autonomous memory extraction asynchronously outside token stream
+            void (async () => {
+              try {
+                const memoryService = getMemoryService();
+                await memoryService.processConversationForMemories({
+                  currentMessage: userMessage,
+                  userId,
+                  conversationId: convId,
+                  recentMessages: recentHistoryDocs.map((m) => ({ role: m.role, content: m.content })),
+                  assistantResponse: cleanCompleted,
+                  sourceMessageIds: [userMsgDoc.id, assistantMsgDoc.id]
+                });
+              } catch (memExtErr: any) {
+                console.warn("[Alfred API] Background memory extraction error:", memExtErr?.message || memExtErr);
+              }
+            })();
           }
 
           controller.close();

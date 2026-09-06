@@ -1,6 +1,7 @@
 import { CanonicalUserContext } from "./user-profile.types.js";
 import { defaultUserProfileLoader } from "./user-profile-loader.js";
 import { CONVERSATION_CONFIG } from "../../../data/firestore/conversation-repository.interface.js";
+import { RetrievedMemory } from "../memory/types.js";
 
 export interface ContextMessage {
   role: "user" | "assistant" | "system";
@@ -12,6 +13,7 @@ export interface ContextBuilderOptions {
   userContext?: CanonicalUserContext;
   includeUserProfile?: boolean;
   includeGovernor?: boolean;
+  relevantMemories?: RetrievedMemory[];
 }
 
 export interface BuildChatMessagesOptions extends ContextBuilderOptions {
@@ -138,8 +140,27 @@ ZERO META-NARRATIVE:
   }
 
   /**
+   * Formats retrieved long-term memories into an explicit, structured markdown block.
+   */
+  public static formatMemoriesBlock(memories: RetrievedMemory[]): string {
+    if (!memories || memories.length === 0) {
+      return "";
+    }
+
+    const items = memories.map((m) => {
+      const typeTag = m.memoryType ? `[${m.memoryType.toUpperCase()}] ` : "";
+      return `- ${typeTag}${m.content.trim()}`;
+    });
+
+    return `=== RELEVANT LONG-TERM MEMORIES (SEMANTIC RETRIEVAL) ===
+The following memories are retrieved from long-term memory based on semantic relevance to the current conversation. They represent verified facts, decisions, and user preferences:
+${items.join("\n")}
+========================================================`;
+  }
+
+  /**
    * Assembles the complete system prompt with persona, canonical user profile,
-   * and conversational governor.
+   * conversational governor, and relevant long-term memories.
    */
   public static buildSystemPrompt(options?: ContextBuilderOptions): string {
     const persona = options?.personaPrompt ?? "";
@@ -159,6 +180,13 @@ ZERO META-NARRATIVE:
 
     if (includeGovernor) {
       sections.push(ContextBuilder.formatGovernorBlock());
+    }
+
+    if (options?.relevantMemories && options.relevantMemories.length > 0) {
+      const memBlock = ContextBuilder.formatMemoriesBlock(options.relevantMemories);
+      if (memBlock) {
+        sections.push(memBlock);
+      }
     }
 
     return sections.join("\n\n");

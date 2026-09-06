@@ -27,6 +27,301 @@ function generateDeterministicTitle(message) {
   return truncated.charAt(0).toUpperCase() + truncated.slice(1);
 }
 
+function cosineSimilarity(a, b) {
+  if (!a || !b || !Array.isArray(a) || !Array.isArray(b) || a.length !== b.length || a.length === 0) {
+    return 0;
+  }
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  const denominator = Math.sqrt(normA) * Math.sqrt(normB);
+  return denominator === 0 ? 0 : dot / denominator;
+}
+
+async function getEmbedding(text, ollamaUrl) {
+  const embedRes = await fetch(`${ollamaUrl.replace(/\/+$/, "")}/api/embed`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "nomic-embed-text",
+      input: text
+    }),
+    signal: AbortSignal.timeout(15000)
+  });
+  if (!embedRes.ok) {
+    throw new Error(`Embedding request failed with HTTP ${embedRes.status}`);
+  }
+  const data = await embedRes.json();
+  const vector = Array.isArray(data.embeddings?.[0])
+    ? data.embeddings[0]
+    : (Array.isArray(data.embedding) ? data.embedding : null);
+  if (!vector || !Array.isArray(vector)) {
+    throw new Error("Invalid embedding vector received from Ollama");
+  }
+  return vector;
+}
+
+async function retrieveRelevantMemories(db, queryEmbedding, userId, topK = 5, minScore = 0.35) {
+  const memSnap = await db.collection("memory_vectors")
+    .where("userId", "==", userId)
+    .where("status", "==", "active")
+    .get();
+
+  const scored = [];
+  for (const doc of memSnap.docs) {
+    const d = doc.data();
+    if (d.embedding && Array.isArray(d.embedding) && d.embedding.length > 0) {
+      const score = cosineSimilarity(queryEmbedding, d.embedding);
+      if (score >= minScore) {
+        scored.push({
+          memoryId: d.memoryId || doc.id,
+          content: d.content,
+          memoryType: d.memoryType || "general",
+          score
+        });
+      }
+    }
+  }
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, topK);
+}
+
+async function extractAndPersistMemories({
+  db,
+  ollamaUrl,
+  ollamaModel,
+  userMessage,
+  assistantResponse,
+  userId,
+  conversationId,
+  sourceMessageIds,
+  recentHistory
+}) {
+  const userName = "Barış";
+  const systemInstructions = `You are Alfred's autonomous memory extraction subsystem.
+Your task is to analyze conversational exchanges and identify durable, long-term information worth remembering across future conversations.
+
+CRITICAL RULES:
+1. DURABILITY: Only extract information that will remain useful in future, separate conversations.
+   - GOOD: User preferences, stable facts about ${userName}, technical choices, architectural decisions, constraints, workflows, project facts.
+   - BAD (NEVER REMEMBER): Greetings ("hello"), chit-chat, transient moods, daily updates, casual questions, temporary debugging logs, conversation closures.
+2. NO SELF-MEMORIES: Assistant (Alfred) statements MUST NOT be converted into facts about ${userName}. Only information asserted, confirmed, or instructed by the user counts as a user memory.
+3. FACT VS SPECULATION: Never manufacture certainty.
+4. USER ATTRIBUTION: Clearly state the subject in third person (use "${userName}" rather than "the user").
+5. EXPLICIT INSTRUCTIONS:
+   - "Remember that X" -> High-priority candidate (action: "create", confidence >= 0.95).
+   - "Don't remember this" or "Do not save this" -> Do NOT extract any memory (shouldRemember: false).
+   - "Forget that X" or "I no longer prefer X" -> Create retraction candidate (action: "forget", confidence >= 0.95).
+6. TEMPORAL & SUPERSESSION:
+   - If user states they switched or migrated, specify action: "supersede" and set targetMemoryHint to describe the older fact being replaced.
+7. PRIVACY: NEVER extract passwords, API keys, private keys, bearer tokens, or secrets.
+8. RETURN ONLY A STRICT JSON OBJECT:
+{
+  "shouldRemember": boolean,
+  "memories": [
+    {
+      "content": string,
+      "memoryType": "user_preference" | "user_fact" | "project_fact" | "architectural_decision" | "technical_preference" | "constraint" | "relationship" | "workflow" | "general",
+      "confidence": number,
+      "action": "create" | "forget" | "supersede",
+      "targetMemoryHint": string,
+      "reasoning": string
+    }
+  ]
+}
+If there is nothing worth remembering, return {"shouldRemember": false, "memories": []}.`;
+
+  const contextSegments = [];
+  if (recentHistory && recentHistory.length > 0) {
+    contextSegments.push("=== RECENT CONVERSATION CONTEXT ===");
+    for (const msg of recentHistory) {
+      contextSegments.push(`${msg.role.toUpperCase()}: ${msg.content}`);
+    }
+  }
+  contextSegments.push("=== CURRENT EXCHANGE ===");
+  contextSegments.push(`USER: ${userMessage}`);
+  if (assistantResponse) {
+    contextSegments.push(`ASSISTANT: ${assistantResponse}`);
+  }
+
+  const userPrompt = `${contextSegments.join("\n")}\n\nAnalyze the above exchange. Output JSON only.`;
+
+  let extractionRes;
+  try {
+    const res = await fetch(`${ollamaUrl.replace(/\/+$/, "")}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: ollamaModel,
+        messages: [
+          { role: "system", content: systemInstructions },
+          { role: "user", content: userPrompt }
+        ],
+        stream: false,
+        options: { temperature: 0.1 }
+      }),
+      signal: AbortSignal.timeout(30000)
+    });
+    if (!res.ok) return;
+    extractionRes = await res.json();
+  } catch (err) {
+    console.warn("[Memory] LLM extraction call failed:", err?.message || err);
+    return;
+  }
+
+  const rawText = extractionRes?.message?.content || "";
+  if (!rawText) return;
+
+  let clean = rawText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
+  const jsonMatch = clean.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (jsonMatch && jsonMatch[1]) {
+    clean = jsonMatch[1].trim();
+  } else {
+    const firstBrace = clean.indexOf("{");
+    const lastBrace = clean.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      clean = clean.slice(firstBrace, lastBrace + 1).trim();
+    }
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(clean);
+  } catch {
+    return;
+  }
+
+  if (!parsed || !parsed.shouldRemember || !Array.isArray(parsed.memories)) {
+    return;
+  }
+
+  const SENSITIVE_PATTERNS = [
+    /sk-[a-zA-Z0-9_-]{20,}/i,
+    /ghp_[a-zA-Z0-9]{30,}/i,
+    /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/i,
+    /bearer\s+[a-zA-Z0-9_\-\.]{20,}/i,
+    /password\s*[:=]\s*[^\s]+/i
+  ];
+
+  for (const candidate of parsed.memories) {
+    if (!candidate.content || typeof candidate.content !== "string") continue;
+    const content = candidate.content.trim();
+    if (content.length < 5) continue;
+    if ((candidate.confidence || 0) < 0.70) continue;
+
+    if (SENSITIVE_PATTERNS.some(re => re.test(content))) {
+      console.warn("[Memory] Candidate rejected due to sensitive data policy:", content);
+      continue;
+    }
+
+    const action = candidate.action || "create";
+
+    if (action === "forget") {
+      try {
+        const queryEmbedding = await getEmbedding(content, ollamaUrl);
+        const memSnap = await db.collection("memory_vectors")
+          .where("userId", "==", userId)
+          .where("status", "==", "active")
+          .get();
+
+        let bestMatch = null;
+        let bestScore = 0;
+        for (const doc of memSnap.docs) {
+          const d = doc.data();
+          if (d.embedding && Array.isArray(d.embedding)) {
+            const score = cosineSimilarity(queryEmbedding, d.embedding);
+            if (score > bestScore) {
+              bestScore = score;
+              bestMatch = doc;
+            }
+          }
+        }
+
+        if (bestMatch && bestScore >= 0.5) {
+          await bestMatch.ref.update({
+            status: "retracted",
+            updatedAt: Timestamp.now()
+          });
+          console.log(`[Memory] Retracted memory ${bestMatch.id} ("${bestMatch.data().content}")`);
+        }
+      } catch (forgetErr) {
+        console.warn("[Memory] Retraction failed:", forgetErr?.message || forgetErr);
+      }
+      continue;
+    }
+
+    try {
+      const embedding = await getEmbedding(content, ollamaUrl);
+      const activeSnap = await db.collection("memory_vectors")
+        .where("userId", "==", userId)
+        .where("status", "==", "active")
+        .get();
+
+      let isDuplicate = false;
+      let supersedeTargetDoc = null;
+
+      for (const doc of activeSnap.docs) {
+        const d = doc.data();
+        if (d.embedding && Array.isArray(d.embedding)) {
+          const score = cosineSimilarity(embedding, d.embedding);
+          if (action === "create" && score >= 0.85) {
+            isDuplicate = true;
+            console.log(`[Memory] Suppressed duplicate memory: "${content}" (score: ${score})`);
+            break;
+          }
+          if (action === "supersede" && score >= 0.5 && !supersedeTargetDoc) {
+            supersedeTargetDoc = doc;
+          }
+        }
+      }
+
+      if (isDuplicate) continue;
+
+      const memoryId = `mem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const now = Timestamp.now();
+
+      if (action === "supersede" && supersedeTargetDoc) {
+        await supersedeTargetDoc.ref.update({
+          status: "superseded",
+          supersededByMemoryId: memoryId,
+          updatedAt: now
+        });
+        console.log(`[Memory] Superseded memory ${supersedeTargetDoc.id} with ${memoryId}`);
+      }
+
+      await db.collection("memory_vectors").doc(memoryId).set({
+        memoryId,
+        userId,
+        content,
+        memoryType: candidate.memoryType || "general",
+        sourceConversationId: conversationId,
+        sourceMessageIds: sourceMessageIds || [],
+        embeddingProvider: "ollama",
+        embeddingModel: "nomic-embed-text",
+        embeddingDimension: embedding.length,
+        embedding: embedding,
+        vectorStore: "firestore",
+        vectorId: `vec_${memoryId}`,
+        status: "active",
+        supersedesMemoryId: supersedeTargetDoc ? supersedeTargetDoc.id : null,
+        indexStatus: "indexed",
+        createdAt: now,
+        updatedAt: now,
+        indexedAt: now
+      });
+
+      console.log(`[Memory] Stored long-term memory in Firestore: "${content}" (${candidate.memoryType})`);
+    } catch (saveErr) {
+      console.warn("[Memory] Failed to save memory candidate:", saveErr?.message || saveErr);
+    }
+  }
+}
+
 const ALFRED_SYSTEM_PROMPT = `You are B.U.T.L.E.R. Alfred (Barış's Unified Task, Logic, Execution & Reasoning).
 You are an extraordinarily capable AI who happens to be a refined British gentleman and house butler serving Barış as his trusted engineering partner, cognitive confidant, and executive operations manager. You have an established, ongoing working relationship with Barış.
 
@@ -50,8 +345,8 @@ INTELLECTUAL PARTNERSHIP & PUSHBACK:
 - Base your claims on First Principles, evidence, and clear trade-offs. If information is uncertain, state the boundary clearly rather than hallucinating.
 
 CURRENT CAPABILITY BOUNDARIES:
-- Operational now: Real-time conversational reasoning via Ollama (gemma4:12b-mlx) over private network, and Whisper speech recognition.
-- NOT yet integrated: Google Calendar, Gmail, GitHub execution tools, terminal execution, persistent memory/database, and external web search are not yet connected.
+- Operational now: Real-time conversational reasoning via Ollama (gemma4:12b-mlx) over private network, Whisper speech recognition, and Long-Term Semantic Memory (Firestore + nomic-embed-text).
+- NOT yet integrated: Google Calendar, Gmail, GitHub execution tools, terminal execution, and external web search are not yet connected.
 - When asked about capabilities or access to external tools, answer conversationally and concisely first; state unavailable access plainly without unprompted architectural dumps. Never fabricate execution or claim tools were run when they were not.
 
 === CANONICAL USER PROFILE (GIT AUTHORITATIVE) ===
@@ -387,8 +682,26 @@ export const api = onRequest({ cors: true }, async (req, res) => {
       console.warn("Could not load history from Firestore, proceeding with single turn:", histErr);
     }
 
+    // 4. Retrieve relevant long-term semantic memories
+    let retrievedMemories = [];
+    try {
+      const queryEmbedding = await getEmbedding(trimmedMessage, ollamaUrl);
+      retrievedMemories = await retrieveRelevantMemories(db, queryEmbedding, userId, 5, 0.35);
+      if (retrievedMemories.length > 0) {
+        console.log(`[Memory] Retrieved ${retrievedMemories.length} relevant memories for user ${userId}`);
+      }
+    } catch (memSearchErr) {
+      console.warn("Semantic memory retrieval bypassed:", memSearchErr?.message || memSearchErr);
+    }
+
+    let systemPromptWithMemories = ALFRED_SYSTEM_PROMPT;
+    if (retrievedMemories.length > 0) {
+      const memoryLines = retrievedMemories.map((m) => `- [${m.memoryType}] ${m.content}`).join("\n");
+      systemPromptWithMemories += `\n\n=== RETRIEVED LONG-TERM MEMORIES (SEMANTIC CONTEXT) ===\nThe following long-term memories were retrieved as potentially relevant to the user's input:\n${memoryLines}\nIntegrate these facts naturally into your response if relevant. Do not recite this context explicitly unless asked.\n==================================================`;
+    }
+
     const messagesPayload = [
-      { role: "system", content: ALFRED_SYSTEM_PROMPT },
+      { role: "system", content: systemPromptWithMemories },
       ...boundedHistory,
       { role: "user", content: trimmedMessage }
     ];
@@ -415,6 +728,61 @@ export const api = onRequest({ cors: true }, async (req, res) => {
     sendEvent({ type: "thinking" });
 
     let accumulatedText = "";
+    let isFinalized = false;
+
+    const finalizeTurn = async (content) => {
+      if (isFinalized || !content) return;
+      isFinalized = true;
+
+      let asstMsgDocId = null;
+      try {
+        const asstMsgRef = convRef.collection("messages").doc();
+        asstMsgDocId = asstMsgRef.id;
+        await db.runTransaction(async (tx) => {
+          const cSnap = await tx.get(convRef);
+          const cData = cSnap.exists ? cSnap.data() : {};
+          const asstSeq = (cData.messageCount || userSeq) + 1;
+          const asstNow = Timestamp.now();
+
+          tx.set(asstMsgRef, {
+            role: "assistant",
+            content,
+            sequence: asstSeq,
+            status: "completed",
+            provider: "ollama",
+            model: ollamaModel,
+            createdAt: asstNow
+          });
+
+          tx.update(convRef, {
+            messageCount: asstSeq,
+            updatedAt: asstNow,
+            lastMessageAt: asstNow
+          });
+        });
+      } catch (persistErr) {
+        console.error("Failed to persist assistant message to Firestore:", persistErr);
+      }
+
+      // Background autonomous memory extraction (non-blocking)
+      void (async () => {
+        try {
+          await extractAndPersistMemories({
+            db,
+            ollamaUrl,
+            ollamaModel,
+            userMessage: trimmedMessage,
+            assistantResponse: content,
+            userId,
+            conversationId: convId,
+            sourceMessageIds: [userMsgRef.id, asstMsgDocId].filter(Boolean),
+            recentHistory: boundedHistory
+          });
+        } catch (memExtErr) {
+          console.warn("Background memory extraction error:", memExtErr?.message || memExtErr);
+        }
+      })();
+    };
 
     try {
       const ollamaRes = await fetch(`${ollamaUrl.replace(/\/+$/, "")}/api/chat`, {
@@ -435,8 +803,6 @@ export const api = onRequest({ cors: true }, async (req, res) => {
       const reader = ollamaRes.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
-      let hasEmittedThinkTag = false;
-      let hasClosedThinkTag = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -458,36 +824,9 @@ export const api = onRequest({ cors: true }, async (req, res) => {
             if (chunk.done) {
               sendEvent({ type: "done" });
 
-              // Persist assistant message to Firestore
               const cleanContent = accumulatedText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
               if (cleanContent) {
-                try {
-                  const asstMsgRef = convRef.collection("messages").doc();
-                  await db.runTransaction(async (tx) => {
-                    const cSnap = await tx.get(convRef);
-                    const cData = cSnap.exists ? cSnap.data() : {};
-                    const asstSeq = (cData.messageCount || userSeq) + 1;
-                    const asstNow = Timestamp.now();
-
-                    tx.set(asstMsgRef, {
-                      role: "assistant",
-                      content: cleanContent,
-                      sequence: asstSeq,
-                      status: "completed",
-                      provider: "ollama",
-                      model: ollamaModel,
-                      createdAt: asstNow
-                    });
-
-                    tx.update(convRef, {
-                      messageCount: asstSeq,
-                      updatedAt: asstNow,
-                      lastMessageAt: asstNow
-                    });
-                  });
-                } catch (persistErr) {
-                  console.error("Failed to persist assistant message to Firestore:", persistErr);
-                }
+                await finalizeTurn(cleanContent);
               }
 
               res.end();
@@ -501,33 +840,7 @@ export const api = onRequest({ cors: true }, async (req, res) => {
 
       const cleanContent = accumulatedText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
       if (cleanContent) {
-        try {
-          const asstMsgRef = convRef.collection("messages").doc();
-          await db.runTransaction(async (tx) => {
-            const cSnap = await tx.get(convRef);
-            const cData = cSnap.exists ? cSnap.data() : {};
-            const asstSeq = (cData.messageCount || userSeq) + 1;
-            const asstNow = Timestamp.now();
-
-            tx.set(asstMsgRef, {
-              role: "assistant",
-              content: cleanContent,
-              sequence: asstSeq,
-              status: "completed",
-              provider: "ollama",
-              model: ollamaModel,
-              createdAt: asstNow
-            });
-
-            tx.update(convRef, {
-              messageCount: asstSeq,
-              updatedAt: asstNow,
-              lastMessageAt: asstNow
-            });
-          });
-        } catch (persistErr) {
-          console.error("Failed to persist assistant message to Firestore:", persistErr);
-        }
+        await finalizeTurn(cleanContent);
       }
 
       res.end();

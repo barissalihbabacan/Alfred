@@ -15,6 +15,7 @@
     "test:ollama": "tsx scripts/test-ollama.ts",
     "test:tts": "tsx scripts/test-tts.ts",
     "eval:voices": "tsx scripts/evaluate-voices.ts",
+    "memory:reindex": "tsx scripts/reindex-memories.ts",
     "dev:web": "next dev apps/web -p 3000",
     "build:web": "next build apps/web",
     "start:web": "next start apps/web -p 3000"

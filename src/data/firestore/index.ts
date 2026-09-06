@@ -3,3 +3,8 @@ export * from "./conversation-repository.interface.js";
 export * from "./firestore-conversation-repository.js";
 export * from "./in-memory-conversation-repository.js";
 export * from "./factory.js";
+export * from "./memory.types.js";
+export * from "./memory-repository.interface.js";
+export * from "./firestore-memory-repository.js";
+export * from "./in-memory-memory-repository.js";
+export * from "./memory-factory.js";

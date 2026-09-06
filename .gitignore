@@ -41,6 +41,7 @@ client_secret*.json
 *.db
 local_data/
 data/local/
+.data/
 *.vectordb/
 
 # Logs

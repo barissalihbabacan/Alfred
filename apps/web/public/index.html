@@ -1668,12 +1668,18 @@
       abortController = new AbortController();
 
       try {
+        const savedGroqKey = localStorage.getItem("alfred_groq_api_key");
+        const requestHeaders = {
+          "Content-Type": "application/json",
+          "Accept": "text/event-stream"
+        };
+        if (savedGroqKey) {
+          requestHeaders["x-groq-api-key"] = savedGroqKey;
+        }
+
         const res = await fetch("/api/chat", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Accept": "text/event-stream"
-          },
+          headers: requestHeaders,
           body: JSON.stringify({
             message: text,
             conversationId: currentConversationId || undefined,
@@ -2002,6 +2008,12 @@
 
     // Provider Modal Control
     function openProviderModal() {
+      const ollamaUrl = localStorage.getItem("alfred_ollama_url") || "http://100.64.0.53:11434";
+      const groqKey = localStorage.getItem("alfred_groq_api_key") || "";
+      const ollamaEl = document.getElementById("ollamaUrlInput");
+      const apiKeyEl = document.getElementById("apiKeyInput");
+      if (ollamaEl) ollamaEl.value = ollamaUrl;
+      if (apiKeyEl) apiKeyEl.value = groqKey;
       document.getElementById("providerModal").classList.add("open");
     }
 

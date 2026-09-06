@@ -154,4 +154,149 @@ describe("GroqProvider Unit Tests", () => {
       temperature: undefined
     });
   });
+
+  it("should parse and return structured toolCalls when Groq returns tool_calls in chat", async () => {
+    mockGroqClient.chat.completions.create.mockResolvedValueOnce({
+      id: "chatcmpl-tool-1",
+      model: "llama-3.3-70b-versatile",
+      choices: [
+        {
+          message: {
+            role: "assistant",
+            content: null,
+            tool_calls: [
+              {
+                id: "call_abc123",
+                type: "function",
+                function: {
+                  name: "ssh_execute",
+                  arguments: JSON.stringify({ host: "home-server", command: "disk_usage" })
+                }
+              }
+            ]
+          },
+          finish_reason: "tool_calls"
+        }
+      ]
+    });
+
+    const provider = new GroqProvider({ client: mockGroqClient, apiKey: "test-key" });
+    const response = await provider.chat(
+      [{ role: "user", content: "Check disk usage" }],
+      {
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "ssh_execute",
+              description: "Executes command",
+              parameters: {}
+            }
+          }
+        ]
+      }
+    );
+
+    expect(response.toolCalls).toBeDefined();
+    expect(response.toolCalls).toHaveLength(1);
+    expect(response.toolCalls![0].id).toBe("call_abc123");
+    expect(response.toolCalls![0].function.name).toBe("ssh_execute");
+    expect(JSON.parse(response.toolCalls![0].function.arguments)).toEqual({
+      host: "home-server",
+      command: "disk_usage"
+    });
+  });
+
+  it("should stream tokens incrementally and yield done event in streamChat", async () => {
+    async function* mockStream() {
+      yield {
+        choices: [{ delta: { content: "Good " } }]
+      };
+      yield {
+        choices: [{ delta: { content: "evening, " } }]
+      };
+      yield {
+        choices: [{ delta: { content: "sir." }, finish_reason: "stop" }],
+        usage: { prompt_tokens: 10, completion_tokens: 3, total_tokens: 13 }
+      };
+    }
+
+    mockGroqClient.chat.completions.create.mockResolvedValueOnce(mockStream());
+
+    const provider = new GroqProvider({ client: mockGroqClient, apiKey: "test-key" });
+    const chunks: string[] = [];
+    let isDone = false;
+
+    for await (const chunk of provider.streamChat([{ role: "user", content: "Hello" }])) {
+      if (chunk.content) {
+        chunks.push(chunk.content);
+      }
+      if (chunk.done) {
+        isDone = true;
+      }
+    }
+
+    expect(chunks.join("")).toBe("Good evening, sir.");
+    expect(isDone).toBe(true);
+  });
+
+  it("should accumulate streaming tool calls across chunks and yield on completion", async () => {
+    async function* mockToolStream() {
+      yield {
+        choices: [
+          {
+            delta: {
+              tool_calls: [
+                {
+                  index: 0,
+                  id: "call_stream_1",
+                  type: "function",
+                  function: { name: "ssh_list_directory", arguments: "{\"path\":\"" }
+                }
+              ]
+            }
+          }
+        ]
+      };
+      yield {
+        choices: [
+          {
+            delta: {
+              tool_calls: [
+                {
+                  index: 0,
+                  function: { arguments: "Belgeler\"}" }
+                }
+              ]
+            }
+          }
+        ]
+      };
+      yield {
+        choices: [
+          {
+            delta: {},
+            finish_reason: "tool_calls"
+          }
+        ]
+      };
+    }
+
+    mockGroqClient.chat.completions.create.mockResolvedValueOnce(mockToolStream());
+
+    const provider = new GroqProvider({ client: mockGroqClient, apiKey: "test-key" });
+    let finalToolCalls: any[] | undefined = undefined;
+
+    for await (const chunk of provider.streamChat([{ role: "user", content: "List Belgeler" }])) {
+      if (chunk.toolCalls) {
+        finalToolCalls = chunk.toolCalls;
+      }
+    }
+
+    expect(finalToolCalls).toBeDefined();
+    expect(finalToolCalls).toHaveLength(1);
+    expect(finalToolCalls![0].id).toBe("call_stream_1");
+    expect(finalToolCalls![0].function.name).toBe("ssh_list_directory");
+    expect(finalToolCalls![0].function.arguments).toBe('{"path":"Belgeler"}');
+  });
 });

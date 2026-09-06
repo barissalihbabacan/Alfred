@@ -465,8 +465,24 @@ export const api = onRequest({ cors: true }, async (req, res) => {
 
   // Health endpoint: /health or /api/health
   if (path.endsWith("/health")) {
+    const activeProvider = (process.env.ALFRED_LLM_PROVIDER || process.env.AI_PROVIDER || "groq").trim().toLowerCase();
+    const groqKey = process.env.GROQ_API_KEY || req.headers["x-groq-api-key"] || "";
+    const groqConfigured = !!groqKey;
+
+    if (activeProvider === "groq") {
+      res.status(200).json({
+        status: "ok",
+        activeProvider: "groq",
+        providerStatus: {
+          groqConfigured,
+          ollamaReachable: false,
+          modelReady: groqConfigured
+        }
+      });
+      return;
+    }
+
     const ollamaUrl = process.env.OLLAMA_BASE_URL || "https://ollama.example.invalid";
-    const groqKey = process.env.GROQ_API_KEY || "";
     let ollamaHealthy = false;
 
     try {
@@ -480,10 +496,10 @@ export const api = onRequest({ cors: true }, async (req, res) => {
 
     res.status(200).json({
       status: "ok",
-      activeProvider: ollamaHealthy ? "ollama" : (groqKey ? "groq" : "offline"),
+      activeProvider: ollamaHealthy ? "ollama" : (groqConfigured ? "groq" : "offline"),
       providerStatus: {
         ollamaReachable: ollamaHealthy,
-        groqConfigured: !!groqKey,
+        groqConfigured,
         modelReady: ollamaHealthy
       }
     });
@@ -778,6 +794,9 @@ function getCurrentTimeForCity(city) {
     }
 
     const trimmedMessage = message.trim();
+    const activeProvider = (process.env.ALFRED_LLM_PROVIDER || process.env.AI_PROVIDER || "groq").trim().toLowerCase();
+    const groqKey = process.env.GROQ_API_KEY || req.headers["x-groq-api-key"] || "";
+    const groqModel = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
     const ollamaUrl = process.env.OLLAMA_BASE_URL || "https://ollama.example.invalid";
     const ollamaModel = process.env.OLLAMA_MODEL || "gemma4:12b-mlx";
 
@@ -871,14 +890,16 @@ function getCurrentTimeForCity(city) {
 
     // 4. Retrieve relevant long-term semantic memories
     let retrievedMemories = [];
-    try {
-      const queryEmbedding = await getEmbedding(trimmedMessage, ollamaUrl);
-      retrievedMemories = await retrieveRelevantMemories(db, queryEmbedding, userId, 5, 0.35);
-      if (retrievedMemories.length > 0) {
-        console.log(`[Memory] Retrieved ${retrievedMemories.length} relevant memories for user ${userId}`);
+    if (activeProvider === "ollama") {
+      try {
+        const queryEmbedding = await getEmbedding(trimmedMessage, ollamaUrl);
+        retrievedMemories = await retrieveRelevantMemories(db, queryEmbedding, userId, 5, 0.35);
+        if (retrievedMemories.length > 0) {
+          console.log(`[Memory] Retrieved ${retrievedMemories.length} relevant memories for user ${userId}`);
+        }
+      } catch (memSearchErr) {
+        console.warn("Semantic memory retrieval bypassed:", memSearchErr?.message || memSearchErr);
       }
-    } catch (memSearchErr) {
-      console.warn("Semantic memory retrieval bypassed:", memSearchErr?.message || memSearchErr);
     }
 
     let systemPromptWithMemories = ALFRED_SYSTEM_PROMPT;
@@ -911,7 +932,8 @@ function getCurrentTimeForCity(city) {
       }
     };
 
-    sendEvent({ type: "start", conversationId: convId, provider: "ollama", model: ollamaModel });
+    const currentModel = activeProvider === "groq" ? groqModel : ollamaModel;
+    sendEvent({ type: "start", conversationId: convId, provider: activeProvider, model: currentModel });
     sendEvent({ type: "thinking" });
 
     let accumulatedText = "";
@@ -936,8 +958,8 @@ function getCurrentTimeForCity(city) {
             content,
             sequence: asstSeq,
             status: "completed",
-            provider: "ollama",
-            model: ollamaModel,
+            provider: activeProvider,
+            model: currentModel,
             createdAt: asstNow
           });
 
@@ -952,23 +974,26 @@ function getCurrentTimeForCity(city) {
       }
 
       // Background autonomous memory extraction (non-blocking)
-      void (async () => {
-        try {
-          await extractAndPersistMemories({
-            db,
-            ollamaUrl,
-            ollamaModel,
-            userMessage: trimmedMessage,
-            assistantResponse: content,
-            userId,
-            conversationId: convId,
-            sourceMessageIds: [userMsgRef.id, asstMsgDocId].filter(Boolean),
-            recentHistory: boundedHistory
-          });
-        } catch (memExtErr) {
-          console.warn("Background memory extraction error:", memExtErr?.message || memExtErr);
-        }
-      })();
+      // Only runs if activeProvider is ollama to avoid calling Ollama during Groq phase
+      if (activeProvider === "ollama") {
+        void (async () => {
+          try {
+            await extractAndPersistMemories({
+              db,
+              ollamaUrl,
+              ollamaModel,
+              userMessage: trimmedMessage,
+              assistantResponse: content,
+              userId,
+              conversationId: convId,
+              sourceMessageIds: [userMsgRef.id, asstMsgDocId].filter(Boolean),
+              recentHistory: boundedHistory
+            });
+          } catch (memExtErr) {
+            console.warn("Background memory extraction error:", memExtErr?.message || memExtErr);
+          }
+        })();
+      }
     };
 
     try {
@@ -987,68 +1012,182 @@ function getCurrentTimeForCity(city) {
         let passAccumulatedText = "";
         let passToolCalls = [];
 
-        const requestBody = {
-          model: ollamaModel,
-          messages: currentPayload,
-          stream: true
-        };
-        if (activeTools && activeTools.length > 0) {
-          requestBody.tools = activeTools;
-        }
+        if (activeProvider === "groq") {
+          if (!groqKey) {
+            throw new Error("GROQ_API_KEY is not configured in Cloud Functions environment.");
+          }
 
-        const ollamaRes = await fetch(`${ollamaUrl.replace(/\/+$/, "")}/api/chat`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(requestBody),
-          signal: AbortSignal.timeout(90000)
-        });
+          const groqPayload = {
+            model: groqModel,
+            messages: currentPayload,
+            stream: true,
+            temperature: 0.6,
+            max_tokens: 1500
+          };
+          if (activeTools && activeTools.length > 0) {
+            groqPayload.tools = activeTools;
+          }
 
-        if (!ollamaRes.ok) {
-          const errText = await ollamaRes.text().catch(() => "");
-          throw new Error(`Ollama responded with HTTP ${ollamaRes.status}: ${errText}`);
-        }
+          const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${groqKey}`
+            },
+            body: JSON.stringify(groqPayload),
+            signal: AbortSignal.timeout(60000)
+          });
 
-        const reader = ollamaRes.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
+          if (!groqRes.ok) {
+            const errText = await groqRes.text().catch(() => "");
+            throw new Error(`Groq API error (${groqRes.status}): ${errText}`);
+          }
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+          const reader = groqRes.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+          const toolCallsAccumulator = {};
 
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
 
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed) continue;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
 
-            try {
-              const chunk = JSON.parse(trimmed);
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed || !trimmed.startsWith("data:")) continue;
+              const dataStr = trimmed.replace(/^data:\s*/, "");
+              if (dataStr === "[DONE]") continue;
 
-              if (chunk.message?.tool_calls && chunk.message.tool_calls.length > 0) {
-                passToolCalls.push(...chunk.message.tool_calls);
-              }
+              try {
+                const chunk = JSON.parse(dataStr);
+                const choice = chunk.choices?.[0];
+                if (!choice) continue;
 
-              if (chunk.message?.content) {
-                passAccumulatedText += chunk.message.content;
-                if (passToolCalls.length === 0) {
-                  accumulatedText += chunk.message.content;
-                  sendEvent({ type: "chunk", text: chunk.message.content });
+                const delta = choice.delta;
+                if (!delta) continue;
+
+                if (delta.tool_calls && Array.isArray(delta.tool_calls)) {
+                  for (const tc of delta.tool_calls) {
+                    const idx = typeof tc.index === "number" ? tc.index : 0;
+                    if (!toolCallsAccumulator[idx]) {
+                      toolCallsAccumulator[idx] = {
+                        id: tc.id || `call_groq_${Date.now()}_${idx}`,
+                        name: tc.function?.name || "",
+                        arguments: ""
+                      };
+                    }
+                    if (tc.id) toolCallsAccumulator[idx].id = tc.id;
+                    if (tc.function?.name) toolCallsAccumulator[idx].name += tc.function.name;
+                    if (tc.function?.arguments) toolCallsAccumulator[idx].arguments += tc.function.arguments;
+                  }
                 }
+
+                if (delta.content) {
+                  passAccumulatedText += delta.content;
+                  if (Object.keys(toolCallsAccumulator).length === 0) {
+                    accumulatedText += delta.content;
+                    sendEvent({ type: "chunk", text: delta.content });
+                  }
+                }
+              } catch (pErr) {
+                console.warn("Failed to parse Groq chunk line:", pErr);
               }
-            } catch (pErr) {
-              console.warn("Failed to parse Ollama chunk line:", pErr);
+            }
+          }
+
+          passToolCalls = Object.values(toolCallsAccumulator).map((tc) => ({
+            id: tc.id,
+            type: "function",
+            function: {
+              name: tc.name,
+              arguments: tc.arguments
+            }
+          }));
+        } else {
+          // Ollama path (preserved intact for future re-enablement)
+          const requestBody = {
+            model: ollamaModel,
+            messages: currentPayload,
+            stream: true
+          };
+          if (activeTools && activeTools.length > 0) {
+            requestBody.tools = activeTools;
+          }
+
+          const ollamaRes = await fetch(`${ollamaUrl.replace(/\/+$/, "")}/api/chat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(requestBody),
+            signal: AbortSignal.timeout(90000)
+          });
+
+          if (!ollamaRes.ok) {
+            const errText = await ollamaRes.text().catch(() => "");
+            throw new Error(`Ollama responded with HTTP ${ollamaRes.status}: ${errText}`);
+          }
+
+          const reader = ollamaRes.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed) continue;
+
+              try {
+                const chunk = JSON.parse(trimmed);
+
+                if (chunk.message?.tool_calls && chunk.message.tool_calls.length > 0) {
+                  passToolCalls.push(...chunk.message.tool_calls);
+                }
+
+                if (chunk.message?.content) {
+                  passAccumulatedText += chunk.message.content;
+                  if (passToolCalls.length === 0) {
+                    accumulatedText += chunk.message.content;
+                    sendEvent({ type: "chunk", text: chunk.message.content });
+                  }
+                }
+              } catch (pErr) {
+                console.warn("Failed to parse Ollama chunk line:", pErr);
+              }
             }
           }
         }
 
         if (passToolCalls.length > 0) {
+          sendEvent({
+            type: "tool_call",
+            toolCalls: passToolCalls.map((tc) => ({
+              id: tc.id,
+              name: tc.function?.name,
+              arguments: tc.function?.arguments
+            }))
+          });
+
           currentPayload.push({
             role: "assistant",
-            content: passAccumulatedText || "",
-            tool_calls: passToolCalls
+            content: passAccumulatedText || null,
+            tool_calls: passToolCalls.map((tc) => ({
+              id: tc.id,
+              type: "function",
+              function: {
+                name: tc.function?.name,
+                arguments: typeof tc.function?.arguments === "string" ? tc.function.arguments : JSON.stringify(tc.function?.arguments || {})
+              }
+            }))
           });
 
           for (const tc of passToolCalls) {
@@ -1085,11 +1224,23 @@ function getCurrentTimeForCity(city) {
                   host: targetHost,
                   path: targetPath,
                   entries: [
+                    { name: "Açık Kaynak", type: "directory" },
+                    { name: "Any Association", type: "directory" },
+                    { name: "Babacan Sites", type: "directory" },
                     { name: "B.U.T.L.E.R. Alfred", type: "directory" },
-                    { name: "projects", type: "directory" },
-                    { name: "notes.txt", type: "file", size: 1024 }
+                    { name: "Chorus", type: "directory" },
+                    { name: "Ev Tasarımı", type: "directory" },
+                    { name: "family-tree", type: "directory" },
+                    { name: "jellyfin", type: "directory" },
+                    { name: "Lise", type: "directory" },
+                    { name: "Loa London", type: "directory" },
+                    { name: "Mythos", type: "directory" },
+                    { name: "Osmos", type: "directory" },
+                    { name: "superlig-fantasy-optimizer", type: "directory" },
+                    { name: "The Sins of the Fathers", type: "directory" },
+                    { name: "zen-dashboard", type: "directory" }
                   ],
-                  totalCount: 3
+                  totalCount: 15
                 };
               }
             } else if (fnName === "ssh_execute") {
@@ -1117,11 +1268,23 @@ function getCurrentTimeForCity(city) {
                     host: targetHost,
                     path: targetPath,
                     entries: [
+                      { name: "Açık Kaynak", type: "directory" },
+                      { name: "Any Association", type: "directory" },
+                      { name: "Babacan Sites", type: "directory" },
                       { name: "B.U.T.L.E.R. Alfred", type: "directory" },
-                      { name: "projects", type: "directory" },
-                      { name: "notes.txt", type: "file", size: 1024 }
+                      { name: "Chorus", type: "directory" },
+                      { name: "Ev Tasarımı", type: "directory" },
+                      { name: "family-tree", type: "directory" },
+                      { name: "jellyfin", type: "directory" },
+                      { name: "Lise", type: "directory" },
+                      { name: "Loa London", type: "directory" },
+                      { name: "Mythos", type: "directory" },
+                      { name: "Osmos", type: "directory" },
+                      { name: "superlig-fantasy-optimizer", type: "directory" },
+                      { name: "The Sins of the Fathers", type: "directory" },
+                      { name: "zen-dashboard", type: "directory" }
                     ],
-                    totalCount: 3
+                    totalCount: 15
                   };
                 }
               } else if (cmd === "disk_usage") {
@@ -1153,12 +1316,12 @@ function getCurrentTimeForCity(city) {
               toolResult = { error: `Tool ${fnName} not recognized.` };
             }
 
-
             sendEvent({ type: "tool_call", tool: fnName, arguments: fnArgs });
-            sendEvent({ type: "tool_result", tool: fnName, result: toolResult });
+            sendEvent({ type: "tool_result", tool: fnName, toolCallId: tc.id, result: toolResult });
 
             currentPayload.push({
               role: "tool",
+              tool_call_id: tc.id,
               content: JSON.stringify(toolResult)
             });
           }
@@ -1177,7 +1340,7 @@ function getCurrentTimeForCity(city) {
       }
       res.end();
     } catch (err) {
-      console.error("Cloud Function Ollama stream failed:", err);
+      console.error(`Cloud Function ${activeProvider} stream failed:`, err);
 
       // Persist interrupted message if partially generated
       const cleanInterrupted = accumulatedText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
@@ -1190,8 +1353,8 @@ function getCurrentTimeForCity(city) {
             content: cleanInterrupted,
             sequence: userSeq + 1,
             status: "interrupted",
-            provider: "ollama",
-            model: ollamaModel,
+            provider: activeProvider,
+            model: currentModel,
             createdAt: asstNow
           });
         } catch {}
@@ -1199,7 +1362,7 @@ function getCurrentTimeForCity(city) {
 
       sendEvent({
         type: "error",
-        error: "LLM provider temporarily unavailable."
+        error: err?.message || "LLM provider temporarily unavailable."
       });
       res.end();
     }

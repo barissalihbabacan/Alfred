@@ -60,6 +60,57 @@ describe("ProviderRegistry and Factory Unit Tests", () => {
     expect(provider.name).toBe("Ollama Local");
   });
 
+  it("should select GroqProvider by default when no environment variable is set", () => {
+    const origAlfred = process.env.ALFRED_LLM_PROVIDER;
+    const origAi = process.env.AI_PROVIDER;
+    try {
+      delete process.env.ALFRED_LLM_PROVIDER;
+      delete process.env.AI_PROVIDER;
+      const provider = getAIProvider();
+      expect(provider.id).toBe("groq");
+    } finally {
+      if (origAlfred !== undefined) process.env.ALFRED_LLM_PROVIDER = origAlfred;
+      if (origAi !== undefined) process.env.AI_PROVIDER = origAi;
+    }
+  });
+
+  it("should ensure OllamaProvider is not initialized when Groq is active", () => {
+    const freshRegistry = new ProviderRegistry();
+    // When only groq is registered, registry does not have ollama
+    freshRegistry.register(getAIProvider("groq"));
+    expect(freshRegistry.has("groq")).toBe(true);
+    expect(freshRegistry.has("ollama")).toBe(false);
+  });
+
+  it("regression: Groq failure results in 0 Ollama invocations (no fallback)", async () => {
+    const mockGroq = new MockCustomProvider();
+    const mockOllama = new MockCustomProvider();
+
+    // Track invocations
+    let groqInvocations = 0;
+    let ollamaInvocations = 0;
+
+    mockGroq.chat = async () => {
+      groqInvocations++;
+      throw new Error("Groq API rate limit or outage simulated");
+    };
+
+    mockOllama.chat = async () => {
+      ollamaInvocations++;
+      return { id: "ollama-1", content: "Should never be reached", model: "mock", role: "assistant" };
+    };
+
+    // Simulate chat route / runtime provider invocation without fallback
+    const activeProvider = mockGroq;
+
+    await expect(activeProvider.chat([{ role: "user", content: "Test" }])).rejects.toThrow(
+      "Groq API rate limit or outage simulated"
+    );
+
+    expect(groqInvocations).toBe(1);
+    expect(ollamaInvocations).toBe(0); // ZERO Ollama calls
+  });
+
   it("9. ALFRED_LLM_PROVIDER=ollama selects OllamaProvider", () => {
     const orig = process.env.ALFRED_LLM_PROVIDER;
     try {

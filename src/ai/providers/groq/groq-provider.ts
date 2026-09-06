@@ -234,7 +234,7 @@ export class GroqProvider implements AIProvider, AIChatStreamProvider, AISpeechT
             if (!toolCallsAccumulator[idx]) {
               toolCallsAccumulator[idx] = {
                 id: tc.id || `call_groq_${Date.now()}_${idx}`,
-                name: tc.function?.name || "",
+                name: "",
                 arguments: ""
               };
             }

@@ -71,13 +71,18 @@ describe("SSHListDirectoryTool Suite", () => {
       expect(result.entries.length).toBe(4);
 
       // Deterministic order: directories first alphabetically, then files alphabetically
-      expect(result.entries[0]).toEqual({ name: "docs", type: "directory" });
-      expect(result.entries[1]).toEqual({ name: "project", type: "directory" });
+      expect(result.entries[0]).toMatchObject({ name: "docs", type: "directory" });
+      expect(result.entries[1]).toMatchObject({ name: "project", type: "directory" });
       expect(result.entries[2].name).toBe("notes.txt");
       expect(result.entries[2].type).toBe("file");
       expect(result.entries[2].size).toBe(1234);
       expect(result.entries[3].name).toBe("todo.md");
       expect(result.entries[3].type).toBe("file");
+
+      // Verify SSH exec was invoked with trusted command and SFTP was never used
+      expect(mockClient.execCalls.length).toBe(1);
+      expect(mockClient.execCalls[0]).toContain("ls -la");
+      expect((mockClient as any).sftp).toBeUndefined();
 
       // Connection must be closed
       expect(mockClient.disconnectCalls).toBe(1);
@@ -92,9 +97,10 @@ describe("SSHListDirectoryTool Suite", () => {
       expect(result.totalCount).toBe(3);
 
       // Directories first (src), then files (package.json, README.md)
-      expect(result.entries[0]).toEqual({ name: "src", type: "directory" });
+      expect(result.entries[0]).toMatchObject({ name: "src", type: "directory" });
       expect(result.entries[1].name).toBe("package.json");
       expect(result.entries[2].name).toBe("README.md");
+      expect(mockClient.execCalls.length).toBe(1);
     });
 
     it("lists empty directory safely returning totalCount: 0", async () => {

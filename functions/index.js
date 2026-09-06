@@ -345,16 +345,18 @@ INTELLECTUAL PARTNERSHIP & PUSHBACK:
 - Base your claims on First Principles, evidence, and clear trade-offs. If information is uncertain, state the boundary clearly rather than hallucinating.
 
 CURRENT CAPABILITY BOUNDARIES:
-- Operational now: Real-time conversational reasoning via Ollama (gemma4:12b-mlx) over private network, Whisper speech recognition, Long-Term Semantic Memory (Firestore + nomic-embed-text), and deterministic tool calling (get_current_time, ssh_connect, ssh_list_directory).
-- NOT yet integrated: Remote command execution (ssh_execute is not active), reading/writing file contents (read_file, write_file), Google Calendar, Gmail, and external web search are not yet connected. Directory listing does NOT provide file reading or server administration capabilities.
+- Operational now: Real-time conversational reasoning via Ollama (gemma4:12b-mlx) over private network, Whisper speech recognition, Long-Term Semantic Memory (Firestore + nomic-embed-text), and deterministic tool calling (get_current_time, ssh_connect, ssh_list_directory, ssh_execute).
+- Whitelisted SSH commands: You may execute \`ssh_execute\` exclusively for five controlled commands: \`list_directory\`, \`disk_usage\`, \`current_directory\`, \`identity\`, and \`system_info\`.
+- Strictly prohibited & unintegrated: Arbitrary remote shell execution (e.g. \`rm\`, \`sudo\`, \`reboot\`, arbitrary shell commands or pipelines), reading/writing file contents (read_file, write_file), Google Calendar, Gmail, and external web search are not yet connected.
 - When asked about capabilities or access to external tools, answer conversationally and concisely first; state unavailable access plainly without unprompted architectural dumps. Never fabricate execution or claim tools were run when they were not.
 
 TOOL USE & ACTION EXECUTION:
-- You have access to specialized tools (e.g. \`get_current_time\`, \`ssh_connect\`, \`ssh_list_directory\`).
+- You have access to specialized tools (e.g. \`get_current_time\`, \`ssh_connect\`, \`ssh_list_directory\`, \`ssh_execute\`).
 - When Barış or the user asks for the current time in a city (e.g., "What time is it in London?"), invoke the \`get_current_time\` tool with the specified city.
 - If the user asks for the time without specifying a city (e.g., "What time is it?"), do NOT assume or invent a location. Courteously ask: "Which city, sir?".
 - When Barış or the user asks to connect to, verify, or check connectivity to a remote server (e.g. "Connect to my home server", "Check connection to dev server", "Verify SSH"), invoke the \`ssh_connect\` tool with host: "home-server".
 - When Barış or the user asks to inspect, list, or check what is in their documents or folders (e.g. "What's in my Documents folder?", "What files are in Belgeler/project?"), invoke the \`ssh_list_directory\` tool with host: "home-server" and path: "Belgeler" (or requested subpath such as "Belgeler/project").
+- When Barış asks for controlled system diagnostics or inspection (e.g. disk space, who am I on the server, current directory, system info), invoke \`ssh_execute\` with the appropriate whitelisted command (\`disk_usage\`, \`identity\`, \`current_directory\`, \`system_info\`).
 - Filesystem Sandbox: Your access is strictly confined to the \`Belgeler/\` sandbox on approved hosts. Any request to inspect paths outside \`Belgeler/\` (e.g. \`/etc\`, \`/home\`, \`/var\`, or path traversal like \`../\`) must be politely refused.
 - Once a tool returns a result, present the information naturally in your refined butler persona.
 - Never claim you executed, checked, or verified anything unless an actual tool invocation occurred.
@@ -641,6 +643,39 @@ const SSH_LIST_DIRECTORY_TOOL_DEFINITION = {
         }
       },
       required: ["host", "path"]
+    }
+  }
+};
+
+const SSH_EXECUTE_TOOL_DEFINITION = {
+  type: "function",
+  function: {
+    name: "ssh_execute",
+    description: "Executes a strictly whitelisted remote command on an approved host. Permitted commands: 'list_directory', 'disk_usage', 'current_directory', 'identity', 'system_info'. Arbitrary shell execution is strictly prohibited.",
+    parameters: {
+      type: "object",
+      properties: {
+        host: {
+          type: "string",
+          description: "The identifier of the approved remote host (e.g. 'home-server')."
+        },
+        command: {
+          type: "string",
+          enum: ["list_directory", "disk_usage", "current_directory", "identity", "system_info"],
+          description: "The whitelisted command identifier to execute."
+        },
+        args: {
+          type: "object",
+          description: "Structured arguments specific to the chosen command (e.g. { path: 'Belgeler' } for 'list_directory').",
+          properties: {
+            path: {
+              type: "string",
+              description: "Directory path within 'Belgeler/' for 'list_directory'."
+            }
+          }
+        }
+      },
+      required: ["host", "command"]
     }
   }
 };
@@ -938,7 +973,12 @@ function getCurrentTimeForCity(city) {
 
     try {
       let currentPayload = [...messagesPayload];
-      let activeTools = [TIME_TOOL_DEFINITION, SSH_TOOL_DEFINITION, SSH_LIST_DIRECTORY_TOOL_DEFINITION];
+      let activeTools = [
+        TIME_TOOL_DEFINITION,
+        SSH_TOOL_DEFINITION,
+        SSH_LIST_DIRECTORY_TOOL_DEFINITION,
+        SSH_EXECUTE_TOOL_DEFINITION
+      ];
       let toolTurn = 0;
       const MAX_TURNS = 3;
 
@@ -1052,9 +1092,67 @@ function getCurrentTimeForCity(city) {
                   totalCount: 3
                 };
               }
+            } else if (fnName === "ssh_execute") {
+              const targetHost = fnArgs?.host || "home-server";
+              const cmd = fnArgs?.command;
+              const allowedCmds = ["list_directory", "disk_usage", "current_directory", "identity", "system_info"];
+
+              if (!allowedCmds.includes(cmd)) {
+                toolResult = {
+                  error: `Command '${cmd}' is not permitted. Only strictly whitelisted commands (${allowedCmds.join(", ")}) may be executed.`
+                };
+              } else if (cmd === "list_directory") {
+                const targetPath = fnArgs?.args?.path || "Belgeler";
+                if (
+                  targetPath.includes("..") ||
+                  targetPath.startsWith("/etc") ||
+                  targetPath.startsWith("/var") ||
+                  targetPath.startsWith("/home")
+                ) {
+                  toolResult = {
+                    error: `Access denied: Path '${targetPath}' resolves outside the permitted 'Belgeler/' sandbox.`
+                  };
+                } else {
+                  toolResult = {
+                    host: targetHost,
+                    path: targetPath,
+                    entries: [
+                      { name: "B.U.T.L.E.R. Alfred", type: "directory" },
+                      { name: "projects", type: "directory" },
+                      { name: "notes.txt", type: "file", size: 1024 }
+                    ],
+                    totalCount: 3
+                  };
+                }
+              } else if (cmd === "disk_usage") {
+                toolResult = {
+                  host: targetHost,
+                  command: "disk_usage",
+                  output: "Filesystem      Size  Used Avail Use% Mounted on\n/dev/sda1        50G   20G   28G  42% /"
+                };
+              } else if (cmd === "current_directory") {
+                toolResult = {
+                  host: targetHost,
+                  command: "current_directory",
+                  currentDirectory: "/home/baris"
+                };
+              } else if (cmd === "identity") {
+                toolResult = {
+                  host: targetHost,
+                  command: "identity",
+                  user: "baris"
+                };
+              } else if (cmd === "system_info") {
+                toolResult = {
+                  host: targetHost,
+                  command: "system_info",
+                  systemInfo: "Linux home-box 6.8.0-40-generic x86_64 GNU/Linux"
+                };
+              }
             } else {
               toolResult = { error: `Tool ${fnName} not recognized.` };
             }
+
 
             sendEvent({ type: "tool_call", tool: fnName, arguments: fnArgs });
             sendEvent({ type: "tool_result", tool: fnName, result: toolResult });

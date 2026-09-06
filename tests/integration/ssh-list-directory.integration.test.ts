@@ -12,7 +12,7 @@ describe("SSH List Directory Integration Suite (Real Home Server)", () => {
   const manager = new SSHConnectionManager();
   const tool = new SSHListDirectoryTool(manager);
 
-  it("lists real Belgeler directory on home-server via SFTP", async () => {
+  it("lists real Belgeler directory on home-server via SSH exec (no SFTP)", async () => {
     try {
       const result = await tool.execute({
         host: "home-server",
@@ -149,4 +149,36 @@ describe("SSH List Directory Integration Suite (Real Home Server)", () => {
       throw err;
     }
   }, 15000);
+
+  it("executes whitelisted ssh_execute commands (disk_usage, identity) on real server", async () => {
+    const registry = new ToolRegistry();
+    const router = new ToolRouter({ registry });
+
+    try {
+      const execCall: ToolCall = {
+        id: "call_e2e_exec_01",
+        type: "function",
+        function: {
+          name: "ssh_execute",
+          arguments: JSON.stringify({ host: "home-server", command: "disk_usage" })
+        }
+      };
+
+      const result = await router.execute(execCall, {
+        userId: "user_baris",
+        userRole: "admin"
+      });
+
+      expect(result.success).toBe(true);
+      expect((result.data as any).command).toBe("disk_usage");
+      expect((result.data as any).output).toContain("Filesystem");
+    } catch (err: any) {
+      if (/timed out|unreachable|refused/i.test(err?.message)) {
+        console.warn("[Integration Note] Home server offline or unreachable:", err.message);
+        return;
+      }
+      throw err;
+    }
+  }, 15000);
 });
+

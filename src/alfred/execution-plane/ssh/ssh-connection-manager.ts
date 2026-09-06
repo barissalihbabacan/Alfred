@@ -12,7 +12,8 @@ import {
 } from "./ssh-client.interface.js";
 import { SSH2Client } from "./ssh2-client.js";
 import { SSHConfig, getSSHConfig, resolveSSHHost } from "../../../core/config/ssh.config.js";
-import { SSHPathSandbox, SANDBOX_ROOT_NAME } from "./ssh-path-sandbox.js";
+import { RemoteCommandExecutor } from "./remote-command-executor.js";
+import { AllowedSSHCommand } from "./command-registry.js";
 
 export interface SSHConnectionManagerOptions {
   clientFactory?: SSHClientFactory;
@@ -70,51 +71,32 @@ export class SSHConnectionManager {
   /**
    * Inspects directory contents on an approved SSH server while enforcing a strict filesystem sandbox.
    * Target path and any resolved symlinks must remain inside "Belgeler/".
-   * Connection is cleanly closed immediately upon completion.
+   * Uses SSH exec (not SFTP) and cleanly closes the connection upon completion.
    */
   public async listDirectory(
     hostIdentifier: string,
     requestedPath: string
   ): Promise<SSHListDirectoryResult> {
-    if (!hostIdentifier || typeof hostIdentifier !== "string" || !hostIdentifier.trim()) {
-      throw new Error("Invalid host parameter: Host name must be a non-empty string.");
-    }
+    const executor = new RemoteCommandExecutor({
+      clientFactory: this.clientFactory,
+      config: this.config
+    });
+    return executor.executeListDirectory(hostIdentifier, requestedPath);
+  }
 
-    const hostConfig = resolveSSHHost(hostIdentifier, this.config);
-    if (!hostConfig) {
-      throw new Error(
-        `Host '${hostIdentifier}' is not recognized or permitted. Only approved hosts configured in Alfred's host registry (e.g. 'home-server') are accessible.`
-      );
-    }
-
-    // Strict lexical sandbox path validation
-    const pathValidation = SSHPathSandbox.validateSandboxPath(requestedPath);
-    if (!pathValidation.valid || !pathValidation.normalizedSandboxPath) {
-      throw new Error(pathValidation.error || "Sandbox path validation failed.");
-    }
-
-    const client = this.clientFactory();
-
-    try {
-      await client.connect(hostConfig);
-      const result = await client.listDirectory(
-        pathValidation.normalizedSandboxPath,
-        SANDBOX_ROOT_NAME
-      );
-
-      return {
-        host: hostConfig.id,
-        path: pathValidation.normalizedSandboxPath,
-        entries: result.entries,
-        totalCount: result.entries.length
-      };
-    } finally {
-      try {
-        await client.disconnect();
-      } catch {
-        // Suppress secondary disconnect errors
-      }
-    }
+  /**
+   * Executes a strictly whitelisted command on an approved SSH server.
+   */
+  public async executeCommand(
+    hostIdentifier: string,
+    command: AllowedSSHCommand | string,
+    rawArgs?: unknown
+  ): Promise<any> {
+    const executor = new RemoteCommandExecutor({
+      clientFactory: this.clientFactory,
+      config: this.config
+    });
+    return executor.executeCommand(hostIdentifier, command, rawArgs);
   }
 }
 

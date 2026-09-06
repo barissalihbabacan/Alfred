@@ -28,6 +28,12 @@ export interface SSHListDirectoryResult {
   totalCount: number;
 }
 
+export interface SSHExecResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+}
+
 export interface ISSHClient {
   /**
    * Attempts to establish and authenticate an SSH connection using host configuration.
@@ -46,16 +52,15 @@ export interface ISSHClient {
   isConnected(): boolean;
 
   /**
-   * Securely lists directory entries via SFTP while enforcing that targetPath
-   * and any resolved symlink remain strictly within sandboxRootPath.
+   * Executes a command on the remote host via the SSH exec channel.
    *
-   * @param targetPath Path to inspect (e.g. "Belgeler" or "Belgeler/sub")
-   * @param sandboxRootPath Sandbox boundary root (default: "Belgeler")
+   * @param command The shell command string to execute
+   * @param options Execution options such as timeout
    */
-  listDirectory(
-    targetPath: string,
-    sandboxRootPath?: string
-  ): Promise<{ realPath: string; entries: DirectoryEntry[] }>;
+  exec(
+    command: string,
+    options?: { timeoutMs?: number }
+  ): Promise<SSHExecResult>;
 }
 
 export type SSHClientFactory = () => ISSHClient;

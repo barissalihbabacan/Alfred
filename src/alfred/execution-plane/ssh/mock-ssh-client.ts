@@ -4,7 +4,7 @@
  * including connection states and SFTP directory listing.
  */
 
-import { ISSHClient, DirectoryEntry, FileType } from "./ssh-client.interface.js";
+import { ISSHClient, DirectoryEntry, FileType, SSHExecResult } from "./ssh-client.interface.js";
 import { SSHHostConfig } from "../../../core/config/ssh.config.js";
 import { SSHPathSandbox } from "./ssh-path-sandbox.js";
 
@@ -98,47 +98,126 @@ export class MockSSHClient implements ISSHClient {
     this.connected = false;
   }
 
-  public async listDirectory(
-    targetPath: string,
-    sandboxRootPath: string = "Belgeler"
-  ): Promise<{ realPath: string; entries: DirectoryEntry[] }> {
+  public execCalls: string[] = [];
+
+  public async exec(
+    command: string,
+    _options?: { timeoutMs?: number }
+  ): Promise<SSHExecResult> {
     if (!this.connected) {
       throw new Error("SSH client is not connected.");
     }
 
-    const normTarget = targetPath.replace(/\\/g, "/").replace(/\/+$/, "");
-    const realSandboxRoot = "/home/baris/Belgeler";
+    this.execCalls.push(command);
 
-    // Check if target is a symlink
-    if (this.mockSymlinks.has(normTarget)) {
-      const realTarget = this.mockSymlinks.get(normTarget)!;
-      if (!SSHPathSandbox.isRealpathContained(realTarget, realSandboxRoot)) {
-        throw new Error(
-          `Access denied: Path '${targetPath}' resolves outside the permitted '${sandboxRootPath}' sandbox.`
-        );
+    // 1. Check for list_directory script
+    if (command.includes("---DIVIDER---") || command.includes("realpath -e -q")) {
+      const targetMatch = command.match(/TARGET=\$\(realpath -e -q -- '([^']+)'\)/);
+      const targetPath = targetMatch ? targetMatch[1] : "Belgeler";
+      const normTarget = targetPath.replace(/\\/g, "/").replace(/\/+$/, "");
+      const realSandboxRoot = "/home/baris/Belgeler";
+
+      // Symlink escape check
+      if (this.mockSymlinks.has(normTarget)) {
+        const realTarget = this.mockSymlinks.get(normTarget)!;
+        if (!SSHPathSandbox.isRealpathContained(realTarget, realSandboxRoot)) {
+          return {
+            stdout: `${realSandboxRoot}\n${realTarget}\n---DIVIDER---\n`,
+            stderr: "Access denied: Resolves outside sandbox.",
+            exitCode: 13
+          };
+        }
       }
+
+      // Check if file, not directory
+      if (this.mockFiles.has(normTarget)) {
+        return {
+          stdout: "",
+          stderr: `Path '${targetPath}' is a file, not a directory.`,
+          exitCode: 12
+        };
+      }
+
+      // Check if directory exists in mock filesystem
+      const dirEntries = this.mockDirectories.get(normTarget);
+      if (!dirEntries) {
+        return {
+          stdout: "",
+          stderr: `Remote path '${targetPath}' does not exist or is inaccessible.`,
+          exitCode: 11
+        };
+      }
+
+      // Build simulated LC_ALL=C ls -la --full-time output
+      let lsOutput = `total ${dirEntries.length * 4}\n`;
+      lsOutput += `drwxr-xr-x 2 baris baris 4096 2026-09-01 12:00:00.000000000 +0000 .\n`;
+      lsOutput += `drwxr-xr-x 2 baris baris 4096 2026-09-01 12:00:00.000000000 +0000 ..\n`;
+
+      for (const entry of dirEntries) {
+        const dateStr = entry.modifiedTime
+          ? entry.modifiedTime.replace("T", " ").replace("Z", " +0000")
+          : "2026-09-01 12:00:00.000000000 +0000";
+
+        if (entry.type === "directory") {
+          lsOutput += `drwxr-xr-x 2 baris baris 4096 ${dateStr} ${entry.name}\n`;
+        } else if (entry.type === "file") {
+          const size = entry.size ?? 1024;
+          lsOutput += `-rw-r--r-- 1 baris baris ${size} ${dateStr} ${entry.name}\n`;
+        } else if (entry.type === "symlink") {
+          lsOutput += `lrwxrwxrwx 1 baris baris 11 ${dateStr} ${entry.name} -> /mock/target\n`;
+        } else {
+          lsOutput += `?--------- 1 baris baris 0 ${dateStr} ${entry.name}\n`;
+        }
+      }
+
+      const fullStdout = `${realSandboxRoot}\n${realSandboxRoot}/${normTarget}\n---DIVIDER---\n${lsOutput}`;
+      return {
+        stdout: fullStdout,
+        stderr: "",
+        exitCode: 0
+      };
     }
 
-    // Check if target is a file rather than directory
-    if (this.mockFiles.has(normTarget)) {
-      throw new Error(`Path '${targetPath}' is a file, not a directory.`);
+    // 2. disk_usage: df -h
+    if (command.includes("df -h")) {
+      return {
+        stdout: "Filesystem      Size  Used Avail Use% Mounted on\n/dev/sda1        50G   20G   28G  42% /\n",
+        stderr: "",
+        exitCode: 0
+      };
     }
 
-    const dirEntries = this.mockDirectories.get(normTarget);
-    if (!dirEntries) {
-      throw new Error(`Remote path '${targetPath}' does not exist or is inaccessible.`);
+    // 3. current_directory: pwd
+    if (command === "pwd") {
+      return {
+        stdout: "/home/baris\n",
+        stderr: "",
+        exitCode: 0
+      };
     }
 
-    // Deterministic sorting: directories first alphabetically, then files alphabetically
-    const sorted = [...dirEntries].sort((a, b) => {
-      if (a.type === "directory" && b.type !== "directory") return -1;
-      if (a.type !== "directory" && b.type === "directory") return 1;
-      return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
-    });
+    // 4. identity: whoami
+    if (command === "whoami") {
+      return {
+        stdout: "baris\n",
+        stderr: "",
+        exitCode: 0
+      };
+    }
+
+    // 5. system_info: uname -a
+    if (command === "uname -a") {
+      return {
+        stdout: "Linux home-box 6.8.0-40-generic x86_64 GNU/Linux\n",
+        stderr: "",
+        exitCode: 0
+      };
+    }
 
     return {
-      realPath: `/home/baris/${normTarget}`,
-      entries: sorted
+      stdout: "",
+      stderr: `bash: ${command}: command not found`,
+      exitCode: 127
     };
   }
 }

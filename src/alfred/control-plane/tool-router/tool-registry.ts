@@ -7,15 +7,17 @@ import { ITool, ToolDefinition } from "../../../ai/tools/types.js";
 import { GetCurrentTimeTool } from "../../../ai/tools/time/get-current-time.tool.js";
 import { SSHConnectTool } from "../../../ai/tools/ssh/ssh-connect.tool.js";
 import { SSHListDirectoryTool } from "../../../ai/tools/ssh/ssh-list-directory.tool.js";
+import { SSHExecuteTool } from "../../../ai/tools/ssh/ssh-execute.tool.js";
 
 export class ToolRegistry {
   private tools = new Map<string, ITool>();
 
   constructor() {
-    // Initialise with Stage 4 Milestone 1, 2 & 3 tools
+    // Initialise with Stage 4 Milestone 1, 2, 3 & 4 tools
     this.register(new GetCurrentTimeTool());
     this.register(new SSHConnectTool());
     this.register(new SSHListDirectoryTool());
+    this.register(new SSHExecuteTool());
   }
 
   /**

@@ -1,3 +1,6 @@
+import type { ToolDefinition, ToolCall } from "../tools/types.js";
+export type { ToolDefinition, ToolCall };
+
 export type ProviderId = "groq" | "ollama" | "openai" | "google" | "anthropic" | "local" | string;
 
 export type ChatRole = "system" | "user" | "assistant" | "tool";
@@ -6,6 +9,8 @@ export interface ChatMessage {
   role: ChatRole;
   content: string;
   name?: string;
+  toolCalls?: ToolCall[];
+  toolCallId?: string;
 }
 
 export interface ChatCompletionOptions {
@@ -15,6 +20,8 @@ export interface ChatCompletionOptions {
   topP?: number;
   stop?: string[];
   signal?: AbortSignal;
+  tools?: ToolDefinition[];
+  toolChoice?: "auto" | "none" | "required" | { type: "function"; function: { name: string } };
 }
 
 export interface ChatCompletionUsage {
@@ -34,6 +41,7 @@ export interface ChatCompletionResponse {
   usage?: ChatCompletionUsage;
   finishReason?: string;
   raw?: unknown;
+  toolCalls?: ToolCall[];
 }
 
 export interface AudioTranscriptionOptions {
@@ -72,6 +80,7 @@ export interface ChatStreamChunk {
   finishReason?: string;
   model?: string;
   usage?: ChatCompletionUsage;
+  toolCalls?: ToolCall[];
 }
 
 /**

@@ -6,6 +6,10 @@ import { getConversationRepository } from "../../../../../src/data/firestore/ind
 import { ContextBuilder } from "../../../../../src/alfred/cognitive/context/context-builder.js";
 import { CONVERSATION_CONFIG } from "../../../../../src/data/firestore/conversation-repository.interface.js";
 import { getMemoryService, RetrievedMemory } from "../../../../../src/alfred/cognitive/memory/index.js";
+import { getToolRegistry } from "../../../../../src/alfred/control-plane/tool-router/tool-registry.js";
+import { getToolRouter } from "../../../../../src/alfred/control-plane/tool-router/tool-router.js";
+import { timezoneResolver } from "../../../../../src/ai/tools/time/timezone-resolver.js";
+import { ToolCall } from "../../../../../src/ai/tools/types.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,6 +30,39 @@ function getDeterministicFallback(message: string): string {
 
   if (lower.includes("good morning") || lower.includes("hello") || lower.includes("good evening") || lower.includes("greetings")) {
     return "Good morning, sir. I trust you slept well.";
+  }
+
+  // Deterministic time lookup
+  if (
+    lower.includes("what time") ||
+    lower.includes("current time") ||
+    lower.includes("time is it") ||
+    lower.includes("saat kaç") ||
+    lower.includes("time in ")
+  ) {
+    const cityMatch =
+      lower.match(/(?:time in|time for|in)\s+([a-zA-Z\s]+?)(?:\?|$|\s+sir|\s+please)/i) ||
+      lower.match(/([a-zA-Z]+)\s+time/i);
+    const candidateCity = cityMatch ? cityMatch[1].trim() : null;
+
+    if (!candidateCity || candidateCity === "the" || candidateCity === "a" || candidateCity === "now") {
+      return "Which city, sir?";
+    }
+
+    const resolved = timezoneResolver.resolve(candidateCity);
+    if (!resolved) {
+      return `I'm afraid I cannot ascertain the timezone for "${candidateCity}", sir. Could you specify a nearby major city?`;
+    }
+
+    const now = new Date();
+    const time12 = new Intl.DateTimeFormat("en-US", {
+      timeZone: resolved.timezone,
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true
+    }).format(now);
+
+    return `It is currently ${time12} in ${resolved.matchedCity}, sir.`;
   }
 
   if (lower.includes("capable of") || lower.includes("capabilities") || lower.includes("what can you do")) {
@@ -220,11 +257,47 @@ export async function POST(req: NextRequest) {
       try {
         const provider = getAIProvider();
         if (provider.isConfigured()) {
-          const response = await provider.chat(messages, {
+          const toolRegistry = getToolRegistry();
+          const toolRouter = getToolRouter();
+          const toolDefinitions = toolRegistry.getDefinitions();
+
+          const executionMessages: ChatMessage[] = [...messages];
+          let chatResponse = await provider.chat(executionMessages, {
             temperature: 0.6,
-            maxTokens: 1500
+            maxTokens: 1500,
+            tools: toolDefinitions.length > 0 ? toolDefinitions : undefined
           });
-          replyText = response.content.trim();
+
+          // Multi-turn tool execution loop (bounded to at most 3 turns)
+          let turn = 0;
+          while (chatResponse.toolCalls && chatResponse.toolCalls.length > 0 && turn < 3) {
+            turn++;
+            executionMessages.push({
+              role: "assistant",
+              content: chatResponse.content || "",
+              toolCalls: chatResponse.toolCalls
+            });
+
+            for (const tc of chatResponse.toolCalls) {
+              const result = await toolRouter.execute(tc, {
+                userId,
+                conversationId: convId
+              });
+
+              executionMessages.push({
+                role: "tool",
+                content: JSON.stringify(result.success ? result.data : { error: result.error }),
+                toolCallId: tc.id
+              });
+            }
+
+            chatResponse = await provider.chat(executionMessages, {
+              temperature: 0.6,
+              maxTokens: 1500
+            });
+          }
+
+          replyText = chatResponse.content.trim();
           providerName = provider.id;
         } else {
           replyText = getDeterministicFallback(userMessage);
@@ -323,27 +396,100 @@ export async function POST(req: NextRequest) {
             provider: provider.id
           });
 
-          for await (const chunk of provider.streamChat(messages, {
-            temperature: 0.6,
-            maxTokens: 1500,
-            signal: abortController.signal
-          })) {
+          const toolRegistry = getToolRegistry();
+          const toolRouter = getToolRouter();
+          const toolDefinitions = toolRegistry.getDefinitions();
+
+          const currentMessages = [...messages];
+          let activeTools: any = toolDefinitions.length > 0 ? toolDefinitions : undefined;
+          let streamTurn = 0;
+          const MAX_TOOL_TURNS = 3;
+
+          while (streamTurn < MAX_TOOL_TURNS) {
+            streamTurn++;
+            let passAccumulatedText = "";
+            let passToolCalls: ToolCall[] = [];
+
+            for await (const chunk of provider.streamChat(currentMessages, {
+              temperature: 0.6,
+              maxTokens: 1500,
+              tools: activeTools,
+              signal: abortController.signal
+            })) {
+              if (abortController.signal.aborted) {
+                break;
+              }
+
+              if (chunk.toolCalls && chunk.toolCalls.length > 0) {
+                passToolCalls.push(...chunk.toolCalls);
+              }
+
+              if (chunk.content) {
+                passAccumulatedText += chunk.content;
+                // Only stream tokens directly to user if NO tool calls were initiated in this pass
+                if (passToolCalls.length === 0) {
+                  accumulatedText += chunk.content;
+                  sendEvent({ type: "chunk", text: chunk.content });
+                }
+              }
+
+              if (chunk.done && passToolCalls.length === 0) {
+                sendEvent({
+                  type: "done",
+                  finishReason: chunk.finishReason,
+                  usage: chunk.usage
+                });
+              }
+            }
+
             if (abortController.signal.aborted) {
               break;
             }
 
-            // Content tokens
-            if (chunk.content) {
-              accumulatedText += chunk.content;
-              sendEvent({ type: "chunk", text: chunk.content });
-            }
-
-            if (chunk.done) {
+            // If tool calls were initiated, dispatch them and loop for next response
+            if (passToolCalls.length > 0) {
               sendEvent({
-                type: "done",
-                finishReason: chunk.finishReason,
-                usage: chunk.usage
+                type: "tool_call",
+                toolCalls: passToolCalls.map((tc) => ({
+                  id: tc.id,
+                  name: tc.function.name,
+                  arguments: tc.function.arguments
+                }))
               });
+
+              currentMessages.push({
+                role: "assistant",
+                content: passAccumulatedText || "",
+                toolCalls: passToolCalls
+              });
+
+              for (const tc of passToolCalls) {
+                const result = await toolRouter.execute(tc, {
+                  userId,
+                  conversationId: convId
+                });
+
+                sendEvent({
+                  type: "tool_result",
+                  toolCallId: tc.id,
+                  toolName: tc.function.name,
+                  success: result.success,
+                  result: result.data || { error: result.error }
+                });
+
+                currentMessages.push({
+                  role: "tool",
+                  content: JSON.stringify(result.success ? result.data : { error: result.error }),
+                  toolCallId: tc.id
+                });
+              }
+
+              // Reset accumulatedText for final conversational response
+              accumulatedText = "";
+              activeTools = undefined;
+            } else {
+              // Direct user response completed without further tool invocations
+              break;
             }
           }
 

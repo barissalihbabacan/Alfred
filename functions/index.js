@@ -345,9 +345,16 @@ INTELLECTUAL PARTNERSHIP & PUSHBACK:
 - Base your claims on First Principles, evidence, and clear trade-offs. If information is uncertain, state the boundary clearly rather than hallucinating.
 
 CURRENT CAPABILITY BOUNDARIES:
-- Operational now: Real-time conversational reasoning via Ollama (gemma4:12b-mlx) over private network, Whisper speech recognition, and Long-Term Semantic Memory (Firestore + nomic-embed-text).
+- Operational now: Real-time conversational reasoning via Ollama (gemma4:12b-mlx) over private network, Whisper speech recognition, Long-Term Semantic Memory (Firestore + nomic-embed-text), and deterministic tool calling (get_current_time).
 - NOT yet integrated: Google Calendar, Gmail, GitHub execution tools, terminal execution, and external web search are not yet connected.
 - When asked about capabilities or access to external tools, answer conversationally and concisely first; state unavailable access plainly without unprompted architectural dumps. Never fabricate execution or claim tools were run when they were not.
+
+TOOL USE & ACTION EXECUTION:
+- You have access to specialized tools (e.g. `get_current_time`).
+- When Barış or the user asks for the current time in a city (e.g., "What time is it in London?"), invoke the `get_current_time` tool with the specified city.
+- If the user asks for the time without specifying a city (e.g., "What time is it?"), do NOT assume or invent a location. Courteously ask: "Which city, sir?".
+- Once a tool returns a result, present the information naturally in your refined butler persona (e.g., "It is currently 2:42 PM in London, sir.").
+- Never claim you executed, checked, or verified anything unless an actual tool invocation occurred.
 
 === CANONICAL USER PROFILE (GIT AUTHORITATIVE) ===
 USER IDENTITY:
@@ -577,6 +584,108 @@ export const api = onRequest({ cors: true }, async (req, res) => {
     }
   }
 
+const TIME_TOOL_DEFINITION = {
+  type: "function",
+  function: {
+    name: "get_current_time",
+    description: "Returns the current local time, date, day of week, and timezone offset for a specified city or location.",
+    parameters: {
+      type: "object",
+      properties: {
+        city: {
+          type: "string",
+          description: "The city or geographic location name to look up (e.g. 'London', 'Tokyo', 'Istanbul', 'New York', 'Paris')."
+        }
+      },
+      required: ["city"]
+    }
+  }
+};
+
+const CITY_TIMEZONE_ALIASES = {
+  "london": "Europe/London",
+  "manchester": "Europe/London",
+  "birmingham": "Europe/London",
+  "edinburgh": "Europe/London",
+  "istanbul": "Europe/Istanbul",
+  "ankara": "Europe/Istanbul",
+  "izmir": "Europe/Istanbul",
+  "tokyo": "Asia/Tokyo",
+  "kyoto": "Asia/Tokyo",
+  "osaka": "Asia/Tokyo",
+  "new york": "America/New_York",
+  "washington": "America/New_York",
+  "boston": "America/New_York",
+  "san francisco": "America/Los_Angeles",
+  "los angeles": "America/Los_Angeles",
+  "seattle": "America/Los_Angeles",
+  "chicago": "America/Chicago",
+  "paris": "Europe/Paris",
+  "berlin": "Europe/Berlin",
+  "frankfurt": "Europe/Berlin",
+  "rome": "Europe/Rome",
+  "madrid": "Europe/Madrid",
+  "amsterdam": "Europe/Amsterdam",
+  "dubai": "Asia/Dubai",
+  "singapore": "Asia/Singapore",
+  "sydney": "Australia/Sydney",
+  "melbourne": "Australia/Melbourne",
+  "toronto": "America/Toronto",
+  "beijing": "Asia/Shanghai",
+  "shanghai": "Asia/Shanghai",
+  "utc": "UTC",
+  "gmt": "Etc/GMT"
+};
+
+function resolveTimezone(cityOrZone) {
+  if (!cityOrZone || typeof cityOrZone !== "string") return null;
+  const cleaned = cityOrZone.trim().toLowerCase().replace(/[,\.]/g, "").replace(/\s+/g, " ");
+
+  let tz = CITY_TIMEZONE_ALIASES[cleaned];
+  if (!tz) {
+    try {
+      const parts = Intl.supportedValuesOf("timeZone");
+      for (const z of parts) {
+        if (z.toLowerCase() === cleaned || z.toLowerCase().endsWith("/" + cleaned.replace(/\s+/g, "_"))) {
+          tz = z;
+          break;
+        }
+      }
+    } catch {}
+  }
+
+  if (tz) {
+    try {
+      new Intl.DateTimeFormat(undefined, { timeZone: tz });
+      return { timezone: tz, matchedCity: cityOrZone.trim() };
+    } catch {}
+  }
+  return null;
+}
+
+function getCurrentTimeForCity(city) {
+  const resolved = resolveTimezone(city);
+  if (!resolved) {
+    return { error: `Unable to identify a valid timezone for city '${city}'.` };
+  }
+  const now = new Date();
+  const tz = resolved.timezone;
+  const time12 = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit", hour12: true }).format(now);
+  const time24 = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false }).format(now);
+  const dateStr = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long", year: "numeric", month: "long", day: "numeric" }).format(now);
+  const offsetParts = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "shortOffset" }).formatToParts(now);
+  const offset = offsetParts.find((p) => p.type === "timeZoneName")?.value || "UTC";
+
+  return {
+    city: resolved.matchedCity,
+    timezone: tz,
+    localTime: time12,
+    time24,
+    date: dateStr,
+    utcOffset: offset
+  };
+}
+
   // Chat endpoint: POST /chat or POST /api/chat
   if (path.endsWith("/chat")) {
     if (req.method !== "POST") {
@@ -785,64 +894,121 @@ export const api = onRequest({ cors: true }, async (req, res) => {
     };
 
     try {
-      const ollamaRes = await fetch(`${ollamaUrl.replace(/\/+$/, "")}/api/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      let currentPayload = [...messagesPayload];
+      let activeTools = [TIME_TOOL_DEFINITION];
+      let toolTurn = 0;
+      const MAX_TURNS = 3;
+
+      while (toolTurn < MAX_TURNS) {
+        toolTurn++;
+        let passAccumulatedText = "";
+        let passToolCalls = [];
+
+        const requestBody = {
           model: ollamaModel,
-          messages: messagesPayload,
+          messages: currentPayload,
           stream: true
-        }),
-        signal: AbortSignal.timeout(90000)
-      });
+        };
+        if (activeTools && activeTools.length > 0) {
+          requestBody.tools = activeTools;
+        }
 
-      if (!ollamaRes.ok || !ollamaRes.body) {
-        throw new Error(`Ollama returned status ${ollamaRes.status}`);
-      }
+        const ollamaRes = await fetch(`${ollamaUrl.replace(/\/+$/, "")}/api/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+          signal: AbortSignal.timeout(90000)
+        });
 
-      const reader = ollamaRes.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
+        if (!ollamaRes.ok || !ollamaRes.body) {
+          throw new Error(`Ollama returned status ${ollamaRes.status}`);
+        }
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+        const reader = ollamaRes.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed) continue;
-          try {
-            const chunk = JSON.parse(trimmed);
-            if (chunk.message?.content) {
-              accumulatedText += chunk.message.content;
-              sendEvent({ type: "chunk", text: chunk.message.content });
-            }
-            if (chunk.done) {
-              sendEvent({ type: "done" });
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
 
-              const cleanContent = accumulatedText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
-              if (cleanContent) {
-                await finalizeTurn(cleanContent);
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            try {
+              const chunk = JSON.parse(trimmed);
+
+              if (chunk.message?.tool_calls && Array.isArray(chunk.message.tool_calls) && chunk.message.tool_calls.length > 0) {
+                passToolCalls.push(...chunk.message.tool_calls);
               }
 
-              res.end();
-              return;
+              if (chunk.message?.content) {
+                passAccumulatedText += chunk.message.content;
+                if (passToolCalls.length === 0) {
+                  accumulatedText += chunk.message.content;
+                  sendEvent({ type: "chunk", text: chunk.message.content });
+                }
+              }
+
+              if (chunk.done && passToolCalls.length === 0) {
+                sendEvent({ type: "done" });
+                const cleanContent = accumulatedText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
+                if (cleanContent) {
+                  await finalizeTurn(cleanContent);
+                }
+                res.end();
+                return;
+              }
+            } catch {}
+          }
+        }
+
+        if (passToolCalls.length > 0) {
+          currentPayload.push({
+            role: "assistant",
+            content: passAccumulatedText || "",
+            tool_calls: passToolCalls
+          });
+
+          for (const tc of passToolCalls) {
+            const fnName = tc.function?.name;
+            let fnArgs = tc.function?.arguments;
+            if (typeof fnArgs === "string") {
+              try { fnArgs = JSON.parse(fnArgs); } catch {}
             }
-          } catch {}
+
+            let toolResult;
+            if (fnName === "get_current_time") {
+              toolResult = getCurrentTimeForCity(fnArgs?.city);
+            } else {
+              toolResult = { error: `Tool ${fnName} not recognized.` };
+            }
+
+            sendEvent({ type: "tool_call", tool: fnName, arguments: fnArgs });
+            sendEvent({ type: "tool_result", tool: fnName, result: toolResult });
+
+            currentPayload.push({
+              role: "tool",
+              content: JSON.stringify(toolResult)
+            });
+          }
+
+          accumulatedText = "";
+          activeTools = undefined;
+        } else {
+          break;
         }
       }
 
       sendEvent({ type: "done" });
-
       const cleanContent = accumulatedText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
       if (cleanContent) {
         await finalizeTurn(cleanContent);
       }
-
       res.end();
     } catch (err) {
       console.error("Cloud Function Ollama stream failed:", err);

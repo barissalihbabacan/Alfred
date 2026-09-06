@@ -7,6 +7,7 @@ import {
   ChatCompletionOptions,
   ChatCompletionResponse,
   ChatStreamChunk,
+  ToolCall,
   AudioTranscriptionOptions,
   AudioTranscriptionResponse
 } from "../types.js";
@@ -83,23 +84,60 @@ export class GroqProvider implements AIProvider, AIChatStreamProvider, AISpeechT
     const model = options?.model || this.config.defaultModel;
 
     try {
-      const groqMessages = messages.map((m) => ({
-        role: m.role as "system" | "user" | "assistant",
-        content: m.content,
-        name: m.name
-      }));
+      const groqMessages = messages.map((m) => {
+        const msg: any = {
+          role: m.role as "system" | "user" | "assistant" | "tool",
+          content: m.content,
+          name: m.name
+        };
+        if (m.toolCalls && m.toolCalls.length > 0) {
+          msg.tool_calls = m.toolCalls.map((tc) => ({
+            id: tc.id,
+            type: "function",
+            function: {
+              name: tc.function.name,
+              arguments: tc.function.arguments
+            }
+          }));
+        }
+        if (m.role === "tool" && m.toolCallId) {
+          msg.tool_call_id = m.toolCallId;
+        }
+        return msg;
+      });
 
-      const completion = await client.chat.completions.create({
+      const completionParams: any = {
         model,
         messages: groqMessages,
         temperature: options?.temperature ?? this.config.temperature,
         max_tokens: options?.maxTokens ?? this.config.maxTokens,
         top_p: options?.topP,
         stop: options?.stop
-      });
+      };
+
+      if (options?.tools && options.tools.length > 0) {
+        completionParams.tools = options.tools;
+      }
+      if (options?.toolChoice) {
+        completionParams.tool_choice = options.toolChoice;
+      }
+
+      const completion = await client.chat.completions.create(completionParams);
 
       const choice = completion.choices[0];
       const content = choice?.message?.content || "";
+
+      let toolCalls: ToolCall[] | undefined = undefined;
+      if (choice?.message?.tool_calls && choice.message.tool_calls.length > 0) {
+        toolCalls = choice.message.tool_calls.map((tc: any) => ({
+          id: tc.id,
+          type: "function" as const,
+          function: {
+            name: tc.function.name,
+            arguments: tc.function.arguments
+          }
+        }));
+      }
 
       return {
         id: completion.id,
@@ -117,7 +155,8 @@ export class GroqProvider implements AIProvider, AIChatStreamProvider, AISpeechT
               totalTime: completion.usage.total_time
             }
           : undefined,
-        raw: completion
+        raw: completion,
+        toolCalls
       };
     } catch (error) {
       return handleGroqError(error, model);
@@ -136,13 +175,29 @@ export class GroqProvider implements AIProvider, AIChatStreamProvider, AISpeechT
     const model = options?.model || this.config.defaultModel;
 
     try {
-      const groqMessages = messages.map((m) => ({
-        role: m.role as "system" | "user" | "assistant",
-        content: m.content,
-        name: m.name
-      }));
+      const groqMessages = messages.map((m) => {
+        const msg: any = {
+          role: m.role as "system" | "user" | "assistant" | "tool",
+          content: m.content,
+          name: m.name
+        };
+        if (m.toolCalls && m.toolCalls.length > 0) {
+          msg.tool_calls = m.toolCalls.map((tc) => ({
+            id: tc.id,
+            type: "function",
+            function: {
+              name: tc.function.name,
+              arguments: tc.function.arguments
+            }
+          }));
+        }
+        if (m.role === "tool" && m.toolCallId) {
+          msg.tool_call_id = m.toolCallId;
+        }
+        return msg;
+      });
 
-      const stream = await client.chat.completions.create({
+      const streamParams: any = {
         model,
         messages: groqMessages,
         temperature: options?.temperature ?? this.config.temperature,
@@ -150,7 +205,18 @@ export class GroqProvider implements AIProvider, AIChatStreamProvider, AISpeechT
         top_p: options?.topP,
         stop: options?.stop,
         stream: true
-      });
+      };
+
+      if (options?.tools && options.tools.length > 0) {
+        streamParams.tools = options.tools;
+      }
+      if (options?.toolChoice) {
+        streamParams.tool_choice = options.toolChoice;
+      }
+
+      const stream = (await client.chat.completions.create(streamParams)) as unknown as AsyncIterable<any>;
+
+      const toolCallsAccumulator: Record<number, { id: string; name: string; arguments: string }> = {};
 
       for await (const chunk of stream) {
         if (options?.signal?.aborted) {
@@ -161,6 +227,40 @@ export class GroqProvider implements AIProvider, AIChatStreamProvider, AISpeechT
         const content = choice?.delta?.content || undefined;
         const finishReason = choice?.finish_reason || undefined;
         const isDone = Boolean(finishReason);
+
+        if (choice?.delta?.tool_calls && choice.delta.tool_calls.length > 0) {
+          for (const tc of choice.delta.tool_calls) {
+            const idx = typeof tc.index === "number" ? tc.index : 0;
+            if (!toolCallsAccumulator[idx]) {
+              toolCallsAccumulator[idx] = {
+                id: tc.id || `call_groq_${Date.now()}_${idx}`,
+                name: tc.function?.name || "",
+                arguments: ""
+              };
+            }
+            if (tc.id) {
+              toolCallsAccumulator[idx].id = tc.id;
+            }
+            if (tc.function?.name) {
+              toolCallsAccumulator[idx].name += tc.function.name;
+            }
+            if (tc.function?.arguments) {
+              toolCallsAccumulator[idx].arguments += tc.function.arguments;
+            }
+          }
+        }
+
+        let assembledToolCalls: ToolCall[] | undefined = undefined;
+        if (isDone && Object.keys(toolCallsAccumulator).length > 0) {
+          assembledToolCalls = Object.values(toolCallsAccumulator).map((tc) => ({
+            id: tc.id,
+            type: "function" as const,
+            function: {
+              name: tc.name,
+              arguments: tc.arguments
+            }
+          }));
+        }
 
         const chunkUsage = (chunk as any).usage || (chunk as any).x_groq?.usage;
 
@@ -178,7 +278,8 @@ export class GroqProvider implements AIProvider, AIChatStreamProvider, AISpeechT
                 completionTime: chunkUsage.completion_time,
                 totalTime: chunkUsage.total_time
               }
-            : undefined
+            : undefined,
+          toolCalls: assembledToolCalls
         };
       }
     } catch (error) {

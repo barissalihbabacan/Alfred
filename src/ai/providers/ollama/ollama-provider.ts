@@ -4,7 +4,8 @@ import {
   ChatMessage,
   ChatCompletionOptions,
   ChatCompletionResponse,
-  ChatStreamChunk
+  ChatStreamChunk,
+  ToolCall
 } from "../types.js";
 import { getAIConfig, OllamaConfig } from "../../../core/config/index.js";
 import { handleOllamaError } from "./ollama-error-handler.js";
@@ -69,10 +70,32 @@ export class OllamaProvider implements AIProvider, AIChatStreamProvider {
     const url = `${this.config.baseUrl.replace(/\/+$/, "")}/api/chat`;
 
     // Map internal ChatMessage array to Ollama's format
-    const ollamaMessages = messages.map((m) => ({
-      role: m.role as "system" | "user" | "assistant",
-      content: m.content
-    }));
+    const ollamaMessages = messages.map((m) => {
+      const msg: any = {
+        role: m.role as "system" | "user" | "assistant" | "tool",
+        content: m.content
+      };
+      if (m.toolCalls && m.toolCalls.length > 0) {
+        msg.tool_calls = m.toolCalls.map((tc) => ({
+          id: tc.id,
+          type: "function",
+          function: {
+            name: tc.function.name,
+            arguments:
+              typeof tc.function.arguments === "string"
+                ? (() => {
+                    try {
+                      return JSON.parse(tc.function.arguments);
+                    } catch {
+                      return tc.function.arguments;
+                    }
+                  })()
+                : tc.function.arguments
+          }
+        }));
+      }
+      return msg;
+    });
 
     // Map completion parameters to Ollama's options
     const ollamaOptions: Record<string, unknown> = {};
@@ -94,12 +117,16 @@ export class OllamaProvider implements AIProvider, AIChatStreamProvider {
       ollamaOptions.stop = options.stop;
     }
 
-    const requestBody = {
+    const requestBody: Record<string, unknown> = {
       model,
       messages: ollamaMessages,
       stream: false,
       options: Object.keys(ollamaOptions).length > 0 ? ollamaOptions : undefined
     };
+
+    if (options?.tools && options.tools.length > 0) {
+      requestBody.tools = options.tools;
+    }
 
     const timeoutMs = this.config.timeoutMs;
     const controller = new AbortController();
@@ -170,6 +197,21 @@ export class OllamaProvider implements AIProvider, AIChatStreamProvider {
     const completionTokens = typeof data.eval_count === "number" ? data.eval_count : 0;
     const totalTokens = promptTokens + completionTokens;
 
+    let toolCalls: ToolCall[] | undefined = undefined;
+    if (Array.isArray(data.message.tool_calls) && data.message.tool_calls.length > 0) {
+      toolCalls = data.message.tool_calls.map((tc: any, index: number) => ({
+        id: tc.id || `call_ollama_${Date.now()}_${index}`,
+        type: "function" as const,
+        function: {
+          name: tc.function?.name || "",
+          arguments:
+            typeof tc.function?.arguments === "object"
+              ? JSON.stringify(tc.function.arguments)
+              : String(tc.function?.arguments || "{}")
+        }
+      }));
+    }
+
     return {
       id: `ollama-${Date.now()}`,
       content,
@@ -184,7 +226,8 @@ export class OllamaProvider implements AIProvider, AIChatStreamProvider {
         completionTime: typeof data.eval_duration === "number" ? data.eval_duration / 1e9 : undefined,
         totalTime: typeof data.total_duration === "number" ? data.total_duration / 1e9 : undefined
       },
-      raw: data
+      raw: data,
+      toolCalls
     };
   }
 
@@ -268,10 +311,32 @@ export class OllamaProvider implements AIProvider, AIChatStreamProvider {
     const model = options?.model || this.config.defaultModel;
     const url = `${this.config.baseUrl.replace(/\/+$/, "")}/api/chat`;
 
-    const ollamaMessages = messages.map((m) => ({
-      role: m.role as "system" | "user" | "assistant",
-      content: m.content
-    }));
+    const ollamaMessages = messages.map((m) => {
+      const msg: any = {
+        role: m.role as "system" | "user" | "assistant" | "tool",
+        content: m.content
+      };
+      if (m.toolCalls && m.toolCalls.length > 0) {
+        msg.tool_calls = m.toolCalls.map((tc) => ({
+          id: tc.id,
+          type: "function",
+          function: {
+            name: tc.function.name,
+            arguments:
+              typeof tc.function.arguments === "string"
+                ? (() => {
+                    try {
+                      return JSON.parse(tc.function.arguments);
+                    } catch {
+                      return tc.function.arguments;
+                    }
+                  })()
+                : tc.function.arguments
+          }
+        }));
+      }
+      return msg;
+    });
 
     const ollamaOptions: Record<string, unknown> = {};
     const temperature = options?.temperature ?? this.config.temperature;
@@ -292,12 +357,16 @@ export class OllamaProvider implements AIProvider, AIChatStreamProvider {
       ollamaOptions.stop = options.stop;
     }
 
-    const requestBody = {
+    const requestBody: Record<string, unknown> = {
       model,
       messages: ollamaMessages,
       stream: true,
       options: Object.keys(ollamaOptions).length > 0 ? ollamaOptions : undefined
     };
+
+    if (options?.tools && options.tools.length > 0) {
+      requestBody.tools = options.tools;
+    }
 
     const timeoutMs = this.config.timeoutMs;
     const controller = new AbortController();
@@ -424,13 +493,29 @@ export class OllamaProvider implements AIProvider, AIChatStreamProvider {
                     }
                   : undefined;
 
+              let toolCalls: ToolCall[] | undefined = undefined;
+              if (Array.isArray(parsed.message?.tool_calls) && parsed.message.tool_calls.length > 0) {
+                toolCalls = parsed.message.tool_calls.map((tc: any, index: number) => ({
+                  id: tc.id || `call_ollama_${Date.now()}_${index}`,
+                  type: "function" as const,
+                  function: {
+                    name: tc.function?.name || "",
+                    arguments:
+                      typeof tc.function?.arguments === "object"
+                        ? JSON.stringify(tc.function.arguments)
+                        : String(tc.function?.arguments || "{}")
+                  }
+                }));
+              }
+
               yield {
                 content,
                 thinking,
                 done: isDone,
                 finishReason,
                 model: parsed.model || model,
-                usage
+                usage,
+                toolCalls
               };
             }
           }
@@ -494,13 +579,29 @@ export class OllamaProvider implements AIProvider, AIChatStreamProvider {
                   }
                 : undefined;
 
+            let toolCalls: ToolCall[] | undefined = undefined;
+            if (Array.isArray(parsed.message?.tool_calls) && parsed.message.tool_calls.length > 0) {
+              toolCalls = parsed.message.tool_calls.map((tc: any, index: number) => ({
+                id: tc.id || `call_ollama_${Date.now()}_${index}`,
+                type: "function" as const,
+                function: {
+                  name: tc.function?.name || "",
+                  arguments:
+                    typeof tc.function?.arguments === "object"
+                      ? JSON.stringify(tc.function.arguments)
+                      : String(tc.function?.arguments || "{}")
+                }
+              }));
+            }
+
             yield {
               content,
               thinking,
               done: isDone,
               finishReason,
               model: parsed.model || model,
-              usage
+              usage,
+              toolCalls
             };
           }
         }

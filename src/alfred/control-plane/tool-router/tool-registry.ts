@@ -5,13 +5,15 @@
 
 import { ITool, ToolDefinition } from "../../../ai/tools/types.js";
 import { GetCurrentTimeTool } from "../../../ai/tools/time/get-current-time.tool.js";
+import { SSHConnectTool } from "../../../ai/tools/ssh/ssh-connect.tool.js";
 
 export class ToolRegistry {
   private tools = new Map<string, ITool>();
 
   constructor() {
-    // Initialise with Stage 4 Milestone 1 tool: get_current_time
+    // Initialise with Stage 4 Milestone 1 & 2 tools
     this.register(new GetCurrentTimeTool());
+    this.register(new SSHConnectTool());
   }
 
   /**

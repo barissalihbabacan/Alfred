@@ -46,19 +46,21 @@ describe("Tool Registry & Router Suite", () => {
   });
 
   describe("ToolRegistry", () => {
-    it("has get_current_time pre-registered by default", () => {
+    it("has get_current_time and ssh_connect pre-registered by default", () => {
       expect(registry.has("get_current_time")).toBe(true);
+      expect(registry.has("ssh_connect")).toBe(true);
       const tool = registry.get("get_current_time");
       expect(tool).toBeInstanceOf(GetCurrentTimeTool);
     });
 
     it("registers and lists new tools", () => {
+      const initialCount = registry.list().length;
       const mockTool = new MockDestructiveTool();
       registry.register(mockTool);
 
       expect(registry.has("delete_database")).toBe(true);
       expect(registry.get("delete_database")).toBe(mockTool);
-      expect(registry.list().length).toBe(2);
+      expect(registry.list().length).toBe(initialCount + 1);
     });
 
     it("generates OpenAI/Ollama-compatible tool definitions", () => {

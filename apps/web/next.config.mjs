@@ -7,7 +7,8 @@ const nextConfig = {
       'kokoro-js',
       'onnxruntime-node',
       '@huggingface/transformers',
-      'sharp'
+      'sharp',
+      'ssh2'
     ],
   },
   webpack: (config, { isServer }) => {
@@ -23,6 +24,7 @@ const nextConfig = {
       config.externals.push({
         'onnxruntime-node': 'commonjs onnxruntime-node',
         'kokoro-js': 'commonjs kokoro-js',
+        'ssh2': 'commonjs ssh2',
       });
     }
     return config;

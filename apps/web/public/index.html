@@ -608,8 +608,47 @@
       max-width: 78%;
       font-size: 15px;
       line-height: 1.55;
-      white-space: pre-wrap;
       word-break: break-word;
+    }
+
+    .user-bubble p {
+      margin-bottom: 8px;
+    }
+    .user-bubble p:last-child {
+      margin-bottom: 0;
+    }
+
+    .user-bubble strong {
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .user-bubble em {
+      font-style: italic;
+      color: #e5e5e5;
+    }
+
+    .user-bubble ul, .user-bubble ol {
+      margin: 6px 0 8px 22px;
+      text-align: left;
+    }
+
+    .user-bubble li {
+      margin-bottom: 3px;
+    }
+
+    .user-bubble .inline-code {
+      background: rgba(255, 255, 255, 0.12);
+      padding: 2px 6px;
+      border-radius: 5px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13.5px;
+      color: #f6d899;
+    }
+
+    .user-bubble .code-container {
+      margin: 10px 0;
+      text-align: left;
     }
 
     /* Assistant Message */
@@ -1406,11 +1445,13 @@
 
       let html = escapeHtml(cleanText);
 
-      // Multi-line code blocks with copy button
+      // Multi-line code blocks: ```lang ... ```
+      const codeBlocks = [];
       html = html.replace(/```(?:([a-zA-Z0-9_-]+)\n)?([\s\S]*?)```/g, (_m, lang, code) => {
-        const language = lang || "code";
+        const idx = codeBlocks.length;
         const cleanCode = code.replace(/^\n+|\n+$/g, "");
-        return `
+        const language = lang || "code";
+        codeBlocks.push(`
           <div class="code-container">
             <div class="code-header">
               <span>${language}</span>
@@ -1420,11 +1461,17 @@
             </div>
             <pre class="code-content"><code>${cleanCode}</code></pre>
           </div>
-        `;
+        `);
+        return `§§CODEBLOCK${idx}§§`;
       });
 
-      // Inline code
-      html = html.replace(/`([^`\n]+)`/g, '<code class="inline-code">$1</code>');
+      // Inline code: `code`
+      const inlineCodes = [];
+      html = html.replace(/`([^`\n]+)`/g, (_m, c) => {
+        const idx = inlineCodes.length;
+        inlineCodes.push(`<code class="inline-code">${c}</code>`);
+        return `§§INLINECODE${idx}§§`;
+      });
 
       // Bold + Italic
       html = html.replace(/\*\*\*([^\*]+?)\*\*\*/g, "<strong><em>$1</em></strong>");
@@ -1432,13 +1479,56 @@
       html = html.replace(/\*([^\*]+?)\*/g, "<em>$1</em>");
       html = html.replace(/~~([^~]+?)~~/g, "<del>$1</del>");
 
-      // Paragraphs
+      // Paragraphs & Lists
       html = html.split("\n\n").map(para => {
         const trimmed = para.trim();
         if (!trimmed) return "";
-        if (trimmed.startsWith("<div class=\"code-container\">")) return trimmed;
+        if (trimmed.startsWith("§§CODEBLOCK")) return trimmed;
+
+        // Check if paragraph is an unordered list
+        if (/^[-*]\s+/m.test(trimmed)) {
+          const lines = trimmed.split("\n");
+          let listHtml = "";
+          let inUl = false;
+          for (const line of lines) {
+            const m = line.match(/^[-*]\s+(.*)$/);
+            if (m) {
+              if (!inUl) { listHtml += "<ul>"; inUl = true; }
+              listHtml += `<li>${m[1]}</li>`;
+            } else {
+              if (inUl) { listHtml += "</ul>"; inUl = false; }
+              if (line.trim()) listHtml += `<p>${line.trim()}</p>`;
+            }
+          }
+          if (inUl) listHtml += "</ul>";
+          return listHtml;
+        }
+
+        // Check if paragraph is an ordered list
+        if (/^\d+\.\s+/m.test(trimmed)) {
+          const lines = trimmed.split("\n");
+          let listHtml = "";
+          let inOl = false;
+          for (const line of lines) {
+            const m = line.match(/^\d+\.\s+(.*)$/);
+            if (m) {
+              if (!inOl) { listHtml += "<ol>"; inOl = true; }
+              listHtml += `<li>${m[1]}</li>`;
+            } else {
+              if (inOl) { listHtml += "</ol>"; inOl = false; }
+              if (line.trim()) listHtml += `<p>${line.trim()}</p>`;
+            }
+          }
+          if (inOl) listHtml += "</ol>";
+          return listHtml;
+        }
+
         return `<p>${trimmed.replace(/\n/g, "<br/>")}</p>`;
       }).join("");
+
+      // Restore protected code blocks & inline codes
+      html = html.replace(/§§INLINECODE(\d+)§§/g, (_m, idx) => inlineCodes[Number(idx)]);
+      html = html.replace(/§§CODEBLOCK(\d+)§§/g, (_m, idx) => codeBlocks[Number(idx)]);
 
       return html;
     }
@@ -1580,7 +1670,7 @@
       const list = document.getElementById("messagesList");
       const row = document.createElement("div");
       row.className = "message-row user";
-      row.innerHTML = `<div class="user-bubble">${escapeHtml(text)}</div>`;
+      row.innerHTML = `<div class="user-bubble">${renderMarkdown(text)}</div>`;
       list.appendChild(row);
       scrollToBottom();
     }
@@ -1847,7 +1937,7 @@
             if (msg.role === "user") {
               const row = document.createElement("div");
               row.className = "message-row user";
-              row.innerHTML = `<div class="user-bubble">${escapeHtml(msg.content)}</div>`;
+              row.innerHTML = `<div class="user-bubble">${renderMarkdown(msg.content)}</div>`;
               list.appendChild(row);
             } else if (msg.role === "assistant") {
               const row = document.createElement("div");

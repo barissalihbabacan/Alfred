@@ -99,11 +99,50 @@ function renderMarkdown(text: string): string {
   // Strikethrough: ~~text~~
   html = html.replace(/~~([^~]+?)~~/g, "<del>$1</del>");
 
-  // Paragraphs
+  // Paragraphs & Lists
   html = html.split("\n\n").map(para => {
     const trimmed = para.trim();
     if (!trimmed) return "";
     if (trimmed.startsWith("§§CODEBLOCK")) return trimmed;
+
+    // Check if paragraph is an unordered list
+    if (/^[-*]\s+/m.test(trimmed)) {
+      const lines = trimmed.split("\n");
+      let listHtml = "";
+      let inUl = false;
+      for (const line of lines) {
+        const m = line.match(/^[-*]\s+(.*)$/);
+        if (m) {
+          if (!inUl) { listHtml += "<ul>"; inUl = true; }
+          listHtml += `<li>${m[1]}</li>`;
+        } else {
+          if (inUl) { listHtml += "</ul>"; inUl = false; }
+          if (line.trim()) listHtml += `<p>${line.trim()}</p>`;
+        }
+      }
+      if (inUl) listHtml += "</ul>";
+      return listHtml;
+    }
+
+    // Check if paragraph is an ordered list
+    if (/^\d+\.\s+/m.test(trimmed)) {
+      const lines = trimmed.split("\n");
+      let listHtml = "";
+      let inOl = false;
+      for (const line of lines) {
+        const m = line.match(/^\d+\.\s+(.*)$/);
+        if (m) {
+          if (!inOl) { listHtml += "<ol>"; inOl = true; }
+          listHtml += `<li>${m[1]}</li>`;
+        } else {
+          if (inOl) { listHtml += "</ol>"; inOl = false; }
+          if (line.trim()) listHtml += `<p>${line.trim()}</p>`;
+        }
+      }
+      if (inOl) listHtml += "</ol>";
+      return listHtml;
+    }
+
     return `<p>${trimmed.replace(/\n/g, "<br/>")}</p>`;
   }).join("");
 
@@ -984,7 +1023,6 @@ export default function VoiceChatPlayground() {
                             borderRadius: "20px 20px 4px 20px",
                             fontSize: "15px",
                             lineHeight: "1.55",
-                            whiteSpace: "pre-wrap",
                             wordBreak: "break-word"
                           }
                         : {

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { MockEmbeddingProvider } from "../../src/ai/embedding/mock-embedding-provider.js";
 import { OllamaEmbeddingProvider } from "../../src/ai/embedding/ollama-embedding-provider.js";
+import { GeminiEmbeddingProvider } from "../../src/ai/embedding/gemini-embedding-provider.js";
 import { cosineSimilarity } from "../../src/data/vector/cosine-similarity.js";
 
 describe("Embedding Providers", () => {
@@ -107,4 +108,95 @@ describe("Embedding Providers", () => {
       await expect(provider.embed("Test")).rejects.toThrow();
     });
   });
+
+  describe("GeminiEmbeddingProvider", () => {
+    it("isConfigured returns false when apiKey is empty, true when set", () => {
+      const unconfigured = new GeminiEmbeddingProvider({ apiKey: "" });
+      expect(unconfigured.isConfigured()).toBe(false);
+
+      const configured = new GeminiEmbeddingProvider({ apiKey: "test-gemini-key" });
+      expect(configured.isConfigured()).toBe(true);
+      expect(configured.dimension).toBe(768);
+      expect(configured.id).toBe("gemini");
+    });
+
+    it("rejects empty text", async () => {
+      const provider = new GeminiEmbeddingProvider({ apiKey: "test-gemini-key" });
+      await expect(provider.embed("   ")).rejects.toThrow("Cannot embed empty text");
+    });
+
+    it("calls embedContent and parses 768-dim embedding", async () => {
+      let capturedUrl = "";
+      let capturedBody: any = null;
+
+      const mockFetch: typeof fetch = async (url, init) => {
+        capturedUrl = String(url);
+        capturedBody = JSON.parse(init?.body as string);
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            embedding: {
+              values: [0.12, -0.34, 0.56]
+            }
+          })
+        } as any;
+      };
+
+      const provider = new GeminiEmbeddingProvider({
+        apiKey: "test-gemini-key",
+        model: "text-embedding-004",
+        dimension: 3,
+        fetchFn: mockFetch
+      });
+
+      const res = await provider.embed("Barış'ın tercihi TypeScript");
+      expect(res).toEqual([0.12, -0.34, 0.56]);
+      expect(capturedUrl).toContain("models/text-embedding-004:embedContent");
+      expect(capturedUrl).toContain("key=test-gemini-key");
+      expect(capturedBody.content.parts[0].text).toBe("Barış'ın tercihi TypeScript");
+    });
+
+    it("calls batchEmbedContents and parses multiple embeddings", async () => {
+      const mockFetch: typeof fetch = async (url, init) => {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            embeddings: [
+              { values: [0.1, 0.2] },
+              { values: [0.3, 0.4] }
+            ]
+          })
+        } as any;
+      };
+
+      const provider = new GeminiEmbeddingProvider({
+        apiKey: "test-gemini-key",
+        fetchFn: mockFetch
+      });
+
+      const res = await provider.embedBatch(["Birinci cümle", "İkinci cümle"]);
+      expect(res).toEqual([[0.1, 0.2], [0.3, 0.4]]);
+    });
+
+    it("handles API error status gracefully", async () => {
+      const mockFetch: typeof fetch = async () => {
+        return {
+          ok: false,
+          status: 403,
+          statusText: "Forbidden",
+          text: async () => "API key invalid"
+        } as any;
+      };
+
+      const provider = new GeminiEmbeddingProvider({
+        apiKey: "bad-key",
+        fetchFn: mockFetch
+      });
+
+      await expect(provider.embed("Test")).rejects.toThrow("API key invalid");
+    });
+  });
 });
+

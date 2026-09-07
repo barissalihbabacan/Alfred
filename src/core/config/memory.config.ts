@@ -39,8 +39,8 @@ export interface MemorySystemConfig {
   extraction: MemoryExtractionConfig;
 }
 
-export const DEFAULT_EMBEDDING_PROVIDER = "ollama";
-export const DEFAULT_EMBEDDING_MODEL = "nomic-embed-text";
+export const DEFAULT_EMBEDDING_PROVIDER = "gemini";
+export const DEFAULT_EMBEDDING_MODEL = "text-embedding-004";
 export const DEFAULT_EMBEDDING_DIMENSION = 768;
 export const DEFAULT_VECTOR_STORE_PATH = ".data/vector_store.json";
 export const DEFAULT_RETRIEVAL_TOP_K = 5;

@@ -1,5 +1,6 @@
 import { IEmbeddingProvider } from "./types.js";
 import { OllamaEmbeddingProvider } from "./ollama-embedding-provider.js";
+import { GeminiEmbeddingProvider } from "./gemini-embedding-provider.js";
 import { MockEmbeddingProvider } from "./mock-embedding-provider.js";
 import { getMemoryConfig } from "../../core/config/index.js";
 
@@ -22,6 +23,15 @@ export function getEmbeddingProvider(): IEmbeddingProvider {
   }
 
   const config = getMemoryConfig().embedding;
+
+  if (config.provider === "gemini") {
+    const gemini = new GeminiEmbeddingProvider();
+    if (gemini.isConfigured()) {
+      cachedProvider = gemini;
+      return cachedProvider;
+    }
+    console.warn("[EmbeddingFactory] GEMINI_API_KEY not configured, falling back to mock embedding provider.");
+  }
 
   if (config.provider === "ollama") {
     const ollama = new OllamaEmbeddingProvider();

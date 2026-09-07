@@ -206,6 +206,15 @@ export async function DELETE(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
+    const groqKeyHeader = req.headers.get("x-groq-api-key");
+    if (groqKeyHeader && !process.env.GROQ_API_KEY) {
+      process.env.GROQ_API_KEY = groqKeyHeader;
+    }
+    const geminiKeyHeader = req.headers.get("x-gemini-api-key");
+    if (geminiKeyHeader && !process.env.GEMINI_API_KEY) {
+      process.env.GEMINI_API_KEY = geminiKeyHeader;
+    }
+
     const body = (await req.json()) as ChatRequestBody;
 
     if (!body || typeof body.message !== "string" || !body.message.trim()) {

@@ -43,27 +43,62 @@ function cosineSimilarity(a, b) {
   return denominator === 0 ? 0 : dot / denominator;
 }
 
-async function getEmbedding(text, ollamaUrl) {
-  const embedRes = await fetch(`${ollamaUrl.replace(/\/+$/, "")}/api/embed`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "nomic-embed-text",
-      input: text
-    }),
-    signal: AbortSignal.timeout(15000)
-  });
-  if (!embedRes.ok) {
-    throw new Error(`Embedding request failed with HTTP ${embedRes.status}`);
+async function getEmbedding(text, ollamaUrl, geminiKey) {
+  const key = (geminiKey || process.env.GEMINI_API_KEY || "").trim();
+  if (key) {
+    try {
+      const embedRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${encodeURIComponent(key)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "models/text-embedding-004",
+            content: {
+              parts: [{ text: text.trim() }]
+            }
+          }),
+          signal: AbortSignal.timeout(15000)
+        }
+      );
+      if (embedRes.ok) {
+        const data = await embedRes.json();
+        const values = data?.embedding?.values;
+        if (Array.isArray(values) && values.length > 0) {
+          return values;
+        }
+      } else {
+        const errText = await embedRes.text().catch(() => "");
+        console.warn(`[Embedding] Gemini text-embedding-004 HTTP ${embedRes.status}: ${errText}`);
+      }
+    } catch (gErr) {
+      console.warn("[Embedding] Gemini embedding call failed:", gErr?.message || gErr);
+    }
   }
-  const data = await embedRes.json();
-  const vector = Array.isArray(data.embeddings?.[0])
-    ? data.embeddings[0]
-    : (Array.isArray(data.embedding) ? data.embedding : null);
-  if (!vector || !Array.isArray(vector)) {
-    throw new Error("Invalid embedding vector received from Ollama");
+
+  // Fallback to Ollama if configured
+  if (ollamaUrl && !ollamaUrl.includes("placeholder")) {
+    const embedRes = await fetch(`${ollamaUrl.replace(/\/+$/, "")}/api/embed`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "nomic-embed-text",
+        input: text
+      }),
+      signal: AbortSignal.timeout(15000)
+    });
+    if (embedRes.ok) {
+      const data = await embedRes.json();
+      const vector = Array.isArray(data.embeddings?.[0])
+        ? data.embeddings[0]
+        : (Array.isArray(data.embedding) ? data.embedding : null);
+      if (vector && Array.isArray(vector)) {
+        return vector;
+      }
+    }
   }
-  return vector;
+
+  throw new Error("[Embedding] Neither Gemini nor Ollama could generate embedding (check GEMINI_API_KEY).");
 }
 
 async function retrieveRelevantMemories(db, queryEmbedding, userId, topK = 5, minScore = 0.35) {
@@ -95,6 +130,9 @@ async function extractAndPersistMemories({
   db,
   ollamaUrl,
   ollamaModel,
+  groqKey,
+  groqModel,
+  geminiKey,
   userMessage,
   assistantResponse,
   userId,
@@ -151,31 +189,69 @@ If there is nothing worth remembering, return {"shouldRemember": false, "memorie
 
   const userPrompt = `${contextSegments.join("\n")}\n\nAnalyze the above exchange. Output JSON only.`;
 
-  let extractionRes;
-  try {
-    const res = await fetch(`${ollamaUrl.replace(/\/+$/, "")}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: ollamaModel,
-        messages: [
-          { role: "system", content: systemInstructions },
-          { role: "user", content: userPrompt }
-        ],
-        stream: false,
-        options: { temperature: 0.1 }
-      }),
-      signal: AbortSignal.timeout(30000)
-    });
-    if (!res.ok) return;
-    extractionRes = await res.json();
-  } catch (err) {
-    console.warn("[Memory] LLM extraction call failed:", err?.message || err);
-    return;
+  let extractionResText = "";
+
+  // 1. Try Groq if key is available
+  if (groqKey) {
+    try {
+      const gRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${groqKey}`
+        },
+        body: JSON.stringify({
+          model: groqModel || "openai/gpt-oss-120b",
+          messages: [
+            { role: "system", content: systemInstructions },
+            { role: "user", content: userPrompt }
+          ],
+          temperature: 0.1,
+          response_format: { type: "json_object" }
+        }),
+        signal: AbortSignal.timeout(20000)
+      });
+      if (gRes.ok) {
+        const gData = await gRes.json();
+        extractionResText = gData.choices?.[0]?.message?.content || "";
+      } else {
+        const errTxt = await gRes.text().catch(() => "");
+        console.warn(`[Memory] Groq extraction HTTP ${gRes.status}: ${errTxt}`);
+      }
+    } catch (gErr) {
+      console.warn("[Memory] Groq extraction error:", gErr?.message || gErr);
+    }
   }
 
-  const rawText = extractionRes?.message?.content || "";
-  if (!rawText) return;
+  // 2. Fallback to Ollama if Groq didn't return text
+  if (!extractionResText && ollamaUrl && !ollamaUrl.includes("placeholder")) {
+    try {
+      const res = await fetch(`${ollamaUrl.replace(/\/+$/, "")}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: ollamaModel,
+          messages: [
+            { role: "system", content: systemInstructions },
+            { role: "user", content: userPrompt }
+          ],
+          stream: false,
+          options: { temperature: 0.1 }
+        }),
+        signal: AbortSignal.timeout(30000)
+      });
+      if (res.ok) {
+        const oData = await res.json();
+        extractionResText = oData?.message?.content || "";
+      }
+    } catch (err) {
+      console.warn("[Memory] Ollama extraction call failed:", err?.message || err);
+    }
+  }
+
+  if (!extractionResText) return;
+
+  const rawText = extractionResText;
 
   let clean = rawText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
   const jsonMatch = clean.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
@@ -223,7 +299,7 @@ If there is nothing worth remembering, return {"shouldRemember": false, "memorie
 
     if (action === "forget") {
       try {
-        const queryEmbedding = await getEmbedding(content, ollamaUrl);
+        const queryEmbedding = await getEmbedding(content, ollamaUrl, geminiKey);
         const memSnap = await db.collection("memory_vectors")
           .where("userId", "==", userId)
           .where("status", "==", "active")
@@ -256,7 +332,7 @@ If there is nothing worth remembering, return {"shouldRemember": false, "memorie
     }
 
     try {
-      const embedding = await getEmbedding(content, ollamaUrl);
+      const embedding = await getEmbedding(content, ollamaUrl, geminiKey);
       const activeSnap = await db.collection("memory_vectors")
         .where("userId", "==", userId)
         .where("status", "==", "active")
@@ -284,6 +360,7 @@ If there is nothing worth remembering, return {"shouldRemember": false, "memorie
 
       const memoryId = `mem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       const now = Timestamp.now();
+      const isGemini = Boolean((geminiKey || process.env.GEMINI_API_KEY || "").trim());
 
       if (action === "supersede" && supersedeTargetDoc) {
         await supersedeTargetDoc.ref.update({
@@ -301,8 +378,8 @@ If there is nothing worth remembering, return {"shouldRemember": false, "memorie
         memoryType: candidate.memoryType || "general",
         sourceConversationId: conversationId,
         sourceMessageIds: sourceMessageIds || [],
-        embeddingProvider: "ollama",
-        embeddingModel: "nomic-embed-text",
+        embeddingProvider: isGemini ? "gemini" : "ollama",
+        embeddingModel: isGemini ? "text-embedding-004" : "nomic-embed-text",
         embeddingDimension: embedding.length,
         embedding: embedding,
         vectorStore: "firestore",
@@ -797,6 +874,7 @@ function getCurrentTimeForCity(city) {
     const activeProvider = (process.env.ALFRED_LLM_PROVIDER || process.env.AI_PROVIDER || "groq").trim().toLowerCase();
     const groqKey = process.env.GROQ_API_KEY || req.headers["x-groq-api-key"] || "";
     const groqModel = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
+    const geminiKey = process.env.GEMINI_API_KEY || req.headers["x-gemini-api-key"] || "";
     const ollamaUrl = process.env.OLLAMA_BASE_URL || "https://ollama.example.invalid";
     const ollamaModel = process.env.OLLAMA_MODEL || "gemma4:12b-mlx";
 
@@ -888,18 +966,16 @@ function getCurrentTimeForCity(city) {
       console.warn("Could not load history from Firestore, proceeding with single turn:", histErr);
     }
 
-    // 4. Retrieve relevant long-term semantic memories
+    // 4. Retrieve relevant long-term semantic memories (cloud Gemini or Ollama)
     let retrievedMemories = [];
-    if (activeProvider === "ollama") {
-      try {
-        const queryEmbedding = await getEmbedding(trimmedMessage, ollamaUrl);
-        retrievedMemories = await retrieveRelevantMemories(db, queryEmbedding, userId, 5, 0.35);
-        if (retrievedMemories.length > 0) {
-          console.log(`[Memory] Retrieved ${retrievedMemories.length} relevant memories for user ${userId}`);
-        }
-      } catch (memSearchErr) {
-        console.warn("Semantic memory retrieval bypassed:", memSearchErr?.message || memSearchErr);
+    try {
+      const queryEmbedding = await getEmbedding(trimmedMessage, ollamaUrl, geminiKey);
+      retrievedMemories = await retrieveRelevantMemories(db, queryEmbedding, userId, 5, 0.35);
+      if (retrievedMemories.length > 0) {
+        console.log(`[Memory] Retrieved ${retrievedMemories.length} relevant memories for user ${userId}`);
       }
+    } catch (memSearchErr) {
+      console.warn("Semantic memory retrieval bypassed:", memSearchErr?.message || memSearchErr);
     }
 
     let systemPromptWithMemories = ALFRED_SYSTEM_PROMPT;
@@ -974,26 +1050,26 @@ function getCurrentTimeForCity(city) {
       }
 
       // Background autonomous memory extraction (non-blocking)
-      // Only runs if activeProvider is ollama to avoid calling Ollama during Groq phase
-      if (activeProvider === "ollama") {
-        void (async () => {
-          try {
-            await extractAndPersistMemories({
-              db,
-              ollamaUrl,
-              ollamaModel,
-              userMessage: trimmedMessage,
-              assistantResponse: content,
-              userId,
-              conversationId: convId,
-              sourceMessageIds: [userMsgRef.id, asstMsgDocId].filter(Boolean),
-              recentHistory: boundedHistory
-            });
-          } catch (memExtErr) {
-            console.warn("Background memory extraction error:", memExtErr?.message || memExtErr);
-          }
-        })();
-      }
+      void (async () => {
+        try {
+          await extractAndPersistMemories({
+            db,
+            ollamaUrl,
+            ollamaModel,
+            groqKey,
+            groqModel,
+            geminiKey,
+            userMessage: trimmedMessage,
+            assistantResponse: content,
+            userId,
+            conversationId: convId,
+            sourceMessageIds: [userMsgRef.id, asstMsgDocId].filter(Boolean),
+            recentHistory: boundedHistory
+          });
+        } catch (memExtErr) {
+          console.warn("Background memory extraction error:", memExtErr?.message || memExtErr);
+        }
+      })();
     };
 
     try {

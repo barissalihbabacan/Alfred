@@ -38,7 +38,7 @@ export class GroqProvider implements AIProvider, AIChatStreamProvider, AISpeechT
     this.config = {
       ...baseConfig,
       ...options?.config,
-      apiKey: options?.apiKey || options?.config?.apiKey || baseConfig.apiKey
+      apiKey: options?.apiKey !== undefined ? options.apiKey : (options?.config?.apiKey || baseConfig.apiKey)
     };
 
     if (options?.client) {

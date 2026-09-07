@@ -1263,8 +1263,8 @@
           <button class="icon-btn" id="sidebarToggleBtn" onclick="toggleSidebar()" title="Kenar Çubuğunu Aç/Kapat">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
           </button>
-          <div class="model-selector">
-            <span id="topModelLabel">gemma4:12b-mlx</span>
+          <div class="model-selector" onclick="openProviderModal()" style="cursor: pointer;" title="Model Ayarları">
+            <span id="topModelLabel">openai/gpt-oss-120b</span>
           </div>
         </div>
         <div class="top-right">
@@ -1337,14 +1337,14 @@
         </button>
       </div>
       <p class="modal-desc">
-        Alfred varsayılan olarak Tailscale özel ağındaki yerel <strong>Ollama (gemma4:12b-mlx)</strong> motorunu kullanır.
+        Alfred şu anda bulut tabanlı <strong>Groq (openai/gpt-oss-120b)</strong> motorunu kullanmaktadır. Yerel Ollama motoru geçici olarak devre dışı bırakılmıştır.
       </p>
       <div class="modal-input-group">
         <label>Aktif Motor:</label>
         <div style="padding: 10px 12px; background: rgba(197, 160, 89, 0.1); border: 1px solid var(--accent-gold); border-radius: 8px; font-size: 13px; color: var(--accent-gold); display: flex; align-items: center; justify-content: space-between;">
           <div style="display: flex; align-items: center; gap: 8px;">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>
-            <span><strong>Ollama</strong> — gemma4:12b-mlx</span>
+            <span id="activeEngineText"><strong>Groq Cloud</strong> — openai/gpt-oss-120b</span>
           </div>
           <span style="display: flex; align-items: center; gap: 5px; font-size: 11px; color: #10b981; font-weight: 600;">
             <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: #10b981;"></span>
@@ -1353,12 +1353,12 @@
         </div>
       </div>
       <div class="modal-input-group">
-        <label for="ollamaUrlInput">Ollama Sunucu URL (Tailscale):</label>
-        <input type="text" id="ollamaUrlInput" value="http://100.64.0.53:11434" />
+        <label for="apiKeyInput">Groq API Key:</label>
+        <input type="password" id="apiKeyInput" placeholder="gsk_xxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
       </div>
       <div class="modal-input-group">
-        <label for="apiKeyInput">Yedek Bulut Sağlayıcı (Groq API Key):</label>
-        <input type="password" id="apiKeyInput" placeholder="gsk_xxxxxxxxxxxxxxxxxxxxxxxx (Opsiyonel)" autocomplete="off" />
+        <label for="ollamaUrlInput">Ollama Sunucu URL (Geçici Olarak Devre Dışı):</label>
+        <input type="text" id="ollamaUrlInput" value="http://100.64.0.53:11434" disabled style="opacity: 0.6; cursor: not-allowed;" />
       </div>
       <div class="modal-actions">
         <button class="btn-secondary" onclick="closeProviderModal()">Kapat</button>
@@ -2042,6 +2042,17 @@
     window.addEventListener("DOMContentLoaded", () => {
       setStatus("ready", "Ready");
       refreshConversationsList();
+
+      // Check active provider from server
+      fetch("/api/health")
+        .then(r => r.json())
+        .then(data => {
+          if (data && data.activeProvider === "groq") {
+            const topEl = document.getElementById("topModelLabel");
+            if (topEl) topEl.textContent = "openai/gpt-oss-120b";
+          }
+        })
+        .catch(() => {});
 
       if (currentConversationId) {
         loadConversation(currentConversationId);

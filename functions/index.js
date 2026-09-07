@@ -796,7 +796,7 @@ function getCurrentTimeForCity(city) {
     const trimmedMessage = message.trim();
     const activeProvider = (process.env.ALFRED_LLM_PROVIDER || process.env.AI_PROVIDER || "groq").trim().toLowerCase();
     const groqKey = process.env.GROQ_API_KEY || req.headers["x-groq-api-key"] || "";
-    const groqModel = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+    const groqModel = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
     const ollamaUrl = process.env.OLLAMA_BASE_URL || "https://ollama.example.invalid";
     const ollamaModel = process.env.OLLAMA_MODEL || "gemma4:12b-mlx";
 
@@ -1028,15 +1028,36 @@ function getCurrentTimeForCity(city) {
             groqPayload.tools = activeTools;
           }
 
-          const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${groqKey}`
-            },
-            body: JSON.stringify(groqPayload),
-            signal: AbortSignal.timeout(60000)
-          });
+          let attempts = 0;
+          let groqRes;
+          while (attempts < 3) {
+            attempts++;
+            groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${groqKey}`
+              },
+              body: JSON.stringify(groqPayload),
+              signal: AbortSignal.timeout(60000)
+            });
+
+            if (groqRes.status === 429 && attempts < 3) {
+              const retryHeader = groqRes.headers.get("retry-after");
+              let waitSec = retryHeader ? parseFloat(retryHeader) : 0;
+              if (!waitSec || Number.isNaN(waitSec)) {
+                const errJson = await groqRes.clone().json().catch(() => ({}));
+                const msg = errJson?.error?.message || "";
+                const match = msg.match(/try again in ([0-9.]+)s/i);
+                waitSec = match ? parseFloat(match[1]) + 0.6 : 5.0;
+              }
+              const waitMs = Math.min(Math.max(waitSec * 1000, 2500), 15000);
+              console.warn(`[Groq] Rate limit (429) hit, waiting ${Math.round(waitMs)}ms before retry ${attempts}...`);
+              await new Promise((r) => setTimeout(r, waitMs));
+              continue;
+            }
+            break;
+          }
 
           if (!groqRes.ok) {
             const errText = await groqRes.text().catch(() => "");
@@ -1076,7 +1097,7 @@ function getCurrentTimeForCity(city) {
                     if (!toolCallsAccumulator[idx]) {
                       toolCallsAccumulator[idx] = {
                         id: tc.id || `call_groq_${Date.now()}_${idx}`,
-                        name: tc.function?.name || "",
+                        name: "",
                         arguments: ""
                       };
                     }

@@ -26,7 +26,7 @@ export interface AIConfig {
   ollama: OllamaConfig;
 }
 
-export const DEFAULT_GROQ_CHAT_MODEL = "llama-3.3-70b-versatile";
+export const DEFAULT_GROQ_CHAT_MODEL = "openai/gpt-oss-120b";
 export const DEFAULT_GROQ_STT_MODEL = "whisper-large-v3-turbo";
 export const DEFAULT_OLLAMA_BASE_URL = "http://100.64.0.53:11434";
 export const DEFAULT_OLLAMA_MODEL = "gemma4:12b-mlx";

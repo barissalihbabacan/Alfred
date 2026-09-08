@@ -10,7 +10,9 @@ import {
   getMultiFactorResolver,
   PhoneAuthProvider,
   PhoneMultiFactorGenerator,
-  RecaptchaVerifier
+  RecaptchaVerifier,
+  GoogleAuthProvider,
+  signInWithPopup
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const firebaseConfig = {
@@ -24,6 +26,16 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 window.firebaseApp = app;
+
+// Set App Check debug token on localhost/127.0.0.1 to prevent 401 pat errors
+if (
+  typeof window !== "undefined" &&
+  (window.location.hostname === "localhost" ||
+   window.location.hostname === "127.0.0.1")
+) {
+  // @ts-ignore
+  self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+}
 
 // Initialize App Check
 try {
@@ -346,33 +358,177 @@ window.handleConfirmEnrollment = async function() {
   }
 };
 
-window.handleSignOut = async function() {
+const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: "select_account" });
+
+function formatAuthErrorDetails(err) {
+  const code = err?.code || "";
+  const rawMsg = err?.message || "";
+  switch (code) {
+    case "auth/operation-not-allowed":
+      return {
+        code,
+        title: "Google ile Giriş Henüz Etkin Değil",
+        message: "Firebase Console üzerinde Google ile giriş yöntemi henüz etkinleştirilmemiş. Firebase Console > Authentication > Sign-in method sekmesinden 'Google' sağlayıcısını 'Enable' durumuna getirmeniz gerekmektedir.",
+        isOperationNotAllowed: true
+      };
+    case "auth/popup-closed-by-user":
+      return {
+        code,
+        title: "Giriş Penceresi Kapatıldı",
+        message: "Google kimlik doğrulama penceresi işlem tamamlanmadan kapatıldı. Lütfen tekrar deneyin."
+      };
+    case "auth/popup-blocked":
+      return {
+        code,
+        title: "Açılır Pencere Engellendi",
+        message: "Tarayıcınız Google giriş penceresini engelledi. Lütfen adres çubuğundaki bildirimden açılır pencerelere (pop-up) izin verip tekrar deneyin."
+      };
+    case "auth/unauthorized-domain":
+      return {
+        code,
+        title: "Yetkisiz Alan Adı",
+        message: "Bu alan adı (domain) Firebase Console > Authentication > Settings > Authorized Domains listesine eklenmemiş."
+      };
+    case "auth/network-request-failed":
+      return {
+        code,
+        title: "Bağlantı Hatası",
+        message: "İnternet bağlantısı kurulamadı. Lütfen ağ bağlantınızı kontrol edin ve tekrar deneyin."
+      };
+    case "auth/too-many-requests":
+      return {
+        code,
+        title: "Çok Fazla Deneme",
+        message: "Kısa sürede çok fazla başarısız deneme yapıldı. Güvenliğiniz için lütfen birkaç dakika sonra tekrar deneyin."
+      };
+    default:
+      return {
+        code: code || "unknown_error",
+        title: "İşlem Başarısız Oldu",
+        message: rawMsg || "Kimlik doğrulama işlemi sırasında beklenmeyen bir hata oluştu."
+      };
+  }
+}
+
+window.handleGoogleSignIn = async function() {
+  const btn = document.getElementById("gateGoogleSignInBtn");
+  const errBox = document.getElementById("gateAuthError");
+  if (errBox) {
+    errBox.style.display = "none";
+    errBox.innerHTML = "";
+  }
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span class="gate-spinner"></span> <span>Giriş Yapılıyor...</span>`;
+  }
+
   try {
-    await signOut(auth);
-    showAuthAlert("Oturum başarıyla kapatıldı.", "info");
-    switchAuthTab("login");
-    setTimeout(() => closeAuthModal(), 500);
+    await signInWithPopup(auth, googleProvider);
   } catch (err) {
-    showAuthAlert(formatAuthError(err), "error");
+    console.error("[Auth] Google Sign-In error:", err);
+    if (errBox) {
+      const details = formatAuthErrorDetails(err);
+      let solutionHtml = "";
+      if (details.isOperationNotAllowed) {
+        solutionHtml = `
+          <div class="auth-solution-card">
+            <div class="auth-solution-title">⚙️ Çözüm Adımları (1 Dakika):</div>
+            <ol>
+              <li><strong>Firebase Console &gt; Authentication &gt; Sign-in method</strong> sekmesini açın.</li>
+              <li><strong>Google</strong> seçeneğine tıklayıp <strong>Enable (Etkinleştir)</strong> yapın.</li>
+              <li>Proje destek e-postasını seçip <strong>Save (Kaydet)</strong> butonuna basın.</li>
+            </ol>
+            <a href="https://console.firebase.google.com/project/butler-alfred/authentication/providers" target="_blank" rel="noopener noreferrer" class="auth-solution-link">
+              <span>Firebase Console Sağlayıcılar Sayfasına Git</span> <span>↗</span>
+            </a>
+          </div>
+        `;
+      }
+      errBox.innerHTML = `
+        <div class="auth-error-header">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span>${details.title}</span>
+          <button onclick="document.getElementById('gateAuthError').style.display='none'" class="auth-error-close" title="Kapat">✕</button>
+        </div>
+        <div class="auth-error-desc">${details.message}</div>
+        ${solutionHtml}
+      `;
+      errBox.style.display = "block";
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `
+        <svg width="20" height="20" viewBox="0 0 24 24">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+        </svg>
+        <span>Google ile Giriş Yap</span>
+      `;
+    }
   }
 };
 
-// Listen to Firebase Auth State Changes
+window.handleSignOut = async function() {
+  try {
+    await signOut(auth);
+    const gateOverlay = document.getElementById("authGateOverlay");
+    if (gateOverlay) gateOverlay.style.display = "flex";
+  } catch (err) {
+    console.error("[Auth] Sign out error:", err);
+  }
+};
+
+// Listen to Firebase Auth State Changes and enforce Auth Gate
 onAuthStateChanged(auth, (user) => {
+  const gateOverlay = document.getElementById("authGateOverlay");
+  const topSignOutBtn = document.getElementById("topSignOutBtn");
+  const userAvatar = document.getElementById("sidebarUserAvatar");
+  const userName = document.getElementById("sidebarUserName");
+  const userRole = document.getElementById("sidebarUserRole");
   const tabMfaBtn = document.getElementById("tabMfaBtn");
   const tabLoginBtn = document.getElementById("tabLoginBtn");
   const tabRegBtn = document.getElementById("tabRegisterBtn");
 
   if (user) {
+    // User is authenticated: unlock app layout
+    if (gateOverlay) gateOverlay.style.display = "none";
+    if (topSignOutBtn) topSignOutBtn.style.display = "inline-flex";
+
+    const name = user.displayName || user.email?.split("@")[0] || "Yönetici";
+    if (userName) userName.textContent = name;
+    if (userRole) userRole.textContent = "Google ile Doğrulandı";
+
+    if (userAvatar) {
+      if (user.photoURL) {
+        userAvatar.innerHTML = `<img src="${user.photoURL}" alt="${name}" referrerpolicy="no-referrer" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" />`;
+      } else {
+        userAvatar.textContent = name.charAt(0).toUpperCase();
+      }
+    }
+
     if (tabMfaBtn) tabMfaBtn.style.display = "inline-block";
     if (tabLoginBtn) tabLoginBtn.style.display = "none";
     if (tabRegBtn) tabRegBtn.style.display = "none";
-    document.getElementById("authCurrentUserEmail").textContent = user.email || "-";
+    const emailEl = document.getElementById("authCurrentUserEmail");
+    if (emailEl) emailEl.textContent = user.email || "-";
     updateMfaUiState(user);
   } else {
+    // Unauthenticated: lock app down completely with Auth Gate
+    if (gateOverlay) gateOverlay.style.display = "flex";
+    if (topSignOutBtn) topSignOutBtn.style.display = "none";
+
+    if (userName) userName.textContent = "Giriş Yapılmadı";
+    if (userRole) userRole.textContent = "Erişim Kilitli";
+    if (userAvatar) userAvatar.textContent = "?";
+
     if (tabMfaBtn) tabMfaBtn.style.display = "none";
     if (tabLoginBtn) tabLoginBtn.style.display = "inline-block";
     if (tabRegBtn) tabRegBtn.style.display = "inline-block";
     updateMfaUiState(null);
   }
 });
+

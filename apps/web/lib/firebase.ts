@@ -37,11 +37,9 @@ if (typeof window !== "undefined") {
       process.env.NEXT_PUBLIC_APPCHECK_DEBUG_TOKEN || true;
   }
 
-  const siteKey =
-    process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ||
-    "6Lfkr68tAAAAAKOEJoZyf11tapRzOI1LP4Er6AmL";
+  const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
 
-  if (siteKey && siteKey !== "dummy-recaptcha-site-key") {
+  if (siteKey && siteKey !== "6Lfkr68tAAAAAKOEJoZyf11tapRzOI1LP4Er6AmL" && siteKey !== "dummy-recaptcha-site-key") {
     try {
       appCheckInstance = initializeAppCheck(app, {
         provider: new ReCaptchaEnterpriseProvider(siteKey),

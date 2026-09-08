@@ -13,13 +13,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <head>
-        <script
-          src="https://www.google.com/recaptcha/enterprise.js?render=6Lfkr68tAAAAAKOEJoZyf11tapRzOI1LP4Er6AmL"
-          async
-          defer
-        />
-      </head>
+      <head />
       <body>{children}</body>
     </html>
   );

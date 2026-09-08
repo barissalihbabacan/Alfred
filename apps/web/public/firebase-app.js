@@ -43,24 +43,27 @@ if (
   self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
 }
 
-// Initialize App Check
-try {
-  const appCheck = initializeAppCheck(app, {
-    provider: new ReCaptchaEnterpriseProvider("6Lfkr68tAAAAAKOEJoZyf11tapRzOI1LP4Er6AmL"),
-    isTokenAutoRefreshEnabled: true
-  });
-  window.firebaseAppCheck = appCheck;
-  window.getAppCheckToken = async () => {
-    try {
-      const tokenResult = await getToken(appCheck, /* forceRefresh */ false);
-      return tokenResult?.token || null;
-    } catch (e) {
-      console.warn("[AppCheck] Token acquisition failed:", e);
-      return null;
-    }
-  };
-} catch (err) {
-  console.warn("[AppCheck] Initialization skipped:", err);
+// Initialize App Check (only if explicitly configured with valid key)
+const publicRecaptchaKey = window.RECAPTCHA_SITE_KEY;
+if (publicRecaptchaKey && publicRecaptchaKey !== "6Lfkr68tAAAAAKOEJoZyf11tapRzOI1LP4Er6AmL") {
+  try {
+    const appCheck = initializeAppCheck(app, {
+      provider: new ReCaptchaEnterpriseProvider(publicRecaptchaKey),
+      isTokenAutoRefreshEnabled: true
+    });
+    window.firebaseAppCheck = appCheck;
+    window.getAppCheckToken = async () => {
+      try {
+        const tokenResult = await getToken(appCheck, /* forceRefresh */ false);
+        return tokenResult?.token || null;
+      } catch (e) {
+        console.warn("[AppCheck] Token acquisition failed:", e);
+        return null;
+      }
+    };
+  } catch (err) {
+    console.warn("[AppCheck] Initialization skipped:", err);
+  }
 }
 
 // Initialize Firebase Auth

@@ -34,12 +34,12 @@ if (typeof window !== "undefined") {
   ) {
     // @ts-ignore
     self.FIREBASE_APPCHECK_DEBUG_TOKEN =
-      process.env.NEXT_PUBLIC_APPCHECK_DEBUG_TOKEN || true;
+      process.env.NEXT_PUBLIC_APPCHECK_DEBUG_TOKEN || "REDACTED-REVOKED-DEBUG-TOKEN";
   }
 
-  const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+  const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || "6LfKoK8tAAAAAEo28kTSEBZWJpKK7-JMV9CZNYIX";
 
-  if (siteKey && siteKey !== "6Lfkr68tAAAAAKOEJoZyf11tapRzOI1LP4Er6AmL" && siteKey !== "dummy-recaptcha-site-key") {
+  if (siteKey && siteKey !== "dummy-recaptcha-site-key") {
     try {
       appCheckInstance = initializeAppCheck(app, {
         provider: new ReCaptchaEnterpriseProvider(siteKey),

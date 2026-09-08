@@ -35,37 +35,38 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 window.firebaseApp = app;
 
-// Set App Check debug token on localhost/127.0.0.1 to prevent 401 pat errors
-if (
-  typeof window !== "undefined" &&
-  (window.location.hostname === "localhost" ||
-   window.location.hostname === "127.0.0.1")
-) {
-  // @ts-ignore
-  self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+// App Check configuration with official registered reCAPTCHA Enterprise key
+const RECAPTCHA_SITE_KEY = window.RECAPTCHA_SITE_KEY || "6LfKoK8tAAAAAEo28kTSEBZWJpKK7-JMV9CZNYIX";
+
+if (typeof window !== "undefined") {
+  if (
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1" ||
+    window.location.search.includes("debug_token=true")
+  ) {
+    // @ts-ignore
+    self.FIREBASE_APPCHECK_DEBUG_TOKEN = "REDACTED-REVOKED-DEBUG-TOKEN";
+  }
 }
 
-// Initialize App Check (only if explicitly configured with valid key)
-const publicRecaptchaKey = window.RECAPTCHA_SITE_KEY;
-if (publicRecaptchaKey && publicRecaptchaKey !== "6Lfkr68tAAAAAKOEJoZyf11tapRzOI1LP4Er6AmL") {
-  try {
-    const appCheck = initializeAppCheck(app, {
-      provider: new ReCaptchaEnterpriseProvider(publicRecaptchaKey),
-      isTokenAutoRefreshEnabled: true
-    });
-    window.firebaseAppCheck = appCheck;
-    window.getAppCheckToken = async () => {
-      try {
-        const tokenResult = await getToken(appCheck, /* forceRefresh */ false);
-        return tokenResult?.token || null;
-      } catch (e) {
-        console.warn("[AppCheck] Token acquisition failed:", e);
-        return null;
-      }
-    };
-  } catch (err) {
-    console.warn("[AppCheck] Initialization skipped:", err);
-  }
+try {
+  const appCheck = initializeAppCheck(app, {
+    provider: new ReCaptchaEnterpriseProvider(RECAPTCHA_SITE_KEY),
+    isTokenAutoRefreshEnabled: true
+  });
+  window.firebaseAppCheck = appCheck;
+  window.getAppCheckToken = async () => {
+    try {
+      const tokenResult = await getToken(appCheck, false);
+      return tokenResult?.token || null;
+    } catch (e) {
+      console.warn("[AppCheck] Token acquisition failed:", e);
+      return null;
+    }
+  };
+  console.log("[AppCheck] Initialized successfully with key:", RECAPTCHA_SITE_KEY);
+} catch (err) {
+  console.warn("[AppCheck] Initialization skipped or error:", err);
 }
 
 function formatAuthErrorDetails(err) {

@@ -807,27 +807,6 @@ window.handleGoogleSignIn = async function() {
       if (handled) return;
     }
 
-    // If popup communication fails (Safari ITP / internal-error / popup blocked), gracefully redirect
-    if (
-      err.code === "auth/internal-error" ||
-      err.code === "auth/popup-blocked" ||
-      err.code === "auth/cancelled-popup-request"
-    ) {
-      console.log("[Auth] Popup encountered issue, transitioning to redirect sign-in...");
-      if (btn) {
-        btn.innerHTML = `<span class="gate-spinner"></span> <span>Google'a Yönlendiriliyor...</span>`;
-      }
-      try {
-        isRedirecting = true;
-        await signInWithRedirect(auth, googleProvider);
-        return;
-      } catch (redirectErr) {
-        isRedirecting = false;
-        console.error("[Auth] Redirect failed:", redirectErr);
-        err = redirectErr;
-      }
-    }
-
     if (errBox) {
       const details = formatAuthErrorDetails(err);
       let solutionHtml = "";

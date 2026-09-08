@@ -1,17 +1,8 @@
 import {
   getAuth,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
-  multiFactor,
-  getMultiFactorResolver,
-  PhoneAuthProvider,
-  PhoneMultiFactorGenerator,
-  RecaptchaVerifier,
   User,
-  MultiFactorResolver,
-  PhoneMultiFactorInfo,
   Auth,
   GoogleAuthProvider,
   signInWithPopup,
@@ -39,125 +30,6 @@ export function getGoogleAuthProvider(): GoogleAuthProvider {
     });
   }
   return googleProviderInstance;
-}
-
-export interface MfaChallenge {
-  resolver: MultiFactorResolver;
-  verificationId: string;
-  phoneHint: PhoneMultiFactorInfo;
-}
-
-/**
- * Sign in user with email and password.
- * Returns { user } if successful, or { mfaRequired: true, challenge } if second-factor SMS is needed.
- */
-export async function signInUser(
-  email: string,
-  pass: string,
-  appVerifier: RecaptchaVerifier
-): Promise<{ user?: User; mfaChallenge?: MfaChallenge }> {
-  const auth = getFirebaseAuth();
-  try {
-    const cred = await signInWithEmailAndPassword(auth, email, pass);
-    return { user: cred.user };
-  } catch (error: any) {
-    if (error.code === "auth/multi-factor-auth-required") {
-      const resolver = getMultiFactorResolver(auth, error);
-      const phoneHint = resolver.hints.find(
-        (h) => h.factorId === PhoneMultiFactorGenerator.FACTOR_ID
-      ) as PhoneMultiFactorInfo;
-
-      if (!phoneHint) {
-        throw new Error("SMS Multi-Factor hint not found on account.");
-      }
-
-      const phoneAuthProvider = new PhoneAuthProvider(auth);
-      const verificationId = await phoneAuthProvider.verifyPhoneNumber(
-        {
-          multiFactorHint: phoneHint,
-          session: resolver.session
-        },
-        appVerifier
-      );
-
-      return {
-        mfaChallenge: {
-          resolver,
-          verificationId,
-          phoneHint
-        }
-      };
-    }
-    throw error;
-  }
-}
-
-/**
- * Completes sign in using the SMS verification code received on the user's enrolled phone.
- */
-export async function resolveMfaSignIn(
-  resolver: MultiFactorResolver,
-  verificationId: string,
-  verificationCode: string
-): Promise<User> {
-  const cred = PhoneAuthProvider.credential(verificationId, verificationCode);
-  const assertion = PhoneMultiFactorGenerator.assertion(cred);
-  const result = await resolver.resolveSignIn(assertion);
-  return result.user;
-}
-
-/**
- * Register a new user with email and password.
- */
-export async function registerUser(email: string, pass: string): Promise<User> {
-  const auth = getFirebaseAuth();
-  const cred = await createUserWithEmailAndPassword(auth, email, pass);
-  return cred.user;
-}
-
-/**
- * Start enrolling a phone number as a second factor for the currently logged-in user.
- */
-export async function startMfaEnrollment(
-  phoneNumber: string,
-  appVerifier: RecaptchaVerifier
-): Promise<string> {
-  const auth = getFirebaseAuth();
-  const user = auth.currentUser;
-  if (!user) {
-    throw new Error("No authenticated user found for MFA enrollment.");
-  }
-
-  const session = await multiFactor(user).getSession();
-  const phoneAuthProvider = new PhoneAuthProvider(auth);
-  const verificationId = await phoneAuthProvider.verifyPhoneNumber(
-    {
-      phoneNumber,
-      session
-    },
-    appVerifier
-  );
-
-  return verificationId;
-}
-
-/**
- * Complete MFA enrollment using the SMS verification code.
- */
-export async function confirmMfaEnrollment(
-  verificationId: string,
-  verificationCode: string,
-  displayName = "Personal Mobile"
-): Promise<void> {
-  const auth = getFirebaseAuth();
-  const user = auth.currentUser;
-  if (!user) {
-    throw new Error("No authenticated user found for MFA enrollment confirmation.");
-  }
-
-  const cred = PhoneAuthProvider.credential(verificationId, verificationCode);
-  const assertion = PhoneMultiFactorGenerator.assertion(cred);
-  await multiFactor(user).enroll(assertion, displayName);
 }
 
 /**
@@ -278,49 +150,6 @@ export function getAuthErrorDetails(error: any): AuthErrorInfo {
         title: "Google ile Giriş Henüz Etkin Değil",
         message: "Firebase Console üzerinde Google ile giriş sağlayıcısı etkinleştirilmemiş. Firebase Console > Authentication > Sign-in method sekmesinden 'Google' sağlayıcısını 'Enable' durumuna getirmeniz gerekmektedir."
       };
-    case "auth/multi-factor-auth-required":
-      return {
-        code,
-        title: "SMS 2 Adımlı Doğrulama (2FA) Gerekli",
-        message: "Hesabınız iki adımlı SMS doğrulaması ile korunuyor. Lütfen telefonunuza gelen 6 haneli kodu girin."
-      };
-    case "auth/invalid-verification-code":
-      return {
-        code,
-        title: "Geçersiz SMS Kodu",
-        message: "Girdiğiniz 6 haneli doğrulama kodu hatalı. Lütfen kontrol edip tekrar deneyin."
-      };
-    case "auth/code-expired":
-      return {
-        code,
-        title: "SMS Kodunun Süresi Doldu",
-        message: "Doğrulama kodunun süresi dolmuş. Lütfen yeni bir kod isteyin."
-      };
-    case "auth/captcha-check-failed":
-      return {
-        code,
-        title: "Güvenlik Denetimi Başarısız",
-        message: "SMS gönderimi öncesi reCAPTCHA güvenlik denetimi tamamlanamadı. Lütfen sayfayı yenileyip tekrar deneyin."
-      };
-    case "auth/invalid-app-credential":
-      return {
-        code,
-        title: "Uygulama Doğrulama Hatası",
-        message: "Firebase güvenlik kimliği doğrulanamadı. Lütfen sayfayı yenileyip tekrar deneyin."
-      };
-    case "auth/quota-exceeded":
-      return {
-        code,
-        title: "SMS Kotası Doldu",
-        message: "SMS gönderim kotası aşıldı. Lütfen bir süre bekleyip tekrar deneyin."
-      };
-    case "auth/internal-error-encountered":
-    case "auth/internal-error":
-      return {
-        code,
-        title: "SMS İletişim Hatası",
-        message: "SMS servisi geçici bir iletişim hatası verdi. Lütfen 'Tekrar SMS Gönder' butonuna basarak yeni bir kod isteyin."
-      };
     case "auth/network-request-failed":
       return {
         code,
@@ -333,47 +162,11 @@ export function getAuthErrorDetails(error: any): AuthErrorInfo {
         title: "Hesap Devre Dışı",
         message: "Bu kullanıcı hesabı güvenlik nedeniyle devre dışı bırakılmıştır."
       };
-    case "auth/user-not-found":
-      return {
-        code,
-        title: "Kullanıcı Bulunamadı",
-        message: "Bu e-posta adresine ait kayıtlı bir kullanıcı bulunamadı."
-      };
-    case "auth/wrong-password":
-      return {
-        code,
-        title: "Hatalı Şifre",
-        message: "Girdiğiniz şifre hatalı. Lütfen şifrenizi kontrol edip tekrar deneyin."
-      };
-    case "auth/invalid-credential":
-      return {
-        code,
-        title: "Geçersiz Bilgiler",
-        message: "Girdiğiniz kimlik bilgileri hatalı veya süresi dolmuş. Lütfen kontrol edip tekrar deneyin."
-      };
-    case "auth/email-already-in-use":
-      return {
-        code,
-        title: "E-posta Zaten Kayıtlı",
-        message: "Bu e-posta adresiyle zaten kayıtlı bir hesap bulunmaktadır. Lütfen giriş yapmayı deneyin."
-      };
-    case "auth/weak-password":
-      return {
-        code,
-        title: "Zayıf Şifre",
-        message: "Şifreniz çok zayıf. Lütfen en az 6 karakterden oluşan daha güvenli bir şifre belirleyin."
-      };
-    case "auth/invalid-email":
-      return {
-        code,
-        title: "Geçersiz E-posta",
-        message: "Lütfen geçerli bir e-posta adresi girin (örn. ornek@domain.com)."
-      };
     case "auth/account-exists-with-different-credential":
       return {
         code,
         title: "Farklı Giriş Yöntemi",
-        message: "Bu e-posta adresi başka bir yöntemle (örn. e-posta/şifre) önceden kaydedilmiş. Lütfen o yöntemle giriş yapın."
+        message: "Bu e-posta adresi başka bir yöntemle önceden kaydedilmiş. Lütfen o yöntemle giriş yapın."
       };
     case "auth/too-many-requests":
       return {
@@ -403,4 +196,3 @@ export function getFriendlyAuthErrorMessage(error: any): string {
   const details = getAuthErrorDetails(error);
   return `${details.title}: ${details.message}`;
 }
-

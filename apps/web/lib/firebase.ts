@@ -4,11 +4,7 @@ import { initializeAppCheck, ReCaptchaEnterpriseProvider, AppCheck } from "fireb
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
-const currentHost = typeof window !== "undefined" ? window.location.hostname : "";
-const defaultAuthDomain =
-  currentHost && (currentHost.endsWith(".web.app") || currentHost.endsWith(".firebaseapp.com"))
-    ? currentHost
-    : "butler-alfred.firebaseapp.com";
+const defaultAuthDomain = "butler-alfred.firebaseapp.com";
 
 // Your web app's Firebase configuration
 export const firebaseConfig = {

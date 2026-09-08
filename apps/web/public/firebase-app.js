@@ -17,15 +17,9 @@ import {
   getRedirectResult
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-const currentHost = typeof window !== "undefined" ? window.location.hostname : "";
-const resolvedAuthDomain =
-  currentHost && (currentHost.endsWith(".web.app") || currentHost.endsWith(".firebaseapp.com"))
-    ? currentHost
-    : "butler-alfred.firebaseapp.com";
-
 const firebaseConfig = {
   apiKey: "AIzaSyB2v-fk_DTVTRu4s2yuxScH-c9gSdNcRGQ",
-  authDomain: resolvedAuthDomain,
+  authDomain: "butler-alfred.firebaseapp.com",
   projectId: "butler-alfred",
   storageBucket: "butler-alfred.firebasestorage.app",
   messagingSenderId: "653487811677",

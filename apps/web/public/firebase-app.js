@@ -17,9 +17,15 @@ import {
   getRedirectResult
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
+const currentHost = typeof window !== "undefined" ? window.location.hostname : "";
+const resolvedAuthDomain =
+  currentHost && (currentHost.endsWith(".web.app") || currentHost.endsWith(".firebaseapp.com"))
+    ? currentHost
+    : "butler-alfred.firebaseapp.com";
+
 const firebaseConfig = {
   apiKey: "AIzaSyB2v-fk_DTVTRu4s2yuxScH-c9gSdNcRGQ",
-  authDomain: "butler-alfred.firebaseapp.com",
+  authDomain: resolvedAuthDomain,
   projectId: "butler-alfred",
   storageBucket: "butler-alfred.firebasestorage.app",
   messagingSenderId: "653487811677",
@@ -62,6 +68,69 @@ if (publicRecaptchaKey && publicRecaptchaKey !== "6Lfkr68tAAAAAKOEJoZyf11tapRzOI
   }
 }
 
+function formatAuthErrorDetails(err) {
+  const code = err?.code || "";
+  const rawMsg = err?.message || "";
+
+  if (
+    rawMsg.includes("missing initial state") ||
+    rawMsg.includes("sessionStorage") ||
+    code === "auth/missing-initial-state"
+  ) {
+    return {
+      code: "auth/missing-initial-state",
+      title: "Tarayıcı Oturum/Gizlilik Engeli",
+      message: "Tarayıcınızın çerez ve oturum kısıtlaması (özellikle Safari 'Siteler arası takibi engelle' veya gizli sekme) oturum açma durumunu engelledi. Lütfen sayfayı yenileyip tekrar giriş yapmayı deneyin."
+    };
+  }
+
+  switch (code) {
+    case "auth/operation-not-allowed":
+      return {
+        code,
+        title: "Google ile Giriş Henüz Etkin Değil",
+        message: "Firebase Console üzerinde Google ile giriş yöntemi henüz etkinleştirilmemiş. Firebase Console > Authentication > Sign-in method sekmesinden 'Google' sağlayıcısını 'Enable' durumuna getirmeniz gerekmektedir.",
+        isOperationNotAllowed: true
+      };
+    case "auth/popup-closed-by-user":
+      return {
+        code,
+        title: "Giriş Penceresi Kapatıldı",
+        message: "Google kimlik doğrulama penceresi işlem tamamlanmadan kapatıldı. Lütfen tekrar deneyin."
+      };
+    case "auth/popup-blocked":
+      return {
+        code,
+        title: "Açılır Pencere Engellendi",
+        message: "Tarayıcınız Google giriş penceresini engelledi. Lütfen adres çubuğundaki bildirimden açılır pencerelere (pop-up) izin verip tekrar deneyin."
+      };
+    case "auth/unauthorized-domain":
+      return {
+        code,
+        title: "Yetkisiz Alan Adı",
+        message: "Bu alan adı (domain) Firebase Console > Authentication > Settings > Authorized Domains listesine eklenmemiş."
+      };
+    case "auth/network-request-failed":
+      return {
+        code,
+        title: "Bağlantı Hatası",
+        message: "İnternet bağlantısı kurulamadı. Lütfen ağ bağlantınızı kontrol edin ve tekrar deneyin."
+      };
+    case "auth/too-many-requests":
+      return {
+        code,
+        title: "Çok Fazla Deneme",
+        message: "Kısa sürede çok fazla başarısız deneme yapıldı. Güvenliğiniz için lütfen birkaç dakika sonra tekrar deneyin."
+      };
+    default:
+      return {
+        code: code || "unknown_error",
+        title: "İşlem Başarısız Oldu",
+        message: rawMsg || "Kimlik doğrulama işlemi sırasında beklenmeyen bir hata oluştu."
+      };
+  }
+}
+
 // Initialize Firebase Auth
 const auth = getAuth(app);
 window.firebaseAuth = auth;
@@ -71,10 +140,14 @@ getRedirectResult(auth)
   .then((cred) => {
     if (cred && cred.user) {
       console.log("[Auth] Redirect sign-in success:", cred.user);
+      const gateOverlay = document.getElementById("authGateOverlay");
+      if (gateOverlay) gateOverlay.style.display = "none";
+    } else {
+      console.log("[Auth] getRedirectResult: No pending redirect result found.");
     }
   })
   .catch((err) => {
-    console.warn("[Auth] getRedirectResult error:", err);
+    console.error("[Auth] getRedirectResult error:", err);
     const errBox = document.getElementById("gateAuthError");
     if (errBox) {
       const details = formatAuthErrorDetails(err);
@@ -390,68 +463,6 @@ window.handleConfirmEnrollment = async function() {
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: "select_account" });
 
-function formatAuthErrorDetails(err) {
-  const code = err?.code || "";
-  const rawMsg = err?.message || "";
-
-  if (
-    rawMsg.includes("missing initial state") ||
-    rawMsg.includes("sessionStorage") ||
-    code === "auth/missing-initial-state"
-  ) {
-    return {
-      code: "auth/missing-initial-state",
-      title: "Tarayıcı Oturum/Gizlilik Engeli",
-      message: "Tarayıcınızın çerez ve oturum kısıtlaması (özellikle Safari 'Siteler arası takibi engelle' veya gizli sekme) oturum açma durumunu engelledi. Lütfen sayfayı yenileyip tekrar giriş yapmayı deneyin."
-    };
-  }
-
-  switch (code) {
-    case "auth/operation-not-allowed":
-      return {
-        code,
-        title: "Google ile Giriş Henüz Etkin Değil",
-        message: "Firebase Console üzerinde Google ile giriş yöntemi henüz etkinleştirilmemiş. Firebase Console > Authentication > Sign-in method sekmesinden 'Google' sağlayıcısını 'Enable' durumuna getirmeniz gerekmektedir.",
-        isOperationNotAllowed: true
-      };
-    case "auth/popup-closed-by-user":
-      return {
-        code,
-        title: "Giriş Penceresi Kapatıldı",
-        message: "Google kimlik doğrulama penceresi işlem tamamlanmadan kapatıldı. Lütfen tekrar deneyin."
-      };
-    case "auth/popup-blocked":
-      return {
-        code,
-        title: "Açılır Pencere Engellendi",
-        message: "Tarayıcınız Google giriş penceresini engelledi. Lütfen adres çubuğundaki bildirimden açılır pencerelere (pop-up) izin verip tekrar deneyin."
-      };
-    case "auth/unauthorized-domain":
-      return {
-        code,
-        title: "Yetkisiz Alan Adı",
-        message: "Bu alan adı (domain) Firebase Console > Authentication > Settings > Authorized Domains listesine eklenmemiş."
-      };
-    case "auth/network-request-failed":
-      return {
-        code,
-        title: "Bağlantı Hatası",
-        message: "İnternet bağlantısı kurulamadı. Lütfen ağ bağlantınızı kontrol edin ve tekrar deneyin."
-      };
-    case "auth/too-many-requests":
-      return {
-        code,
-        title: "Çok Fazla Deneme",
-        message: "Kısa sürede çok fazla başarısız deneme yapıldı. Güvenliğiniz için lütfen birkaç dakika sonra tekrar deneyin."
-      };
-    default:
-      return {
-        code: code || "unknown_error",
-        title: "İşlem Başarısız Oldu",
-        message: rawMsg || "Kimlik doğrulama işlemi sırasında beklenmeyen bir hata oluştu."
-      };
-  }
-}
 
 window.handleGoogleSignIn = async function() {
   const btn = document.getElementById("gateGoogleSignInBtn");

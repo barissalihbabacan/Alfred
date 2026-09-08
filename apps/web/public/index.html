@@ -9,6 +9,30 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
+  <script>
+    // Ensure window.grecaptcha always satisfies Firebase Auth isV2 checks even with reCAPTCHA Enterprise
+    (function() {
+      function bridge(g) {
+        if (!g) return;
+        var t = g.enterprise || g;
+        if (!g.getResponse && t.getResponse) g.getResponse = function(i) { return t.getResponse ? t.getResponse(i) : ""; };
+        if (!g.render && t.render) g.render = function(c, p) { return t.render(c, p); };
+        if (!g.reset && t.reset) g.reset = function(i) { return t.reset && t.reset(i); };
+        if (!g.execute && t.execute) g.execute = function(i, o) { return t.execute ? t.execute(i, o) : Promise.resolve(""); };
+        if (!g.ready && t.ready) g.ready = function(cb) { return t.ready ? t.ready(cb) : cb(); };
+      }
+      var cur = window.grecaptcha;
+      if (cur) bridge(cur);
+      try {
+        Object.defineProperty(window, "grecaptcha", {
+          configurable: true,
+          enumerable: true,
+          get: function() { bridge(cur); return cur; },
+          set: function(v) { cur = v; bridge(cur); }
+        });
+      } catch (e) {}
+    })();
+  </script>
 </head>
 <body>
   <!-- Fullscreen Login & Auth Gate Screen (Access Locked Until Google Login) -->

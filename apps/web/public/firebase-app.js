@@ -17,6 +17,31 @@ import {
   getRedirectResult
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
+// Bridge reCAPTCHA Enterprise and Firebase Auth RecaptchaVerifier
+if (typeof window !== "undefined") {
+  (function installBridge() {
+    function bridge(g) {
+      if (!g) return;
+      const t = g.enterprise || g;
+      if (!g.getResponse && t.getResponse) g.getResponse = (i) => (t.getResponse ? t.getResponse(i) : "");
+      if (!g.render && t.render) g.render = (c, p) => (t.render ? t.render(c, p) : 0);
+      if (!g.reset && t.reset) g.reset = (i) => t.reset && t.reset(i);
+      if (!g.execute && t.execute) g.execute = (i, o) => (t.execute ? t.execute(i, o) : Promise.resolve(""));
+      if (!g.ready && t.ready) g.ready = (cb) => (t.ready ? t.ready(cb) : cb());
+    }
+    let cur = window.grecaptcha;
+    if (cur) bridge(cur);
+    try {
+      Object.defineProperty(window, "grecaptcha", {
+        configurable: true,
+        enumerable: true,
+        get: () => { bridge(cur); return cur; },
+        set: (v) => { cur = v; bridge(cur); }
+      });
+    } catch (e) {}
+  })();
+}
+
 const firebaseConfig = {
   apiKey: "AIzaSyB2v-fk_DTVTRu4s2yuxScH-c9gSdNcRGQ",
   authDomain: "butler-alfred.firebaseapp.com",

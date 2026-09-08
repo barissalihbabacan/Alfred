@@ -36,25 +36,24 @@ if (typeof window !== "undefined") {
   }
 }
 
-try {
-  const appCheck = initializeAppCheck(app, {
-    provider: new ReCaptchaEnterpriseProvider(RECAPTCHA_SITE_KEY),
-    isTokenAutoRefreshEnabled: true
-  });
-  window.firebaseAppCheck = appCheck;
-  window.getAppCheckToken = async () => {
-    try {
-      const tokenResult = await getToken(appCheck, false);
-      return tokenResult?.token || null;
-    } catch (e) {
-      console.warn("[AppCheck] Token acquisition failed:", e);
-      return null;
+let appCheckInstance = null;
+window.getAppCheckToken = async () => {
+  try {
+    if (!appCheckInstance) {
+      appCheckInstance = initializeAppCheck(app, {
+        provider: new ReCaptchaEnterpriseProvider(RECAPTCHA_SITE_KEY),
+        isTokenAutoRefreshEnabled: true
+      });
+      window.firebaseAppCheck = appCheckInstance;
+      console.log("[AppCheck] Initialized on demand with key:", RECAPTCHA_SITE_KEY);
     }
-  };
-  console.log("[AppCheck] Initialized successfully with key:", RECAPTCHA_SITE_KEY);
-} catch (err) {
-  console.warn("[AppCheck] Initialization skipped or error:", err);
-}
+    const tokenResult = await getToken(appCheckInstance, false);
+    return tokenResult?.token || null;
+  } catch (e) {
+    console.warn("[AppCheck] Token acquisition failed:", e);
+    return null;
+  }
+};
 
 function formatAuthErrorDetails(err) {
   const code = err?.code || "";

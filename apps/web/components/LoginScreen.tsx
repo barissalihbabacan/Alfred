@@ -168,6 +168,45 @@ export default function LoginScreen() {
               }}>
                 {error.message}
               </div>
+              {error.code === "auth/operation-not-allowed" && (
+                <div style={{
+                  marginTop: "10px",
+                  padding: "10px 12px",
+                  backgroundColor: "rgba(0, 0, 0, 0.35)",
+                  border: "1px solid rgba(197, 160, 89, 0.3)",
+                  borderRadius: "8px",
+                  fontSize: "11px",
+                  lineHeight: "1.5",
+                  color: "#e2e8f0"
+                }}>
+                  <div style={{ fontWeight: 600, color: "var(--accent-gold-light)", marginBottom: "4px" }}>
+                    ⚙️ Çözüm Adımları (1 Dakika):
+                  </div>
+                  <ol style={{ paddingLeft: "18px", margin: 0, color: "#cbd5e1" }}>
+                    <li><strong>Firebase Console &gt; Authentication &gt; Sign-in method</strong> sekmesini açın.</li>
+                    <li><strong>Google</strong> seçeneğine tıklayıp <strong>Enable (Etkinleştir)</strong> yapın.</li>
+                    <li>Proje destek e-postasını seçip <strong>Save (Kaydet)</strong> butonuna tıklayın.</li>
+                  </ol>
+                  <a
+                    href="https://console.firebase.google.com/project/butler-alfred/authentication/providers"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      marginTop: "8px",
+                      color: "var(--accent-gold)",
+                      textDecoration: "underline",
+                      fontWeight: 600,
+                      fontSize: "11px"
+                    }}
+                  >
+                    <span>Firebase Console Sağlayıcılar Sayfasına Git</span>
+                    <span>↗</span>
+                  </a>
+                </div>
+              )}
               {error.code && error.code !== "unknown_error" && (
                 <div style={{
                   marginTop: "6px",

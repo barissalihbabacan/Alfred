@@ -225,8 +225,8 @@ export function getAuthErrorDetails(error: any): AuthErrorInfo {
     case "auth/operation-not-allowed":
       return {
         code,
-        title: "Giriş Yöntemi Etkin Değil",
-        message: "Google ile giriş Firebase konsolunda etkinleştirilmemiş. Lütfen Firebase Authentication konsolundan Google sağlayıcısını aktif edin."
+        title: "Google ile Giriş Henüz Etkin Değil",
+        message: "Firebase Console üzerinde Google ile giriş sağlayıcısı etkinleştirilmemiş. Firebase Console > Authentication > Sign-in method sekmesinden 'Google' sağlayıcısını 'Enable' durumuna getirmeniz gerekmektedir."
       };
     case "auth/network-request-failed":
       return {

@@ -37,6 +37,14 @@ describe("Firebase Auth User-Friendly Error Messages", () => {
     expect(details.message).toContain("İnternet bağlantısı");
   });
 
+  it("translates auth/operation-not-allowed with clear console instructions", () => {
+    const err = { code: "auth/operation-not-allowed" };
+    const details = getAuthErrorDetails(err);
+
+    expect(details.title).toBe("Google ile Giriş Henüz Etkin Değil");
+    expect(details.message).toContain("Sign-in method");
+  });
+
   it("falls back to friendly generic message for unknown errors", () => {
     const err = { code: "auth/unknown-custom-code", message: "Something broke" };
     const details = getAuthErrorDetails(err);

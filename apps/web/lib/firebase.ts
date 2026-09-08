@@ -20,14 +20,30 @@ export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfi
 // Initialize Firebase App Check with reCAPTCHA Enterprise
 let appCheckInstance: AppCheck | null = null;
 if (typeof window !== "undefined") {
-  const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || "6Lfkr68tAAAAAKOEJoZyf11tapRzOI1LP4Er6AmL";
-  try {
-    appCheckInstance = initializeAppCheck(app, {
-      provider: new ReCaptchaEnterpriseProvider(siteKey),
-      isTokenAutoRefreshEnabled: true
-    });
-  } catch (err) {
-    console.warn("[AppCheck] Initialization skipped or already initialized:", err);
+  // Allow Firebase App Check debug token on localhost/development to avoid 401 PAT errors
+  if (
+    process.env.NODE_ENV === "development" ||
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1"
+  ) {
+    // @ts-ignore
+    self.FIREBASE_APPCHECK_DEBUG_TOKEN =
+      process.env.NEXT_PUBLIC_APPCHECK_DEBUG_TOKEN || true;
+  }
+
+  const siteKey =
+    process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ||
+    "6Lfkr68tAAAAAKOEJoZyf11tapRzOI1LP4Er6AmL";
+
+  if (siteKey && siteKey !== "dummy-recaptcha-site-key") {
+    try {
+      appCheckInstance = initializeAppCheck(app, {
+        provider: new ReCaptchaEnterpriseProvider(siteKey),
+        isTokenAutoRefreshEnabled: true
+      });
+    } catch (err) {
+      console.warn("[AppCheck] Initialization skipped or already initialized:", err);
+    }
   }
 }
 

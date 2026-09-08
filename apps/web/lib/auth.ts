@@ -278,6 +278,24 @@ export function getAuthErrorDetails(error: any): AuthErrorInfo {
         title: "Google ile Giriş Henüz Etkin Değil",
         message: "Firebase Console üzerinde Google ile giriş sağlayıcısı etkinleştirilmemiş. Firebase Console > Authentication > Sign-in method sekmesinden 'Google' sağlayıcısını 'Enable' durumuna getirmeniz gerekmektedir."
       };
+    case "auth/multi-factor-auth-required":
+      return {
+        code,
+        title: "SMS 2 Adımlı Doğrulama (2FA) Gerekli",
+        message: "Hesabınız iki adımlı SMS doğrulaması ile korunuyor. Lütfen telefonunuza gelen 6 haneli kodu girin."
+      };
+    case "auth/invalid-verification-code":
+      return {
+        code,
+        title: "Geçersiz SMS Kodu",
+        message: "Girdiğiniz 6 haneli doğrulama kodu hatalı. Lütfen kontrol edip tekrar deneyin."
+      };
+    case "auth/code-expired":
+      return {
+        code,
+        title: "SMS Kodunun Süresi Doldu",
+        message: "Doğrulama kodunun süresi dolmuş. Lütfen yeni bir kod isteyin."
+      };
     case "auth/network-request-failed":
       return {
         code,

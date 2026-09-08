@@ -117,6 +117,24 @@ function formatAuthErrorDetails(err) {
         title: "Çok Fazla Deneme",
         message: "Kısa sürede çok fazla başarısız deneme yapıldı. Güvenliğiniz için lütfen birkaç dakika sonra tekrar deneyin."
       };
+    case "auth/multi-factor-auth-required":
+      return {
+        code,
+        title: "SMS 2 Adımlı Doğrulama (2FA) Gerekli",
+        message: "Hesabınızda iki adımlı SMS doğrulaması aktif. Lütfen telefonunuza gelen 6 haneli kodu girin."
+      };
+    case "auth/invalid-verification-code":
+      return {
+        code,
+        title: "Geçersiz SMS Kodu",
+        message: "Girdiğiniz 6 haneli doğrulama kodu hatalı. Lütfen kontrol edip tekrar deneyin."
+      };
+    case "auth/code-expired":
+      return {
+        code,
+        title: "SMS Kodunun Süresi Doldu",
+        message: "Doğrulama kodunun süresi dolmuş. Lütfen yeni bir kod isteyin."
+      };
     default:
       return {
         code: code || "unknown_error",
@@ -141,8 +159,13 @@ getRedirectResult(auth)
       console.log("[Auth] getRedirectResult: No pending redirect result found.");
     }
   })
-  .catch((err) => {
+  .catch(async (err) => {
     console.error("[Auth] getRedirectResult error:", err);
+    if (err.code === "auth/multi-factor-auth-required") {
+      console.log("[Auth] Redirect Multi-factor auth required, initiating challenge...");
+      const handled = await initiateMfaChallengeFromError(err);
+      if (handled) return;
+    }
     const errBox = document.getElementById("gateAuthError");
     if (errBox) {
       const details = formatAuthErrorDetails(err);
@@ -172,6 +195,151 @@ function getOrCreateRecaptchaVerifier() {
   }
   return phoneRecaptchaVerifier;
 }
+
+window.initiateMfaChallengeFromError = async function(err) {
+  try {
+    mfaResolver = getMultiFactorResolver(auth, err);
+    const phoneHint = mfaResolver.hints.find(h => h.factorId === PhoneMultiFactorGenerator.FACTOR_ID);
+    if (!phoneHint) {
+      console.error("[Auth] No phone hint found for MFA resolver");
+      return false;
+    }
+
+    const maskedPhone = phoneHint.phoneNumber || "+90 ••••••5759";
+    const gateMfaPhone = document.getElementById("gateMfaPhone");
+    if (gateMfaPhone) gateMfaPhone.textContent = maskedPhone;
+
+    const gateGoogleSignInBtn = document.getElementById("gateGoogleSignInBtn");
+    const gateGoogleRedirectBtn = document.getElementById("gateGoogleRedirectBtn");
+    const gateMfaSection = document.getElementById("gateMfaSection");
+    const gateAuthError = document.getElementById("gateAuthError");
+
+    if (gateAuthError) gateAuthError.style.display = "none";
+    if (gateGoogleSignInBtn) gateGoogleSignInBtn.style.display = "none";
+    if (gateGoogleRedirectBtn) gateGoogleRedirectBtn.style.display = "none";
+    if (gateMfaSection) gateMfaSection.style.display = "block";
+
+    const mfaBtn = document.getElementById("gateMfaSubmitBtn");
+    if (mfaBtn) {
+      mfaBtn.disabled = true;
+      mfaBtn.textContent = "SMS Kodu Gönderiliyor...";
+    }
+
+    const verifier = getOrCreateRecaptchaVerifier();
+    const phoneProvider = new PhoneAuthProvider(auth);
+    mfaVerificationId = await phoneProvider.verifyPhoneNumber({
+      multiFactorHint: phoneHint,
+      session: mfaResolver.session
+    }, verifier);
+
+    if (mfaBtn) {
+      mfaBtn.disabled = false;
+      mfaBtn.textContent = "Kodu Doğrula ve Giriş Yap";
+    }
+
+    const codeInput = document.getElementById("gateMfaCodeInput");
+    if (codeInput) {
+      codeInput.value = "";
+      codeInput.focus();
+    }
+    return true;
+  } catch (mfaInitErr) {
+    console.error("[Auth] MFA initialization error:", mfaInitErr);
+    const errBox = document.getElementById("gateAuthError");
+    if (errBox) {
+      const details = formatAuthErrorDetails(mfaInitErr);
+      errBox.innerHTML = `
+        <div class="auth-error-header">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span>SMS Gönderilemedi</span>
+          <button onclick="document.getElementById('gateAuthError').style.display='none'" class="auth-error-close">✕</button>
+        </div>
+        <div class="auth-error-desc">${details.message || "SMS kodu gönderilemedi. Lütfen tekrar deneyin."}</div>
+      `;
+      errBox.style.display = "block";
+    }
+    cancelGateMfa();
+    return false;
+  }
+};
+
+window.handleGateMfaSubmit = async function() {
+  const codeInput = document.getElementById("gateMfaCodeInput");
+  const code = codeInput ? codeInput.value.trim() : "";
+  const errBox = document.getElementById("gateAuthError");
+  if (!code || code.length < 6) {
+    if (errBox) {
+      errBox.innerHTML = `
+        <div class="auth-error-header">
+          <span>Eksik Kod</span>
+          <button onclick="document.getElementById('gateAuthError').style.display='none'" class="auth-error-close">✕</button>
+        </div>
+        <div class="auth-error-desc">Lütfen telefonunuza gelen 6 haneli SMS kodunu girin.</div>
+      `;
+      errBox.style.display = "block";
+    }
+    return;
+  }
+
+  const btn = document.getElementById("gateMfaSubmitBtn");
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span class="gate-spinner"></span> <span>Doğrulanıyor...</span>`;
+  }
+  if (errBox) errBox.style.display = "none";
+
+  try {
+    const cred = PhoneAuthProvider.credential(mfaVerificationId, code);
+    const assertion = PhoneMultiFactorGenerator.assertion(cred);
+    const userCred = await mfaResolver.resolveSignIn(assertion);
+    console.log("[Auth] MFA Sign-In successful:", userCred.user);
+  } catch (mfaVerifyErr) {
+    console.error("[Auth] MFA Verification error:", mfaVerifyErr);
+    if (errBox) {
+      const details = formatAuthErrorDetails(mfaVerifyErr);
+      errBox.innerHTML = `
+        <div class="auth-error-header">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span>SMS Kodu Hatalı</span>
+          <button onclick="document.getElementById('gateAuthError').style.display='none'" class="auth-error-close">✕</button>
+        </div>
+        <div class="auth-error-desc">${details.message || "Girdiğiniz SMS doğrulama kodu geçersiz veya süresi dolmuş. Lütfen tekrar deneyin."}</div>
+      `;
+      errBox.style.display = "block";
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Kodu Doğrula ve Giriş Yap";
+    }
+  }
+};
+
+window.cancelGateMfa = function() {
+  mfaResolver = null;
+  mfaVerificationId = null;
+  const gateMfaSection = document.getElementById("gateMfaSection");
+  const gateGoogleSignInBtn = document.getElementById("gateGoogleSignInBtn");
+  const gateGoogleRedirectBtn = document.getElementById("gateGoogleRedirectBtn");
+  const gateAuthError = document.getElementById("gateAuthError");
+
+  if (gateMfaSection) gateMfaSection.style.display = "none";
+  if (gateGoogleSignInBtn) {
+    gateGoogleSignInBtn.style.display = "flex";
+    gateGoogleSignInBtn.disabled = false;
+    gateGoogleSignInBtn.innerHTML = `
+      <svg width="20" height="20" viewBox="0 0 24 24">
+        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+      </svg>
+      <span>Google ile Giriş Yap</span>
+    `;
+  }
+  if (gateGoogleRedirectBtn) gateGoogleRedirectBtn.style.display = "block";
+  if (gateAuthError) gateAuthError.style.display = "none";
+};
 
 function showAuthAlert(msg, type = "info") {
   const el = document.getElementById("authAlert");
@@ -480,6 +648,13 @@ window.handleGoogleSignIn = async function() {
     console.error("[Auth] Google Sign-In error:", err);
     console.error("[Auth] Error customData:", err?.customData);
 
+    // Multi-Factor Authentication Challenge
+    if (err.code === "auth/multi-factor-auth-required") {
+      console.log("[Auth] Multi-factor authentication required for user, initiating MFA challenge...");
+      const handled = await initiateMfaChallengeFromError(err);
+      if (handled) return;
+    }
+
     // If popup communication fails (Safari ITP / internal-error / popup blocked), gracefully redirect
     if (
       err.code === "auth/internal-error" ||
@@ -574,6 +749,11 @@ window.handleGoogleSignInRedirect = async function() {
     await signInWithRedirect(auth, googleProvider);
   } catch (err) {
     console.error("[Auth] Direct redirect sign-in error:", err);
+    if (err.code === "auth/multi-factor-auth-required") {
+      console.log("[Auth] Direct redirect MFA required, initiating challenge...");
+      const handled = await initiateMfaChallengeFromError(err);
+      if (handled) return;
+    }
     if (btn) {
       btn.disabled = false;
       btn.innerHTML = `<span>Google ile Giriş Yap</span>`;

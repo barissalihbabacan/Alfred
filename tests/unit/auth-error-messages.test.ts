@@ -53,6 +53,14 @@ describe("Firebase Auth User-Friendly Error Messages", () => {
     expect(details.message).toContain("çerez ve oturum");
   });
 
+  it("translates auth/multi-factor-auth-required with MFA instructions", () => {
+    const err = { code: "auth/multi-factor-auth-required" };
+    const details = getAuthErrorDetails(err);
+
+    expect(details.title).toBe("SMS 2 Adımlı Doğrulama (2FA) Gerekli");
+    expect(details.message).toContain("SMS doğrulaması");
+  });
+
   it("falls back to friendly generic message for unknown errors", () => {
     const err = { code: "auth/unknown-custom-code", message: "Something broke" };
     const details = getAuthErrorDetails(err);

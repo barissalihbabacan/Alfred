@@ -1395,6 +1395,31 @@ html, body {
   box-shadow: 0 6px 20px rgba(197, 160, 89, 0.35);
 }
 
+.gate-redirect-link {
+  margin-top: 14px;
+  background: transparent;
+  border: 1px dashed rgba(197, 160, 89, 0.3);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #94a3b8;
+  font-size: 12px;
+  cursor: pointer;
+  width: 100%;
+  line-height: 1.4;
+  transition: all 0.2s ease;
+}
+
+.gate-redirect-link strong {
+  color: #cbd5e1;
+  text-decoration: underline;
+}
+
+.gate-redirect-link:hover {
+  background: rgba(197, 160, 89, 0.08);
+  border-color: rgba(197, 160, 89, 0.6);
+  color: #f1f5f9;
+}
+
 .gate-error-banner {
   width: 100%;
   margin-bottom: 20px;

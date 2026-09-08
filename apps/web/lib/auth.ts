@@ -15,6 +15,8 @@ import {
   Auth,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   UserCredential
 } from "firebase/auth";
 import { app } from "./firebase";
@@ -159,13 +161,49 @@ export async function confirmMfaEnrollment(
 }
 
 /**
- * Sign in with Google Popup.
+ * Sign in with Google Popup, falling back to redirect if blocked by browser.
  */
 export async function signInWithGoogle(): Promise<User> {
   const auth = getFirebaseAuth();
   const provider = getGoogleAuthProvider();
-  const result: UserCredential = await signInWithPopup(auth, provider);
-  return result.user;
+  try {
+    const result: UserCredential = await signInWithPopup(auth, provider);
+    return result.user;
+  } catch (error: any) {
+    if (
+      error?.code === "auth/internal-error" ||
+      error?.code === "auth/popup-blocked" ||
+      error?.code === "auth/cancelled-popup-request"
+    ) {
+      console.log("[Auth] Popup encountered issue, transitioning to redirect sign-in...");
+      await signInWithRedirect(auth, provider);
+      return new Promise(() => {});
+    }
+    throw error;
+  }
+}
+
+/**
+ * Directly sign in with Google Redirect (useful for Safari / mobile).
+ */
+export async function signInWithGoogleRedirect(): Promise<void> {
+  const auth = getFirebaseAuth();
+  const provider = getGoogleAuthProvider();
+  await signInWithRedirect(auth, provider);
+}
+
+/**
+ * Checks for returning redirect credential on page load.
+ */
+export async function checkRedirectResult(): Promise<User | null> {
+  const auth = getFirebaseAuth();
+  try {
+    const cred = await getRedirectResult(auth);
+    return cred?.user || null;
+  } catch (err) {
+    console.warn("[Auth] checkRedirectResult error:", err);
+    throw err;
+  }
 }
 
 /**

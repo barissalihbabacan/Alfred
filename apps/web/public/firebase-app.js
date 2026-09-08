@@ -12,18 +12,14 @@ import {
   PhoneMultiFactorGenerator,
   RecaptchaVerifier,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-
-const currentHost = typeof window !== "undefined" ? window.location.hostname : "";
-const resolvedAuthDomain =
-  currentHost && (currentHost.endsWith(".web.app") || currentHost.endsWith(".firebaseapp.com"))
-    ? currentHost
-    : "butler-alfred.firebaseapp.com";
 
 const firebaseConfig = {
   apiKey: "AIzaSyB2v-fk_DTVTRu4s2yuxScH-c9gSdNcRGQ",
-  authDomain: resolvedAuthDomain,
+  authDomain: "butler-alfred.firebaseapp.com",
   projectId: "butler-alfred",
   storageBucket: "butler-alfred.firebasestorage.app",
   messagingSenderId: "653487811677",
@@ -69,6 +65,30 @@ if (publicRecaptchaKey && publicRecaptchaKey !== "6Lfkr68tAAAAAKOEJoZyf11tapRzOI
 // Initialize Firebase Auth
 const auth = getAuth(app);
 window.firebaseAuth = auth;
+
+// Listen for returning redirect sign-in result
+getRedirectResult(auth)
+  .then((cred) => {
+    if (cred && cred.user) {
+      console.log("[Auth] Redirect sign-in success:", cred.user);
+    }
+  })
+  .catch((err) => {
+    console.warn("[Auth] getRedirectResult error:", err);
+    const errBox = document.getElementById("gateAuthError");
+    if (errBox) {
+      const details = formatAuthErrorDetails(err);
+      errBox.innerHTML = `
+        <div class="auth-error-header">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span>${details.title}</span>
+          <button onclick="document.getElementById('gateAuthError').style.display='none'" class="auth-error-close" title="Kapat">✕</button>
+        </div>
+        <div class="auth-error-desc">${details.message}</div>
+      `;
+      errBox.style.display = "block";
+    }
+  });
 
 let mfaResolver = null;
 let mfaVerificationId = null;
@@ -445,11 +465,36 @@ window.handleGoogleSignIn = async function() {
     btn.innerHTML = `<span class="gate-spinner"></span> <span>Giriş Yapılıyor...</span>`;
   }
 
+  let isRedirecting = false;
+
   try {
+    // Attempt popup login first
     await signInWithPopup(auth, googleProvider);
   } catch (err) {
     console.error("[Auth] Google Sign-In error:", err);
     console.error("[Auth] Error customData:", err?.customData);
+
+    // If popup communication fails (Safari ITP / internal-error / popup blocked), gracefully redirect
+    if (
+      err.code === "auth/internal-error" ||
+      err.code === "auth/popup-blocked" ||
+      err.code === "auth/cancelled-popup-request"
+    ) {
+      console.log("[Auth] Popup encountered issue, transitioning to redirect sign-in...");
+      if (btn) {
+        btn.innerHTML = `<span class="gate-spinner"></span> <span>Google'a Yönlendiriliyor...</span>`;
+      }
+      try {
+        isRedirecting = true;
+        await signInWithRedirect(auth, googleProvider);
+        return;
+      } catch (redirectErr) {
+        isRedirecting = false;
+        console.error("[Auth] Redirect failed:", redirectErr);
+        err = redirectErr;
+      }
+    }
+
     if (errBox) {
       const details = formatAuthErrorDetails(err);
       let solutionHtml = "";
@@ -487,7 +532,7 @@ window.handleGoogleSignIn = async function() {
       errBox.style.display = "block";
     }
   } finally {
-    if (btn) {
+    if (!isRedirecting && btn) {
       btn.disabled = false;
       btn.innerHTML = `
         <svg width="20" height="20" viewBox="0 0 24 24">
@@ -498,6 +543,48 @@ window.handleGoogleSignIn = async function() {
         </svg>
         <span>Google ile Giriş Yap</span>
       `;
+    }
+  }
+};
+
+window.handleGoogleSignInRedirect = async function() {
+  const btn = document.getElementById("gateGoogleSignInBtn");
+  const redirectBtn = document.getElementById("gateGoogleRedirectBtn");
+  const errBox = document.getElementById("gateAuthError");
+  if (errBox) {
+    errBox.style.display = "none";
+    errBox.innerHTML = "";
+  }
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span class="gate-spinner"></span> <span>Google'a Yönlendiriliyor...</span>`;
+  }
+  if (redirectBtn) {
+    redirectBtn.style.opacity = "0.5";
+    redirectBtn.style.pointerEvents = "none";
+  }
+
+  try {
+    await signInWithRedirect(auth, googleProvider);
+  } catch (err) {
+    console.error("[Auth] Direct redirect sign-in error:", err);
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<span>Google ile Giriş Yap</span>`;
+    }
+    if (redirectBtn) {
+      redirectBtn.style.opacity = "1";
+      redirectBtn.style.pointerEvents = "auto";
+    }
+    if (errBox) {
+      const details = formatAuthErrorDetails(err);
+      errBox.innerHTML = `
+        <div class="auth-error-header">
+          <span>${details.title}</span>
+        </div>
+        <div class="auth-error-desc">${details.message}</div>
+      `;
+      errBox.style.display = "block";
     }
   }
 };

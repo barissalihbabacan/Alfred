@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import { useAuth } from "../lib/AuthContext";
 
 export type AssistantState =
   | "Idle"
@@ -154,6 +155,9 @@ function renderMarkdown(text: string): string {
 }
 
 export default function VoiceChatPlayground() {
+  const { user } = useAuth();
+  const currentUserId = user?.uid || "guest_default";
+
   const [state, setState] = useState<AssistantState>("Idle");
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
@@ -187,7 +191,7 @@ export default function VoiceChatPlayground() {
   const fetchConversations = useCallback(async (showSkeleton = false) => {
     if (showSkeleton) setConversationsLoading(true);
     try {
-      const res = await fetch("/api/chat?userId=guest_default");
+      const res = await fetch(`/api/chat?userId=${encodeURIComponent(currentUserId)}`);
       if (res.ok) {
         const data = await res.json();
         if (data.success && Array.isArray(data.conversations)) {
@@ -199,7 +203,7 @@ export default function VoiceChatPlayground() {
     } finally {
       setConversationsLoading(false);
     }
-  }, []);
+  }, [currentUserId]);
 
   const loadConversation = useCallback(async (id: string) => {
     try {
@@ -339,6 +343,7 @@ export default function VoiceChatPlayground() {
         body: JSON.stringify({
           message: text,
           conversationId: conversationId || undefined,
+          userId: currentUserId,
           stream: true
         }),
         signal: abortControllerRef.current.signal

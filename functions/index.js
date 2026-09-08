@@ -558,6 +558,12 @@ export const api = onRequest({ cors: true }, async (req, res) => {
     return;
   }
 
+  // Safe handling for root or blocking auth functions
+  if (path === "/" || path === "" || path === "/api" || path === "/api/") {
+    res.status(200).json({ status: "ok" });
+    return;
+  }
+
   // Health endpoint: /health or /api/health
   if (path.endsWith("/health")) {
     const activeProvider = (process.env.ALFRED_LLM_PROVIDER || process.env.AI_PROVIDER || "groq").trim().toLowerCase();

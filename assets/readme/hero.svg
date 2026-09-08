@@ -1,124 +1,121 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" width="100%" height="100%">
-  <title>B.U.T.L.E.R. Alfred — Başlık ve Etkileşim Mimarisi</title>
-  <desc>B.U.T.L.E.R. Alfred bilişsel yapay zeka asistanı başlığı ve uçtan uca sesli etkileşim boru hattı şeması</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="440" viewBox="0 0 1200 440" role="img" aria-labelledby="hero-title hero-desc">
+  <title id="hero-title">B.U.T.L.E.R. Alfred — Başlık ve Bilişsel Etkileşim Mimarisi</title>
+  <desc id="hero-desc">B.U.T.L.E.R. Alfred kişisel bilişsel yapay zeka mimarisi, Groq LPU akıl yürütme, Kokoro-82M yerel ses, Gemini vektör bellek ve Firebase dağıtımı şeması.</desc>
   <defs>
     <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0b0f19" />
-      <stop offset="50%" stop-color="#111827" />
-      <stop offset="100%" stop-color="#0e1422" />
+      <stop offset="0%" stop-color="#070b14" />
+      <stop offset="50%" stop-color="#0d1424" />
+      <stop offset="100%" stop-color="#0a0f1b" />
     </linearGradient>
     <linearGradient id="cardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#182235" />
-      <stop offset="100%" stop-color="#131c2b" />
+      <stop offset="0%" stop-color="#141e30" />
+      <stop offset="100%" stop-color="#0f1726" />
     </linearGradient>
     <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="0%">
       <stop offset="0%" stop-color="#d4af37" />
-      <stop offset="100%" stop-color="#f3e5ab" />
+      <stop offset="50%" stop-color="#f5e6a3" />
+      <stop offset="100%" stop-color="#c5a059" />
     </linearGradient>
-    <linearGradient id="lineGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#c5a059" stop-opacity="0.8" />
-      <stop offset="100%" stop-color="#3b82f6" stop-opacity="0.2" />
+    <linearGradient id="accentBorder" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c5a059" stop-opacity="0.6" />
+      <stop offset="50%" stop-color="#3b82f6" stop-opacity="0.3" />
+      <stop offset="100%" stop-color="#1e293b" stop-opacity="0.8" />
     </linearGradient>
   </defs>
 
-  <!-- Background Container -->
-  <rect x="0" y="0" width="1200" height="400" rx="16" fill="url(#bgGrad)" stroke="#23324d" stroke-width="1.5" />
+  <!-- Container -->
+  <rect x="0" y="0" width="1200" height="440" rx="20" fill="url(#bgGrad)" stroke="#1e293b" stroke-width="1.5" />
 
-  <!-- Subtle Ambient Background Accents -->
-  <circle cx="1050" cy="80" r="180" fill="#c5a059" fill-opacity="0.03" />
-  <circle cx="150" cy="320" r="140" fill="#3b82f6" fill-opacity="0.02" />
+  <!-- Ambient Glows -->
+  <circle cx="1080" cy="90" r="160" fill="#d4af37" fill-opacity="0.035" />
+  <circle cx="120" cy="350" r="140" fill="#3b82f6" fill-opacity="0.03" />
 
-  <!-- LEFT COLUMN: Identity, Typography & Value -->
-  <g transform="translate(60, 50)">
+  <!-- LEFT COLUMN: Identity & Core Proposition -->
+  <g transform="translate(56, 44)">
     <!-- Metadata Pill -->
-    <rect x="0" y="0" width="370" height="28" rx="14" fill="#1e293b" stroke="#334155" stroke-width="1" />
-    <circle cx="14" cy="14" r="5" fill="#10b981" />
-    <text x="28" y="19" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" letter-spacing="1.2">BİLİŞSEL YÖNETİCİ ASİSTANI • v0.1.0</text>
+    <rect x="0" y="0" width="410" height="30" rx="15" fill="#111c2e" stroke="#233550" stroke-width="1" />
+    <circle cx="16" cy="15" r="5" fill="#10b981" />
+    <text x="32" y="20" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="700" letter-spacing="1.2">BİLİŞSEL OPERASYON ASİSTANI • v0.1.0 • OTONOM</text>
 
-    <!-- Project Name -->
-    <text x="0" y="80" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="44" font-weight="800" letter-spacing="-0.5">
+    <!-- Project Title -->
+    <text x="0" y="86" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="50" font-weight="900" letter-spacing="-0.5">
       B.U.T.L.E.R. <tspan fill="url(#goldGrad)">ALFRED</tspan>
     </text>
 
-    <!-- Acronym Definition -->
-    <text x="0" y="112" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="18" font-weight="500" letter-spacing="0.2">
+    <!-- Acronym Expansion -->
+    <text x="0" y="122" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="19" font-weight="600" letter-spacing="0.2">
       Barış's Unified Task, Logic, Execution &amp; Reasoning
     </text>
 
-    <!-- Description -->
-    <text x="0" y="152" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="400" line-height="1.5">
-      <tspan x="0" dy="0">İngiliz kâhyası disiplininde, sakin ve ölçülü bir üslupla çalışan;</tspan>
-      <tspan x="0" dy="24">yerel nöral ses sentezi (Kokoro-82M), Groq LPU akıl yürütme ve</tspan>
-      <tspan x="0" dy="24">etkileşimli web ortamına sahip otonom yürütme mimarisi.</tspan>
+    <!-- Core Pitch -->
+    <text x="0" y="166" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="16" font-weight="400">
+      <tspan x="0" dy="0">Modern bir İngiliz kâhyası disiplininde, sakin, ölçülü ve risk</tspan>
+      <tspan x="0" dy="26">bilincine sahip; yıkıcı komutlara itiraz eden (protective pushback),</tspan>
+      <tspan x="0" dy="26">çevrimdışı nöral ses ve bulut LPU çıkarımlı bilişsel yürütme mimarisi.</tspan>
     </text>
 
-    <!-- Technology Badges -->
-    <g transform="translate(0, 240)">
-      <rect x="0" y="0" width="130" height="30" rx="6" fill="#162032" stroke="#25354e" stroke-width="1" />
-      <text x="14" y="20" fill="#e2e8f0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600">Kokoro-82M TTS</text>
+    <!-- Key Capability Badges -->
+    <g transform="translate(0, 266)">
+      <!-- Badge 1: Groq LPU -->
+      <rect x="0" y="0" width="144" height="34" rx="8" fill="#111c2c" stroke="#253852" stroke-width="1" />
+      <text x="14" y="22" fill="#fbbf24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="700">⚡ Groq LPU Llama-3.3</text>
 
-      <rect x="140" y="0" width="120" height="30" rx="6" fill="#162032" stroke="#25354e" stroke-width="1" />
-      <text x="154" y="20" fill="#e2e8f0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600">Groq LPU AI</text>
+      <!-- Badge 2: Kokoro TTS -->
+      <rect x="156" y="0" width="146" height="34" rx="8" fill="#111c2c" stroke="#253852" stroke-width="1" />
+      <text x="170" y="22" fill="#d4af37" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="700">🎙 Kokoro-82M TTS</text>
 
-      <rect x="270" y="0" width="125" height="30" rx="6" fill="#162032" stroke="#25354e" stroke-width="1" />
-      <text x="284" y="20" fill="#e2e8f0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600">Whisper STT</text>
+      <!-- Badge 3: Gemini Embeddings -->
+      <rect x="314" y="0" width="142" height="34" rx="8" fill="#111c2c" stroke="#253852" stroke-width="1" />
+      <text x="328" y="22" fill="#60a5fa" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="700">🧠 Gemini Embedding</text>
 
-      <rect x="405" y="0" width="115" height="30" rx="6" fill="#162032" stroke="#25354e" stroke-width="1" />
-      <text x="419" y="20" fill="#c5a059" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600">Next.js Web</text>
+      <!-- Badge 4: Firebase CI/CD -->
+      <rect x="468" y="0" width="116" height="34" rx="8" fill="#111c2c" stroke="#253852" stroke-width="1" />
+      <text x="482" y="22" fill="#f97316" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="700">🔥 Firebase CI</text>
     </g>
   </g>
 
-  <!-- RIGHT COLUMN: Interaction Pipeline Diagram -->
-  <g transform="translate(680, 45)">
-    <!-- Diagram Card Background -->
-    <rect x="0" y="0" width="460" height="310" rx="12" fill="url(#cardGrad)" stroke="#233550" stroke-width="1.2" />
+  <!-- RIGHT COLUMN: Interaction Pipeline Card -->
+  <g transform="translate(680, 40)">
+    <rect x="0" y="0" width="464" height="360" rx="14" fill="url(#cardGrad)" stroke="url(#accentBorder)" stroke-width="1.2" />
 
-    <!-- Card Header -->
-    <rect x="0" y="0" width="460" height="42" rx="12" fill="#1a253a" />
-    <path d="M 0 42 L 460 42" stroke="#233550" stroke-width="1" />
+    <!-- Card Top Bar -->
+    <rect x="0" y="0" width="464" height="42" rx="14" fill="#172338" />
+    <path d="M 0 42 L 464 42" stroke="#22334d" stroke-width="1" />
     <circle cx="20" cy="21" r="5" fill="#ef4444" opacity="0.8" />
     <circle cx="36" cy="21" r="5" fill="#f59e0b" opacity="0.8" />
     <circle cx="52" cy="21" r="5" fill="#10b981" opacity="0.8" />
-    <text x="75" y="26" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace" font-size="13" font-weight="600">ALFRED CORE PIPELINE</text>
-    <text x="350" y="26" fill="#c5a059" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600">ETKİLEŞİM DÖNGÜSÜ</text>
+    <text x="74" y="26" fill="#cbd5e1" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="700">CORE COGNITIVE PIPELINE</text>
+    <text x="350" y="26" fill="#c5a059" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="700">İŞ AKIŞI</text>
 
-    <!-- Step 1: Input Modalities -->
-    <g transform="translate(24, 60)">
-      <rect x="0" y="0" width="412" height="46" rx="8" fill="#111a28" stroke="#1f2d45" stroke-width="1" />
-      <text x="16" y="28" fill="#e2e8f0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="600">1. Çift Giriş Modu</text>
-      <text x="180" y="28" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13">Klavye Metni VEYA Canlı Mikrofon</text>
-      <text x="375" y="28" fill="#c5a059" font-size="14">⌨ / 🎤</text>
+    <!-- Pipeline Step 1 -->
+    <g transform="translate(20, 56)">
+      <rect x="0" y="0" width="424" height="56" rx="8" fill="#0b121e" stroke="#1c2b42" stroke-width="1" />
+      <text x="16" y="25" fill="#e2e8f0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700">1. Çift Giriş Modu (Dual Modality)</text>
+      <text x="16" y="44" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12">Klavye Metni VEYA Canlı Mikrofon (Whisper Large v3 Turbo STT)</text>
     </g>
 
-    <!-- Connector Down 1 -->
-    <path d="M 230 106 L 230 118" stroke="#384c6c" stroke-width="2" stroke-dasharray="2 2" />
-
-    <!-- Step 2: Reasoning & Persona -->
-    <g transform="translate(24, 120)">
-      <rect x="0" y="0" width="412" height="52" rx="8" fill="#111a28" stroke="#c5a059" stroke-width="1" stroke-opacity="0.6" />
-      <text x="16" y="24" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700">2. Akıl Yürütme &amp; Persona</text>
-      <text x="16" y="42" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12">Groq Llama-3.3-70B + Alfred Canonical Prompt (docs/persona)</text>
-      <rect x="340" y="14" width="60" height="24" rx="4" fill="#292010" stroke="#c5a059" stroke-width="1" />
-      <text x="348" y="30" fill="#fef08a" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="700">LPU 70B</text>
+    <!-- Pipeline Step 2 -->
+    <g transform="translate(20, 122)">
+      <rect x="0" y="0" width="424" height="64" rx="8" fill="#0b121e" stroke="#c5a059" stroke-width="1" stroke-opacity="0.7" />
+      <text x="16" y="25" fill="#fbbf24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700">2. Akıl Yürütme &amp; Düşünce Akışı</text>
+      <text x="16" y="44" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12">Groq Llama-3.3-70B / Ollama Gemma 4 + SSE Stream</text>
+      <text x="16" y="58" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11">• Düşünce İzolasyonu: İç reasoning gizli, UI'da "Thinking..." sinyali</text>
     </g>
 
-    <!-- Connector Down 2 -->
-    <path d="M 230 172 L 230 184" stroke="#384c6c" stroke-width="2" stroke-dasharray="2 2" />
-
-    <!-- Step 3: Neural Voice Synthesis -->
-    <g transform="translate(24, 186)">
-      <rect x="0" y="0" width="412" height="52" rx="8" fill="#111a28" stroke="#1f2d45" stroke-width="1" />
-      <text x="16" y="24" fill="#e2e8f0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="600">3. Yerel Nöral Ses Sentezi</text>
-      <text x="16" y="42" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12">Kokoro-82M ONNX • bm_george (İngiliz Kâhyası 24kHz WAV)</text>
-      <text x="365" y="32" fill="#10b981" font-size="16">🔊</text>
+    <!-- Pipeline Step 3 -->
+    <g transform="translate(20, 196)">
+      <rect x="0" y="0" width="424" height="62" rx="8" fill="#0b121e" stroke="#1c2b42" stroke-width="1" />
+      <text x="16" y="25" fill="#60a5fa" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700">3. Bilişsel Bellek &amp; İcra Düzlemi</text>
+      <text x="16" y="44" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12">Google Gemini Embedding + Firestore Hibrit Bellek</text>
+      <text x="16" y="57" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11">• Karar kütüğü, risk denetimi, SSH &amp; sistem araç yürütümü</text>
     </g>
 
-    <!-- Pipeline Status Bottom Bar -->
-    <g transform="translate(24, 256)">
-      <rect x="0" y="0" width="412" height="36" rx="6" fill="#0d1420" stroke="#1c283c" stroke-width="1" />
-      <circle cx="20" cy="18" r="4" fill="#10b981" />
-      <text x="34" y="22" fill="#10b981" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600">Doğrulandı:</text>
-      <text x="108" y="22" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12">23/23 Test Geçti • Uçtan Uca Sesli Yanıt Aktif</text>
+    <!-- Pipeline Step 4 -->
+    <g transform="translate(20, 268)">
+      <rect x="0" y="0" width="424" height="58" rx="8" fill="#0b121e" stroke="#1c2b42" stroke-width="1" />
+      <text x="16" y="25" fill="#34d399" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700">4. Kademeli Yanıt &amp; Yerel Ses</text>
+      <text x="16" y="44" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12">Anlık Markdown akışı (UI) + Çevrimdışı Kokoro-82M TTS</text>
+      <text x="16" y="55" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11">• İngiliz erkek kâhya sesi (bm_george, 24kHz yüksek sadakatli WAV)</text>
     </g>
   </g>
 </svg>

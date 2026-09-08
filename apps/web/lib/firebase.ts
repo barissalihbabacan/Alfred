@@ -4,10 +4,16 @@ import { initializeAppCheck, ReCaptchaEnterpriseProvider, AppCheck } from "fireb
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
+const currentHost = typeof window !== "undefined" ? window.location.hostname : "";
+const defaultAuthDomain =
+  currentHost && (currentHost.endsWith(".web.app") || currentHost.endsWith(".firebaseapp.com"))
+    ? currentHost
+    : "butler-alfred.firebaseapp.com";
+
 // Your web app's Firebase configuration
 export const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyB2v-fk_DTVTRu4s2yuxScH-c9gSdNcRGQ",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "butler-alfred.firebaseapp.com",
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || defaultAuthDomain,
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "butler-alfred",
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "butler-alfred.firebasestorage.app",
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "653487811677",

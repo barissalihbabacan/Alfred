@@ -45,6 +45,14 @@ describe("Firebase Auth User-Friendly Error Messages", () => {
     expect(details.message).toContain("Sign-in method");
   });
 
+  it("translates missing initial state / sessionStorage errors gracefully", () => {
+    const err = { message: "Unable to process request due to missing initial state. This may happen if browser sessionStorage is inaccessible" };
+    const details = getAuthErrorDetails(err);
+
+    expect(details.title).toBe("Tarayıcı Oturum/Gizlilik Engeli");
+    expect(details.message).toContain("çerez ve oturum");
+  });
+
   it("falls back to friendly generic message for unknown errors", () => {
     const err = { code: "auth/unknown-custom-code", message: "Something broke" };
     const details = getAuthErrorDetails(err);

@@ -15,9 +15,15 @@ import {
   signInWithPopup
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
+const currentHost = typeof window !== "undefined" ? window.location.hostname : "";
+const resolvedAuthDomain =
+  currentHost && (currentHost.endsWith(".web.app") || currentHost.endsWith(".firebaseapp.com"))
+    ? currentHost
+    : "butler-alfred.firebaseapp.com";
+
 const firebaseConfig = {
   apiKey: "AIzaSyB2v-fk_DTVTRu4s2yuxScH-c9gSdNcRGQ",
-  authDomain: "butler-alfred.firebaseapp.com",
+  authDomain: resolvedAuthDomain,
   projectId: "butler-alfred",
   storageBucket: "butler-alfred.firebasestorage.app",
   messagingSenderId: "653487811677",
@@ -364,6 +370,19 @@ googleProvider.setCustomParameters({ prompt: "select_account" });
 function formatAuthErrorDetails(err) {
   const code = err?.code || "";
   const rawMsg = err?.message || "";
+
+  if (
+    rawMsg.includes("missing initial state") ||
+    rawMsg.includes("sessionStorage") ||
+    code === "auth/missing-initial-state"
+  ) {
+    return {
+      code: "auth/missing-initial-state",
+      title: "Tarayıcı Oturum/Gizlilik Engeli",
+      message: "Tarayıcınızın çerez ve oturum kısıtlaması (özellikle Safari 'Siteler arası takibi engelle' veya gizli sekme) oturum açma durumunu engelledi. Lütfen sayfayı yenileyip tekrar giriş yapmayı deneyin."
+    };
+  }
+
   switch (code) {
     case "auth/operation-not-allowed":
       return {

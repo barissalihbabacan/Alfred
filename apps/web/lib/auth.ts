@@ -197,6 +197,18 @@ export function getAuthErrorDetails(error: any): AuthErrorInfo {
   const code = error?.code || "";
   const rawMsg = error?.message || "";
 
+  if (
+    rawMsg.includes("missing initial state") ||
+    rawMsg.includes("sessionStorage") ||
+    code === "auth/missing-initial-state"
+  ) {
+    return {
+      code: "auth/missing-initial-state",
+      title: "Tarayıcı Oturum/Gizlilik Engeli",
+      message: "Tarayıcınızın çerez ve oturum kısıtlaması (özellikle Safari 'Siteler arası takibi engelle' veya gizli sekme) oturum açma durumunu engelledi. Lütfen sayfayı yenileyip tekrar giriş yapmayı deneyin."
+    };
+  }
+
   switch (code) {
     case "auth/popup-closed-by-user":
       return {

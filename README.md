@@ -12,7 +12,8 @@
   <a href="#kurumsal-güvenlik-ve-kimlik-doğrulama-sms-mfa--app-check"><img src="https://img.shields.io/badge/güvenlik-App_Check_%7C_reCAPTCHA_Enterprise-0284c7?style=flat-square" alt="Güvenlik"></a>
   <a href="#kurumsal-güvenlik-ve-kimlik-doğrulama-sms-mfa--app-check"><img src="https://img.shields.io/badge/auth-Firebase_SMS_MFA-10b981?style=flat-square" alt="MFA"></a>
   <a href="#yapay-zeka-sağlayıcı-altyapısı-groq-lpu--ollama"><img src="https://img.shields.io/badge/llm-Groq_LPU_%7C_Ollama_MLX-f59e0b?style=flat-square" alt="LLM"></a>
-  <a href="#bilişsel-bellek-ve-vektör-arama-gemini--firestore"><img src="https://img.shields.io/badge/embeddings-Gemini_text--embedding--00  <a href="#gerçek-zamanlı-akış-ve-çift-modlu-giriş-sse--web-speech"><img src="https://img.shields.io/badge/akış-Server--Sent_Events_(SSE)-d4af37?style=flat-square" alt="Akış"></a>
+  <a href="#bilişsel-bellek-ve-vektör-arama-gemini--firestore"><img src="https://img.shields.io/badge/embeddings-Gemini_text--embedding--004-7c3aed?style=flat-square" alt="Embeddings"></a>
+  <a href="#web-sesli--yazılı-etkileşim-oyun-alanı"><img src="https://img.shields.io/badge/akış-Server--Sent_Events_(SSE)-d4af37?style=flat-square" alt="Akış"></a>
   <a href="#web-sesli--yazılı-etkileşim-oyun-alanı"><img src="https://img.shields.io/badge/arayüz-Modüler_HTML5_%7C_CSS_%7C_JS-6366f1?style=flat-square" alt="Arayüz"></a>
 </p>
 
@@ -29,6 +30,83 @@ Alfred, her komuta baş eğen bir "yes-man" veya sıradan bir sohbet botu değil
 
 ---
 
+## Gerçek Arayüz
+
+<p align="center">
+  <img src="./assets/readme/security-portal.png" width="640" alt="B.U.T.L.E.R. Alfred güvenli yönetici portalı — gerçek uygulamadan alınmış Google ile giriş ekranı">
+</p>
+
+<p align="center"><em>Yukarıdaki görüntü, çalışan uygulamanın gerçek giriş ekranıdır — kavramsal bir mockup değil, doğrudan <code>npm run dev:web</code> çıktısından alınmıştır.</em></p>
+
+Koyu lacivert zemin ve altın vurgu, aşağıdaki mimari şemalarda da kullanılan tutarlı görsel kimliktir. Bu ekran, kimlik doğrulanmadan bilişsel oturumun asla açılmadığı [Kurumsal Güvenlik](#kurumsal-güvenlik-ve-kimlik-doğrulama-sms-mfa--app-check) akışının ilk adımını temsil eder.
+
+---
+
+## Hızlı Başlangıç
+
+### Gereksinimler
+- **Node.js**: >= 20.0.0 (Node v22 / v24 ile doğrulanmıştır)
+- **npm**: >= 10.0.0
+
+### 1. Depoyu Klonlayın ve Bağımlılıkları Kurun
+```bash
+git clone https://github.com/barissalihbabacan/B.U.T.L.E.R.-Alfred.git
+cd B.U.T.L.E.R.-Alfred
+npm install
+```
+
+### 2. Ortam Değişkenlerini Tanımlayın
+```bash
+cp .env.example .env
+```
+`.env` dosyasını açıp API anahtarlarınızı tanımlayın:
+```ini
+# Groq LPU (Zorunlu bulut LLM / STT için)
+GROQ_API_KEY=gsk_your_groq_api_key_here
+ALFRED_LLM_PROVIDER=groq
+
+# Google Gemini (Vektör embedding için)
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# Yerel TTS Yapılandırması
+TTS_VOICE=bm_george
+```
+
+### 3. Web Oyun Alanını Başlatın
+```bash
+# Geliştirme sunucusunu çalıştırın (hot-reload destekli)
+npm run dev:web
+
+# Veya prodüksiyon derlemesini başlatın
+npm run build:web
+npm run start:web
+```
+Tarayıcınızda **`http://localhost:3000`** adresine giderek Alfred ile ister yazarak ister mikrofona konuşarak etkileşime geçebilirsiniz.
+
+---
+
+## Sistem Mimarisi
+
+<p align="center">
+  <img src="./assets/readme/architecture.svg" width="100%" alt="B.U.T.L.E.R. Alfred Sistem Mimarisi">
+</p>
+
+Proje, bağımsız katmanlar ve net sorumluluk sınırları üzerine kuruludur:
+
+| Katman | Dizin | Temel Sorumluluk |
+| :--- | :--- | :--- |
+| **Persona Katmanı** | `src/alfred/persona/` | İngiliz kâhyası üslubu, ölçülü hitap, kuru mizah ve koruyucu karşı duruş kuralları. |
+| **Bilişsel Katman** | `src/alfred/cognitive/` | Bağlam izleme, çalışma belleği, uzun dönemli bellek, projeler ve karar kütükleri. |
+| **Kontrol Düzlemi** | `src/alfred/control-plane/` | Otonom görev planlama, araç yönlendirme (`tool-router`), zamanlayıcı ve izin hiyerarşisi. |
+| **Yürütme Düzlemi** | `src/alfred/execution-plane/` | GitHub, SSH, dosya sistemi, terminal ve harici API adaptörleri. |
+| **Yapay Zeka Katmanı** | `src/ai/` | Sağlayıcı bağımsız `AIProvider` arayüzü, dinamik kayıt defteri (`registry`) ve Groq / Ollama sürücüleri. |
+| **Embedding & Bellek**| `src/ai/embedding/` | Google Gemini `text-embedding-004` modeli ve Firestore vektör entegrasyonu. |
+| **Ses Katmanı (STT)** | `src/voice/stt/` | Groq Whisper STT adaptörü, canlı ses işleme ve çift modlu girdi yönlendirmesi. |
+| **Veri Katmanı** | `src/data/` | Cloud Firestore, yerel vektör veri tabanı ve bellek fabrikaları. |
+| **Web & Güvenlik** | `apps/web/` | Modüler Web Arayüzü (`styles.css`, `app.js`, `firebase-app.js`), Firebase Auth (SMS MFA), App Check (reCAPTCHA Enterprise) ve SSE akışı. |
+
+---
+
 ## Web Sesli & Yazılı Etkileşim Oyun Alanı
 
 Projenin ilk çalışan dikey dilimi olan **Web Voice & Chat Playground** (`apps/web/`), tarayıcı üzerinden Alfred ile gerçek zamanlı çift modlu etkileşim sağlar:
@@ -42,8 +120,6 @@ Projenin ilk çalışan dikey dilimi olan **Web Voice & Chat Playground** (`apps
                      └────────────────┬────────────────┘
                                       │
                                 Metin Girdisi
-                                      │
-                                      ▼��───────────────┬────────────────┘
                                       │
                                Metin Transkripti
                                       │
@@ -145,7 +221,13 @@ Geliştirme ve yerel testlerde varsayılan LLM sağlayıcısıdır:
 - **Uç Nokta**: `http://100.64.0.53:11434` (`OLLAMA_BASE_URL`, Tailscale özel ağı üzerinden)
 - **Sağlık & Teşhis**: `/api/health` uç noktası sunucu erişilebilirliğini ve model varlığını güvenle doğrular.
 
-### 3. Sağlayıcı Seçimi
+### 3. Ses Tanıma (STT) & Çift Modlu Giriş
+Kullanıcı girdisi hem yazılı metin hem de canlı ses kaydı üzerinden kabul edilir:
+- **İstemci Yakalama**: Tarayıcı içi `MediaRecorder` API (Opus / WebM formatında doğrudan arka uca iletim).
+- **Sunucu Tarafı Tanıma**: Yukarıdaki Groq `whisper-large-v3-turbo` motoru ile anlık transkripsiyon.
+- **Yalın Mimari**: Ağır yerel TTS/STT kütüphaneleri çalışma zamanından arındırılmış; öncelik ultra düşük gecikmeli kademeli SSE metin akışındadır.
+
+### 4. Sağlayıcı Seçimi
 Ortam değişkeni ile çalışma zamanında kolayca geçiş yapılır:
 ```ini
 # Groq'u aktif yap (Önerilen):
@@ -157,41 +239,9 @@ ALFRED_LLM_PROVIDER=ollama
 
 ---
 
-## Ses Tanıma ve Çift Modlu Etkileşim (Whisper STT)
-
-Alfred, kullanıcı girdilerini hem yazılı metin hem de canlı ses kaydı üzerinden kabul eden çift modlu bir giriş katmanına sahiptir:
-
-- **STT Modeli**: `whisper-large-v3-turbo` (Groq Cloud LPU altyapısında anlık konuşma tanıma).
-- **İstemci Yakalama**: Tarayıcı içi `MediaRecorder` API (Opus / WebM formatında doğrudan arka uca iletim).
-- **Yalın ve Hızlı Mimari**: Ağır yerel TTS kütüphaneleri çalışma zamanından arındırılmış; bilgi tüketim hızı için ultra düşük gecikmeli kademeli SSE metin akışı önceliklendirilmiştir.
-
----
-
-## Sistem Mimarisi
-
-<p align="center">
-  <img src="./assets/readme/architecture.svg" width="100%" alt="B.U.T.L.E.R. Alfred Sistem Mimarisi">
-</p>
-
-Proje, bağımsız katmanlar ve net sorumluluk sınırları üzerine kuruludur:
-
-| Katman | Dizin | Temel Sorumluluk |
-| :--- | :--- | :--- |
-| **Persona Katmanı** | `src/alfred/persona/` | İngiliz kâhyası üslubu, ölçülü hitap, kuru mizah ve koruyucu karşı duruş kuralları. |
-| **Bilişsel Katman** | `src/alfred/cognitive/` | Bağlam izleme, çalışma belleği, uzun dönemli bellek, projeler ve karar kütükleri. |
-| **Kontrol Düzlemi** | `src/alfred/control-plane/` | Otonom görev planlama, araç yönlendirme (`tool-router`), zamanlayıcı ve izin hiyerarşisi. |
-| **Yürütme Düzlemi** | `src/alfred/execution-plane/` | GitHub, SSH, dosya sistemi, terminal ve harici API adaptörleri. |
-| **Yapay Zeka Katmanı** | `src/ai/` | Sağlayıcı bağımsız `AIProvider` arayüzü, dinamik kayıt defteri (`registry`) ve Groq / Ollama sürücüleri. |
-| **Embedding & Bellek**| `src/ai/embedding/` | Google Gemini `text-embedding-004` modeli ve Firestore vektör entegrasyonu. |
-| **Ses Katmanı (STT)** | `src/voice/stt/` | Groq Whisper STT adaptörü, canlı ses işleme ve çift modlu girdi yönlendirmesi. |
-| **Veri Katmanı** | `src/data/` | Cloud Firestore, yerel vektör veri tabanı ve bellek fabrikaları. |
-| **Web & Güvenlik** | `apps/web/` | Modüler Web Arayüzü (`styles.css`, `app.js`, `firebase-app.js`), Firebase Auth (SMS MFA), App Check (reCAPTCHA Enterprise) ve SSE akışı. |
-
----
-
 ## Kurumsal Güvenlik ve Kimlik Doğrulama (SMS MFA & App Check)
 
-Alfred, operasyonel güvenlik ve yetkisiz erişim engellemesi için çift katmanlı kurumsal güvenlik duvarı ile korunmaktadır:
+Alfred, operasyonel güvenlik ve yetkisiz erişim engellemesi için çift katmanlı kurumsal güvenlik duvarı ile korunmaktadır. (Bu akışın ilk adımı, yukarıdaki [Gerçek Arayüz](#gerçek-arayüz) bölümündeki giriş portalıdır.)
 
 ```
 [Kullanıcı Tarayıcısı / İstemci]
@@ -243,49 +293,6 @@ Proje, GitHub Actions üzerinden Firebase Hosting ve Cloud Functions altyapısı
 - **İş Akışı**: [.github/workflows/deploy.yml](.github/workflows/deploy.yml)
 - **Yapılandırma**: `firebase.json` (Hosting: `apps/web/public`, Functions: `functions/`)
 - **Tetikleyici**: `apps/web/public/**`, `functions/**`, `firebase.json` veya iş akışı dosyalarındaki değişiklikler.
-
----
-
-## Hızlı Başlangıç
-
-### Gereksinimler
-- **Node.js**: >= 20.0.0 (Node v22 / v24 ile doğrulanmıştır)
-- **npm**: >= 10.0.0
-
-### 1. Depoyu Klonlayın ve Bağımlılıkları Kurun
-```bash
-git clone https://github.com/barissalihbabacan/B.U.T.L.E.R.-Alfred.git
-cd B.U.T.L.E.R.-Alfred
-npm install
-```
-
-### 2. Ortam Değişkenlerini Tanımlayın
-```bash
-cp .env.example .env
-```
-`.env` dosyasını açıp API anahtarlarınızı tanımlayın:
-```ini
-# Groq LPU (Zorunlu bulut LLM / STT için)
-GROQ_API_KEY=gsk_your_groq_api_key_here
-ALFRED_LLM_PROVIDER=groq
-
-# Google Gemini (Vektör embedding için)
-GEMINI_API_KEY=your_gemini_api_key_here
-
-# Yerel TTS Yapılandırması
-TTS_VOICE=bm_george
-```
-
-### 3. Web Oyun Alanını Başlatın
-```bash
-# Geliştirme sunucusunu çalıştırın (hot-reload destekli)
-npm run dev:web
-
-# Veya prodüksiyon derlemesini başlatın
-npm run build:web
-npm run start:web
-```
-Tarayıcınızda **`http://localhost:3000`** adresine giderek Alfred ile ister yazarak ister mikrofona konuşarak etkileşime geçebilirsiniz.
 
 ---
 

@@ -53,36 +53,12 @@ describe("Firebase Auth User-Friendly Error Messages", () => {
     expect(details.message).toContain("çerez ve oturum");
   });
 
-  it("translates auth/multi-factor-auth-required with MFA instructions", () => {
-    const err = { code: "auth/multi-factor-auth-required" };
+  it("translates auth/internal-error with a generic server error message", () => {
+    const err = { code: "auth/internal-error" };
     const details = getAuthErrorDetails(err);
 
-    expect(details.title).toBe("SMS 2 Adımlı Doğrulama (2FA) Gerekli");
-    expect(details.message).toContain("SMS doğrulaması");
-  });
-
-  it("translates auth/captcha-check-failed with security check guidance", () => {
-    const err = { code: "auth/captcha-check-failed" };
-    const details = getAuthErrorDetails(err);
-
-    expect(details.title).toBe("Güvenlik Denetimi Başarısız");
-    expect(details.message).toContain("reCAPTCHA");
-  });
-
-  it("translates auth/invalid-verification-code with clear guidance", () => {
-    const err = { code: "auth/invalid-verification-code" };
-    const details = getAuthErrorDetails(err);
-
-    expect(details.title).toBe("Geçersiz SMS Kodu");
-    expect(details.message).toContain("6 haneli doğrulama kodu");
-  });
-
-  it("translates auth/internal-error-encountered with helpful retry guidance", () => {
-    const err = { code: "auth/internal-error-encountered" };
-    const details = getAuthErrorDetails(err);
-
-    expect(details.title).toBe("SMS İletişim Hatası");
-    expect(details.message).toContain("Tekrar SMS Gönder");
+    expect(details.title).toBe("Sunucu Hatası");
+    expect(details.message).toContain("Kimlik doğrulama sunucusunda");
   });
 
   it("falls back to friendly generic message for unknown errors", () => {

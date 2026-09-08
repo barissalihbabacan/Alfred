@@ -50,32 +50,6 @@
         <span>Safari veya açılır pencere engeli yaşıyorsanız: <strong>Doğrudan Yönlendirme ile Giriş</strong></span>
       </button>
 
-      <!-- SMS MFA Challenge Pane (Directly in Gate) -->
-      <div id="gateMfaSection" style="display: none; width: 100%; text-align: left; margin-top: 14px; background: rgba(0,0,0,0.25); border: 1px solid rgba(197,160,89,0.3); border-radius: 12px; padding: 18px 16px;">
-        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; color: var(--accent-gold);">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          <strong style="font-size: 14px;">SMS 2 Adımlı Doğrulama (2FA)</strong>
-        </div>
-        <p style="font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 14px;">
-          Hesabınızda SMS doğrulaması aktif. Doğrulama kodu <strong id="gateMfaPhone" style="color: var(--text-primary); font-family: monospace;">+90 ••••••5759</strong> numaralı telefonunuza SMS olarak gönderildi. Lütfen telefonunuza gelen 6 haneli kodu girin.
-        </p>
-        <div style="margin-bottom: 14px;">
-          <label for="gateMfaCodeInput" style="font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 6px;">6 Haneli SMS Kodu:</label>
-          <input type="text" id="gateMfaCodeInput" placeholder="123456" maxlength="6" style="width: 100%; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.06); border: 1px solid rgba(197,160,89,0.4); color: #fff; letter-spacing: 6px; font-size: 20px; text-align: center;" />
-        </div>
-        <button class="btn-primary" id="gateMfaSubmitBtn" onclick="handleGateMfaSubmit()" style="width: 100%; padding: 12px; font-weight: 600; font-size: 14px; border-radius: 8px;">
-          Kodu Doğrula ve Giriş Yap
-        </button>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px;">
-          <button class="gate-redirect-link" onclick="handleResendMfaCode()" style="margin-top: 0; font-size: 12px;">
-            SMS Kodu Gelmedi mi? <strong>Tekrar Gönder</strong>
-          </button>
-          <button class="gate-redirect-link" onclick="cancelGateMfa()" style="margin-top: 0; font-size: 12px; color: var(--text-muted);">
-            İptal Et
-          </button>
-        </div>
-      </div>
-
       <div class="auth-gate-footer">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
@@ -150,11 +124,11 @@
 
       <!-- Sidebar Footer / User Profile & Auth -->
       <div class="sidebar-footer">
-        <div class="user-profile-pill" id="sidebarUserProfilePill" onclick="openAuthModal()" title="Kullanıcı Girişi ve MFA Güvenliği">
+        <div class="user-profile-pill" id="sidebarUserProfilePill" onclick="openAuthModal()" title="Hesap Bilgileri">
           <div class="user-avatar" id="sidebarUserAvatar">B</div>
           <div class="user-meta">
             <span class="user-name" id="sidebarUserName">Barış</span>
-            <span class="user-role" id="sidebarUserRole">MFA Korumalı</span>
+            <span class="user-role" id="sidebarUserRole">Google ile Doğrulandı</span>
           </div>
         </div>
         <button class="settings-btn" onclick="openProviderModal()" title="Model ve Sistem Ayarları">
@@ -287,130 +261,29 @@
     </div>
   </div>
 
-  <!-- Auth & SMS Multi-Factor Authentication Modal -->
+  <!-- Account Modal -->
   <div class="modal-overlay" id="authModal" onclick="if(event.target===this) closeAuthModal()">
     <div class="modal-card">
       <div class="modal-header">
-        <h3 id="authModalTitle">Alfred Kimlik Doğrulama</h3>
+        <h3 id="authModalTitle">Hesap Bilgileri</h3>
         <button class="close-btn" onclick="closeAuthModal()" title="Kapat">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
 
-      <!-- Alert Box -->
-      <div id="authAlert" class="auth-alert"></div>
-
-      <!-- Navigation Tabs -->
-      <div class="auth-tabs" id="authTabsNav">
-        <button class="auth-tab-btn active" id="tabLoginBtn" onclick="switchAuthTab('login')">Giriş Yap</button>
-        <button class="auth-tab-btn" id="tabRegisterBtn" onclick="switchAuthTab('register')">Kayıt Ol</button>
-        <button class="auth-tab-btn" id="tabMfaBtn" onclick="switchAuthTab('mfa')" style="display: none;">MFA Güvenlik</button>
-      </div>
-
-      <!-- 1. LOGIN PANE -->
-      <div id="authLoginPane">
-        <p class="modal-desc">
-          Alfred Bilişsel Yönetici Konsoluna erişmek için e-posta ve şifrenizle giriş yapın.
-        </p>
-        <div class="modal-input-group">
-          <label for="loginEmailInput">E-Posta:</label>
-          <input type="email" id="loginEmailInput" placeholder="ornek@alanadi.com" autocomplete="username" />
-        </div>
-        <div class="modal-input-group">
-          <label for="loginPasswordInput">Şifre:</label>
-          <input type="password" id="loginPasswordInput" placeholder="••••••••" autocomplete="current-password" />
-        </div>
-        <div class="modal-actions">
-          <button class="btn-secondary" onclick="closeAuthModal()">İptal</button>
-          <button class="btn-primary" id="loginSubmitBtn" onclick="handleLoginSubmit()">Giriş Yap</button>
+      <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 14px; margin-bottom: 18px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 13px; color: var(--text-secondary);">Aktif Kullanıcı:</span>
+          <strong id="authCurrentUserEmail" style="font-size: 13px; color: var(--text-primary);">-</strong>
         </div>
       </div>
 
-      <!-- 2. REGISTER PANE -->
-      <div id="authRegisterPane" style="display: none;">
-        <p class="modal-desc">
-          Yeni bir yönetici hesabı oluşturun. Hesabınız oluştuktan sonra SMS ile 2. Faktör (MFA) koruması bağlayabilirsiniz.
-        </p>
-        <div class="modal-input-group">
-          <label for="regEmailInput">E-Posta:</label>
-          <input type="email" id="regEmailInput" placeholder="ornek@alanadi.com" autocomplete="email" />
-        </div>
-        <div class="modal-input-group">
-          <label for="regPasswordInput">Şifre (En az 6 karakter):</label>
-          <input type="password" id="regPasswordInput" placeholder="••••••••" autocomplete="new-password" />
-        </div>
-        <div class="modal-actions">
-          <button class="btn-secondary" onclick="switchAuthTab('login')">Giriş Yap'a Dön</button>
-          <button class="btn-primary" id="registerSubmitBtn" onclick="handleRegisterSubmit()">Hesap Oluştur</button>
-        </div>
-      </div>
-
-      <!-- 3. SMS MFA CHALLENGE PANE -->
-      <div id="authMfaChallengePane" style="display: none;">
-        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; color: var(--accent-gold);">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          <strong style="font-size: 14px;">SMS Çok Faktörlü Doğrulama (MFA) Gerekli</strong>
-        </div>
-        <p class="modal-desc">
-          Hesabınız iki adımlı doğrulama ile korunmaktadır. Doğrulama kodu <strong id="mfaMaskedPhone">+90 ••••••</strong> numaralı telefonunuza SMS olarak gönderildi.
-        </p>
-        <div class="modal-input-group">
-          <label for="mfaChallengeCodeInput">6 Haneli SMS Doğrulama Kodu:</label>
-          <input type="text" id="mfaChallengeCodeInput" placeholder="123456" maxlength="6" style="letter-spacing: 4px; font-size: 18px; text-align: center;" />
-        </div>
-        <div class="modal-actions">
-          <button class="btn-secondary" onclick="cancelMfaChallenge()">Geri Dön</button>
-          <button class="btn-primary" id="mfaChallengeSubmitBtn" onclick="handleMfaChallengeSubmit()">Kodu Doğrula &amp; Giriş Yap</button>
-        </div>
-      </div>
-
-      <!-- 4. LOGGED IN / MFA ENROLLMENT PANE -->
-      <div id="authMfaManagePane" style="display: none;">
-        <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 14px; margin-bottom: 18px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span style="font-size: 13px; color: var(--text-secondary);">Aktif Kullanıcı:</span>
-            <strong id="authCurrentUserEmail" style="font-size: 13px; color: var(--text-primary);">-</strong>
-          </div>
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size: 13px; color: var(--text-secondary);">SMS MFA (2FA) Durumu:</span>
-            <span id="authMfaStatusBadge" class="mfa-badge inactive">Pasif</span>
-          </div>
-        </div>
-
-        <div id="mfaEnrollSection">
-          <h4 style="font-size: 13px; font-weight: 600; color: var(--accent-gold); margin-bottom: 8px;">Yeni Telefon Numarası Bağla (SMS MFA)</h4>
-          <p class="modal-desc" style="margin-bottom: 12px;">
-            Hesabınızı yetkisiz erişimlere karşı korumak için telefon numaranızı ikinci faktör olarak kaydedin.
-          </p>
-          <div class="modal-input-group">
-            <label for="enrollPhoneInput">Telefon Numarası (Ülke kodu ile, örn: +90 555 123 4567):</label>
-            <input type="tel" id="enrollPhoneInput" placeholder="+90 555 123 45 67" />
-          </div>
-          <button class="btn-secondary" id="sendEnrollCodeBtn" onclick="handleStartEnrollment()" style="width: 100%; margin-bottom: 14px;">
-            SMS Onay Kodu Gönder
-          </button>
-
-          <div id="enrollVerifyGroup" style="display: none; border-top: 1px solid var(--border-subtle); padding-top: 14px;">
-            <div class="modal-input-group">
-              <label for="enrollCodeInput">Telefona Gelen 6 Haneli Kod:</label>
-              <input type="text" id="enrollCodeInput" placeholder="123456" maxlength="6" style="letter-spacing: 4px; text-align: center;" />
-            </div>
-            <button class="btn-primary" id="confirmEnrollBtn" onclick="handleConfirmEnrollment()" style="width: 100%;">
-              MFA'yı Doğrula ve Etkinleştir
-            </button>
-          </div>
-        </div>
-
-        <div class="modal-actions" style="margin-top: 20px; border-top: 1px solid var(--border-subtle); padding-top: 16px; justify-content: space-between;">
-          <button class="btn-secondary" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.3);" onclick="handleSignOut()">Oturumu Kapat</button>
-          <button class="btn-secondary" onclick="closeAuthModal()">Kapat</button>
-        </div>
+      <div class="modal-actions" style="justify-content: space-between;">
+        <button class="btn-secondary" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.3);" onclick="handleSignOut()">Oturumu Kapat</button>
+        <button class="btn-secondary" onclick="closeAuthModal()">Kapat</button>
       </div>
     </div>
   </div>
-
-  <!-- reCAPTCHA Invisible Anchor for Phone Auth & MFA -->
-  <div id="recaptcha-verifier-container"></div>
 
   <script src="app.js" defer></script>
   <script type="module" src="firebase-app.js"></script>

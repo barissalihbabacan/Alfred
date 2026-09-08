@@ -1,15 +1,13 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { User, RecaptchaVerifier } from "firebase/auth";
+import { User } from "firebase/auth";
 import {
   subscribeAuthState,
   signInWithGoogle,
   signOutCurrentUser,
-  signInUser,
   getAuthErrorDetails,
-  AuthErrorInfo,
-  MfaChallenge
+  AuthErrorInfo
 } from "./auth";
 
 interface AuthContextType {
@@ -18,7 +16,6 @@ interface AuthContextType {
   error: AuthErrorInfo | null;
   clearError: () => void;
   signInGoogle: () => Promise<User | null>;
-  signInEmail: (email: string, pass: string, appVerifier: RecaptchaVerifier) => Promise<{ user?: User; mfaChallenge?: MfaChallenge } | null>;
   logout: () => Promise<void>;
 }
 
@@ -52,22 +49,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signInEmail = async (
-    email: string,
-    pass: string,
-    appVerifier: RecaptchaVerifier
-  ) => {
-    clearError();
-    try {
-      const res = await signInUser(email, pass, appVerifier);
-      return res;
-    } catch (err: any) {
-      const details = getAuthErrorDetails(err);
-      setError(details);
-      return null;
-    }
-  };
-
   const logout = async () => {
     clearError();
     try {
@@ -87,7 +68,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         error,
         clearError,
         signInGoogle,
-        signInEmail,
         logout
       }}
     >

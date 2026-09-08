@@ -1,7 +1,8 @@
-import { onRequest } from "firebase-functions/v2/https";
+import { onRequest, onCall } from "firebase-functions/v2/https";
 import { setGlobalOptions } from "firebase-functions/v2";
 import { initializeApp, getApps } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
+import { getAppCheck } from "firebase-admin/app-check";
 
 setGlobalOptions({ maxInstances: 10, timeoutSeconds: 120, memory: "512MiB" });
 
@@ -532,13 +533,30 @@ export const api = onRequest({ cors: true }, async (req, res) => {
   if (req.method === "OPTIONS") {
     res.set("Access-Control-Allow-Origin", "*");
     res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.set("Access-Control-Allow-Headers", "Content-Type, Accept, Authorization");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Accept, Authorization, X-Firebase-AppCheck, x-recaptcha-token, x-groq-api-key, x-gemini-api-key");
     res.status(204).send("");
     return;
   }
 
   res.set("Access-Control-Allow-Origin", "*");
   const path = req.path || req.url || "";
+
+  // App Check verification
+  const appCheckToken = req.header("X-Firebase-AppCheck");
+  if (appCheckToken) {
+    try {
+      await getAppCheck().verifyToken(appCheckToken);
+    } catch (err) {
+      console.warn("[AppCheck] Token verification failed:", err.message);
+      if (process.env.ENFORCE_APP_CHECK === "true") {
+        res.status(401).json({ error: "Unauthorized: Invalid App Check token." });
+        return;
+      }
+    }
+  } else if (process.env.ENFORCE_APP_CHECK === "true" && !path.endsWith("/health")) {
+    res.status(401).json({ error: "Unauthorized: Missing App Check token." });
+    return;
+  }
 
   // Health endpoint: /health or /api/health
   if (path.endsWith("/health")) {
@@ -1468,3 +1486,17 @@ function getCurrentTimeForCity(city) {
 
   res.status(404).json({ error: "Not found", path });
 });
+
+// Optional App Check callable function
+export const alfredCallable = onCall(
+  {
+    enforceAppCheck: process.env.ENFORCE_APP_CHECK === "true"
+  },
+  async (request) => {
+    return {
+      status: "ok",
+      appId: request.app?.appId || null,
+      message: "Alfred callable endpoint verified."
+    };
+  }
+);

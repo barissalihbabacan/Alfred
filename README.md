@@ -9,10 +9,11 @@
 <p align="center">
   <a href="#hızlı-başlangıç"><img src="https://img.shields.io/badge/sürüm-v0.1.0-10b981?style=flat-square" alt="Sürüm"></a>
   <a href="#firebase-otomatik-dağıtım--cicd"><img src="https://img.shields.io/badge/ci%2Fcd-GitHub_Actions_%E2%86%92_Firebase-ea580c?style=flat-square" alt="CI/CD"></a>
+  <a href="#kurumsal-güvenlik-ve-kimlik-doğrulama-sms-mfa--app-check"><img src="https://img.shields.io/badge/güvenlik-App_Check_%7C_reCAPTCHA_Enterprise-0284c7?style=flat-square" alt="Güvenlik"></a>
+  <a href="#kurumsal-güvenlik-ve-kimlik-doğrulama-sms-mfa--app-check"><img src="https://img.shields.io/badge/auth-Firebase_SMS_MFA-10b981?style=flat-square" alt="MFA"></a>
   <a href="#yapay-zeka-sağlayıcı-altyapısı-groq-lpu--ollama"><img src="https://img.shields.io/badge/llm-Groq_LPU_%7C_Ollama_MLX-f59e0b?style=flat-square" alt="LLM"></a>
-  <a href="#bilişsel-bellek-ve-vektör-arama-gemini--firestore"><img src="https://img.shields.io/badge/embeddings-Gemini_text--embedding--004-3b82f6?style=flat-square" alt="Embeddings"></a>
-  <a href="#yerel-ses-sistemi-kokoro-82m"><img src="https://img.shields.io/badge/tts-Kokoro--82M_(bm__george)-d4af37?style=flat-square" alt="TTS"></a>
-  <a href="#web-sesli--yazılı-etkileşim-oyun-alanı"><img src="https://img.shields.io/badge/arayüz-Next.js_14_App_Router-6366f1?style=flat-square" alt="Arayüz"></a>
+  <a href="#bilişsel-bellek-ve-vektör-arama-gemini--firestore"><img src="https://img.shields.io/badge/embeddings-Gemini_text--embedding--00  <a href="#gerçek-zamanlı-akış-ve-çift-modlu-giriş-sse--web-speech"><img src="https://img.shields.io/badge/akış-Server--Sent_Events_(SSE)-d4af37?style=flat-square" alt="Akış"></a>
+  <a href="#web-sesli--yazılı-etkileşim-oyun-alanı"><img src="https://img.shields.io/badge/arayüz-Modüler_HTML5_%7C_CSS_%7C_JS-6366f1?style=flat-square" alt="Arayüz"></a>
 </p>
 
 ---
@@ -24,7 +25,7 @@ Alfred, her komuta baş eğen bir "yes-man" veya sıradan bir sohbet botu değil
 - **Bilişsel Yük Yönetimi**: Projeler arasındaki bağımlılıkları, açık görevleri ve kritik kararları takip ederek zihinsel dağınıklığı ortadan kaldırır.
 - **Koruyucu Karşı Duruş (Protective Pushback)**: Yıkıcı veya operasyonel riski yüksek bir eylem (canlı veritabanını silmek, güvenlik kontrollerini baypas etmek vb.) önerildiğinde kibar ama kesin bir dille itiraz eder; potansiyel riskleri açıklayarak güvenli alternatifler sunar.
 - **Sağlayıcı Bağımsızlığı (Vendor-Agnostic)**: Hiçbir bulut sağlayıcısına kalıcı bağımlılık geliştirmez. LLM, ses sentezi ve embedding motorları arayüz düzeyinde soyutlanmıştır.
-- **Yerel ve Gizlilik Odaklı Ses**: Ücretli bulut ses servisleri yerine %100 yerel ve çevrimdışı çalışan açık kaynaklı nöral ses modellerini kullanır.
+- **Gizlilik ve Performans Odaklı**: Ağır harici bağımlılıklar yerine tarayıcı yerel ses tanıma ve ultra hızlı SSE metin akışı kullanılır.
 
 ---
 
@@ -35,14 +36,14 @@ Projenin ilk çalışan dikey dilimi olan **Web Voice & Chat Playground** (`apps
 ```
            [Klavye Metin Girişi]            [Canlı Mikrofon Girişi]
                      │                                 │
-                     │                     MediaRecorder (Opus / WebM)
-                     │                                 │
-                     │                          POST /api/stt
-                     │                                 │
-                     │                        Groq Whisper STT
-                     │                    (whisper-large-v3-turbo)
+                     │                     Tarayıcı Web Speech API
+                     │                     (webkitSpeechRecognition)
                      │                                 │
                      └────────────────┬────────────────┘
+                                      │
+                                Metin Girdisi
+                                      │
+                                      ▼��───────────────┬────────────────┘
                                       │
                                Metin Transkripti
                                       │
@@ -76,7 +77,7 @@ Oyun Alanı (`apps/web/`), istek/yanıt modeli yerine Server-Sent Events (SSE) t
 - **Kademeli Markdown & Kesinti Koruması**: Kod blokları, kalın metinler ve listeler akış sırasında parçalanmadan güvenle derlenir. Bağlantı kesilirse o ana kadar üretilen yanıt kaybolmaz (`[Response interrupted]`).
 
 ### ⚡ Oyun Alanında Ses Tasarım Kararı
-> **Tasarım Kararı**: Alfred'in detaylı ve teknik yanıtlarında otomatik metinden-sese (TTS) dönüştürme hem çıkarım gecikmesini artırmakta hem de uzun konuşmalarda bilgi taramayı yavaşlatmaktaydı. Bu nedenle Web Oyun Alanında anlık, akıcı ve güvenli Markdown destekli hızlı metin okuma deneyimi önceliklendirilmiştir. Kokoro-82M ses motoru mimari çekirdekte (`src/voice/tts/`) çevrimdışı CLI araçları ve toplu sentezleme için tam yetkinlikte korunmaktadır.
+> **Tasarım Kararı**: Alfred'in detaylı ve teknik yanıtlarında metinden-sese (TTS) dönüştürme hem çıkarım gecikmesini artırmakta hem de kullanıcı deneyimini yavaşlatmaktaydı. Bu doğrultuda TTS katmanı kaldırılarak tüm yanıtlar anlık Server-Sent Events (SSE) metin akışına devredilmiş; ses yeteneği yalnızca kullanıcı girdisi için ultra hızlı **Groq Whisper STT** ile optimize edilmiştir.
 
 ### Arayüz Durum Göstergesi
 
@@ -156,22 +157,13 @@ ALFRED_LLM_PROVIDER=ollama
 
 ---
 
-## Yerel Ses Sistemi (Kokoro-82M)
+## Ses Tanıma ve Çift Modlu Etkileşim (Whisper STT)
 
-Alfred'in konuşma yeteneği harici bir bulut servisine veya API anahtarına ihtiyaç duymaz:
+Alfred, kullanıcı girdilerini hem yazılı metin hem de canlı ses kaydı üzerinden kabul eden çift modlu bir giriş katmanına sahiptir:
 
-- **Model**: `onnx-community/Kokoro-82M-v1.0-ONNX` (8-bit kuantize `q8`, ~85MB).
-- **Seçilen Ses**: **`bm_george`** — Olgun, Received Pronunciation (RP) aksanına sahip, sakin ve saygılı İngiliz erkek kâhya sesi.
-- **Ses Profili Soyutlaması**: `ALFRED_DEFAULT_VOICE_PROFILE`, karakterin vokal özelliklerini (tempo, dil, enerji) ses motorundan ayırarak alternatif sağlayıcıların entegrasyonunu kolaylaştırır.
-- **Ses Formatı**: 24,000 Hz, 16-bit mono PCM doğrusal WAV formatı.
-- **Yerel Sentez Testi**:
-  ```bash
-  # 6 standart Alfred kâhya cümlesini audio_output/ dizinine sentezle
-  npm run test:tts
-
-  # Sentezle ve sistem ses aygıtından doğrudan dinlet
-  npm run test:tts -- --play
-  ```
+- **STT Modeli**: `whisper-large-v3-turbo` (Groq Cloud LPU altyapısında anlık konuşma tanıma).
+- **İstemci Yakalama**: Tarayıcı içi `MediaRecorder` API (Opus / WebM formatında doğrudan arka uca iletim).
+- **Yalın ve Hızlı Mimari**: Ağır yerel TTS kütüphaneleri çalışma zamanından arındırılmış; bilgi tüketim hızı için ultra düşük gecikmeli kademeli SSE metin akışı önceliklendirilmiştir.
 
 ---
 
@@ -191,9 +183,36 @@ Proje, bağımsız katmanlar ve net sorumluluk sınırları üzerine kuruludur:
 | **Yürütme Düzlemi** | `src/alfred/execution-plane/` | GitHub, SSH, dosya sistemi, terminal ve harici API adaptörleri. |
 | **Yapay Zeka Katmanı** | `src/ai/` | Sağlayıcı bağımsız `AIProvider` arayüzü, dinamik kayıt defteri (`registry`) ve Groq / Ollama sürücüleri. |
 | **Embedding & Bellek**| `src/ai/embedding/` | Google Gemini `text-embedding-004` modeli ve Firestore vektör entegrasyonu. |
-| **Ses Katmanı** | `src/voice/` | Whisper STT adaptörü, `TTSService` cephesi, ses profilleri ve yerel Kokoro-82M motoru. |
+| **Ses Katmanı (STT)** | `src/voice/stt/` | Groq Whisper STT adaptörü, canlı ses işleme ve çift modlu girdi yönlendirmesi. |
 | **Veri Katmanı** | `src/data/` | Cloud Firestore, yerel vektör veri tabanı ve bellek fabrikaları. |
-| **Web Oyun Alanı** | `apps/web/` | Next.js 14 App Router, çift modlu kullanıcı arayüzü, API uç noktaları ve SSE akışı. |
+| **Web & Güvenlik** | `apps/web/` | Modüler Web Arayüzü (`styles.css`, `app.js`, `firebase-app.js`), Firebase Auth (SMS MFA), App Check (reCAPTCHA Enterprise) ve SSE akışı. |
+
+---
+
+## Kurumsal Güvenlik ve Kimlik Doğrulama (SMS MFA & App Check)
+
+Alfred, operasyonel güvenlik ve yetkisiz erişim engellemesi için çift katmanlı kurumsal güvenlik duvarı ile korunmaktadır:
+
+```
+[Kullanıcı Tarayıcısı / İstemci]
+          │
+          ├──► 1. Google reCAPTCHA Enterprise Token Üretimi
+          │
+          ├──► 2. Firebase App Check Token Doğrulaması (İstemci + Cloud Functions)
+          │
+          └──► 3. Firebase Auth: E-posta/Şifre + SMS Multi-Factor Authentication (MFA)
+                    │
+                    ▼
+     [Doğrulanmış Bilişsel Oturum & Alfred Arayüzü]
+```
+
+1. **reCAPTCHA Enterprise & App Check**: Bot, scraping ve yetkisiz API çağrılarını engellemek amacıyla istemcide `ReCaptchaEnterpriseProvider` başlatılır. Giden tüm isteklere `X-Firebase-AppCheck` başlığı eklenir; Cloud Functions arka ucu (`functions/index.js`) bu tokenı doğrular.
+2. **SMS Çok Faktörlü Doğrulama (MFA)**: Yetkili oturum açma girişiminde, kayıtlı telefon numarasına tek kullanımlık SMS kodu (OTP) iletilir. İkinci faktör başarıyla doğrulanmadan bilişsel oturum ve yürütme motoru açılmaz.
+3. **Modüler Web Mimarisi**: `apps/web/public/` katmanı temiz ve ayrık dosyalara bölünmüştür:
+   - `styles.css`: Karanlık tema, cam morfoloji (glassmorphism) ve mikro-animasyon stilleri.
+   - `app.js`: Sohbet motoru, canlı ses kaydı (MediaRecorder) ve SSE akış yönetimi.
+   - `firebase-app.js`: Firebase App Check, Kullanıcı Kayıt/Giriş ve SMS MFA doğrulama akışları.
+   - `index.html`: Yalın, anlamsal HTML5 kabuğu.
 
 ---
 

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="440" viewBox="0 0 1200 440" role="img" aria-labelledby="hero-title hero-desc">
   <title id="hero-title">B.U.T.L.E.R. Alfred — Başlık ve Bilişsel Etkileşim Mimarisi</title>
-  <desc id="hero-desc">B.U.T.L.E.R. Alfred kişisel bilişsel yapay zeka mimarisi, Groq LPU akıl yürütme, Kokoro-82M yerel ses, Gemini vektör bellek ve Firebase dağıtımı şeması.</desc>
+  <desc id="hero-desc">B.U.T.L.E.R. Alfred kişisel bilişsel yapay zeka mimarisi, Groq LPU akıl yürütme, Server-Sent Events akış motoru, Gemini vektör bellek, SMS MFA ve Firebase dağıtımı şeması.</desc>
   <defs>
     <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#070b14" />
@@ -31,46 +31,53 @@
   <circle cx="120" cy="350" r="140" fill="#3b82f6" fill-opacity="0.03" />
 
   <!-- LEFT COLUMN: Identity & Core Proposition -->
-  <g transform="translate(56, 44)">
+  <g transform="translate(56, 40)">
     <!-- Metadata Pill -->
     <rect x="0" y="0" width="410" height="30" rx="15" fill="#111c2e" stroke="#233550" stroke-width="1" />
     <circle cx="16" cy="15" r="5" fill="#10b981" />
     <text x="32" y="20" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="700" letter-spacing="1.2">BİLİŞSEL OPERASYON ASİSTANI • v0.1.0 • OTONOM</text>
 
     <!-- Project Title -->
-    <text x="0" y="86" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="50" font-weight="900" letter-spacing="-0.5">
+    <text x="0" y="84" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="50" font-weight="900" letter-spacing="-0.5">
       B.U.T.L.E.R. <tspan fill="url(#goldGrad)">ALFRED</tspan>
     </text>
 
     <!-- Acronym Expansion -->
-    <text x="0" y="122" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="19" font-weight="600" letter-spacing="0.2">
+    <text x="0" y="118" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="18.5" font-weight="600" letter-spacing="0.2">
       Barış's Unified Task, Logic, Execution &amp; Reasoning
     </text>
 
     <!-- Core Pitch -->
-    <text x="0" y="166" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="16" font-weight="400">
+    <text x="0" y="160" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="400">
       <tspan x="0" dy="0">Modern bir İngiliz kâhyası disiplininde, sakin, ölçülü ve risk</tspan>
-      <tspan x="0" dy="26">bilincine sahip; yıkıcı komutlara itiraz eden (protective pushback),</tspan>
-      <tspan x="0" dy="26">çevrimdışı nöral ses ve bulut LPU çıkarımlı bilişsel yürütme mimarisi.</tspan>
+      <tspan x="0" dy="25">bilincine sahip; yıkıcı komutlara itiraz eden (protective pushback),</tspan>
+      <tspan x="0" dy="25">SMS MFA &amp; App Check korumalı, anlık SSE akışlı bilişsel yürütme mimarisi.</tspan>
     </text>
 
     <!-- Key Capability Badges -->
-    <g transform="translate(0, 266)">
+    <g transform="translate(0, 258)">
       <!-- Badge 1: Groq LPU -->
-      <rect x="0" y="0" width="144" height="34" rx="8" fill="#111c2c" stroke="#253852" stroke-width="1" />
-      <text x="14" y="22" fill="#fbbf24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="700">⚡ Groq LPU Llama-3.3</text>
+      <rect x="0" y="0" width="130" height="34" rx="8" fill="#111c2c" stroke="#253852" stroke-width="1" />
+      <text x="12" y="22" fill="#fbbf24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="700">⚡ Groq Llama-3.3</text>
 
-      <!-- Badge 2: Kokoro TTS -->
-      <rect x="156" y="0" width="146" height="34" rx="8" fill="#111c2c" stroke="#253852" stroke-width="1" />
-      <text x="170" y="22" fill="#d4af37" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="700">🎙 Kokoro-82M TTS</text>
+      <!-- Badge 2: SSE Stream -->
+      <rect x="138" y="0" width="132" height="34" rx="8" fill="#111c2c" stroke="#253852" stroke-width="1" />
+      <text x="150" y="22" fill="#d4af37" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="700">📡 SSE Canlı Akış</text>
 
       <!-- Badge 3: Gemini Embeddings -->
-      <rect x="314" y="0" width="142" height="34" rx="8" fill="#111c2c" stroke="#253852" stroke-width="1" />
-      <text x="328" y="22" fill="#60a5fa" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="700">🧠 Gemini Embedding</text>
+      <rect x="278" y="0" width="144" height="34" rx="8" fill="#111c2c" stroke="#253852" stroke-width="1" />
+      <text x="290" y="22" fill="#60a5fa" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="700">🧠 Gemini Embedding</text>
 
-      <!-- Badge 4: Firebase CI/CD -->
-      <rect x="468" y="0" width="116" height="34" rx="8" fill="#111c2c" stroke="#253852" stroke-width="1" />
-      <text x="482" y="22" fill="#f97316" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="700">🔥 Firebase CI</text>
+      <!-- Badge 4: SMS MFA & App Check -->
+      <rect x="430" y="0" width="168" height="34" rx="8" fill="#111c2c" stroke="#253852" stroke-width="1" />
+      <text x="442" y="22" fill="#10b981" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="700">🛡 SMS MFA &amp; App Check</text>
+    </g>
+
+    <!-- Bottom Architecture Spec Pill -->
+    <g transform="translate(0, 310)">
+      <text x="2" y="16" fill="#64748b" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="500">
+        <tspan fill="#38bdf8">Modüler Web:</tspan> HTML5 • CSS3 • Vanilla JS <tspan fill="#475569">|</tspan> <tspan fill="#ea580c">Bulut:</tspan> Firebase Hosting CDN &amp; Functions v2
+      </text>
     </g>
   </g>
 
@@ -90,32 +97,32 @@
     <!-- Pipeline Step 1 -->
     <g transform="translate(20, 56)">
       <rect x="0" y="0" width="424" height="56" rx="8" fill="#0b121e" stroke="#1c2b42" stroke-width="1" />
-      <text x="16" y="25" fill="#e2e8f0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700">1. Çift Giriş Modu (Dual Modality)</text>
-      <text x="16" y="44" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12">Klavye Metni VEYA Canlı Mikrofon (Whisper Large v3 Turbo STT)</text>
+      <text x="16" y="25" fill="#e2e8f0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700">1. Çift Giriş Modu &amp; App Check</text>
+      <text x="16" y="44" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12">Klavye Metni / Web Speech Mikrofon + reCAPTCHA Enterprise</text>
     </g>
 
     <!-- Pipeline Step 2 -->
     <g transform="translate(20, 122)">
       <rect x="0" y="0" width="424" height="64" rx="8" fill="#0b121e" stroke="#c5a059" stroke-width="1" stroke-opacity="0.7" />
       <text x="16" y="25" fill="#fbbf24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700">2. Akıl Yürütme &amp; Düşünce Akışı</text>
-      <text x="16" y="44" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12">Groq Llama-3.3-70B / Ollama Gemma 4 + SSE Stream</text>
+      <text x="16" y="44" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12">Groq Llama-3.3-70B / Ollama Gemma 4 Derin Muhakeme</text>
       <text x="16" y="58" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11">• Düşünce İzolasyonu: İç reasoning gizli, UI'da "Thinking..." sinyali</text>
     </g>
 
     <!-- Pipeline Step 3 -->
     <g transform="translate(20, 196)">
       <rect x="0" y="0" width="424" height="62" rx="8" fill="#0b121e" stroke="#1c2b42" stroke-width="1" />
-      <text x="16" y="25" fill="#60a5fa" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700">3. Bilişsel Bellek &amp; İcra Düzlemi</text>
-      <text x="16" y="44" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12">Google Gemini Embedding + Firestore Hibrit Bellek</text>
+      <text x="16" y="25" fill="#60a5fa" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700">3. Bilişsel Bellek &amp; SMS MFA Güvenliği</text>
+      <text x="16" y="44" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12">Gemini Embedding + Firestore Hibrit Bellek + İki Adımlı Doğrulama</text>
       <text x="16" y="57" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11">• Karar kütüğü, risk denetimi, SSH &amp; sistem araç yürütümü</text>
     </g>
 
     <!-- Pipeline Step 4 -->
     <g transform="translate(20, 268)">
       <rect x="0" y="0" width="424" height="58" rx="8" fill="#0b121e" stroke="#1c2b42" stroke-width="1" />
-      <text x="16" y="25" fill="#34d399" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700">4. Kademeli Yanıt &amp; Yerel Ses</text>
-      <text x="16" y="44" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12">Anlık Markdown akışı (UI) + Çevrimdışı Kokoro-82M TTS</text>
-      <text x="16" y="55" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11">• İngiliz erkek kâhya sesi (bm_george, 24kHz yüksek sadakatli WAV)</text>
+      <text x="16" y="25" fill="#34d399" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700">4. Kademeli Metin Akışı (SSE)</text>
+      <text x="16" y="44" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12">Server-Sent Events ile anlık, gecikmesiz token iletimi</text>
+      <text x="16" y="55" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11">• Canlı Markdown ayrıştırma, güvenli kod blokları ve tampon koruması</text>
     </g>
   </g>
 </svg>

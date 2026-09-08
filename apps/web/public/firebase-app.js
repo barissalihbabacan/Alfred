@@ -449,6 +449,7 @@ window.handleGoogleSignIn = async function() {
     await signInWithPopup(auth, googleProvider);
   } catch (err) {
     console.error("[Auth] Google Sign-In error:", err);
+    console.error("[Auth] Error customData:", err?.customData);
     if (errBox) {
       const details = formatAuthErrorDetails(err);
       let solutionHtml = "";
@@ -467,6 +468,12 @@ window.handleGoogleSignIn = async function() {
           </div>
         `;
       }
+      let serverDetails = "";
+      if (err?.customData && Object.keys(err.customData).length > 0) {
+        try {
+          serverDetails = `<div style="margin-top:8px;font-size:11px;color:#cbd5e1;font-family:monospace;word-break:break-all;background:rgba(0,0,0,0.4);padding:6px 8px;border-radius:6px;">Sunucu Yanıtı: ${JSON.stringify(err.customData)}</div>`;
+        } catch {}
+      }
       errBox.innerHTML = `
         <div class="auth-error-header">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -474,6 +481,7 @@ window.handleGoogleSignIn = async function() {
           <button onclick="document.getElementById('gateAuthError').style.display='none'" class="auth-error-close" title="Kapat">✕</button>
         </div>
         <div class="auth-error-desc">${details.message}</div>
+        ${serverDetails}
         ${solutionHtml}
       `;
       errBox.style.display = "block";

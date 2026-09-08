@@ -9,7 +9,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
-  <script src="https://www.google.com/recaptcha/enterprise.js?render=6LfKoK8tAAAAAEo28kTSEBZWJpKK7-JMV9CZNYIX"></script>
 </head>
 <body>
   <!-- Fullscreen Login & Auth Gate Screen (Access Locked Until Google Login) -->
@@ -67,9 +66,14 @@
         <button class="btn-primary" id="gateMfaSubmitBtn" onclick="handleGateMfaSubmit()" style="width: 100%; padding: 12px; font-weight: 600; font-size: 14px; border-radius: 8px;">
           Kodu Doğrula ve Giriş Yap
         </button>
-        <button class="gate-redirect-link" onclick="cancelGateMfa()" style="margin-top: 10px; text-align: center;">
-          İptal Et ve Geri Dön
-        </button>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px;">
+          <button class="gate-redirect-link" onclick="handleResendMfaCode()" style="margin-top: 0; font-size: 12px;">
+            SMS Kodu Gelmedi mi? <strong>Tekrar Gönder</strong>
+          </button>
+          <button class="gate-redirect-link" onclick="cancelGateMfa()" style="margin-top: 0; font-size: 12px; color: var(--text-muted);">
+            İptal Et
+          </button>
+        </div>
       </div>
 
       <div class="auth-gate-footer">
@@ -402,11 +406,11 @@
           <button class="btn-secondary" onclick="closeAuthModal()">Kapat</button>
         </div>
       </div>
-
-      <!-- reCAPTCHA Invisible Anchor for Phone Auth -->
-      <div id="recaptcha-verifier-container"></div>
     </div>
   </div>
+
+  <!-- reCAPTCHA Invisible Anchor for Phone Auth & MFA -->
+  <div id="recaptcha-verifier-container"></div>
 
   <script src="app.js" defer></script>
   <script type="module" src="firebase-app.js"></script>

@@ -296,6 +296,31 @@ export function getAuthErrorDetails(error: any): AuthErrorInfo {
         title: "SMS Kodunun Süresi Doldu",
         message: "Doğrulama kodunun süresi dolmuş. Lütfen yeni bir kod isteyin."
       };
+    case "auth/captcha-check-failed":
+      return {
+        code,
+        title: "Güvenlik Denetimi Başarısız",
+        message: "SMS gönderimi öncesi reCAPTCHA güvenlik denetimi tamamlanamadı. Lütfen sayfayı yenileyip tekrar deneyin."
+      };
+    case "auth/invalid-app-credential":
+      return {
+        code,
+        title: "Uygulama Doğrulama Hatası",
+        message: "Firebase güvenlik kimliği doğrulanamadı. Lütfen sayfayı yenileyip tekrar deneyin."
+      };
+    case "auth/quota-exceeded":
+      return {
+        code,
+        title: "SMS Kotası Doldu",
+        message: "SMS gönderim kotası aşıldı. Lütfen bir süre bekleyip tekrar deneyin."
+      };
+    case "auth/internal-error-encountered":
+    case "auth/internal-error":
+      return {
+        code,
+        title: "SMS İletişim Hatası",
+        message: "SMS servisi geçici bir iletişim hatası verdi. Lütfen 'Tekrar SMS Gönder' butonuna basarak yeni bir kod isteyin."
+      };
     case "auth/network-request-failed":
       return {
         code,

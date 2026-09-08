@@ -135,6 +135,31 @@ function formatAuthErrorDetails(err) {
         title: "SMS Kodunun Süresi Doldu",
         message: "Doğrulama kodunun süresi dolmuş. Lütfen yeni bir kod isteyin."
       };
+    case "auth/captcha-check-failed":
+      return {
+        code,
+        title: "Güvenlik Denetimi Başarısız",
+        message: "SMS gönderimi öncesi reCAPTCHA güvenlik denetimi tamamlanamadı. Lütfen sayfayı yenileyip tekrar deneyin."
+      };
+    case "auth/invalid-app-credential":
+      return {
+        code,
+        title: "Uygulama Doğrulama Hatası",
+        message: "Firebase güvenlik kimliği doğrulanamadı. Lütfen sayfayı yenileyip tekrar deneyin."
+      };
+    case "auth/quota-exceeded":
+      return {
+        code,
+        title: "SMS Kotası Doldu",
+        message: "SMS gönderim kotası aşıldı. Lütfen bir süre bekleyip tekrar deneyin."
+      };
+    case "auth/internal-error-encountered":
+    case "auth/internal-error":
+      return {
+        code,
+        title: "SMS İletişim Hatası",
+        message: "SMS servisi geçici bir iletişim hatası verdi. Güvenlik ayarları güncellendi, lütfen 'Tekrar SMS Gönder' butonuna basarak yeni bir kod isteyin."
+      };
     default:
       return {
         code: code || "unknown_error",
@@ -187,21 +212,43 @@ let enrollVerificationId = null;
 let phoneRecaptchaVerifier = null;
 
 function getOrCreateRecaptchaVerifier() {
-  if (!phoneRecaptchaVerifier) {
-    phoneRecaptchaVerifier = new RecaptchaVerifier(auth, "recaptcha-verifier-container", {
-      size: "invisible",
-      callback: () => {}
-    });
+  if (phoneRecaptchaVerifier) {
+    try {
+      phoneRecaptchaVerifier.clear();
+    } catch (e) {
+      console.warn("[Auth] Error clearing previous recaptcha verifier:", e);
+    }
+    phoneRecaptchaVerifier = null;
   }
+  let container = document.getElementById("recaptcha-verifier-container");
+  if (container) {
+    const newContainer = document.createElement("div");
+    newContainer.id = "recaptcha-verifier-container";
+    container.replaceWith(newContainer);
+    container = newContainer;
+  } else {
+    container = document.createElement("div");
+    container.id = "recaptcha-verifier-container";
+    document.body.appendChild(container);
+  }
+  phoneRecaptchaVerifier = new RecaptchaVerifier(auth, container, {
+    size: "invisible",
+    callback: () => {
+      console.log("[Auth] Invisible reCAPTCHA challenge resolved successfully");
+    },
+    "expired-callback": () => {
+      console.warn("[Auth] Invisible reCAPTCHA challenge expired, refreshing...");
+    }
+  });
   return phoneRecaptchaVerifier;
 }
 
 window.initiateMfaChallengeFromError = async function(err) {
   try {
     mfaResolver = getMultiFactorResolver(auth, err);
-    const phoneHint = mfaResolver.hints.find(h => h.factorId === PhoneMultiFactorGenerator.FACTOR_ID);
+    const phoneHint = mfaResolver.hints.find(h => h.factorId === PhoneMultiFactorGenerator.FACTOR_ID) || mfaResolver.hints[0];
     if (!phoneHint) {
-      console.error("[Auth] No phone hint found for MFA resolver");
+      console.error("[Auth] No phone hint found for MFA resolver:", mfaResolver.hints);
       return false;
     }
 
@@ -222,7 +269,7 @@ window.initiateMfaChallengeFromError = async function(err) {
     const mfaBtn = document.getElementById("gateMfaSubmitBtn");
     if (mfaBtn) {
       mfaBtn.disabled = true;
-      mfaBtn.textContent = "SMS Kodu Gönderiliyor...";
+      mfaBtn.innerHTML = `<span class="gate-spinner"></span> <span>SMS Kodu Gönderiliyor...</span>`;
     }
 
     const verifier = getOrCreateRecaptchaVerifier();
@@ -231,6 +278,8 @@ window.initiateMfaChallengeFromError = async function(err) {
       multiFactorHint: phoneHint,
       session: mfaResolver.session
     }, verifier);
+
+    console.log("[Auth] SMS MFA challenge verification ID received:", mfaVerificationId);
 
     if (mfaBtn) {
       mfaBtn.disabled = false;
@@ -246,20 +295,98 @@ window.initiateMfaChallengeFromError = async function(err) {
   } catch (mfaInitErr) {
     console.error("[Auth] MFA initialization error:", mfaInitErr);
     const errBox = document.getElementById("gateAuthError");
+    const mfaBtn = document.getElementById("gateMfaSubmitBtn");
+    if (mfaBtn) {
+      mfaBtn.disabled = false;
+      mfaBtn.textContent = "Kodu Doğrula ve Giriş Yap";
+    }
     if (errBox) {
       const details = formatAuthErrorDetails(mfaInitErr);
+      let rawErr = "";
+      if (mfaInitErr?.customData && Object.keys(mfaInitErr.customData).length > 0) {
+        try {
+          rawErr = `<div style="margin-top:8px;font-size:11px;color:#cbd5e1;font-family:monospace;word-break:break-all;background:rgba(0,0,0,0.4);padding:6px 8px;border-radius:6px;">Sunucu Yanıtı: ${JSON.stringify(mfaInitErr.customData)}</div>`;
+        } catch {}
+      }
       errBox.innerHTML = `
         <div class="auth-error-header">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          <span>SMS Gönderilemedi</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>
+          <span>SMS Kodu Gönderilemedi</span>
           <button onclick="document.getElementById('gateAuthError').style.display='none'" class="auth-error-close">✕</button>
         </div>
-        <div class="auth-error-desc">${details.message || "SMS kodu gönderilemedi. Lütfen tekrar deneyin."}</div>
+        <div class="auth-error-desc">${details.message || mfaInitErr.message || "SMS kodu gönderilemedi. Lütfen tekrar deneyin."}</div>
+        ${rawErr}
+        <div style="margin-top: 10px; display: flex; gap: 8px;">
+          <button onclick="handleResendMfaCode()" class="btn-primary" style="font-size: 12px; padding: 6px 12px;">Tekrar SMS Gönder</button>
+          <button onclick="cancelGateMfa()" class="btn-secondary" style="font-size: 12px; padding: 6px 12px;">İptal Et / Geri Dön</button>
+        </div>
       `;
       errBox.style.display = "block";
     }
+    // Keep MFA pane open so the user sees the actual error and can click Resend SMS
+    return true;
+  }
+};
+
+window.handleResendMfaCode = async function() {
+  if (!mfaResolver) {
     cancelGateMfa();
-    return false;
+    return;
+  }
+  const phoneHint = mfaResolver.hints.find(h => h.factorId === PhoneMultiFactorGenerator.FACTOR_ID) || mfaResolver.hints[0];
+  if (!phoneHint) return;
+
+  const mfaBtn = document.getElementById("gateMfaSubmitBtn");
+  const errBox = document.getElementById("gateAuthError");
+  if (errBox) errBox.style.display = "none";
+  if (mfaBtn) {
+    mfaBtn.disabled = true;
+    mfaBtn.innerHTML = `<span class="gate-spinner"></span> <span>SMS Tekrar Gönderiliyor...</span>`;
+  }
+
+  try {
+    const verifier = getOrCreateRecaptchaVerifier();
+    const phoneProvider = new PhoneAuthProvider(auth);
+    mfaVerificationId = await phoneProvider.verifyPhoneNumber({
+      multiFactorHint: phoneHint,
+      session: mfaResolver.session
+    }, verifier);
+
+    console.log("[Auth] Resent SMS verification ID:", mfaVerificationId);
+
+    if (mfaBtn) {
+      mfaBtn.disabled = false;
+      mfaBtn.textContent = "Kodu Doğrula ve Giriş Yap";
+    }
+    if (errBox) {
+      errBox.innerHTML = `
+        <div class="auth-error-header" style="color: #10b981;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          <span style="color: #10b981;">Yeni Kod Gönderildi</span>
+          <button onclick="document.getElementById('gateAuthError').style.display='none'" class="auth-error-close">✕</button>
+        </div>
+        <div class="auth-error-desc" style="color: #cbd5e1;">Yeni SMS doğrulama kodu telefonunuza iletildi.</div>
+      `;
+      errBox.style.display = "block";
+    }
+  } catch (err) {
+    console.error("[Auth] Resend SMS error:", err);
+    if (errBox) {
+      const details = formatAuthErrorDetails(err);
+      errBox.innerHTML = `
+        <div class="auth-error-header">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>
+          <span>Tekrar Gönderim Başarısız</span>
+          <button onclick="document.getElementById('gateAuthError').style.display='none'" class="auth-error-close">✕</button>
+        </div>
+        <div class="auth-error-desc">${details.message || err.message || "Yeni kod gönderilemedi. Lütfen tekrar deneyin."}</div>
+      `;
+      errBox.style.display = "block";
+    }
+    if (mfaBtn) {
+      mfaBtn.disabled = false;
+      mfaBtn.textContent = "Kodu Doğrula ve Giriş Yap";
+    }
   }
 };
 

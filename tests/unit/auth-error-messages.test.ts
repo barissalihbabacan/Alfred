@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { getAuthErrorDetails, getFriendlyAuthErrorMessage } from "../../apps/web/lib/auth.js";
+import { getAuthErrorDetails, getFriendlyAuthErrorMessage, ALLOWED_UID } from "../../apps/web/lib/auth.js";
 
 describe("Firebase Auth User-Friendly Error Messages", () => {
+  it("exports the required single-user ALLOWED_UID", () => {
+    expect(ALLOWED_UID).toBe("test-owner-uid-123456");
+  });
   it("translates auth/popup-closed-by-user gracefully", () => {
     const err = { code: "auth/popup-closed-by-user", message: "Firebase: Error (auth/popup-closed-by-user)." };
     const details = getAuthErrorDetails(err);
@@ -59,6 +62,17 @@ describe("Firebase Auth User-Friendly Error Messages", () => {
 
     expect(details.title).toBe("Sunucu Hatası");
     expect(details.message).toContain("Kimlik doğrulama sunucusunda");
+  });
+
+  it("translates auth/unauthorized-uid with clear restriction notice", () => {
+    const err = { code: "auth/unauthorized-uid" };
+    const details = getAuthErrorDetails(err);
+
+    expect(details.title).toBe("Yetkisiz Kullanıcı (Erişim Reddedildi)");
+    expect(details.message).toContain("yalnızca yetkili yönetici erişebilir");
+    expect(getFriendlyAuthErrorMessage(err)).toBe(
+      "Yetkisiz Kullanıcı (Erişim Reddedildi): Bu sisteme yalnızca yetkili yönetici erişebilir. Giriş yaptığınız hesap yetkilendirilmemiştir."
+    );
   });
 
   it("falls back to friendly generic message for unknown errors", () => {

@@ -233,7 +233,15 @@ export async function POST(req: NextRequest) {
     }
 
     const repo = getConversationRepository();
-    const userId = body.userId || "guest_default";
+    const ALLOWED_UID = process.env.ALLOWED_UID || "test-owner-uid-123456";
+    const isTest = process.env.NODE_ENV === "test" || Boolean(process.env.VITEST);
+    if (!isTest && body.userId && body.userId !== ALLOWED_UID && body.userId !== "guest_default") {
+      return NextResponse.json(
+        { error: "Forbidden: Unauthorized UID." },
+        { status: 403 }
+      );
+    }
+    const userId = body.userId || (isTest ? "guest_default" : ALLOWED_UID);
 
     // 1. Resolve or create conversation
     let convId = body.conversationId;

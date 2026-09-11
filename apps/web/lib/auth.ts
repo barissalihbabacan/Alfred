@@ -12,6 +12,8 @@ import {
 } from "firebase/auth";
 import { app } from "./firebase";
 
+export const ALLOWED_UID = "test-owner-uid-123456";
+
 let authInstance: Auth | null = null;
 let googleProviderInstance: GoogleAuthProvider | null = null;
 
@@ -40,6 +42,12 @@ export async function signInWithGoogle(): Promise<User> {
   const provider = getGoogleAuthProvider();
   try {
     const result: UserCredential = await signInWithPopup(auth, provider);
+    if (result.user && result.user.uid !== ALLOWED_UID) {
+      await signOut(auth);
+      const err: any = new Error("Yetkisiz Kullanıcı: Bu sisteme yalnızca yetkili yönetici erişebilir.");
+      err.code = "auth/unauthorized-uid";
+      throw err;
+    }
     return result.user;
   } catch (error: any) {
     if (
@@ -71,7 +79,16 @@ export async function checkRedirectResult(): Promise<User | null> {
   const auth = getFirebaseAuth();
   try {
     const cred = await getRedirectResult(auth);
-    return cred?.user || null;
+    if (cred?.user) {
+      if (cred.user.uid !== ALLOWED_UID) {
+        await signOut(auth);
+        const err: any = new Error("Yetkisiz Kullanıcı: Bu sisteme yalnızca yetkili yönetici erişebilir.");
+        err.code = "auth/unauthorized-uid";
+        throw err;
+      }
+      return cred.user;
+    }
+    return null;
   } catch (err) {
     console.warn("[Auth] checkRedirectResult error:", err);
     throw err;
@@ -91,7 +108,18 @@ export async function signOutCurrentUser(): Promise<void> {
  */
 export function subscribeAuthState(callback: (user: User | null) => void): () => void {
   const auth = getFirebaseAuth();
-  return onAuthStateChanged(auth, callback);
+  return onAuthStateChanged(auth, async (user) => {
+    if (user && user.uid !== ALLOWED_UID) {
+      try {
+        await signOut(auth);
+      } catch (e) {
+        console.warn("[Auth] Failed to sign out unauthorized user:", e);
+      }
+      callback(null);
+      return;
+    }
+    callback(user);
+  });
 }
 
 export interface AuthErrorInfo {
@@ -120,6 +148,12 @@ export function getAuthErrorDetails(error: any): AuthErrorInfo {
   }
 
   switch (code) {
+    case "auth/unauthorized-uid":
+      return {
+        code,
+        title: "Yetkisiz Kullanıcı (Erişim Reddedildi)",
+        message: "Bu sisteme yalnızca yetkili yönetici erişebilir. Giriş yaptığınız hesap yetkilendirilmemiştir."
+      };
     case "auth/popup-closed-by-user":
       return {
         code,

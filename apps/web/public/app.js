@@ -1,9 +1,26 @@
 // State Management
+const ALLOWED_UID = "test-owner-uid-123456";
 let isGenerating = false;
 let isRecording = false;
 let recognition = null;
 let abortController = null;
 let currentConversationId = localStorage.getItem("alfred_conversation_id") || null;
+
+async function getAuthHeader() {
+  if (window.firebaseAuth && window.firebaseAuth.currentUser) {
+    try {
+      const token = await window.firebaseAuth.currentUser.getIdToken();
+      if (token) return { "Authorization": `Bearer ${token}` };
+    } catch (e) {
+      console.warn("[Auth] Failed to obtain ID token:", e);
+    }
+  }
+  return {};
+}
+
+function getCurrentUserId() {
+  return window.firebaseAuth?.currentUser?.uid || ALLOWED_UID;
+}
 
 function escapeHtml(str) {
   return String(str)
@@ -396,12 +413,16 @@ async function sendMessage(text) {
       }
     }
 
+    const authHeaders = await getAuthHeader();
+    Object.assign(requestHeaders, authHeaders);
+
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: requestHeaders,
       body: JSON.stringify({
         message: text,
         conversationId: currentConversationId || undefined,
+        userId: getCurrentUserId(),
         stream: true,
         recaptchaToken: recaptchaToken || undefined
       }),
@@ -554,7 +575,10 @@ async function loadConversation(id) {
     hideWelcomeScreen();
     renderMessagesSkeleton();
 
-    const res = await fetch(`/api/chat?conversationId=${encodeURIComponent(id)}`);
+    const authHeaders = await getAuthHeader();
+    const res = await fetch(`/api/chat?conversationId=${encodeURIComponent(id)}`, {
+      headers: authHeaders
+    });
     if (!res.ok) return;
     const data = await res.json();
 
@@ -615,7 +639,10 @@ async function refreshConversationsList(showSkeleton = false) {
     renderConversationsSkeleton();
   }
   try {
-    const res = await fetch("/api/chat?userId=guest_default");
+    const authHeaders = await getAuthHeader();
+    const res = await fetch(`/api/chat?userId=${encodeURIComponent(getCurrentUserId())}`, {
+      headers: authHeaders
+    });
     if (!res.ok) return;
     const data = await res.json();
     if (data.success && Array.isArray(data.conversations)) {
@@ -657,8 +684,10 @@ async function handleDeleteConversation(event, id) {
   if (!confirm("Bu sohbeti silmek istediğinizden emin misiniz?")) return;
 
   try {
+    const authHeaders = await getAuthHeader();
     const res = await fetch(`/api/chat?conversationId=${encodeURIComponent(id)}`, {
-      method: "DELETE"
+      method: "DELETE",
+      headers: authHeaders
     });
     if (!res.ok) {
       throw new Error("Sohbet silinemedi");

@@ -1,10 +1,13 @@
 import { onRequest, onCall } from "firebase-functions/v2/https";
 import { setGlobalOptions } from "firebase-functions/v2";
 import { initializeApp, getApps } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { getAppCheck } from "firebase-admin/app-check";
 
 setGlobalOptions({ maxInstances: 10, timeoutSeconds: 120, memory: "512MiB" });
+
+const ALLOWED_UID = process.env.ALLOWED_UID || "test-owner-uid-123456";
 
 if (getApps().length === 0) {
   initializeApp();
@@ -607,11 +610,46 @@ export const api = onRequest({ cors: true }, async (req, res) => {
     return;
   }
 
+  // Extract and verify Firebase Auth token if present
+  let authenticatedUid = null;
+  const authHeader = req.header("Authorization") || req.header("authorization") || "";
+  if (authHeader.startsWith("Bearer ")) {
+    const idToken = authHeader.substring(7).trim();
+    try {
+      const decoded = await getAuth().verifyIdToken(idToken);
+      authenticatedUid = decoded?.uid || null;
+    } catch (err) {
+      console.warn("[Auth] ID token verification failed:", err.message);
+      res.status(401).json({ error: "Unauthorized: Invalid or expired auth token." });
+      return;
+    }
+  }
+
+  // Reject access if token belongs to an unauthorized UID
+  if (authenticatedUid && authenticatedUid !== ALLOWED_UID) {
+    console.warn(`[Auth] Forbidden: UID ${authenticatedUid} attempted access (allowed: ${ALLOWED_UID})`);
+    res.status(403).json({ error: "Forbidden: Unauthorized UID." });
+    return;
+  }
+
+  const requestedUserId = (req.query?.userId || req.body?.userId || "").toString();
+  if (
+    requestedUserId &&
+    requestedUserId !== ALLOWED_UID &&
+    requestedUserId !== "guest_default" &&
+    process.env.NODE_ENV !== "test" &&
+    !process.env.VITEST
+  ) {
+    console.warn(`[Auth] Forbidden: requested userId ${requestedUserId} does not match ${ALLOWED_UID}`);
+    res.status(403).json({ error: "Forbidden: Unauthorized UID." });
+    return;
+  }
+
   // Conversation history restore endpoint: GET /chat or GET /conversation
   if ((path.endsWith("/chat") || path.endsWith("/conversation") || path.endsWith("/conversations")) && req.method === "GET") {
     try {
       const conversationId = (req.query?.conversationId || req.query?.id || "").toString();
-      const userId = (req.query?.userId || "").toString();
+      const userId = (req.query?.userId || authenticatedUid || ALLOWED_UID).toString();
 
       if (conversationId) {
         const convRef = db.collection("conversations").doc(conversationId);
@@ -888,7 +926,7 @@ function getCurrentTimeForCity(city) {
       return;
     }
 
-    const { message, conversationId: requestedConvId, userId = "guest_default", stream = true } = req.body || {};
+    const { message, conversationId: requestedConvId, userId = (authenticatedUid || ALLOWED_UID), stream = true } = req.body || {};
     if (!message || typeof message !== "string") {
       res.status(400).json({ error: "Message is required." });
       return;

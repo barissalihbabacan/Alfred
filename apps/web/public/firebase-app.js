@@ -55,6 +55,9 @@ window.getAppCheckToken = async () => {
   }
 };
 
+export const ALLOWED_UID = "test-owner-uid-123456";
+window.ALLOWED_UID = ALLOWED_UID;
+
 function formatAuthErrorDetails(err) {
   const code = err?.code || "";
   const rawMsg = err?.message || "";
@@ -72,6 +75,12 @@ function formatAuthErrorDetails(err) {
   }
 
   switch (code) {
+    case "auth/unauthorized-uid":
+      return {
+        code,
+        title: "Yetkisiz Kullanıcı (Erişim Reddedildi)",
+        message: "Bu sisteme yalnızca yetkili yönetici erişebilir. Giriş yaptığınız hesap yetkilendirilmemiştir."
+      };
     case "auth/operation-not-allowed":
       return {
         code,
@@ -130,8 +139,26 @@ window.firebaseAuth = auth;
 
 // Listen for returning redirect sign-in result
 getRedirectResult(auth)
-  .then((cred) => {
+  .then(async (cred) => {
     if (cred && cred.user) {
+      if (cred.user.uid !== ALLOWED_UID) {
+        console.warn("[Auth] Unauthorized redirect sign-in attempt:", cred.user.uid);
+        await signOut(auth);
+        const errBox = document.getElementById("gateAuthError");
+        if (errBox) {
+          const details = formatAuthErrorDetails({ code: "auth/unauthorized-uid" });
+          errBox.innerHTML = `
+            <div class="auth-error-header">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span>${details.title}</span>
+              <button onclick="document.getElementById('gateAuthError').style.display='none'" class="auth-error-close" title="Kapat">✕</button>
+            </div>
+            <div class="auth-error-desc">${details.message}</div>
+          `;
+          errBox.style.display = "block";
+        }
+        return;
+      }
       console.log("[Auth] Redirect sign-in success:", cred.user);
       const gateOverlay = document.getElementById("authGateOverlay");
       if (gateOverlay) gateOverlay.style.display = "none";
@@ -184,7 +211,12 @@ window.handleGoogleSignIn = async function() {
   }
 
   try {
-    await signInWithPopup(auth, googleProvider);
+    const cred = await signInWithPopup(auth, googleProvider);
+    if (cred && cred.user && cred.user.uid !== ALLOWED_UID) {
+      console.warn("[Auth] Unauthorized popup sign-in attempt:", cred.user.uid);
+      await signOut(auth);
+      throw { code: "auth/unauthorized-uid" };
+    }
   } catch (err) {
     console.error("[Auth] Google Sign-In error:", err);
     console.error("[Auth] Error customData:", err?.customData);
@@ -294,7 +326,7 @@ window.handleSignOut = async function() {
 };
 
 // Listen to Firebase Auth State Changes and enforce Auth Gate
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(auth, async (user) => {
   const gateOverlay = document.getElementById("authGateOverlay");
   const topSignOutBtn = document.getElementById("topSignOutBtn");
   const userAvatar = document.getElementById("sidebarUserAvatar");
@@ -302,7 +334,36 @@ onAuthStateChanged(auth, (user) => {
   const userRole = document.getElementById("sidebarUserRole");
 
   if (user) {
-    // User is authenticated: unlock app layout
+    if (user.uid !== ALLOWED_UID) {
+      console.warn("[Auth] Unauthorized UID detected in onAuthStateChanged:", user.uid);
+      try {
+        await signOut(auth);
+      } catch (e) {
+        console.warn("[Auth] Sign-out error:", e);
+      }
+      if (gateOverlay) gateOverlay.style.display = "flex";
+      if (topSignOutBtn) topSignOutBtn.style.display = "none";
+      if (userName) userName.textContent = "Giriş Yapılmadı";
+      if (userRole) userRole.textContent = "Erişim Kilitli";
+      if (userAvatar) userAvatar.textContent = "?";
+
+      const errBox = document.getElementById("gateAuthError");
+      if (errBox) {
+        const details = formatAuthErrorDetails({ code: "auth/unauthorized-uid" });
+        errBox.innerHTML = `
+          <div class="auth-error-header">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span>${details.title}</span>
+            <button onclick="document.getElementById('gateAuthError').style.display='none'" class="auth-error-close" title="Kapat">✕</button>
+          </div>
+          <div class="auth-error-desc">${details.message}</div>
+        `;
+        errBox.style.display = "block";
+      }
+      return;
+    }
+
+    // User is authenticated and authorized: unlock app layout
     if (gateOverlay) gateOverlay.style.display = "none";
     if (topSignOutBtn) topSignOutBtn.style.display = "inline-flex";
 

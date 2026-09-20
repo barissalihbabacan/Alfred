@@ -19,5 +19,7 @@ env:
     value: kokoro
   - variable: TTS_VOICE
     value: bm_george
+  # Secret adi functions/index.js'teki defineSecret ile ayni olmali:
+  # defineSecret gecerli bir ortam degiskeni adi ister (tire kullanilamaz).
   - variable: GROQ_API_KEY
-    secret: groq-api-key
+    secret: GROQ_API_KEY

@@ -93,7 +93,23 @@ The app is locked to one person. There is no sign-up, no password login and no S
 
 ### Deployment — two configs, know which one you are changing
 - `firebase.json` — Firestore rules/indexes, the `functions` codebase, and Hosting. Hosting serves `apps/web/public`, rewrites `/api/**` to the `api` function and everything else to `index.html`, with `no-cache` on all paths.
-- `apphosting.yaml` — Firebase **App Hosting** runConfig (0–2 instances, concurrency 10, 2 CPU, 2 GiB) and the production env: `AI_PROVIDER=groq`, `GROQ_MODEL=llama-3.3-70b-versatile`, `GROQ_STT_MODEL=whisper-large-v3-turbo`, `TTS_PROVIDER=kokoro`, `TTS_VOICE=bm_george`, and `GROQ_API_KEY` from the `groq-api-key` secret.
+- `apphosting.yaml` — Firebase **App Hosting** runConfig (0–2 instances, concurrency 10, 2 CPU, 2 GiB) and the production env: `AI_PROVIDER=groq`, `GROQ_MODEL=llama-3.3-70b-versatile`, `GROQ_STT_MODEL=whisper-large-v3-turbo`, `TTS_PROVIDER=kokoro`, `TTS_VOICE=bm_george`, and `GROQ_API_KEY` from Secret Manager.
+
+### Secrets — and why functions cannot be deployed right now
+`functions/index.js` resolves `GROQ_API_KEY` and `GEMINI_API_KEY` through `defineSecret()` (Secret Manager), with a `process.env` fallback. Accepting a key from the `x-groq-api-key` / `x-gemini-api-key` request header is now gated behind `FUNCTIONS_EMULATOR` — production never takes a key from the caller.
+
+`apphosting.yaml` references the same secret names. `defineSecret` requires names that are valid environment variables, so the secrets are `GROQ_API_KEY` / `GEMINI_API_KEY`, not the `groq-api-key` style used previously.
+
+**Billing is disabled on the `butler-alfred` project** (since 11 Sep 2026). Two consequences:
+- The deployed `api` function returns 503 on every request — `The request failed because billing is disabled for this project` appears in `firebase functions:log`. This is the current production state, unrelated to any code change.
+- Secret Manager returns HTTP 403, so `firebase deploy --only functions` will fail until billing is enabled and the secrets exist:
+
+```bash
+firebase functions:secrets:set GROQ_API_KEY
+firebase functions:secrets:set GEMINI_API_KEY
+```
+
+The secret wiring is committed ahead of that on purpose; do not "fix" the deploy failure by reverting to plain `process.env`.
 
 ## Notes for future sessions
 

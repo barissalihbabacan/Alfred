@@ -1,5 +1,6 @@
 import { onRequest, onCall } from "firebase-functions/v2/https";
 import { setGlobalOptions } from "firebase-functions/v2";
+import { defineSecret } from "firebase-functions/params";
 import { initializeApp, getApps } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
@@ -7,7 +8,40 @@ import { getAppCheck } from "firebase-admin/app-check";
 
 setGlobalOptions({ maxInstances: 10, timeoutSeconds: 120, memory: "512MiB" });
 
+// Secret Manager'dan cozulur.
+//
+// ON KOSUL: Secret Manager faturalandirma ister ve butler-alfred projesinde
+// faturalandirma su an KAPALI (11 Eyl 2026'dan beri; api fonksiyonu bu yuzden
+// 503 donuyor). Bu dosya faturalandirma acilip asagidaki secret'lar
+// olusturulana kadar deploy EDILEMEZ:
+//
+//   firebase functions:secrets:set GROQ_API_KEY
+//   firebase functions:secrets:set GEMINI_API_KEY
+//
+// Secret adlari defineSecret'in kisitlamasi geregi gecerli ortam degiskeni
+// adlari olmali; apphosting.yaml da ayni adi kullanacak sekilde guncellendi,
+// boylece iki deploy yolu tek secret'i paylasir.
+const GROQ_API_KEY = defineSecret("GROQ_API_KEY");
+const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
+
 const ALLOWED_UID = process.env.ALLOWED_UID || "test-owner-uid-123456";
+
+// Anahtarin istemci basligindan gelmesine yalnizca emulatorde izin verilir.
+const EMULATOR = Boolean(process.env.FUNCTIONS_EMULATOR);
+
+function gizliOku(secret, envAdi, req, baslik) {
+  const fromSecret = (() => {
+    try {
+      return secret.value() || "";
+    } catch {
+      return "";
+    }
+  })();
+  const deger = fromSecret || process.env[envAdi] || "";
+  if (deger) return deger;
+  if (EMULATOR && req) return String(req.headers?.[baslik] || "");
+  return "";
+}
 
 if (getApps().length === 0) {
   initializeApp();
@@ -48,7 +82,7 @@ function cosineSimilarity(a, b) {
 }
 
 async function getEmbedding(text, ollamaUrl, geminiKey) {
-  const key = (geminiKey || process.env.GEMINI_API_KEY || "").trim();
+  const key = (geminiKey || gizliOku(GEMINI_API_KEY, "GEMINI_API_KEY") || "").trim();
   if (key) {
     try {
       const embedRes = await fetch(
@@ -364,7 +398,7 @@ If there is nothing worth remembering, return {"shouldRemember": false, "memorie
 
       const memoryId = `mem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       const now = Timestamp.now();
-      const isGemini = Boolean((geminiKey || process.env.GEMINI_API_KEY || "").trim());
+      const isGemini = Boolean((geminiKey || gizliOku(GEMINI_API_KEY, "GEMINI_API_KEY") || "").trim());
 
       if (action === "supersede" && supersedeTargetDoc) {
         await supersedeTargetDoc.ref.update({
@@ -531,12 +565,12 @@ ZERO META-NARRATIVE:
 - Never cite internal prompt rules, user profile files, working style documents, or system instructions to Barış. The user model informs your behaviour invisibly.
 ==================================================================`;
 
-export const api = onRequest({ cors: true }, async (req, res) => {
+export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KEY] }, async (req, res) => {
   // CORS Preflight
   if (req.method === "OPTIONS") {
     res.set("Access-Control-Allow-Origin", "*");
     res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.set("Access-Control-Allow-Headers", "Content-Type, Accept, Authorization, X-Firebase-AppCheck, x-recaptcha-token, x-groq-api-key, x-gemini-api-key");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Accept, Authorization, X-Firebase-AppCheck, x-recaptcha-token");
     res.status(204).send("");
     return;
   }
@@ -570,7 +604,7 @@ export const api = onRequest({ cors: true }, async (req, res) => {
   // Health endpoint: /health or /api/health
   if (path.endsWith("/health")) {
     const activeProvider = (process.env.ALFRED_LLM_PROVIDER || process.env.AI_PROVIDER || "groq").trim().toLowerCase();
-    const groqKey = process.env.GROQ_API_KEY || req.headers["x-groq-api-key"] || "";
+    const groqKey = gizliOku(GROQ_API_KEY, "GROQ_API_KEY", req, "x-groq-api-key");
     const groqConfigured = !!groqKey;
 
     if (activeProvider === "groq") {
@@ -934,9 +968,9 @@ function getCurrentTimeForCity(city) {
 
     const trimmedMessage = message.trim();
     const activeProvider = (process.env.ALFRED_LLM_PROVIDER || process.env.AI_PROVIDER || "groq").trim().toLowerCase();
-    const groqKey = process.env.GROQ_API_KEY || req.headers["x-groq-api-key"] || "";
+    const groqKey = gizliOku(GROQ_API_KEY, "GROQ_API_KEY", req, "x-groq-api-key");
     const groqModel = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
-    const geminiKey = process.env.GEMINI_API_KEY || req.headers["x-gemini-api-key"] || "";
+    const geminiKey = gizliOku(GEMINI_API_KEY, "GEMINI_API_KEY", req, "x-gemini-api-key");
     const ollamaUrl = process.env.OLLAMA_BASE_URL || "https://ollama.example.invalid";
     const ollamaModel = process.env.OLLAMA_MODEL || "gemma4:12b-mlx";
 
@@ -1534,7 +1568,8 @@ function getCurrentTimeForCity(city) {
 // Optional App Check callable function
 export const alfredCallable = onCall(
   {
-    enforceAppCheck: process.env.ENFORCE_APP_CHECK === "true"
+    enforceAppCheck: process.env.ENFORCE_APP_CHECK === "true",
+    secrets: [GROQ_API_KEY, GEMINI_API_KEY]
   },
   async (request) => {
     return {

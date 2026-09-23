@@ -19,8 +19,7 @@ setGlobalOptions({ maxInstances: 10, timeoutSeconds: 120, memory: "512MiB" });
 // (gitignore'da). Anahtar istemciden (istek basligi) hicbir zaman alinmaz.
 //
 // Secret adlari defineSecret'in kisitlamasi geregi gecerli ortam degiskeni
-// adlari olmali; apphosting.yaml da ayni adi kullanacak sekilde guncellendi,
-// boylece iki deploy yolu tek secret'i paylasir.
+// adlari olmali (tire kullanilamaz).
 const GROQ_API_KEY = defineSecret("GROQ_API_KEY");
 const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
 

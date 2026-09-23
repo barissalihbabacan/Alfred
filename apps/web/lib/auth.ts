@@ -12,6 +12,7 @@ import {
 } from "firebase/auth";
 import { app } from "./firebase";
 import { ALLOWED_UID } from "./allowed-uid";
+import { errorCode, errorWithCode, readErrorProp } from "./errors";
 
 export { ALLOWED_UID };
 
@@ -45,16 +46,18 @@ export async function signInWithGoogle(): Promise<User> {
     const result: UserCredential = await signInWithPopup(auth, provider);
     if (result.user && result.user.uid !== ALLOWED_UID) {
       await signOut(auth);
-      const err: any = new Error("Yetkisiz Kullanıcı: Bu sisteme yalnızca yetkili yönetici erişebilir.");
-      err.code = "auth/unauthorized-uid";
-      throw err;
+      throw errorWithCode(
+        "Yetkisiz Kullanıcı: Bu sisteme yalnızca yetkili yönetici erişebilir.",
+        "auth/unauthorized-uid"
+      );
     }
     return result.user;
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const code = errorCode(error);
     if (
-      error?.code === "auth/internal-error" ||
-      error?.code === "auth/popup-blocked" ||
-      error?.code === "auth/cancelled-popup-request"
+      code === "auth/internal-error" ||
+      code === "auth/popup-blocked" ||
+      code === "auth/cancelled-popup-request"
     ) {
       console.log("[Auth] Popup encountered issue, transitioning to redirect sign-in...");
       await signInWithRedirect(auth, provider);
@@ -83,9 +86,10 @@ export async function checkRedirectResult(): Promise<User | null> {
     if (cred?.user) {
       if (cred.user.uid !== ALLOWED_UID) {
         await signOut(auth);
-        const err: any = new Error("Yetkisiz Kullanıcı: Bu sisteme yalnızca yetkili yönetici erişebilir.");
-        err.code = "auth/unauthorized-uid";
-        throw err;
+        throw errorWithCode(
+          "Yetkisiz Kullanıcı: Bu sisteme yalnızca yetkili yönetici erişebilir.",
+          "auth/unauthorized-uid"
+        );
       }
       return cred.user;
     }
@@ -141,9 +145,9 @@ export interface AuthErrorInfo {
 /**
  * Converts Firebase Auth error codes into clear, user-friendly Turkish messages.
  */
-export function getAuthErrorDetails(error: any): AuthErrorInfo {
+export function getAuthErrorDetails(error: unknown): AuthErrorInfo {
   const info = describeAuthError(error);
-  const customData = error?.customData;
+  const customData = readErrorProp(error, "customData");
   if (customData && typeof customData === "object" && Object.keys(customData).length > 0) {
     try {
       info.serverDetails = JSON.stringify(customData);
@@ -154,9 +158,9 @@ export function getAuthErrorDetails(error: any): AuthErrorInfo {
   return info;
 }
 
-function describeAuthError(error: any): AuthErrorInfo {
-  const code = error?.code || "";
-  const rawMsg = error?.message || "";
+function describeAuthError(error: unknown): AuthErrorInfo {
+  const code = String(errorCode(error) || "");
+  const rawMsg = String(readErrorProp(error, "message") || "");
 
   if (
     rawMsg.includes("missing initial state") ||
@@ -249,7 +253,7 @@ function describeAuthError(error: any): AuthErrorInfo {
 /**
  * Returns a single formatted error message string.
  */
-export function getFriendlyAuthErrorMessage(error: any): string {
+export function getFriendlyAuthErrorMessage(error: unknown): string {
   const details = getAuthErrorDetails(error);
   return `${details.title}: ${details.message}`;
 }

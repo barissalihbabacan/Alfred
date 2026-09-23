@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useAuth } from "../lib/AuthContext";
 import { apiFetch, ensureOk } from "../lib/api";
 import { createSseParser, stripThinking, ChatStreamEvent } from "../lib/sse";
+import { errorMessage as messageOf, isAbortError } from "../lib/errors";
 
 export type AssistantState =
   | "Idle"
@@ -27,6 +28,42 @@ interface ConversationSummary {
   id: string;
   title: string;
   lastMessageAt?: string;
+}
+
+/** A message as returned by `GET /chat?conversationId=...` (functions/index.js). */
+interface StoredMessageDto {
+  id?: string;
+  sequence?: number;
+  role: string;
+  content: string;
+  createdAt?: string | number | Date;
+}
+
+// Minimal Web Speech API typings: TypeScript's DOM lib does not ship
+// SpeechRecognition (it is still prefixed as webkitSpeechRecognition in Chrome).
+interface SpeechRecognitionResultEventLike {
+  results: ArrayLike<ArrayLike<{ transcript: string }>>;
+}
+
+interface SpeechRecognitionLike {
+  lang: string;
+  interimResults: boolean;
+  onstart: (() => void) | null;
+  onresult: ((event: SpeechRecognitionResultEventLike) => void) | null;
+  onerror: ((event: { error?: string }) => void) | null;
+  onend: (() => void) | null;
+  start(): void;
+  stop(): void;
+}
+
+type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
+
+function getSpeechRecognitionCtor(): SpeechRecognitionCtor | undefined {
+  const w = window as Window & {
+    SpeechRecognition?: SpeechRecognitionCtor;
+    webkitSpeechRecognition?: SpeechRecognitionCtor;
+  };
+  return w.SpeechRecognition || w.webkitSpeechRecognition;
 }
 
 function escapeHtml(str: string): string {
@@ -229,7 +266,7 @@ export default function VoiceChatPlayground() {
   const toolsBtnRef = useRef<HTMLButtonElement | null>(null);
   const turnSeqRef = useRef(0);
   const activeTurnRef = useRef<ActiveTurn | null>(null);
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -303,9 +340,12 @@ export default function VoiceChatPlayground() {
       if (res.ok) {
         const data = await res.json();
         if (data.success && Array.isArray(data.messages)) {
-          const loaded: Message[] = data.messages
-            .filter((m: any) => m.role === "user" || m.role === "assistant")
-            .map((m: any) => ({
+          const loaded: Message[] = (data.messages as StoredMessageDto[])
+            .filter(
+              (m): m is StoredMessageDto & { role: Message["role"] } =>
+                m.role === "user" || m.role === "assistant"
+            )
+            .map((m) => ({
               id: m.id || "msg-" + m.sequence,
               role: m.role,
               text: m.content,
@@ -544,11 +584,11 @@ export default function VoiceChatPlayground() {
           throw new Error("Bağlantı yanıt tamamlanmadan kapandı.");
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       const wasFinished = turn.finished;
       turn.finished = true;
-      if (!isCurrent() && err?.name === "AbortError") return;
-      if (err?.name === "AbortError") {
+      if (!isCurrent() && isAbortError(err)) return;
+      if (isAbortError(err)) {
         if (!wasFinished) {
           updateAssistant({
             text: accumulatedText
@@ -558,7 +598,7 @@ export default function VoiceChatPlayground() {
           });
         }
       } else if (!wasFinished) {
-        const msg = err?.message || "İletişim sırasında bir hata oluştu.";
+        const msg = messageOf(err, "İletişim sırasında bir hata oluştu.");
         if (isCurrent()) {
           setState("Error");
           setErrorMessage(msg);
@@ -596,7 +636,7 @@ export default function VoiceChatPlayground() {
       return;
     }
 
-    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const SpeechRec = getSpeechRecognitionCtor();
     if (!SpeechRec) {
       alert("Tarayıcınız Web Speech API mikrofon girişini desteklemiyor.");
       return;
@@ -612,7 +652,7 @@ export default function VoiceChatPlayground() {
       setState("Listening");
     };
 
-    rec.onresult = (event: any) => {
+    rec.onresult = (event) => {
       const transcript = event.results[0][0].transcript;
       setInputText((prev) => (prev ? prev + " " + transcript : transcript));
       requestAnimationFrame(() => {
@@ -625,7 +665,7 @@ export default function VoiceChatPlayground() {
       });
     };
 
-    rec.onerror = (event: any) => {
+    rec.onerror = (event) => {
       console.warn("Speech error:", event?.error);
       setIsRecording(false);
       setState("Idle");

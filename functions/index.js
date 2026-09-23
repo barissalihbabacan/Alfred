@@ -5,8 +5,7 @@ import {
   buildMemoryExtractionSystemPrompt,
   buildMemoryExtractionUserPrompt,
   extractJsonPayload,
-  getMemoryExtractionCandidates,
-  validateMemoryCandidate
+  getMemoryExtractionCandidates
 } from "../src/ai/prompts/memory-extraction.js";
 import { generateDeterministicTitle } from "../src/data/firestore/conversation-title.js";
 import {
@@ -14,11 +13,14 @@ import {
   getCurrentTimeForCity
 } from "../src/ai/tools/time/current-time.js";
 import {
-  GEMINI_EMBEDDING_MODEL,
   generateEmbedding,
   isComparableEmbedding
 } from "../src/ai/embedding/embedding-client.js";
-import { PrivacyFilter } from "../src/alfred/cognitive/memory/privacy-filter.js";
+import {
+  createMemoryWriteTally,
+  summarizeMemoryWriteTally
+} from "../src/alfred/cognitive/memory/memory-write-planner.js";
+import { persistMemoryCandidates } from "./memory-persistence.js";
 import { buildAlfredSystemPrompt } from "../src/ai/prompts/alfred-system-prompt.js";
 import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { setGlobalOptions } from "firebase-functions/v2";
@@ -187,21 +189,8 @@ async function extractAndPersistMemories({
   let extractorProvider = null;
   // Aday basina sonuc sayaclari; memory_extraction olayi icin dondurulur.
   // rejected: gizli bilgi filtresi; invalid: validateMemoryCandidate reddetti.
-  const tally = { stored: 0, superseded: 0, retracted: 0, duplicate: 0, rejected: 0, invalid: 0, failed: 0 };
-  const summarize = (fallbackOutcome) => {
-    const outcome = tally.superseded ? "superseded"
-      : tally.stored ? "stored"
-        : tally.retracted ? "retracted"
-          : tally.duplicate ? "duplicate"
-            : tally.failed ? "failed"
-              : fallbackOutcome;
-    return {
-      outcome,
-      count: tally.stored + tally.retracted,
-      extractor_provider: extractorProvider,
-      ...tally
-    };
-  };
+  const tally = createMemoryWriteTally();
+  const summarize = (fallbackOutcome) => summarizeMemoryWriteTally(tally, fallbackOutcome, extractorProvider);
 
   // 1. Try Groq if key is available
   if (groqKey) {
@@ -291,136 +280,20 @@ async function extractAndPersistMemories({
     return summarize("nothing");
   }
 
-  for (const candidate of memories) {
-    // Aday dogrulamasi src/ ile ortak (validateMemoryCandidate): nesne olmayan
-    // aday, icerik, uzunluk ve guven esigi; action ve memoryType istemdeki
-    // degerlere normalize edilir. Gecersiz aday atlanir, liste devam eder.
-    const validated = validateMemoryCandidate(candidate);
-    if (!validated) {
-      tally.invalid++;
-      continue;
-    }
-    const content = validated.content;
-
-    // Gizli bilgi filtresi src/ ile ortak (PrivacyFilter); bkz. privacy-filter.ts.
-    if (!PrivacyFilter.check(content).isSafe) {
-      // Aday gizli bilgi iceriyor: icerigi loglamak onu sizdirmak olur.
-      logger.warn("[Memory] Candidate rejected due to sensitive data policy.", {
-        memory_type: validated.memoryType
-      });
-      tally.rejected++;
-      continue;
-    }
-
-    const action = validated.action;
-
-    if (action === "forget") {
-      try {
-        const queryEmbedding = await getEmbedding(content, ollamaUrl, geminiKey);
-        const memSnap = await db.collection("memory_vectors")
-          .where("userId", "==", userId)
-          .where("status", "==", "active")
-          .get();
-
-        let bestMatch = null;
-        let bestScore = 0;
-        for (const doc of memSnap.docs) {
-          const d = doc.data();
-          if (isComparableEmbedding(d, queryEmbedding.model)) {
-            const score = cosineSimilarity(queryEmbedding.values, d.embedding);
-            if (score > bestScore) {
-              bestScore = score;
-              bestMatch = doc;
-            }
-          }
-        }
-
-        if (bestMatch && bestScore >= 0.5) {
-          await bestMatch.ref.update({
-            status: "retracted",
-            updatedAt: Timestamp.now()
-          });
-          logger.info(`[Memory] Retracted memory ${bestMatch.id} ("${bestMatch.data().content}")`);
-          tally.retracted++;
-        }
-      } catch (forgetErr) {
-        logger.warn(`[Memory] Retraction failed: ${errMessage(forgetErr)}`);
-        tally.failed++;
-      }
-      continue;
-    }
-
-    try {
-      const embedding = await getEmbedding(content, ollamaUrl, geminiKey);
-      const activeSnap = await db.collection("memory_vectors")
-        .where("userId", "==", userId)
-        .where("status", "==", "active")
-        .get();
-
-      let isDuplicate = false;
-      let supersedeTargetDoc = null;
-
-      for (const doc of activeSnap.docs) {
-        const d = doc.data();
-        if (isComparableEmbedding(d, embedding.model)) {
-          const score = cosineSimilarity(embedding.values, d.embedding);
-          if (action === "create" && score >= 0.85) {
-            isDuplicate = true;
-            logger.info(`[Memory] Suppressed duplicate memory: "${content}" (score: ${score})`);
-            break;
-          }
-          if (action === "supersede" && score >= 0.5 && !supersedeTargetDoc) {
-            supersedeTargetDoc = doc;
-          }
-        }
-      }
-
-      if (isDuplicate) {
-        tally.duplicate++;
-        continue;
-      }
-
-      const memoryId = `mem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      const now = Timestamp.now();
-
-      if (action === "supersede" && supersedeTargetDoc) {
-        await supersedeTargetDoc.ref.update({
-          status: "superseded",
-          supersededByMemoryId: memoryId,
-          updatedAt: now
-        });
-        logger.info(`[Memory] Superseded memory ${supersedeTargetDoc.id} with ${memoryId}`);
-      }
-
-      await db.collection("memory_vectors").doc(memoryId).set({
-        memoryId,
-        userId,
-        content,
-        memoryType: validated.memoryType,
-        sourceConversationId: conversationId,
-        sourceMessageIds: sourceMessageIds || [],
-        embeddingProvider: embedding.model === GEMINI_EMBEDDING_MODEL ? "gemini" : "ollama",
-        embeddingModel: embedding.model,
-        embeddingDimension: embedding.values.length,
-        embedding: embedding.values,
-        vectorStore: "firestore",
-        vectorId: `vec_${memoryId}`,
-        status: "active",
-        supersedesMemoryId: supersedeTargetDoc ? supersedeTargetDoc.id : null,
-        indexStatus: "indexed",
-        createdAt: now,
-        updatedAt: now,
-        indexedAt: now
-      });
-
-      logger.info(`[Memory] Stored long-term memory in Firestore: "${content}" (${validated.memoryType})`);
-      tally.stored++;
-      if (action === "supersede" && supersedeTargetDoc) tally.superseded++;
-    } catch (saveErr) {
-      logger.warn(`[Memory] Failed to save memory candidate: ${errMessage(saveErr)}`);
-      tally.failed++;
-    }
-  }
+  // Karar mantigi src/ ile ortak (memory-write-planner.ts); G/C
+  // memory-persistence.js icinde, Firebase bagimliliklari buradan verilir.
+  await persistMemoryCandidates({
+    db,
+    memories,
+    userId,
+    conversationId,
+    sourceMessageIds,
+    embed: (text) => getEmbedding(text, ollamaUrl, geminiKey),
+    logger,
+    now: () => Timestamp.now(),
+    errMessage,
+    tally
+  });
 
   return summarize("nothing");
 }

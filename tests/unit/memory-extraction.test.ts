@@ -7,6 +7,25 @@ import { MemoryExtractor } from "../../src/alfred/cognitive/memory/extractor/mem
 import { PrivacyFilter } from "../../src/alfred/cognitive/memory/privacy-filter.js";
 import { buildMemoryExtractionPrompt, parseMemoryExtractionResponse } from "../../src/ai/prompts/memory-extraction.js";
 import { AIProvider, ChatMessage, ChatCompletionResponse } from "../../src/ai/providers/types.js";
+import { IEmbeddingProvider } from "../../src/ai/embedding/types.js";
+
+/** Embeds by lookup, so tests control exact cosine scores. */
+class TableEmbeddingProvider implements IEmbeddingProvider {
+  public readonly id = "table";
+  public readonly dimension = 2;
+  constructor(public readonly vectors: Record<string, number[]>, public readonly model = "table-model") {}
+  public async embed(text: string): Promise<number[]> {
+    const v = this.vectors[text.trim()];
+    if (!v) throw new Error(`no vector for ${text}`);
+    return [...v];
+  }
+  public async embedBatch(texts: string[]): Promise<number[][]> {
+    return Promise.all(texts.map((t) => this.embed(t)));
+  }
+  public isConfigured(): boolean {
+    return true;
+  }
+}
 
 /**
  * Mock AI Provider for deterministic extraction tests.
@@ -157,8 +176,7 @@ describe("Autonomous Long-Term Memory Extraction Suite", () => {
           enabled: true,
           minConfidence: 0.75,
           maxContextMessages: 4,
-          timeoutMs: 1000,
-          deduplicationThreshold: 0.85
+          timeoutMs: 1000
         }
       });
     });
@@ -231,8 +249,7 @@ describe("Autonomous Long-Term Memory Extraction Suite", () => {
           enabled: true,
           minConfidence: 0.75,
           maxContextMessages: 4,
-          timeoutMs: 1000,
-          deduplicationThreshold: 0.85
+          timeoutMs: 1000
         }
       });
 
@@ -252,8 +269,7 @@ describe("Autonomous Long-Term Memory Extraction Suite", () => {
             enabled: true,
             minConfidence: 0.75,
             maxContextMessages: 4,
-            timeoutMs: 1000,
-            deduplicationThreshold: 0.85
+            timeoutMs: 1000
           }
         }
       });
@@ -465,6 +481,104 @@ describe("Autonomous Long-Term Memory Extraction Suite", () => {
       expect(result.rejected).toHaveLength(1);
       expect(result.rejected[0]!.reason).toContain("sensitive pattern");
       expect(await memoryRepo.listAllActive("baris")).toHaveLength(0);
+    });
+  });
+
+  describe("MemoryService write decisions (shared with production via memory-write-planner)", () => {
+    // Against [1, 0]: A scores 0.6, B 0.8, SAME 1.0, FAR 0.
+    const vectors: Record<string, number[]> = {
+      "Barış uses Jenkins for CI.": [3, 4],
+      "Barış uses CircleCI for CI.": [4, 3],
+      "Barış migrated CI to GitHub Actions.": [1, 0],
+      "Barış likes tea with lemon.": [0, 1],
+      "Barış uses GitHub Actions for CI.": [1, 0],
+      "Barış uses GitHub Actions for CI builds.": [0.9, 0.3]
+    };
+    let memoryRepo: InMemoryMemoryRepository;
+    let vectorStore: InMemoryVectorStore;
+    let mockAI: MockAIProvider;
+    let service: MemoryService;
+
+    const extraction = { enabled: true, minConfidence: 0.75, maxContextMessages: 4, timeoutMs: 1000 };
+    const makeService = (embeddingProvider: IEmbeddingProvider) => new MemoryService({
+      memoryRepo,
+      vectorStore,
+      embeddingProvider,
+      extractor: new MemoryExtractor({ provider: mockAI, config: extraction }),
+      // Retrieval disabled on purpose: write decisions no longer depend on it.
+      config: { retrieval: { enabled: false, topK: 3, minScore: 0.05, timeoutMs: 1000 }, extraction }
+    });
+
+    const turn = (memories: Array<{ content: string; action: string }>) => {
+      mockAI.responseJson = {
+        shouldRemember: true,
+        memories: memories.map((m) => ({ ...m, memoryType: "technical_preference", confidence: 0.95 }))
+      };
+      return service.processConversationForMemories({ currentMessage: "x", userId: "baris" });
+    };
+
+    beforeEach(() => {
+      memoryRepo = new InMemoryMemoryRepository();
+      vectorStore = new InMemoryVectorStore();
+      mockAI = new MockAIProvider();
+      service = makeService(new TableEmbeddingProvider(vectors));
+    });
+
+    it("supersedes the first active match >= 0.5 in repository order, not the best one", async () => {
+      const jenkins = await service.createMemory({ content: "Barış uses Jenkins for CI.", userId: "baris" });
+      await service.createMemory({ content: "Barış uses CircleCI for CI.", userId: "baris" });
+
+      const result = await turn([{ content: "Barış migrated CI to GitHub Actions.", action: "supersede" }]);
+
+      expect(result.superseded).toEqual([{ oldMemoryId: jenkins.memoryId, newMemoryId: result.created[0]!.memoryId }]);
+      expect(result.created[0]!.supersedesMemoryId).toBe(jenkins.memoryId);
+      expect((await memoryRepo.getMemoryRecordByMemoryId(jenkins.memoryId))?.status).toBe("superseded");
+    });
+
+    it("forget retracts the best active match, found in the repository even with retrieval disabled", async () => {
+      await service.createMemory({ content: "Barış uses Jenkins for CI.", userId: "baris" });
+      const circle = await service.createMemory({ content: "Barış uses CircleCI for CI.", userId: "baris" });
+
+      const result = await turn([{ content: "Barış uses GitHub Actions for CI.", action: "forget" }]);
+
+      expect(result.retracted).toEqual([circle.memoryId]);
+      expect((await memoryRepo.getMemoryRecordByMemoryId(circle.memoryId))?.status).toBe("retracted");
+    });
+
+    it("uses the fixed 0.85 duplicate threshold, and a memory written earlier in the turn counts", async () => {
+      const result = await turn([
+        { content: "Barış uses GitHub Actions for CI.", action: "create" },
+        { content: "Barış uses GitHub Actions for CI builds.", action: "create" }, // cos ~0.949
+        { content: "Barış uses CircleCI for CI.", action: "create" } // cos 0.8: kept
+      ]);
+
+      expect(result.created.map((m) => m.content)).toEqual(["Barış uses GitHub Actions for CI.", "Barış uses CircleCI for CI."]);
+      expect(result.skippedDuplicates).toEqual(["Barış uses GitHub Actions for CI builds."]);
+    });
+
+    it("a supersede candidate is never dropped as a duplicate", async () => {
+      const old = await service.createMemory({ content: "Barış uses GitHub Actions for CI.", userId: "baris" });
+      const result = await turn([{ content: "Barış uses GitHub Actions for CI.", action: "supersede" }]);
+      expect(result.skippedDuplicates).toEqual([]);
+      expect(result.superseded).toEqual([{ oldMemoryId: old.memoryId, newMemoryId: result.created[0]!.memoryId }]);
+    });
+
+    it("only compares memories embedded by the same model", async () => {
+      await service.createMemory({ content: "Barış uses GitHub Actions for CI.", userId: "baris" });
+      service = makeService(new TableEmbeddingProvider(vectors, "other-model"));
+
+      const result = await turn([{ content: "Barış uses GitHub Actions for CI.", action: "create" }]);
+
+      expect(result.skippedDuplicates).toEqual([]);
+      expect(result.created).toHaveLength(1);
+    });
+
+    it("drops a candidate whose active-memory read fails instead of writing blind", async () => {
+      memoryRepo.shouldFail = true;
+      const result = await turn([{ content: "Barış likes tea with lemon.", action: "create" }]);
+      expect(result.created).toEqual([]);
+      memoryRepo.shouldFail = false;
+      expect(await memoryRepo.listAllActive("baris")).toEqual([]);
     });
   });
 });

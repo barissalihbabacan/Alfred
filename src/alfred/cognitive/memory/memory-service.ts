@@ -25,6 +25,7 @@ import {
 } from "./extractor/types.js";
 import { MemoryExtractor } from "./extractor/memory-extractor.js";
 import { PrivacyFilter } from "./privacy-filter.js";
+import { generateMemoryId, planMemoryWrite } from "./memory-write-planner.js";
 import { errorMessage } from "../../../core/errors/index.js";
 
 export interface MemoryServiceOptions {
@@ -87,13 +88,26 @@ export class MemoryService {
     }
 
     const startTime = Date.now();
-    const memoryId = input.memoryId || `mem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    // 1. Generate Embedding (fail fast before any DB write)
+    const embedding = await this.embeddingProvider.embed(input.content.trim());
+
+    return this.persistEmbeddedMemory(input, embedding, startTime);
+  }
+
+  /**
+   * Steps 2-6 of createMemory for content that has already been embedded
+   * (the extraction pipeline embeds each candidate once, to plan its write).
+   */
+  private async persistEmbeddedMemory(
+    input: CreateMemoryInput,
+    embedding: number[],
+    startTime: number = Date.now()
+  ): Promise<MemoryVectorDocument> {
+    const memoryId = input.memoryId || generateMemoryId();
     const vectorId = `vec_${memoryId}`;
     const cleanContent = input.content.trim();
     const memoryType: MemoryType = input.memoryType || "general";
-
-    // 1. Generate Embedding (fail fast before any DB write)
-    const embedding = await this.embeddingProvider.embed(cleanContent);
 
     // 2. Persist to temporary local storage first (write-ahead durability)
     await this.pendingStore.savePending({
@@ -529,10 +543,13 @@ export class MemoryService {
    * 1. Extracts candidate memories from bounded conversation context using LLM.
    * 2. Evaluates confidence against configured minimum threshold.
    * 3. Scans candidates through privacy filter to eliminate secrets/credentials.
-   * 4. Detects explicit forget requests and retracts matching memories.
-   * 5. Conducts semantic search to detect and suppress duplicate memories.
-   * 6. Handles supersession of obsolete memories, preserving historical lineage.
-   * 7. Persists durable new memories via canonical MemoryService pipeline.
+   * 4. Embeds the candidate and plans its write against the user's active
+   *    Firestore records with the decision rules shared with production
+   *    (memory-write-planner.ts): forget retracts the best match >= 0.5,
+   *    create is skipped as a duplicate when any match is >= 0.85, supersede
+   *    replaces the first match >= 0.5 (repository order), preserving lineage.
+   * 5. Persists durable new memories via the canonical MemoryService pipeline
+   *    (Firestore record, then vector-store index).
    */
   public async processConversationForMemories(
     input: MemoryExtractionInput
@@ -582,111 +599,72 @@ export class MemoryService {
         continue;
       }
 
-      // 3. Handle explicit forget / retraction
-      if (candidate.action === "forget") {
-        try {
-          const matching = await this.searchMemories(candidate.content, input.userId, {
-            topK: 3,
-            minScore: 0.5
-          });
-
-          if (matching.length > 0) {
-            const target = matching[0]!;
-            await this.retractMemory(target.memoryId, input.userId);
-            result.retracted.push(target.memoryId);
-            console.log(
-              `[MemoryService] Explicit retraction executed for memory ${target.memoryId} for user '${input.userId}' ("${target.content}")`
-            );
-          } else {
-            console.log(`[MemoryService] No matching memory found to retract for query: "${candidate.content}"`);
-          }
-        } catch (err: unknown) {
-          console.error("[MemoryService] Failed to execute memory retraction:", errorMessage(err));
-        }
-        continue;
-      }
-
-      // 4. Handle supersession
-      if (candidate.action === "supersede") {
-        try {
-          // Same target lookup as production: the new fact's own content.
-          const lookupQuery = candidate.content;
-          const related = await this.searchMemories(lookupQuery, input.userId, {
-            topK: 3,
-            minScore: 0.5
-          });
-
-          let oldRecordDoc: MemoryVectorDocument | null = null;
-          if (related.length > 0) {
-            oldRecordDoc = await this.memoryRepo.getMemoryRecordByMemoryId(related[0]!.memoryId);
-          }
-
-          const newRecord = await this.createMemory({
-            content: candidate.content,
-            userId: input.userId,
-            memoryType: candidate.memoryType,
-            sourceConversationId: input.conversationId,
-            sourceMessageIds: input.sourceMessageIds,
-            supersedesMemoryId: oldRecordDoc?.memoryId
-          });
-
-          result.created.push(newRecord);
-
-          if (oldRecordDoc) {
-            await this.memoryRepo.updateMemoryStatus({
-              id: oldRecordDoc.id,
-              status: "superseded",
-              supersededByMemoryId: newRecord.memoryId
-            });
-
-            await this.vectorStore.deleteByMemoryId(oldRecordDoc.memoryId);
-
-            result.superseded.push({
-              oldMemoryId: oldRecordDoc.memoryId,
-              newMemoryId: newRecord.memoryId
-            });
-
-            console.log(
-              `[MemoryService] Superseded old memory ${oldRecordDoc.memoryId} ("${oldRecordDoc.content}") with new memory ${newRecord.memoryId} ("${newRecord.content}")`
-            );
-          }
-        } catch (err: unknown) {
-          console.error("[MemoryService] Supersession pipeline error:", errorMessage(err));
-        }
-        continue;
-      }
-
-      // 5. Normal creation with Deduplication check
+      // 3. Plan the write with production's shared decision rules
+      // (memory-write-planner.ts): embed the candidate, read the user's active
+      // memories from the repository (the source of truth, not the vector
+      // store) and decide retract / duplicate / supersede / create. The active
+      // set is re-read per candidate, so earlier writes in this turn count.
+      const content = candidate.content.trim();
       try {
-        const related = await this.searchMemories(candidate.content, input.userId, {
-          topK: 3,
-          minScore: this.config.extraction.deduplicationThreshold
+        const embedding = await this.embeddingProvider.embed(content);
+        const activeRecords = await this.memoryRepo.listAllActive(input.userId);
+        const plan = planMemoryWrite({
+          action: candidate.action,
+          embedding: { values: embedding, model: this.embeddingProvider.model },
+          activeMemories: activeRecords,
+          recordOf: (record) => record
         });
 
-        // Check if there is an active memory that matches
-        if (related.length > 0) {
-          const bestMatch = related[0]!;
-          if (bestMatch.score >= this.config.extraction.deduplicationThreshold) {
+        switch (plan.kind) {
+          case "retract": {
+            await this.retractMemory(plan.target.memoryId, input.userId);
+            result.retracted.push(plan.target.memoryId);
+            console.log(
+              `[MemoryService] Explicit retraction executed for memory ${plan.target.memoryId} for user '${input.userId}' ("${plan.target.content}")`
+            );
+            break;
+          }
+          case "noMatch":
+            console.log(`[MemoryService] No matching memory found to retract for query: "${content}"`);
+            break;
+          case "skipDuplicate":
             result.skippedDuplicates.push(candidate.content);
             console.log(
-              `[MemoryService] Suppressed duplicate candidate: "${candidate.content}" (matches "${bestMatch.content}" with score ${bestMatch.score})`
+              `[MemoryService] Suppressed duplicate candidate: "${content}" (matches "${plan.target.content}" with score ${plan.score})`
             );
-            continue;
+            break;
+          case "supersede":
+          case "create": {
+            const oldRecord = plan.kind === "supersede" ? plan.target : null;
+            const newRecord = await this.persistEmbeddedMemory({
+              content,
+              userId: input.userId,
+              memoryType: candidate.memoryType,
+              sourceConversationId: input.conversationId,
+              sourceMessageIds: input.sourceMessageIds,
+              supersedesMemoryId: oldRecord?.memoryId
+            }, embedding);
+            result.created.push(newRecord);
+
+            if (oldRecord) {
+              await this.memoryRepo.updateMemoryStatus({
+                id: oldRecord.id,
+                status: "superseded",
+                supersededByMemoryId: newRecord.memoryId
+              });
+              await this.vectorStore.deleteByMemoryId(oldRecord.memoryId);
+              result.superseded.push({ oldMemoryId: oldRecord.memoryId, newMemoryId: newRecord.memoryId });
+              console.log(
+                `[MemoryService] Superseded old memory ${oldRecord.memoryId} ("${oldRecord.content}") with new memory ${newRecord.memoryId} ("${newRecord.content}")`
+              );
+            } else {
+              console.log(`[MemoryService] Created durable memory: "${content}" (${candidate.memoryType})`);
+            }
+            break;
           }
         }
-
-        const newRecord = await this.createMemory({
-          content: candidate.content,
-          userId: input.userId,
-          memoryType: candidate.memoryType,
-          sourceConversationId: input.conversationId,
-          sourceMessageIds: input.sourceMessageIds
-        });
-
-        result.created.push(newRecord);
-        console.log(`[MemoryService] Created durable memory: "${candidate.content}" (${candidate.memoryType})`);
       } catch (err: unknown) {
-        console.error("[MemoryService] Memory creation error:", errorMessage(err));
+        console.error(`[MemoryService] Memory ${candidate.action} pipeline error:`, errorMessage(err));
       }
     }
 

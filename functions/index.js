@@ -2,6 +2,7 @@
 // functions/lib/index.js icine paketler (functions/build.js).
 import { cosineSimilarity } from "../src/data/vector/cosine-similarity.js";
 import { buildMemoryExtractionUserPrompt, extractJsonPayload } from "../src/ai/prompts/memory-extraction.js";
+import { PrivacyFilter } from "../src/alfred/cognitive/memory/privacy-filter.js";
 import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { setGlobalOptions } from "firebase-functions/v2";
 import { defineSecret } from "firebase-functions/params";
@@ -371,21 +372,14 @@ If there is nothing worth remembering, return {"shouldRemember": false, "memorie
     return summarize("nothing");
   }
 
-  const SENSITIVE_PATTERNS = [
-    /sk-[a-zA-Z0-9_-]{20,}/i,
-    /ghp_[a-zA-Z0-9]{30,}/i,
-    /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/i,
-    /bearer\s+[a-zA-Z0-9_\-\.]{20,}/i,
-    /password\s*[:=]\s*[^\s]+/i
-  ];
-
   for (const candidate of parsed.memories) {
     if (!candidate.content || typeof candidate.content !== "string") continue;
     const content = candidate.content.trim();
     if (content.length < 5) continue;
     if ((candidate.confidence || 0) < 0.70) continue;
 
-    if (SENSITIVE_PATTERNS.some(re => re.test(content))) {
+    // Gizli bilgi filtresi src/ ile ortak (PrivacyFilter); bkz. privacy-filter.ts.
+    if (!PrivacyFilter.check(content).isSafe) {
       // Aday gizli bilgi iceriyor: icerigi loglamak onu sizdirmak olur.
       logger.warn("[Memory] Candidate rejected due to sensitive data policy.", {
         memory_type: candidate.memoryType || "general"

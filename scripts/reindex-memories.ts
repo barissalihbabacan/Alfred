@@ -1,5 +1,6 @@
 #!/usr/bin/env tsx
 import { getMemoryService } from "../src/alfred/cognitive/memory/index.js";
+import { errorMessage } from "../src/core/errors/index.js";
 
 async function main() {
   console.log("=================================================");
@@ -38,8 +39,8 @@ async function main() {
 
     console.log("\nRe-indexing completed successfully.");
     process.exit(0);
-  } catch (err: any) {
-    console.error("\nFatal error during re-indexing:", err?.message || err);
+  } catch (err: unknown) {
+    console.error("\nFatal error during re-indexing:", errorMessage(err));
     process.exit(1);
   }
 }

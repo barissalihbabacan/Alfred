@@ -25,6 +25,7 @@ import {
 } from "./extractor/types.js";
 import { MemoryExtractor } from "./extractor/memory-extractor.js";
 import { PrivacyFilter } from "./privacy-filter.js";
+import { errorMessage } from "../../../core/errors/index.js";
 
 export interface MemoryServiceOptions {
   memoryRepo?: IMemoryRepository;
@@ -180,8 +181,8 @@ export class MemoryService {
       const durationMs = Date.now() - startTime;
       console.log(`[MemoryService] Memory ${memoryId} (${memoryType}) indexed successfully in ${durationMs}ms`);
       return record;
-    } catch (vecErr: any) {
-      const errMsg = vecErr?.message || String(vecErr);
+    } catch (vecErr: unknown) {
+      const errMsg = errorMessage(vecErr);
       console.error(`[MemoryService] Vector store indexing failed for memory ${memoryId}:`, errMsg);
 
       // Record indexing failure in Firestore for subsequent re-indexing
@@ -293,8 +294,8 @@ export class MemoryService {
       }
 
       return memories;
-    } catch (err: any) {
-      console.warn(`[MemoryService] Semantic memory retrieval bypassed (${Date.now() - startTime}ms):`, err?.message || err);
+    } catch (err: unknown) {
+      console.warn(`[MemoryService] Semantic memory retrieval bypassed (${Date.now() - startTime}ms):`, errorMessage(err));
       // Fail open: chat continues normally without long-term memories
       return [];
     }
@@ -350,9 +351,9 @@ export class MemoryService {
         });
 
         succeeded++;
-      } catch (err: any) {
+      } catch (err: unknown) {
         failed++;
-        const errorMsg = err?.message || String(err);
+        const errorMsg = errorMessage(err);
         errors.push({ memoryId: record.memoryId, error: errorMsg });
         console.error(`[MemoryService] Reindex failed for memory ${record.memoryId}:`, errorMsg);
 
@@ -453,14 +454,14 @@ export class MemoryService {
             indexStatus: "indexed",
             indexedAt: new Date().toISOString()
           });
-        } catch (vecErr: any) {
-          console.warn(`[MemoryService] Vector upsert failed during retry for ${record.memoryId}:`, vecErr?.message || vecErr);
+        } catch (vecErr: unknown) {
+          console.warn(`[MemoryService] Vector upsert failed during retry for ${record.memoryId}:`, errorMessage(vecErr));
         }
 
         succeeded++;
-      } catch (err: any) {
+      } catch (err: unknown) {
         failed++;
-        const errMsg = err?.message || String(err);
+        const errMsg = errorMessage(err);
         errors.push({ memoryId: item.memoryId, error: errMsg });
         console.error(`[MemoryService] Retry failed for pending embedding ${item.memoryId}:`, errMsg);
       }
@@ -552,8 +553,8 @@ export class MemoryService {
     let extractionResult;
     try {
       extractionResult = await this.extractor.extract(input);
-    } catch (err: any) {
-      console.warn("[MemoryService] Extraction error during conversation processing:", err?.message || err);
+    } catch (err: unknown) {
+      console.warn("[MemoryService] Extraction error during conversation processing:", errorMessage(err));
       return result;
     }
 
@@ -599,8 +600,8 @@ export class MemoryService {
           } else {
             console.log(`[MemoryService] No matching memory found to retract for query: "${candidate.content}"`);
           }
-        } catch (err: any) {
-          console.error("[MemoryService] Failed to execute memory retraction:", err?.message || err);
+        } catch (err: unknown) {
+          console.error("[MemoryService] Failed to execute memory retraction:", errorMessage(err));
         }
         continue;
       }
@@ -648,8 +649,8 @@ export class MemoryService {
               `[MemoryService] Superseded old memory ${oldRecordDoc.memoryId} ("${oldRecordDoc.content}") with new memory ${newRecord.memoryId} ("${newRecord.content}")`
             );
           }
-        } catch (err: any) {
-          console.error("[MemoryService] Supersession pipeline error:", err?.message || err);
+        } catch (err: unknown) {
+          console.error("[MemoryService] Supersession pipeline error:", errorMessage(err));
         }
         continue;
       }
@@ -683,8 +684,8 @@ export class MemoryService {
 
         result.created.push(newRecord);
         console.log(`[MemoryService] Created durable memory: "${candidate.content}" (${candidate.memoryType})`);
-      } catch (err: any) {
-        console.error("[MemoryService] Memory creation error:", err?.message || err);
+      } catch (err: unknown) {
+        console.error("[MemoryService] Memory creation error:", errorMessage(err));
       }
     }
 

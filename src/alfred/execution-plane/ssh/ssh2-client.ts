@@ -10,6 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import { ISSHClient, SSHExecResult } from "./ssh-client.interface.js";
 import { SSHHostConfig } from "../../../core/config/ssh.config.js";
+import { errorMessage } from "../../../core/errors/index.js";
 
 export class SSH2Client implements ISSHClient {
   private client: SSH2LibClient | null = null;
@@ -118,10 +119,10 @@ export class SSH2Client implements ISSHClient {
         }
 
         client.connect(connectOptions);
-      } catch (prepErr: any) {
+      } catch (prepErr: unknown) {
         cleanup();
         settled = true;
-        reject(new Error(`Failed to initiate SSH connection: ${prepErr?.message || prepErr}`));
+        reject(new Error(`Failed to initiate SSH connection: ${errorMessage(prepErr)}`));
       }
     });
   }

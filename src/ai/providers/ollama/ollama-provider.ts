@@ -10,6 +10,7 @@ import {
 import { getAIConfig, OllamaConfig } from "../../../core/config/index.js";
 import { handleOllamaError } from "./ollama-error-handler.js";
 import { AIProviderError } from "../../../core/errors/index.js";
+import { errorMessage } from "../../../core/errors/index.js";
 
 export interface OllamaProviderOptions {
   config?: Partial<OllamaConfig>;
@@ -287,12 +288,12 @@ export class OllamaProvider implements AIProvider, AIChatStreamProvider {
         model: modelToCheck,
         availableModels: availableModelNames
       };
-    } catch (err: any) {
+    } catch (err: unknown) {
       return {
         status: "unreachable",
         reachable: false,
         modelAvailable: false,
-        error: err?.message || "Connection refused or timed out"
+        error: errorMessage(err, "Connection refused or timed out")
       };
     } finally {
       clearTimeout(timeoutId);

@@ -1,5 +1,6 @@
 import { IEmbeddingProvider, EmbeddingOptions } from "./types.js";
 import { getMemoryConfig, DEFAULT_EMBEDDING_MODEL } from "../../core/config/index.js";
+import { isAbortError } from "../../core/errors/index.js";
 
 export interface GeminiEmbeddingProviderOptions {
   apiKey?: string;
@@ -84,8 +85,8 @@ export class GeminiEmbeddingProvider implements IEmbeddingProvider {
       }
 
       return values;
-    } catch (err: any) {
-      if (err?.name === "AbortError") {
+    } catch (err: unknown) {
+      if (isAbortError(err)) {
         throw new Error(`[GeminiEmbeddingProvider] Embedding generation timed out after ${timeoutMs}ms.`);
       }
       throw err;
@@ -144,8 +145,8 @@ export class GeminiEmbeddingProvider implements IEmbeddingProvider {
         }
         return item.values;
       });
-    } catch (err: any) {
-      if (err?.name === "AbortError") {
+    } catch (err: unknown) {
+      if (isAbortError(err)) {
         throw new Error(`[GeminiEmbeddingProvider] Batch embedding generation timed out after ${timeoutMs}ms.`);
       }
       throw err;

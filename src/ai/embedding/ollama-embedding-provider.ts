@@ -1,6 +1,7 @@
 import { IEmbeddingProvider, EmbeddingOptions } from "./types.js";
 import { EmbeddingConfig, getMemoryConfig } from "../../core/config/index.js";
 import { isAbortError } from "../../core/errors/index.js";
+import { buildOllamaEmbedRequest } from "./embedding-client.js";
 
 export interface OllamaEmbeddingProviderOptions {
   config?: Partial<EmbeddingConfig>;
@@ -66,17 +67,9 @@ export class OllamaEmbeddingProvider implements IEmbeddingProvider {
 
     try {
       // 1. Attempt /api/embed (modern Ollama multi-input API)
-      const embedUrl = `${this.baseUrl}/api/embed`;
+      const request = buildOllamaEmbedRequest(this.baseUrl, texts.length === 1 ? texts[0] : texts, model);
       try {
-        const res = await this.fetchFn(embedUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model,
-            input: texts.length === 1 ? texts[0] : texts
-          }),
-          signal: controller.signal
-        });
+        const res = await this.fetchFn(request.url, { ...request.init, signal: controller.signal });
 
         if (res.ok) {
           const data = (await res.json()) as { embeddings?: number[][] };

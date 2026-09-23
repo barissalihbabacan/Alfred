@@ -47,3 +47,13 @@ jobs:
 
       - name: Check Functions Bundle
         run: npm run check:bundle --prefix functions
+
+      # apps/web is the production front end (static export served by Hosting),
+      # so a broken web build must fail CI and therefore block the deploy.
+      - name: Web Typecheck
+        run: npx tsc -p apps/web/tsconfig.json --noEmit
+
+      - name: Web Build (static export)
+        run: npm run build:web
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"

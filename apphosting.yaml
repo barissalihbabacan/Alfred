@@ -15,10 +15,6 @@ env:
     value: llama-3.3-70b-versatile
   - variable: GROQ_STT_MODEL
     value: whisper-large-v3-turbo
-  - variable: TTS_PROVIDER
-    value: kokoro
-  - variable: TTS_VOICE
-    value: bm_george
   # Secret adi functions/index.js'teki defineSecret ile ayni olmali:
   # defineSecret gecerli bir ortam degiskeni adi ister (tire kullanilamaz).
   - variable: GROQ_API_KEY

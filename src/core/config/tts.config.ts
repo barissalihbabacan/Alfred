@@ -13,10 +13,10 @@ export interface TTSConfig {
   sampleRate: number;
 }
 
-export const DEFAULT_TTS_PROVIDER = "kokoro";
-export const DEFAULT_TTS_VOICE = "bm_george";
+export const DEFAULT_TTS_PROVIDER = "mock";
+export const DEFAULT_TTS_VOICE = "charlie";
 export const DEFAULT_TTS_LANGUAGE = "en-GB";
-export const DEFAULT_TTS_MODEL = "onnx-community/Kokoro-82M-v1.0-ONNX";
+export const DEFAULT_TTS_MODEL = "none";
 export const DEFAULT_TTS_DTYPE = "q8";
 export const DEFAULT_TTS_DEVICE = "cpu";
 export const DEFAULT_TTS_SPEED = 0.95;

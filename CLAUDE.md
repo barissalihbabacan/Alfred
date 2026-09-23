@@ -21,7 +21,6 @@ npx vitest run -t "test name substring"             # single test by name
 # Provider / integration smoke tests (require real credentials in .env)
 npm run test:groq
 npm run test:ollama
-npm run test:tts
 
 # Long-term memory
 npm run memory:reindex     # rebuild vector store from Firestore (source of truth)
@@ -37,7 +36,7 @@ npm run deploy --prefix functions   # firebase deploy --only functions
 
 No lint script is configured. As of the last check `npm run test:unit` is 264 passing tests across 31 files and `npm run typecheck` is clean — keep both green.
 
-`tests/unit/*` run offline against in-memory repositories/stores; `tests/integration/*` and the `test:groq`/`test:ollama`/`test:tts` scripts hit real providers and need `.env` populated (copy from `.env.example`).
+`tests/unit/*` run offline against in-memory repositories/stores; `tests/integration/*` and the `test:groq`/`test:ollama` scripts hit real providers and need `.env` populated (copy from `.env.example`).
 
 ## Architecture
 
@@ -47,7 +46,7 @@ Full detail lives in `docs/ARCHITECTURE.md` — read it before touching `src/alf
 - `src/alfred/` — Alfred's domain logic, split into three "planes": **cognitive** (context, memory — Alfred's understanding of state), **control-plane** (tool routing, permissions), **execution-plane** (capabilities Alfred can invoke). Kept as vendor-independent as possible.
 - `src/ai/` — provider-agnostic LLM abstraction. Nothing outside `src/ai/providers/` should import a concrete provider directly; always go through `getAIProvider()` (`src/ai/providers/factory.ts`), switched via `ALFRED_LLM_PROVIDER` (`ollama` | `groq`).
 - `src/ai/tools/` — tool definitions the model can call (`types.ts` defines `ITool`, `ToolDefinition`, `ToolCall`, `ToolResult`, `ToolExecutionContext`). Currently `ssh/` (connect, execute, list-directory) and `time/` (get-current-time, timezone-resolver).
-- `src/voice/` — STT (Groq Whisper) and TTS (`ITTSProvider` → Kokoro-82M ONNX, fully local/offline) behind the same vendor-abstraction pattern as `src/ai/`.
+- `src/voice/` — STT (Groq Whisper) and TTS (`ITTSProvider` abstraction with mock/fallback, browser Web Speech used in frontend).
 - `src/data/` — persistence abstractions: Firestore repositories, vector store, embedding providers. Always accessed through interfaces + factories (e.g. `getConversationRepository()`, `getVectorStore()`, `getEmbeddingProvider()`), each with an in-memory implementation used by unit tests.
 - `src/core/` — cross-cutting config and errors. `logging/`, `events/`, `types/`, `permissions/` are still empty placeholders.
 - `apps/web/` — see **Front ends**.
@@ -93,7 +92,7 @@ The app is locked to one person. There is no sign-up, no password login and no S
 
 ### Deployment — two configs, know which one you are changing
 - `firebase.json` — Firestore rules/indexes, the `functions` codebase, and Hosting. Hosting serves `apps/web/public`, rewrites `/api/**` to the `api` function and everything else to `index.html`, with `no-cache` on all paths.
-- `apphosting.yaml` — Firebase **App Hosting** runConfig (0–2 instances, concurrency 10, 2 CPU, 2 GiB) and the production env: `AI_PROVIDER=groq`, `GROQ_MODEL=llama-3.3-70b-versatile`, `GROQ_STT_MODEL=whisper-large-v3-turbo`, `TTS_PROVIDER=kokoro`, `TTS_VOICE=bm_george`, and `GROQ_API_KEY` from Secret Manager.
+- `apphosting.yaml` — Firebase **App Hosting** runConfig (0–2 instances, concurrency 10, 2 CPU, 2 GiB) and the production env: `AI_PROVIDER=groq`, `GROQ_MODEL=llama-3.3-70b-versatile`, `GROQ_STT_MODEL=whisper-large-v3-turbo`, and `GROQ_API_KEY` from Secret Manager.
 - **CI auto-deploys on merge to `main`**: `.github/workflows/deploy.yml` runs `firebase deploy --only hosting,functions` on any push to `main` touching `apps/**`, `src/**`, `functions/**`, `firebase.json` or `.firebaserc`. There is no test/typecheck gate in CI, so run them locally before merging. While billing is disabled (below) the functions half of this job will fail.
 
 ### Secrets — and why functions cannot be deployed right now

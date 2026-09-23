@@ -13,7 +13,6 @@
     "test:integration": "vitest run tests/integration",
     "test:groq": "tsx scripts/test-groq.ts",
     "test:ollama": "tsx scripts/test-ollama.ts",
-    "test:tts": "tsx scripts/test-tts.ts",
     "memory:reindex": "tsx scripts/reindex-memories.ts",
     "dev:web": "next dev apps/web -p 3000",
     "build:web": "next build apps/web",
@@ -22,8 +21,7 @@
   "keywords": [
     "ai-agent",
     "executive-assistant",
-    "butler-alfred",
-    "kokoro-tts"
+    "butler-alfred"
   ],
   "author": "Barış Babacan",
   "license": "UNLICENSED",
@@ -41,7 +39,6 @@
     "dotenv": "^17.4.2",
     "firebase": "^12.18.0",
     "groq-sdk": "^1.6.0",
-    "kokoro-js": "^1.2.1",
     "next": "^14.2.35",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

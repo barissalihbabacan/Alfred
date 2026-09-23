@@ -4,9 +4,6 @@ const nextConfig = {
   experimental: {
     externalDir: true,
     serverComponentsExternalPackages: [
-      'kokoro-js',
-      'onnxruntime-node',
-      '@huggingface/transformers',
       'sharp',
       'ssh2'
     ],
@@ -22,8 +19,6 @@ const nextConfig = {
     if (isServer) {
       config.externals = config.externals || [];
       config.externals.push({
-        'onnxruntime-node': 'commonjs onnxruntime-node',
-        'kokoro-js': 'commonjs kokoro-js',
         'ssh2': 'commonjs ssh2',
       });
     }

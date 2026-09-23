@@ -89,7 +89,7 @@ CRITICAL RULES:
    - "Don't remember this" or "Do not save this" -> Do NOT extract any memory (shouldRemember: false).
    - "Forget that X" or "I no longer prefer X" -> Create retraction candidate (action: "forget", confidence >= 0.95).
 6. TEMPORAL & SUPERSESSION:
-   - If user states they switched or migrated, specify action: "supersede" and set targetMemoryHint to describe the older fact being replaced.
+   - If user states they switched or migrated, specify action: "supersede" and state the new fact in content; it replaces the closest older memory on the same subject.
 7. PRIVACY: NEVER extract passwords, API keys, private keys, bearer tokens, or secrets.
 8. RETURN ONLY A STRICT JSON OBJECT:
 {
@@ -100,7 +100,6 @@ CRITICAL RULES:
       "memoryType": "user_preference" | "user_fact" | "project_fact" | "architectural_decision" | "technical_preference" | "constraint" | "relationship" | "workflow" | "general",
       "confidence": number,
       "action": "create" | "forget" | "supersede",
-      "targetMemoryHint": string,
       "reasoning": string
     }
   ]
@@ -125,33 +124,32 @@ export function buildMemoryExtractionPrompt(input: MemoryExtractionInput): ChatM
 
 /**
  * Production candidate thresholds (functions/index.js extractAndPersistMemories).
- * A candidate is dropped when `(confidence || 0) < MEMORY_MIN_CONFIDENCE` or
+ * A candidate is dropped when its confidence is below MEMORY_MIN_CONFIDENCE or
  * its trimmed content is shorter than MEMORY_MIN_CONTENT_LENGTH characters.
  */
 export const MEMORY_MIN_CONFIDENCE = 0.7;
 export const MEMORY_MIN_CONTENT_LENGTH = 5;
 
+/** The actions the extraction prompt allows. */
+export const MEMORY_EXTRACTION_ACTIONS: readonly MemoryExtractionAction[] = ["create", "forget", "supersede"];
+
+/** The memory types the extraction prompt allows (every MemoryType). */
+export const MEMORY_EXTRACTION_TYPES: readonly MemoryType[] = [...VALID_MEMORY_TYPES];
+
 /**
- * What production does with a validated candidate:
+ * A candidate that passed validation. What production does with it:
  * - "create": store unless an active memory scores >= 0.85 (duplicate).
  * - "supersede": store and mark the first active memory scoring >= 0.5 as superseded.
  * - "forget": retract the best active match scoring >= 0.5.
- * - "unrecognized": any other truthy `action` value. Production stores it
- *   with neither the duplicate check nor supersession, because it compares
- *   the raw value against "create" / "supersede".
  */
-export type ValidatedMemoryCandidateAction = MemoryExtractionAction | "unrecognized";
-
 export interface ValidatedMemoryCandidate {
   /** `candidate.content.trim()` */
   content: string;
-  action: ValidatedMemoryCandidateAction;
-  /**
-   * `candidate.memoryType || "general"`, unvalidated: production writes this
-   * value to Firestore as-is, whatever JSON type the model returned.
-   */
-  memoryType: unknown;
-  /** `Number(candidate.confidence || 0)`; can be NaN (production accepts NaN). */
+  /** One of the prompt's actions; anything else becomes "create". */
+  action: MemoryExtractionAction;
+  /** One of the prompt's memory types; anything else becomes "general". */
+  memoryType: MemoryType;
+  /** A finite number in [0, 1], at least the threshold. */
   confidence: number;
 }
 
@@ -168,61 +166,86 @@ export function getMemoryExtractionCandidates(parsed: unknown): unknown[] | null
   return payload.memories;
 }
 
-function normalizeAction(raw: unknown): ValidatedMemoryCandidateAction {
-  const action = raw || "create";
-  if (action === "create" || action === "forget" || action === "supersede") return action;
-  return "unrecognized";
+/**
+ * "create" | "forget" | "supersede", matched case-insensitively after
+ * trimming. Anything else (missing, empty, "update", "merge", a non-string)
+ * is treated as "create", so the duplicate check still applies to it.
+ */
+export function normalizeMemoryAction(raw: unknown): MemoryExtractionAction {
+  if (typeof raw !== "string") return "create";
+  const action = raw.trim().toLowerCase();
+  return MEMORY_EXTRACTION_ACTIONS.find((a) => a === action) ?? "create";
 }
 
 /**
- * Production's per-candidate validation, reproduced decision for decision.
- * Shared with functions/index.js (bundled via esbuild). Returns null for a
- * candidate production silently skips (no tally, no log): content missing or
- * not a string, trimmed content shorter than 5 characters, or
- * `(confidence || 0) < minConfidence` under JavaScript's `<` coercion (a
- * string "0.9" passes; a missing value, 0 or `[]` fails; `{}` or "high"
- * coerce to NaN and pass).
+ * One of the prompt's memory types, matched case-insensitively after
+ * trimming; anything else (missing, unknown, a non-string) is "general".
+ */
+export function normalizeMemoryType(raw: unknown): MemoryType {
+  if (typeof raw !== "string") return "general";
+  const memoryType = raw.trim().toLowerCase();
+  return MEMORY_EXTRACTION_TYPES.find((t) => t === memoryType) ?? "general";
+}
+
+const DECIMAL_NUMBER = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
+
+/**
+ * The candidate's confidence as a number in [0, 1], or null when it has no
+ * usable one. A finite number, or a string holding a plain decimal number
+ * ("0.9", " 0.8 ", "1e0"), is accepted if it lies in [0, 1]. Everything else
+ * is rejected: missing, null, booleans, arrays, objects, words ("high"),
+ * empty or hex strings, NaN, Infinity, and values outside [0, 1] (1.5, -0.1).
+ */
+export function parseMemoryConfidence(raw: unknown): number | null {
+  let value: number;
+  if (typeof raw === "number") {
+    value = raw;
+  } else if (typeof raw === "string" && DECIMAL_NUMBER.test(raw.trim())) {
+    value = Number(raw.trim());
+  } else {
+    return null;
+  }
+  if (!Number.isFinite(value) || value < 0 || value > 1) return null;
+  return value;
+}
+
+/**
+ * Production's per-candidate validation. Shared with functions/index.js
+ * (bundled via esbuild). Returns null for a candidate to skip: not a plain
+ * object (null, a primitive, an array), content missing or not a string,
+ * trimmed content shorter than 5 characters, or a confidence that
+ * parseMemoryConfidence rejects or that is below `minConfidence`. It never
+ * throws, so one bad entry cannot abort the rest of the list.
  *
  * The secret check (PrivacyFilter) is deliberately not part of this: callers
  * run it on the returned content, as production does.
- *
- * Like production, a null or undefined candidate throws a TypeError (reading
- * `.content`), which aborts the rest of the extraction in production.
  */
 export function validateMemoryCandidate(
   candidate: unknown,
   minConfidence: number = MEMORY_MIN_CONFIDENCE
 ): ValidatedMemoryCandidate | null {
-  // Property access on null/undefined throws here exactly as production's
-  // `candidate.content` does; primitives and arrays yield undefined.
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return null;
   const item = candidate as Record<string, unknown>;
   const rawContent = item.content;
   if (!rawContent || typeof rawContent !== "string") return null;
   const content = rawContent.trim();
   if (content.length < MEMORY_MIN_CONTENT_LENGTH) return null;
-  // Number() applies the same ToPrimitive/ToNumber coercion that `<` does.
-  const confidence = Number(item.confidence || 0);
-  if (confidence < minConfidence) return null;
+  const confidence = parseMemoryConfidence(item.confidence);
+  if (confidence === null || confidence < minConfidence) return null;
 
   return {
     content,
-    action: normalizeAction(item.action),
-    memoryType: item.memoryType || "general",
+    action: normalizeMemoryAction(item.action),
+    memoryType: normalizeMemoryType(item.memoryType),
     confidence
   };
 }
 
 /**
  * Parses and validates JSON output from the memory extraction model with
- * production's rules (getMemoryExtractionCandidates + validateMemoryCandidate).
- *
- * Where src/ types cannot carry production's value, it is narrowed:
- * - a memoryType outside MemoryType becomes "general" (production stores it raw);
- * - an "unrecognized" action becomes "create", so MemoryService still runs
- *   its duplicate check (production skips it).
- * A candidate that makes production throw (a null/undefined entry) ends the
- * list there: production has already persisted the earlier candidates and
- * never reaches the later ones.
+ * production's rules (getMemoryExtractionCandidates + validateMemoryCandidate),
+ * so src and production accept the same candidates, in the same order, with
+ * the same action, memoryType and confidence.
  */
 export function parseMemoryExtractionResponse(
   rawText: string,
@@ -250,26 +273,12 @@ export function parseMemoryExtractionResponse(
   const validCandidates: ExtractedMemoryCandidate[] = [];
 
   for (const entry of memories) {
-    let validated: ValidatedMemoryCandidate | null;
-    try {
-      validated = validateMemoryCandidate(entry, minConfidence);
-    } catch {
-      break;
-    }
+    const validated = validateMemoryCandidate(entry, minConfidence);
     if (!validated) continue;
 
     const item = entry as Record<string, unknown>;
-    const memoryType =
-      typeof validated.memoryType === "string" && VALID_MEMORY_TYPES.has(validated.memoryType as MemoryType)
-        ? (validated.memoryType as MemoryType)
-        : "general";
-
     validCandidates.push({
-      content: validated.content,
-      memoryType,
-      confidence: validated.confidence,
-      action: validated.action === "unrecognized" ? "create" : validated.action,
-      targetMemoryHint: typeof item.targetMemoryHint === "string" ? item.targetMemoryHint.trim() : undefined,
+      ...validated,
       reasoning: typeof item.reasoning === "string" ? item.reasoning.trim() : undefined
     });
   }

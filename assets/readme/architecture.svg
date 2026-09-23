@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" role="img" aria-labelledby="arch-title arch-desc">
   <title id="arch-title">B.U.T.L.E.R. Alfred — Katmanlı Sistem Mimarisi</title>
-  <desc id="arch-desc">Persona, Bilişsel Bellek, Kontrol Düzlemi, Hibrit Yapay Zeka, SSE Gerçek Zamanlı Akış, SMS MFA Güvenliği ve Firebase Dağıtım mimarisi katmanları.</desc>
+  <desc id="arch-desc">Persona, Bilişsel Bellek, Kontrol Düzlemi, Hibrit Yapay Zeka, SSE Gerçek Zamanlı Akış, Google Sign-In Güvenliği ve Firebase Dağıtım mimarisi katmanları.</desc>
   <defs>
     <linearGradient id="archBg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#080c16" />
@@ -105,7 +105,7 @@
       <text x="18" y="30" fill="#38bdf8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="700">6. Güvenlik, Web &amp; CI/CD</text>
       <text x="18" y="49" fill="#64748b" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11">apps/web/ • functions/ • .github/</text>
       <text x="18" y="76" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12.5">
-        <tspan x="18" dy="0">• Firebase Auth (SMS MFA) + App Check</tspan>
+        <tspan x="18" dy="0">• Firebase Auth (Google Sign-In) + App Check</tspan>
         <tspan x="18" dy="21">• Modüler Web: styles.css, app.js, firebase-app.js</tspan>
         <tspan x="18" dy="21">• Cloud Functions (Node 22) + Hosting CI/CD</tspan>
       </text>
@@ -120,7 +120,7 @@
       KURUMSAL GÜVENLİK HATTI:
     </text>
     <text x="212" y="26" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12">
-      reCAPTCHA Enterprise <tspan fill="#38bdf8">──►</tspan> Firebase SMS MFA <tspan fill="#38bdf8">──►</tspan> App Check Enforcement <tspan fill="#38bdf8">──►</tspan> Zero-Trust Karar &amp; Bellek Kütüğü
+      reCAPTCHA Enterprise <tspan fill="#38bdf8">──►</tspan> Google Sign-In <tspan fill="#38bdf8">──►</tspan> App Check Enforcement <tspan fill="#38bdf8">──►</tspan> Zero-Trust Karar &amp; Bellek Kütüğü
     </text>
     <rect x="940" y="10" width="134" height="24" rx="12" fill="#10b981" fill-opacity="0.12" stroke="#10b981" stroke-width="1" />
     <text x="948" y="26" fill="#34d399" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="700">● %100 MODÜLER</text>

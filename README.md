@@ -9,8 +9,8 @@
 <p align="center">
   <a href="#hızlı-başlangıç"><img src="https://img.shields.io/badge/sürüm-v0.1.0-10b981?style=flat-square" alt="Sürüm"></a>
   <a href="#firebase-otomatik-dağıtım--cicd"><img src="https://img.shields.io/badge/ci%2Fcd-GitHub_Actions_%E2%86%92_Firebase-ea580c?style=flat-square" alt="CI/CD"></a>
-  <a href="#kurumsal-güvenlik-ve-kimlik-doğrulama-sms-mfa--app-check"><img src="https://img.shields.io/badge/güvenlik-App_Check_%7C_reCAPTCHA_Enterprise-0284c7?style=flat-square" alt="Güvenlik"></a>
-  <a href="#kurumsal-güvenlik-ve-kimlik-doğrulama-sms-mfa--app-check"><img src="https://img.shields.io/badge/auth-Firebase_SMS_MFA-10b981?style=flat-square" alt="MFA"></a>
+  <a href="#kurumsal-güvenlik-ve-kimlik-doğrulama-google-sign-in--app-check"><img src="https://img.shields.io/badge/güvenlik-App_Check_%7C_reCAPTCHA_Enterprise-0284c7?style=flat-square" alt="Güvenlik"></a>
+  <a href="#kurumsal-güvenlik-ve-kimlik-doğrulama-google-sign-in--app-check"><img src="https://img.shields.io/badge/auth-Google_Sign--In-10b981?style=flat-square" alt="Auth"></a>
   <a href="#yapay-zeka-sağlayıcı-altyapısı-groq-lpu--ollama"><img src="https://img.shields.io/badge/llm-Groq_LPU_%7C_Ollama_MLX-f59e0b?style=flat-square" alt="LLM"></a>
   <a href="#bilişsel-bellek-ve-vektör-arama-gemini--firestore"><img src="https://img.shields.io/badge/embeddings-Gemini_text--embedding--004-7c3aed?style=flat-square" alt="Embeddings"></a>
   <a href="#web-sesli--yazılı-etkileşim-oyun-alanı"><img src="https://img.shields.io/badge/akış-Server--Sent_Events_(SSE)-d4af37?style=flat-square" alt="Akış"></a>
@@ -38,7 +38,7 @@ Alfred, her komuta baş eğen bir "yes-man" veya sıradan bir sohbet botu değil
 
 <p align="center"><em>Yukarıdaki görüntü, çalışan uygulamanın gerçek giriş ekranıdır — kavramsal bir mockup değil, doğrudan <code>npm run dev:web</code> çıktısından alınmıştır.</em></p>
 
-Koyu lacivert zemin ve altın vurgu, aşağıdaki mimari şemalarda da kullanılan tutarlı görsel kimliktir. Bu ekran, kimlik doğrulanmadan bilişsel oturumun asla açılmadığı [Kurumsal Güvenlik](#kurumsal-güvenlik-ve-kimlik-doğrulama-sms-mfa--app-check) akışının ilk adımını temsil eder.
+Koyu lacivert zemin ve altın vurgu, aşağıdaki mimari şemalarda da kullanılan tutarlı görsel kimliktir. Bu ekran, kimlik doğrulanmadan bilişsel oturumun asla açılmadığı [Kurumsal Güvenlik](#kurumsal-güvenlik-ve-kimlik-doğrulama-google-sign-in--app-check) akışının ilk adımını temsil eder.
 
 ---
 
@@ -103,7 +103,7 @@ Proje, bağımsız katmanlar ve net sorumluluk sınırları üzerine kuruludur:
 | **Embedding & Bellek**| `src/ai/embedding/` | Google Gemini `text-embedding-004` modeli ve Firestore vektör entegrasyonu. |
 | **Ses Katmanı (STT)** | `src/voice/stt/` | Groq Whisper STT adaptörü, canlı ses işleme ve çift modlu girdi yönlendirmesi. |
 | **Veri Katmanı** | `src/data/` | Cloud Firestore, yerel vektör veri tabanı ve bellek fabrikaları. |
-| **Web & Güvenlik** | `apps/web/` | Modüler Web Arayüzü (`styles.css`, `app.js`, `firebase-app.js`), Firebase Auth (SMS MFA), App Check (reCAPTCHA Enterprise) ve SSE akışı. |
+| **Web & Güvenlik** | `apps/web/` | Modüler Web Arayüzü (`styles.css`, `app.js`, `firebase-app.js`), Firebase Auth (Google Sign-In, tek kullanıcı), App Check (reCAPTCHA Enterprise) ve SSE akışı. |
 
 ---
 
@@ -239,7 +239,7 @@ ALFRED_LLM_PROVIDER=ollama
 
 ---
 
-## Kurumsal Güvenlik ve Kimlik Doğrulama (SMS MFA & App Check)
+## Kurumsal Güvenlik ve Kimlik Doğrulama (Google Sign-In & App Check)
 
 Alfred, operasyonel güvenlik ve yetkisiz erişim engellemesi için çift katmanlı kurumsal güvenlik duvarı ile korunmaktadır. (Bu akışın ilk adımı, yukarıdaki [Gerçek Arayüz](#gerçek-arayüz) bölümündeki giriş portalıdır.)
 
@@ -250,18 +250,18 @@ Alfred, operasyonel güvenlik ve yetkisiz erişim engellemesi için çift katman
           │
           ├──► 2. Firebase App Check Token Doğrulaması (İstemci + Cloud Functions)
           │
-          └──► 3. Firebase Auth: E-posta/Şifre + SMS Multi-Factor Authentication (MFA)
+          └──► 3. Firebase Auth: Google Sign-In + Yetkili UID Doğrulaması
                     │
                     ▼
      [Doğrulanmış Bilişsel Oturum & Alfred Arayüzü]
 ```
 
 1. **reCAPTCHA Enterprise & App Check**: Bot, scraping ve yetkisiz API çağrılarını engellemek amacıyla istemcide `ReCaptchaEnterpriseProvider` başlatılır. Giden tüm isteklere `X-Firebase-AppCheck` başlığı eklenir; Cloud Functions arka ucu (`functions/index.js`) bu tokenı doğrular.
-2. **SMS Çok Faktörlü Doğrulama (MFA)**: Yetkili oturum açma girişiminde, kayıtlı telefon numarasına tek kullanımlık SMS kodu (OTP) iletilir. İkinci faktör başarıyla doğrulanmadan bilişsel oturum ve yürütme motoru açılmaz.
+2. **Google Sign-In & Tek Kullanıcı Kısıtı**: Uygulama yalnızca tek bir kişiye açıktır; kayıt olma ve e-posta/şifre ile giriş yoktur. Oturum Google hesabıyla açılır (açılır pencere engellenirse otomatik olarak yönlendirme akışına geçilir). Firebase `uid` değeri izin verilen tek UID ile eşleşmeyen her hesap anında oturumdan çıkarılır (`auth/unauthorized-uid`); aynı kontrol Cloud Functions tarafında Firebase ID token üzerinde de yapılır.
 3. **Modüler Web Mimarisi**: `apps/web/public/` katmanı temiz ve ayrık dosyalara bölünmüştür:
    - `styles.css`: Karanlık tema, cam morfoloji (glassmorphism) ve mikro-animasyon stilleri.
    - `app.js`: Sohbet motoru, canlı ses kaydı (MediaRecorder) ve SSE akış yönetimi.
-   - `firebase-app.js`: Firebase App Check, Kullanıcı Kayıt/Giriş ve SMS MFA doğrulama akışları.
+   - `firebase-app.js`: Firebase App Check, Google Sign-In ve yetkili UID doğrulama akışları.
    - `index.html`: Yalın, anlamsal HTML5 kabuğu.
 
 ---

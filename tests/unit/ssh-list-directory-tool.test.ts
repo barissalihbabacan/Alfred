@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { SSHListDirectoryTool } from "../../src/ai/tools/ssh/ssh-list-directory.tool.js";
+import { SSH_LIST_DIRECTORY_TOOL_DEFINITION } from "../../src/ai/tools/ssh/ssh-tool-definitions.js";
 import { SSHConnectionManager } from "../../src/alfred/execution-plane/ssh/ssh-connection-manager.js";
 import { MockSSHClient } from "../../src/alfred/execution-plane/ssh/mock-ssh-client.js";
 import { PermissionLevel } from "../../src/alfred/control-plane/permission-system/types.js";
@@ -34,7 +35,8 @@ describe("SSHListDirectoryTool Suite", () => {
       expect(def.function.parameters.properties.host).toBeDefined();
       expect(def.function.parameters.properties.path).toBeDefined();
       expect(def.function.parameters.required).toEqual(["host", "path"]);
-      expect(def.function.parameters.additionalProperties).toBe(false);
+      // Production's definition, which sets no additionalProperties.
+      expect(def).toEqual(SSH_LIST_DIRECTORY_TOOL_DEFINITION);
     });
   });
 
@@ -45,19 +47,35 @@ describe("SSHListDirectoryTool Suite", () => {
       expect(valid.parsedArgs).toEqual({ host: "home-server", path: "Belgeler" });
     });
 
-    it("trims whitespace from host and path arguments", () => {
+    it("trims the host alias but passes the path on as given (the sandbox normalises it)", () => {
       const valid = tool.validateArgs({ host: "  home-server  ", path: "  Belgeler/project  " });
       expect(valid.valid).toBe(true);
-      expect(valid.parsedArgs).toEqual({ host: "home-server", path: "Belgeler/project" });
+      expect(valid.parsedArgs).toEqual({ host: "home-server", path: "  Belgeler/project  " });
     });
 
-    it("rejects missing host or missing path", () => {
-      expect(tool.validateArgs({ path: "Belgeler" }).valid).toBe(false);
-      expect(tool.validateArgs({ host: "home-server" }).valid).toBe(false);
-      expect(tool.validateArgs({ host: "", path: "Belgeler" }).valid).toBe(false);
-      expect(tool.validateArgs({ host: "home-server", path: null }).valid).toBe(false);
-      expect(tool.validateArgs(null).valid).toBe(false);
-      expect(tool.validateArgs("string").valid).toBe(false);
+    it("defaults a missing or empty host and path, as production does", () => {
+      const defaults = { host: "home-server", path: "Belgeler" };
+      expect(tool.validateArgs({ path: "Belgeler" }).parsedArgs).toEqual(defaults);
+      expect(tool.validateArgs({ host: "home-server" }).parsedArgs).toEqual(defaults);
+      expect(tool.validateArgs({ host: "", path: "Belgeler" }).parsedArgs).toEqual(defaults);
+      expect(tool.validateArgs({ host: "home-server", path: null }).parsedArgs).toEqual(defaults);
+      expect(tool.validateArgs(null).parsedArgs).toEqual(defaults);
+      expect(tool.validateArgs("string").parsedArgs).toEqual(defaults);
+    });
+
+    it("rejects a non-string host or path", () => {
+      expect(tool.validateArgs({ host: 42, path: "Belgeler" }).valid).toBe(false);
+      expect(tool.validateArgs({ host: "home-server", path: 42 }).valid).toBe(false);
+      expect(tool.validateArgs({ host: "home-server", path: ["Belgeler"] }).valid).toBe(false);
+    });
+
+    it("refuses production's denied paths with production's error text", () => {
+      for (const path of ["..", "Belgeler/../x", "/etc", "/var/log", "/home/baris/Belgeler"]) {
+        expect(tool.validateArgs({ host: "home-server", path })).toEqual({
+          valid: false,
+          error: `Access denied: Path '${path}' resolves outside the permitted 'Belgeler/' sandbox.`
+        });
+      }
     });
   });
 

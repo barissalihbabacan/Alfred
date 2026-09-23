@@ -1,11 +1,20 @@
 /**
  * B.U.T.L.E.R. Alfred — Tool: ssh_connect(host)
  * Safe, side-effect-free tool to establish and verify an SSH connection to an approved host.
+ *
+ * Definition, host default and success message come from
+ * ./ssh-tool-definitions.ts, which production (functions/index.js) bundles too.
  */
 
 import { ITool, ToolDefinition, ToolParameterSchema, ToolExecutionContext } from "../types.js";
 import { PermissionLevel } from "../../../alfred/control-plane/permission-system/types.js";
 import { SSHConnectionManager, getSSHConnectionManager } from "../../../alfred/execution-plane/ssh/ssh-connection-manager.js";
+import {
+  SSH_CONNECT_TOOL_DEFINITION,
+  SSH_CONNECT_TOOL_NAME,
+  buildSshConnectedMessage,
+  resolveSshHostArg
+} from "./ssh-tool-definitions.js";
 
 export interface SSHConnectArgs {
   host: string;
@@ -19,23 +28,11 @@ export interface SSHConnectResult {
 }
 
 export class SSHConnectTool implements ITool<SSHConnectArgs, SSHConnectResult> {
-  public readonly name = "ssh_connect";
-  public readonly description =
-    "Verifies connectivity and authenticates an SSH connection to an approved remote host (e.g. 'home-server'). Use this whenever the user requests to connect to, check, or verify access to their server.";
+  public readonly name = SSH_CONNECT_TOOL_NAME;
+  public readonly description = SSH_CONNECT_TOOL_DEFINITION.function.description;
   public readonly permissionLevel = PermissionLevel.EXECUTE;
 
-  public readonly parameterSchema: ToolParameterSchema = {
-    type: "object",
-    properties: {
-      host: {
-        type: "string",
-        description:
-          "The identifier or alias of the approved remote host to connect to (e.g. 'home-server', 'dev-sunucum', 'macbook')."
-      }
-    },
-    required: ["host"],
-    additionalProperties: false
-  };
+  public readonly parameterSchema: ToolParameterSchema = SSH_CONNECT_TOOL_DEFINITION.function.parameters;
 
   private connectionManager: SSHConnectionManager;
 
@@ -54,16 +51,15 @@ export class SSHConnectTool implements ITool<SSHConnectArgs, SSHConnectResult> {
     };
   }
 
+  /**
+   * Production never rejects ssh_connect arguments: a missing or empty host
+   * becomes 'home-server'. A host that is not a non-empty string cannot name
+   * a registry entry, so it is rejected here (production has no real host to
+   * resolve). The alias is trimmed for the registry lookup.
+   */
   public validateArgs(args: unknown): { valid: boolean; error?: string; parsedArgs?: SSHConnectArgs } {
-    if (!args || typeof args !== "object") {
-      return {
-        valid: false,
-        error: "Invalid arguments: expected an object containing a 'host' string property."
-      };
-    }
-
-    const cast = args as Record<string, unknown>;
-    if (typeof cast.host !== "string" || !cast.host.trim()) {
+    const host = resolveSshHostArg(args);
+    if (typeof host !== "string" || !host.trim()) {
       return {
         valid: false,
         error: "Missing required argument 'host'. Please specify a valid approved host identifier (e.g., 'home-server')."
@@ -73,7 +69,7 @@ export class SSHConnectTool implements ITool<SSHConnectArgs, SSHConnectResult> {
     return {
       valid: true,
       parsedArgs: {
-        host: cast.host.trim()
+        host: host.trim()
       }
     };
   }
@@ -87,7 +83,7 @@ export class SSHConnectTool implements ITool<SSHConnectArgs, SSHConnectResult> {
     return {
       host: verification.host,
       status: "connected",
-      message: verification.message,
+      message: buildSshConnectedMessage(verification.host),
       latencyMs: verification.latencyMs
     };
   }

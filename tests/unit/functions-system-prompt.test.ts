@@ -19,6 +19,11 @@ import { ContextBuilder } from "../../src/alfred/cognitive/context/context-build
 import { loadCanonicalUserContext } from "../../src/alfred/cognitive/context/user-profile-loader.js";
 import { renderUserProfileBlock } from "../../src/alfred/cognitive/context/user-profile-renderer.js";
 import type { RetrievedMemory } from "../../src/alfred/cognitive/memory/types.js";
+import {
+  SSH_CONNECT_TOOL_DEFINITION,
+  SSH_EXECUTE_TOOL_DEFINITION,
+  SSH_LIST_DIRECTORY_TOOL_DEFINITION
+} from "../../src/ai/tools/ssh/ssh-tool-definitions.js";
 
 /**
  * Production's system prompt (functions/index.js -> buildAlfredSystemPrompt).
@@ -151,17 +156,29 @@ describe("3. capability line matches what production runs", () => {
       "SSH_LIST_DIRECTORY_TOOL_DEFINITION",
       "SSH_EXECUTE_TOOL_DEFINITION"
     ]);
-    for (const name of ["ssh_connect", "ssh_list_directory", "ssh_execute"]) {
-      expect(functionsSource).toContain(`name: "${name}"`);
-    }
+    // The SSH definitions are imported from src (bundled), not redefined inline.
+    expect(functionsSource).toContain(`import {
+  SSH_CONNECT_TOOL_DEFINITION as SSH_TOOL_DEFINITION,
+  SSH_LIST_DIRECTORY_TOOL_DEFINITION,
+  SSH_EXECUTE_TOOL_DEFINITION
+} from "../src/ai/tools/ssh/ssh-tool-definitions.js";`);
+    expect(functionsSource).not.toMatch(/const SSH_\w*TOOL_DEFINITION\b/);
+    expect(
+      [SSH_CONNECT_TOOL_DEFINITION, SSH_LIST_DIRECTORY_TOOL_DEFINITION, SSH_EXECUTE_TOOL_DEFINITION].map(
+        (def) => def.function.name
+      )
+    ).toEqual(["ssh_connect", "ssh_list_directory", "ssh_execute"]);
     expect(ALFRED_PERSONA_PROMPT).toContain(
       "deterministic tool calling (get_current_time, ssh_connect, ssh_list_directory, ssh_execute)."
     );
   });
 
-  it("the SSH allow-list is exactly ssh_execute's enum in functions/index.js", () => {
+  it("the SSH allow-list is exactly the ssh_execute enum functions/index.js sends", () => {
     const allowed = ["list_directory", "disk_usage", "current_directory", "identity", "system_info"];
-    expect(functionsSource).toContain(`enum: ${JSON.stringify(allowed).replace(/,/g, ", ")}`);
+    expect(SSH_EXECUTE_TOOL_DEFINITION.function.parameters.properties.command.enum).toEqual(allowed);
+    expect(SSH_EXECUTE_TOOL_DEFINITION.function.description).toContain(
+      `Permitted commands: ${allowed.map((c) => `'${c}'`).join(", ")}.`
+    );
     expect(ALFRED_PERSONA_PROMPT).toContain(
       "You may execute `ssh_execute` exclusively for five controlled commands: `list_directory`, `disk_usage`, `current_directory`, `identity`, and `system_info`."
     );

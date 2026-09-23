@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { SSHConnectTool } from "../../src/ai/tools/ssh/ssh-connect.tool.js";
+import { SSH_CONNECT_TOOL_DEFINITION } from "../../src/ai/tools/ssh/ssh-tool-definitions.js";
 import { SSHConnectionManager } from "../../src/alfred/execution-plane/ssh/ssh-connection-manager.js";
 import { MockSSHClient } from "../../src/alfred/execution-plane/ssh/mock-ssh-client.js";
 import { PermissionLevel } from "../../src/alfred/control-plane/permission-system/types.js";
@@ -30,7 +31,8 @@ describe("SSHConnectTool Suite", () => {
       expect(def.function.parameters.type).toBe("object");
       expect(def.function.parameters.properties.host).toBeDefined();
       expect(def.function.parameters.required).toEqual(["host"]);
-      expect(def.function.parameters.additionalProperties).toBe(false);
+      // Production's definition, which sets no additionalProperties.
+      expect(def).toEqual(SSH_CONNECT_TOOL_DEFINITION);
     });
   });
 
@@ -49,13 +51,18 @@ describe("SSHConnectTool Suite", () => {
       expect(valid.parsedArgs).toEqual({ host: "dev-sunucum" });
     });
 
-    it("rejects missing, empty, or non-string host argument", () => {
-      expect(defaultTool.validateArgs({}).valid).toBe(false);
-      expect(defaultTool.validateArgs({ host: "" }).valid).toBe(false);
+    it("defaults a missing or empty host to 'home-server', as production does", () => {
+      for (const args of [{}, { host: "" }, { host: null }, { host: 0 }, null, undefined, "home-server"]) {
+        const val = defaultTool.validateArgs(args);
+        expect(val.valid).toBe(true);
+        expect(val.parsedArgs).toEqual({ host: "home-server" });
+      }
+    });
+
+    it("rejects a whitespace-only or non-string host (no registry alias can match)", () => {
       expect(defaultTool.validateArgs({ host: "   " }).valid).toBe(false);
       expect(defaultTool.validateArgs({ host: 123 }).valid).toBe(false);
-      expect(defaultTool.validateArgs(null).valid).toBe(false);
-      expect(defaultTool.validateArgs("home-server").valid).toBe(false);
+      expect(defaultTool.validateArgs({ host: ["home-server"] }).valid).toBe(false);
     });
   });
 
@@ -67,7 +74,9 @@ describe("SSHConnectTool Suite", () => {
       const result = await tool.execute({ host: "home-server" });
       expect(result.status).toBe("connected");
       expect(result.host).toBe("home-server");
-      expect(result.message).toContain("Successfully connected");
+      expect(result.message).toBe(
+        "Successfully connected to host 'home-server'. All credentials and handshakes are verified."
+      );
       expect(typeof result.latencyMs).toBe("number");
 
       // Verify no sensitive keys or raw host IPs leaked

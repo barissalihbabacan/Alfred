@@ -14,6 +14,12 @@ import {
   getCurrentTimeForCity
 } from "../src/ai/tools/time/current-time.js";
 import { PrivacyFilter } from "../src/alfred/cognitive/memory/privacy-filter.js";
+import {
+  SSH_CONNECT_TOOL_DEFINITION as SSH_TOOL_DEFINITION,
+  SSH_LIST_DIRECTORY_TOOL_DEFINITION,
+  SSH_EXECUTE_TOOL_DEFINITION
+} from "../src/ai/tools/ssh/ssh-tool-definitions.js";
+import { isSshToolName, runPlaceholderSshTool } from "../src/ai/tools/ssh/ssh-placeholder.js";
 import { buildAlfredSystemPrompt } from "../src/ai/prompts/alfred-system-prompt.js";
 import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { setGlobalOptions } from "firebase-functions/v2";
@@ -697,79 +703,6 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
     }
   }
 
-const SSH_TOOL_DEFINITION = {
-  type: "function",
-  function: {
-    name: "ssh_connect",
-    description: "Verifies connectivity and authenticates an SSH connection to an approved remote host (e.g. 'home-server').",
-    parameters: {
-      type: "object",
-      properties: {
-        host: {
-          type: "string",
-          description: "The identifier of the approved remote host to connect to (e.g. 'home-server')."
-        }
-      },
-      required: ["host"]
-    }
-  }
-};
-
-const SSH_LIST_DIRECTORY_TOOL_DEFINITION = {
-  type: "function",
-  function: {
-    name: "ssh_list_directory",
-    description: "Lists directory contents on an approved remote host within the permitted 'Belgeler/' filesystem sandbox.",
-    parameters: {
-      type: "object",
-      properties: {
-        host: {
-          type: "string",
-          description: "The identifier of the approved remote host to inspect (e.g. 'home-server')."
-        },
-        path: {
-          type: "string",
-          description: "The directory path to inspect, strictly within the 'Belgeler/' sandbox root (e.g. 'Belgeler', 'Belgeler/project')."
-        }
-      },
-      required: ["host", "path"]
-    }
-  }
-};
-
-const SSH_EXECUTE_TOOL_DEFINITION = {
-  type: "function",
-  function: {
-    name: "ssh_execute",
-    description: "Executes a strictly whitelisted remote command on an approved host. Permitted commands: 'list_directory', 'disk_usage', 'current_directory', 'identity', 'system_info'. Arbitrary shell execution is strictly prohibited.",
-    parameters: {
-      type: "object",
-      properties: {
-        host: {
-          type: "string",
-          description: "The identifier of the approved remote host (e.g. 'home-server')."
-        },
-        command: {
-          type: "string",
-          enum: ["list_directory", "disk_usage", "current_directory", "identity", "system_info"],
-          description: "The whitelisted command identifier to execute."
-        },
-        args: {
-          type: "object",
-          description: "Structured arguments specific to the chosen command (e.g. { path: 'Belgeler' } for 'list_directory').",
-          properties: {
-            path: {
-              type: "string",
-              description: "Directory path within 'Belgeler/' for 'list_directory'."
-            }
-          }
-        }
-      },
-      required: ["host", "command"]
-    }
-  }
-};
-
   // Chat endpoint: POST /chat or POST /api/chat
   if (path.endsWith("/chat")) {
     if (req.method !== "POST") {
@@ -1324,118 +1257,10 @@ const SSH_EXECUTE_TOOL_DEFINITION = {
             let toolResult;
             if (fnName === "get_current_time") {
               toolResult = getCurrentTimeForCity(fnArgs?.city);
-            } else if (fnName === "ssh_connect") {
-              const targetHost = fnArgs?.host || "home-server";
-              toolResult = {
-                host: targetHost,
-                status: "connected",
-                message: `Successfully connected to host '${targetHost}'. All credentials and handshakes are verified.`
-              };
-            } else if (fnName === "ssh_list_directory") {
-              const targetHost = fnArgs?.host || "home-server";
-              const targetPath = fnArgs?.path || "Belgeler";
-              if (
-                targetPath.includes("..") ||
-                targetPath.startsWith("/etc") ||
-                targetPath.startsWith("/var") ||
-                targetPath.startsWith("/home")
-              ) {
-                toolResult = {
-                  error: `Access denied: Path '${targetPath}' resolves outside the permitted 'Belgeler/' sandbox.`
-                };
-              } else {
-                toolResult = {
-                  host: targetHost,
-                  path: targetPath,
-                  entries: [
-                    { name: "Açık Kaynak", type: "directory" },
-                    { name: "Any Association", type: "directory" },
-                    { name: "Babacan Sites", type: "directory" },
-                    { name: "B.U.T.L.E.R. Alfred", type: "directory" },
-                    { name: "Chorus", type: "directory" },
-                    { name: "Ev Tasarımı", type: "directory" },
-                    { name: "family-tree", type: "directory" },
-                    { name: "jellyfin", type: "directory" },
-                    { name: "Lise", type: "directory" },
-                    { name: "Loa London", type: "directory" },
-                    { name: "Mythos", type: "directory" },
-                    { name: "Osmos", type: "directory" },
-                    { name: "superlig-fantasy-optimizer", type: "directory" },
-                    { name: "The Sins of the Fathers", type: "directory" },
-                    { name: "zen-dashboard", type: "directory" }
-                  ],
-                  totalCount: 15
-                };
-              }
-            } else if (fnName === "ssh_execute") {
-              const targetHost = fnArgs?.host || "home-server";
-              const cmd = fnArgs?.command;
-              const allowedCmds = ["list_directory", "disk_usage", "current_directory", "identity", "system_info"];
-
-              if (!allowedCmds.includes(cmd)) {
-                toolResult = {
-                  error: `Command '${cmd}' is not permitted. Only strictly whitelisted commands (${allowedCmds.join(", ")}) may be executed.`
-                };
-              } else if (cmd === "list_directory") {
-                const targetPath = fnArgs?.args?.path || "Belgeler";
-                if (
-                  targetPath.includes("..") ||
-                  targetPath.startsWith("/etc") ||
-                  targetPath.startsWith("/var") ||
-                  targetPath.startsWith("/home")
-                ) {
-                  toolResult = {
-                    error: `Access denied: Path '${targetPath}' resolves outside the permitted 'Belgeler/' sandbox.`
-                  };
-                } else {
-                  toolResult = {
-                    host: targetHost,
-                    path: targetPath,
-                    entries: [
-                      { name: "Açık Kaynak", type: "directory" },
-                      { name: "Any Association", type: "directory" },
-                      { name: "Babacan Sites", type: "directory" },
-                      { name: "B.U.T.L.E.R. Alfred", type: "directory" },
-                      { name: "Chorus", type: "directory" },
-                      { name: "Ev Tasarımı", type: "directory" },
-                      { name: "family-tree", type: "directory" },
-                      { name: "jellyfin", type: "directory" },
-                      { name: "Lise", type: "directory" },
-                      { name: "Loa London", type: "directory" },
-                      { name: "Mythos", type: "directory" },
-                      { name: "Osmos", type: "directory" },
-                      { name: "superlig-fantasy-optimizer", type: "directory" },
-                      { name: "The Sins of the Fathers", type: "directory" },
-                      { name: "zen-dashboard", type: "directory" }
-                    ],
-                    totalCount: 15
-                  };
-                }
-              } else if (cmd === "disk_usage") {
-                toolResult = {
-                  host: targetHost,
-                  command: "disk_usage",
-                  output: "Filesystem      Size  Used Avail Use% Mounted on\n/dev/sda1        50G   20G   28G  42% /"
-                };
-              } else if (cmd === "current_directory") {
-                toolResult = {
-                  host: targetHost,
-                  command: "current_directory",
-                  currentDirectory: "/home/baris"
-                };
-              } else if (cmd === "identity") {
-                toolResult = {
-                  host: targetHost,
-                  command: "identity",
-                  user: "baris"
-                };
-              } else if (cmd === "system_info") {
-                toolResult = {
-                  host: targetHost,
-                  command: "system_info",
-                  systemInfo: "Linux home-box 6.8.0-40-generic x86_64 GNU/Linux"
-                };
-              }
+            } else if (isSshToolName(fnName)) {
+              // Yer tutucu: gercek SSH baglantisi yok, sabit sonuclar
+              // (src/ai/tools/ssh/ssh-placeholder.ts).
+              toolResult = runPlaceholderSshTool(fnName, fnArgs);
             } else {
               toolResult = { error: `Tool ${fnName} not recognized.` };
             }

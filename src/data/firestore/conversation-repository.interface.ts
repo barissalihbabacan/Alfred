@@ -18,8 +18,8 @@ export const CONVERSATION_CONFIG = {
   MAX_MESSAGE_LENGTH: 4000,
   /** Default title when conversation starts */
   DEFAULT_CONVERSATION_TITLE: "New Conversation",
-  /** Maximum length of deterministic auto-generated title */
-  MAX_TITLE_LENGTH: 60
+  /** Maximum length of a generated title (generateDeterministicTitle: 37 chars + "...") */
+  MAX_TITLE_LENGTH: 40
 } as const;
 
 /**
@@ -70,30 +70,8 @@ export interface IConversationRepository {
 }
 
 /**
- * Generates a clean, deterministic conversation title from the first user message.
- * No secondary LLM call needed.
+ * Deterministic conversation title from the first user message. Defined in
+ * ./conversation-title.ts, which functions/index.js also bundles, so src/ and
+ * production name conversations identically.
  */
-export function generateDeterministicTitle(firstMessage: string): string {
-  if (!firstMessage || !firstMessage.trim()) {
-    return CONVERSATION_CONFIG.DEFAULT_CONVERSATION_TITLE;
-  }
-
-  // Clean and truncate
-  const cleaned = firstMessage
-    .replace(/[^\w\s\u00C0-\u017F\u0100-\u024F\u1E00-\u1EFF]/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  if (!cleaned) {
-    return CONVERSATION_CONFIG.DEFAULT_CONVERSATION_TITLE;
-  }
-
-  if (cleaned.length <= CONVERSATION_CONFIG.MAX_TITLE_LENGTH) {
-    return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
-  }
-
-  const truncated = cleaned.slice(0, CONVERSATION_CONFIG.MAX_TITLE_LENGTH);
-  const lastSpace = truncated.lastIndexOf(" ");
-  const title = lastSpace > 20 ? truncated.slice(0, lastSpace) : truncated;
-  return title.charAt(0).toUpperCase() + title.slice(1);
-}
+export { generateDeterministicTitle } from "./conversation-title.js";

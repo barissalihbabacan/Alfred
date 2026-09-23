@@ -316,7 +316,7 @@ describe("Milestone: Persistent Conversation History", () => {
   describe("Deterministic Title Generator", () => {
     it("generates a neat title from the first 6 words up to 40 characters", () => {
       const title1 = generateDeterministicTitle("How would you summarize my engineering philosophy in two sentences?");
-      expect(title1).toBe("How would you summarize my engineering philosophy in two");
+      expect(title1).toBe("How would you summarize my engineering");
       expect(title1.length).toBeLessThanOrEqual(CONVERSATION_CONFIG.MAX_TITLE_LENGTH);
 
       const title2 = generateDeterministicTitle("   ### hello alfred   ");

@@ -35,14 +35,14 @@ async function runOllamaVerification(): Promise<void> {
 
   if (!health.reachable) {
     console.error(`\n✖ [Failed] Ollama server is unreachable at ${config.ollama.baseUrl}`);
-    console.error(`  Details: ${(health as any).error}`);
+    console.error(`  Details: ${health.error}`);
     console.error("  Please ensure your Tailscale connection is active or check OLLAMA_BASE_URL.");
     process.exit(1);
   }
 
   if (!health.modelAvailable) {
     console.error(`\n✖ [Failed] Configured model '${config.ollama.defaultModel}' not found on server.`);
-    console.error(`  Available models: ${(health as any).availableModels?.join(", ") || "none"}`);
+    console.error(`  Available models: ${health.availableModels?.join(", ") || "none"}`);
     process.exit(1);
   }
 

@@ -14,12 +14,13 @@ import {
   CommandRegistry,
   AllowedSSHCommand,
   ALLOWED_SSH_COMMANDS,
-  SSHCommandResult
+  SSHCommandResult,
+  SSHCommandResultMap
 } from "../../../alfred/execution-plane/ssh/command-registry.js";
 
-export interface SSHExecuteArgs {
+export interface SSHExecuteArgs<C extends AllowedSSHCommand = AllowedSSHCommand> {
   host: string;
-  command: AllowedSSHCommand;
+  command: C;
   args?: Record<string, unknown>;
 }
 
@@ -145,7 +146,10 @@ export class SSHExecuteTool implements ITool<SSHExecuteArgs, SSHCommandResult> {
     };
   }
 
-  public async execute(args: SSHExecuteArgs, _context?: ToolExecutionContext): Promise<SSHCommandResult> {
+  public async execute<C extends AllowedSSHCommand>(
+    args: SSHExecuteArgs<C>,
+    _context?: ToolExecutionContext
+  ): Promise<SSHCommandResultMap[C]> {
     return this.connectionManager.executeCommand(args.host, args.command, args.args);
   }
 }

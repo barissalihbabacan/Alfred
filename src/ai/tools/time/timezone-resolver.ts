@@ -1,237 +1,95 @@
 /**
  * B.U.T.L.E.R. Alfred — Timezone Resolver
- * Dynamically resolves cities and geographical locations to official IANA timezone identifiers.
- * Leverages native ECMAScript Intl API and curated alias tables for comprehensive global coverage.
+ * Resolves a city name or IANA zone to an IANA timezone identifier.
+ *
+ * Shared with functions/index.js (bundled via esbuild): this is exactly the
+ * resolution production's get_current_time tool uses. Keep it pure (no I/O,
+ * no imports with side effects).
  */
 
-// Major world metropolitan cities and regions that share timezone with other canonical IANA hubs
-const CITY_TIMEZONE_ALIASES: Record<string, string> = {
-  // United States & Canada
-  "san francisco": "America/Los_Angeles",
-  "san jose": "America/Los_Angeles",
-  "san diego": "America/Los_Angeles",
-  "seattle": "America/Los_Angeles",
-  "las vegas": "America/Los_Angeles",
-  "portland": "America/Los_Angeles",
-  "washington": "America/New_York",
-  "washington dc": "America/New_York",
-  "dc": "America/New_York",
-  "boston": "America/New_York",
-  "miami": "America/New_York",
-  "atlanta": "America/New_York",
-  "philadelphia": "America/New_York",
-  "pittsburgh": "America/New_York",
-  "dallas": "America/Chicago",
-  "houston": "America/Chicago",
-  "austin": "America/Chicago",
-  "minneapolis": "America/Chicago",
-  "denver": "America/Denver",
-  "phoenix": "America/Phoenix",
-  "salt lake city": "America/Denver",
-  "montreal": "America/Toronto",
-  "ottawa": "America/Toronto",
-  "calgary": "America/Edmonton",
-
-  // United Kingdom & Ireland
+/**
+ * Cities looked up before the Intl scan, keyed by the normalized input
+ * (trimmed, lower-cased, "," and "." removed, whitespace collapsed).
+ */
+export const CITY_TIMEZONE_ALIASES: Readonly<Record<string, string>> = {
+  "london": "Europe/London",
   "manchester": "Europe/London",
   "birmingham": "Europe/London",
   "edinburgh": "Europe/London",
-  "glasgow": "Europe/London",
-  "belfast": "Europe/Belfast",
-
-  // Turkey
+  "istanbul": "Europe/Istanbul",
   "ankara": "Europe/Istanbul",
   "izmir": "Europe/Istanbul",
-  "bursa": "Europe/Istanbul",
-  "antalya": "Europe/Istanbul",
-  "adana": "Europe/Istanbul",
-
-  // Europe
-  "frankfurt": "Europe/Berlin",
-  "munich": "Europe/Berlin",
-  "hamburg": "Europe/Berlin",
-  "cologne": "Europe/Berlin",
-  "milan": "Europe/Rome",
-  "naples": "Europe/Rome",
-  "barcelona": "Europe/Madrid",
-  "valencia": "Europe/Madrid",
-  "seville": "Europe/Madrid",
-  "lyon": "Europe/Paris",
-  "marseille": "Europe/Paris",
-  "geneva": "Europe/Zurich",
-  "basel": "Europe/Zurich",
-  "rotterdam": "Europe/Amsterdam",
-  "the hague": "Europe/Amsterdam",
-  "antwerp": "Europe/Brussels",
-  "krakow": "Europe/Warsaw",
-  "porto": "Europe/Lisbon",
-
-  // Asia & Middle East
-  "beijing": "Asia/Shanghai",
-  "guangzhou": "Asia/Shanghai",
-  "shenzhen": "Asia/Shanghai",
+  "tokyo": "Asia/Tokyo",
   "kyoto": "Asia/Tokyo",
   "osaka": "Asia/Tokyo",
-  "yokohama": "Asia/Tokyo",
-  "mumbai": "Asia/Kolkata",
-  "delhi": "Asia/Kolkata",
-  "new delhi": "Asia/Kolkata",
-  "bangalore": "Asia/Kolkata",
-  "bengaluru": "Asia/Kolkata",
-  "hyderabad": "Asia/Kolkata",
-  "chennai": "Asia/Kolkata",
-  "abu dhabi": "Asia/Dubai",
-  "tel aviv": "Asia/Jerusalem",
-  "riyadh": "Asia/Riyadh",
-
-  // Australia & New Zealand
-  "canberra": "Australia/Sydney",
-  "brisbane": "Australia/Brisbane",
-  "perth": "Australia/Perth",
-  "adelaide": "Australia/Adelaide",
-  "wellington": "Pacific/Auckland",
-  "christchurch": "Pacific/Auckland",
-
-  // South America
-  "rio de janeiro": "America/Sao_Paulo",
-  "rio": "America/Sao_Paulo",
-  "brasilia": "America/Sao_Paulo",
-  "medellin": "America/Bogota",
-
-  // Africa
-  "cape town": "Africa/Johannesburg",
-  "alexandria": "Africa/Cairo"
+  "new york": "America/New_York",
+  "washington": "America/New_York",
+  "boston": "America/New_York",
+  "san francisco": "America/Los_Angeles",
+  "los angeles": "America/Los_Angeles",
+  "seattle": "America/Los_Angeles",
+  "chicago": "America/Chicago",
+  "paris": "Europe/Paris",
+  "berlin": "Europe/Berlin",
+  "frankfurt": "Europe/Berlin",
+  "rome": "Europe/Rome",
+  "madrid": "Europe/Madrid",
+  "amsterdam": "Europe/Amsterdam",
+  "dubai": "Asia/Dubai",
+  "singapore": "Asia/Singapore",
+  "sydney": "Australia/Sydney",
+  "melbourne": "Australia/Melbourne",
+  "toronto": "America/Toronto",
+  "beijing": "Asia/Shanghai",
+  "shanghai": "Asia/Shanghai",
+  "utc": "UTC",
+  "gmt": "Etc/GMT"
 };
 
 export interface ResolvedTimezone {
   timezone: string;
+  /** The caller's input, trimmed (not the normalized form). */
   matchedCity: string;
 }
 
-class TimezoneResolver {
-  private cityToIanaMap = new Map<string, string>();
+/**
+ * Resolves a city or zone name, in this order:
+ * 1. CITY_TIMEZONE_ALIASES on the normalized input;
+ * 2. the first zone in `Intl.supportedValuesOf("timeZone")` (runtime order)
+ *    whose lower-cased name equals the normalized input, or ends with
+ *    "/" + the normalized input with spaces as underscores
+ *    ("sao paulo" -> America/Sao_Paulo, "europe/london" -> Europe/London);
+ * 3. the result must be accepted by `Intl.DateTimeFormat`, otherwise null.
+ * Non-string or empty input returns null.
+ */
+export function resolveTimezone(cityOrZone: unknown): ResolvedTimezone | null {
+  if (!cityOrZone || typeof cityOrZone !== "string") return null;
+  const cleaned = cityOrZone.trim().toLowerCase().replace(/[,.]/g, "").replace(/\s+/g, " ");
 
-  constructor() {
-    this.initialize();
-  }
-
-  private initialize(): void {
-    // 1. Index all standard IANA timezones supported natively by the runtime
+  // Plain-object lookup, as production does: inherited keys ("constructor",
+  // "__proto__") yield a non-string, which Intl then rejects below.
+  let tz: string | undefined = CITY_TIMEZONE_ALIASES[cleaned];
+  if (!tz) {
     try {
-      const supportedZones = Intl.supportedValuesOf("timeZone");
-      for (const zone of supportedZones) {
-        // Full lowercased zone e.g. "europe/london"
-        this.cityToIanaMap.set(zone.toLowerCase(), zone);
-
-        // Extract city portion (last segment after slash)
-        const parts = zone.split("/");
-        const cityPart = parts[parts.length - 1];
-        if (cityPart) {
-          // e.g. "New_York" -> "new york" and "new_york"
-          const normalizedWithUnderscore = cityPart.toLowerCase();
-          const normalizedWithSpace = cityPart.toLowerCase().replace(/_/g, " ");
-
-          // Store city part if not already claimed by a higher-priority match
-          if (!this.cityToIanaMap.has(normalizedWithSpace)) {
-            this.cityToIanaMap.set(normalizedWithSpace, zone);
-          }
-          if (!this.cityToIanaMap.has(normalizedWithUnderscore)) {
-            this.cityToIanaMap.set(normalizedWithUnderscore, zone);
-          }
+      const parts = Intl.supportedValuesOf("timeZone");
+      for (const z of parts) {
+        if (z.toLowerCase() === cleaned || z.toLowerCase().endsWith("/" + cleaned.replace(/\s+/g, "_"))) {
+          tz = z;
+          break;
         }
       }
     } catch {
-      // Fallback if Intl.supportedValuesOf is not supported
+      // Intl.supportedValuesOf unavailable: aliases only.
     }
-
-    // 2. Add aliases for secondary major cities
-    for (const [alias, zone] of Object.entries(CITY_TIMEZONE_ALIASES)) {
-      this.cityToIanaMap.set(alias.toLowerCase(), zone);
-    }
-
-    // 3. Add standard UTC/GMT variants
-    this.cityToIanaMap.set("utc", "UTC");
-    this.cityToIanaMap.set("gmt", "Etc/GMT");
-    this.cityToIanaMap.set("zulu", "UTC");
   }
 
-  /**
-   * Normalizes a city or timezone input string.
-   */
-  private normalize(input: string): string {
-    return input
-      .trim()
-      .toLowerCase()
-      .replace(/[,.]/g, "")
-      .replace(/\s+/g, " ");
-  }
-
-  /**
-   * Resolves a city name or timezone string into a valid IANA timezone.
-   * Returns null if the city cannot be resolved to a valid timezone.
-   */
-  public resolve(cityOrZone: string): ResolvedTimezone | null {
-    if (!cityOrZone || typeof cityOrZone !== "string") {
-      return null;
-    }
-
-    const cleaned = this.normalize(cityOrZone);
-    if (!cleaned) {
-      return null;
-    }
-
-    // 1. Direct map lookup
-    let targetZone = this.cityToIanaMap.get(cleaned);
-
-    // 2. Try stripping prefixes or suffixes (e.g. "city of london" -> "london", "london uk" -> "london")
-    if (!targetZone) {
-      const stripped = cleaned
-        .replace(/^(city of|the city of)\s+/i, "")
-        .replace(/\s+(city|town|metropolitan area)$/i, "")
-        .trim();
-      targetZone = this.cityToIanaMap.get(stripped);
-    }
-
-    // 3. Try splitting comma (e.g. "London, UK" -> "london")
-    if (!targetZone && cleaned.includes(" ")) {
-      const firstWord = cleaned.split(" ")[0];
-      if (this.cityToIanaMap.has(firstWord)) {
-        targetZone = this.cityToIanaMap.get(firstWord);
-      }
-    }
-
-    // 4. Validate resolved timezone with Intl
-    if (targetZone) {
-      if (this.isValidIana(targetZone)) {
-        return {
-          timezone: targetZone,
-          matchedCity: cityOrZone.trim()
-        };
-      }
-    }
-
-    // 5. Check if input itself is a valid IANA timezone string directly
-    if (this.isValidIana(cityOrZone.trim())) {
-      return {
-        timezone: cityOrZone.trim(),
-        matchedCity: cityOrZone.trim()
-      };
-    }
-
-    return null;
-  }
-
-  /**
-   * Validates whether a given timezone string is accepted by Intl.DateTimeFormat.
-   */
-  public isValidIana(timeZone: string): boolean {
+  if (tz) {
     try {
-      new Intl.DateTimeFormat(undefined, { timeZone });
-      return true;
+      new Intl.DateTimeFormat(undefined, { timeZone: tz });
+      return { timezone: tz, matchedCity: cityOrZone.trim() };
     } catch {
-      return false;
+      // Not a timezone this runtime accepts.
     }
   }
+  return null;
 }
-
-export const timezoneResolver = new TimezoneResolver();

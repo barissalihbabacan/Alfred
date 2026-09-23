@@ -1,6 +1,7 @@
 import { IEmbeddingProvider, EmbeddingOptions } from "./types.js";
 import { getMemoryConfig, DEFAULT_EMBEDDING_MODEL } from "../../core/config/index.js";
 import { isAbortError } from "../../core/errors/index.js";
+import { buildGeminiEmbedContentRequest, geminiModelPath, parseGeminiEmbedding } from "./embedding-client.js";
 
 export interface GeminiEmbeddingProviderOptions {
   apiKey?: string;
@@ -51,36 +52,22 @@ export class GeminiEmbeddingProvider implements IEmbeddingProvider {
 
     const modelName = options?.model || this.model;
     const timeoutMs = options?.timeoutMs ?? this.timeoutMs;
-    const cleanModel = modelName.startsWith("models/") ? modelName : `models/${modelName}`;
-
-    const url = `https://generativelanguage.googleapis.com/v1beta/${cleanModel}:embedContent?key=${encodeURIComponent(this.apiKey)}`;
+    const request = buildGeminiEmbedContentRequest(text, this.apiKey, modelName, this.dimension);
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-      const res = await this.fetchFn(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: cleanModel,
-          content: {
-            parts: [{ text: text.trim() }]
-          },
-          outputDimensionality: this.dimension
-        }),
-        signal: controller.signal
-      });
+      const res = await this.fetchFn(request.url, { ...request.init, signal: controller.signal });
 
       if (!res.ok) {
         const errText = await res.text().catch(() => "");
         throw new Error(`[GeminiEmbeddingProvider] API error HTTP ${res.status}: ${errText || res.statusText}`);
       }
 
-      const data = (await res.json()) as { embedding?: { values?: number[] } };
-      const values = data?.embedding?.values;
+      const values = parseGeminiEmbedding(await res.json());
 
-      if (!Array.isArray(values) || values.length === 0) {
+      if (!values) {
         throw new Error("[GeminiEmbeddingProvider] Missing embedding values in API response.");
       }
 
@@ -106,7 +93,7 @@ export class GeminiEmbeddingProvider implements IEmbeddingProvider {
 
     const modelName = options?.model || this.model;
     const timeoutMs = options?.timeoutMs ?? this.timeoutMs;
-    const cleanModel = modelName.startsWith("models/") ? modelName : `models/${modelName}`;
+    const cleanModel = geminiModelPath(modelName);
 
     const url = `https://generativelanguage.googleapis.com/v1beta/${cleanModel}:batchEmbedContents?key=${encodeURIComponent(this.apiKey)}`;
 

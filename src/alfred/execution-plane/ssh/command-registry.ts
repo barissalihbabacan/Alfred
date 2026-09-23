@@ -35,24 +35,43 @@ export function escapeShellArg(arg: string): string {
   return `'${arg.replace(/'/g, "'\\''")}'`;
 }
 
-export interface CommandValidationResult<T = any> {
-  valid: boolean;
-  error?: string;
-  parsedArgs?: T;
+export type CommandValidationResult<T = unknown> =
+  | { valid: true; parsedArgs: T; error?: undefined }
+  | { valid: false; error?: string; parsedArgs?: undefined };
+
+/** Structured output of each whitelisted command, keyed by command name. */
+export interface SSHCommandResultMap {
+  list_directory: SSHListDirectoryResult;
+  disk_usage: { host: string; command: "disk_usage"; output: string };
+  current_directory: { host: string; command: "current_directory"; currentDirectory: string };
+  identity: { host: string; command: "identity"; user: string };
+  system_info: { host: string; command: "system_info"; systemInfo: string };
 }
 
-export interface CommandDefinition<TArgs = any, TResult = any> {
+/** Structured output of any whitelisted command. */
+export type SSHCommandResult = SSHCommandResultMap[AllowedSSHCommand];
+
+/**
+ * A whitelisted command. `buildCommand` / `parseOutput` use method syntax on
+ * purpose: definitions with specific `TArgs` are stored side by side in one
+ * registry, and each is only ever called with the `parsedArgs` its own
+ * `validateArgs` produced.
+ */
+export interface CommandDefinition<
+  TArgs extends Record<string, unknown> = Record<string, unknown>,
+  TResult = SSHCommandResult
+> {
   name: AllowedSSHCommand;
   description: string;
-  buildCommand: (args: TArgs) => string;
-  validateArgs: (rawArgs: unknown) => CommandValidationResult<TArgs>;
-  parseOutput: (
+  buildCommand(args: TArgs): string;
+  validateArgs(rawArgs: unknown): CommandValidationResult<TArgs>;
+  parseOutput(
     stdout: string,
     stderr: string,
     exitCode: number,
     args: TArgs,
     host: string
-  ) => TResult;
+  ): TResult;
 }
 
 export class CommandRegistry {
@@ -60,7 +79,7 @@ export class CommandRegistry {
 
   static {
     // 1. list_directory
-    CommandRegistry.register({
+    CommandRegistry.register<{ path: string }>({
       name: "list_directory",
       description: "Safely lists directory entries within the 'Belgeler/' sandbox.",
       validateArgs: (rawArgs: unknown) => {
@@ -263,7 +282,7 @@ export class CommandRegistry {
     });
   }
 
-  public static register(def: CommandDefinition): void {
+  public static register<TArgs extends Record<string, unknown>>(def: CommandDefinition<TArgs>): void {
     this.commands.set(def.name, def);
   }
 

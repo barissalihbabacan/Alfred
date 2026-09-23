@@ -12,7 +12,7 @@ import {
 import { SSH2Client } from "./ssh2-client.js";
 import { SSHConfig, resolveSSHHost } from "../../../core/config/ssh.config.js";
 import { RemoteCommandExecutor } from "./remote-command-executor.js";
-import { AllowedSSHCommand } from "./command-registry.js";
+import { AllowedSSHCommand, SSHCommandResult } from "./command-registry.js";
 
 export interface SSHConnectionManagerOptions {
   clientFactory?: SSHClientFactory;
@@ -90,7 +90,7 @@ export class SSHConnectionManager {
     hostIdentifier: string,
     command: AllowedSSHCommand | string,
     rawArgs?: unknown
-  ): Promise<any> {
+  ): Promise<SSHCommandResult> {
     const executor = new RemoteCommandExecutor({
       clientFactory: this.clientFactory,
       config: this.config

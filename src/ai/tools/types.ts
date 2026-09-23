@@ -70,7 +70,7 @@ export interface ToolResult<T = unknown> {
 /**
  * Interface implemented by any executable Alfred tool.
  */
-export interface ITool<TArgs = any, TResult = any> {
+export interface ITool<TArgs = unknown, TResult = unknown> {
   readonly name: string;
   readonly description: string;
   readonly permissionLevel: PermissionLevel;

@@ -145,20 +145,25 @@ describe("Embedding Providers", () => {
 
       const provider = new GeminiEmbeddingProvider({
         apiKey: "test-gemini-key",
-        model: "text-embedding-004",
+        model: "gemini-embedding-001",
         dimension: 3,
         fetchFn: mockFetch
       });
 
       const res = await provider.embed("Barış'ın tercihi TypeScript");
       expect(res).toEqual([0.12, -0.34, 0.56]);
-      expect(capturedUrl).toContain("models/text-embedding-004:embedContent");
+      expect(capturedUrl).toContain("models/gemini-embedding-001:embedContent");
       expect(capturedUrl).toContain("key=test-gemini-key");
       expect(capturedBody.content.parts[0].text).toBe("Barış'ın tercihi TypeScript");
+      expect(capturedBody.outputDimensionality).toBe(3);
     });
 
     it("calls batchEmbedContents and parses multiple embeddings", async () => {
+      let capturedUrl = "";
+      let capturedBody: any = null;
       const mockFetch: typeof fetch = async (url, init) => {
+        capturedUrl = String(url);
+        capturedBody = JSON.parse(init?.body as string);
         return {
           ok: true,
           status: 200,
@@ -178,6 +183,8 @@ describe("Embedding Providers", () => {
 
       const res = await provider.embedBatch(["Birinci cümle", "İkinci cümle"]);
       expect(res).toEqual([[0.1, 0.2], [0.3, 0.4]]);
+      expect(capturedUrl).toContain("models/gemini-embedding-001:batchEmbedContents");
+      expect(capturedBody.requests[0].outputDimensionality).toBe(768);
     });
 
     it("handles API error status gracefully", async () => {

@@ -1,13 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { SSHConnectionManager } from "../../src/alfred/execution-plane/ssh/ssh-connection-manager.js";
-import { SSHConnectTool } from "../../src/ai/tools/ssh/ssh-connect.tool.js";
 import { ToolRouter } from "../../src/alfred/control-plane/tool-router/tool-router.js";
 import { ToolRegistry } from "../../src/alfred/control-plane/tool-router/tool-registry.js";
 import { ToolCall } from "../../src/ai/tools/types.js";
 
 describe("SSH Home Server Integration Suite", () => {
   const manager = new SSHConnectionManager();
-  const tool = new SSHConnectTool(manager);
 
   it("successfully connects, authenticates, and disconnects against real home-server", async () => {
     try {

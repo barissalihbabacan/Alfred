@@ -63,7 +63,7 @@ describe("Embedding Providers", () => {
     });
 
     it("calls /api/embed and parses multi-input embeddings", async () => {
-      const mockFetch: typeof fetch = async (url, init) => {
+      const mockFetch: typeof fetch = async () => {
         return {
           ok: true,
           status: 200,

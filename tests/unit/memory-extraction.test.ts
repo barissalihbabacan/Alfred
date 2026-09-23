@@ -4,7 +4,6 @@ import { InMemoryMemoryRepository } from "../../src/data/firestore/in-memory-mem
 import { InMemoryVectorStore } from "../../src/data/vector/in-memory-vector-store.js";
 import { MockEmbeddingProvider } from "../../src/ai/embedding/mock-embedding-provider.js";
 import { MemoryExtractor } from "../../src/alfred/cognitive/memory/extractor/memory-extractor.js";
-import { IMemoryExtractor, MemoryExtractionInput, MemoryExtractionResult } from "../../src/alfred/cognitive/memory/extractor/types.js";
 import { PrivacyFilter } from "../../src/alfred/cognitive/memory/privacy-filter.js";
 import { buildMemoryExtractionPrompt, parseMemoryExtractionResponse } from "../../src/ai/prompts/memory-extraction.js";
 import { AIProvider, ChatMessage, ChatCompletionResponse } from "../../src/ai/providers/types.js";

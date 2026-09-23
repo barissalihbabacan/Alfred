@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getAlfredSystemPrompt, ALFRED_CANONICAL_SYSTEM_PROMPT } from "../../src/ai/prompts/alfred-persona.js";
+import { getAlfredSystemPrompt } from "../../src/ai/prompts/alfred-persona.js";
 
 describe("Alfred Persona System Prompt", () => {
   it("should supply canonical persona prompt with Butler and British traits", () => {

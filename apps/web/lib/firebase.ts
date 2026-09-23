@@ -26,6 +26,10 @@ const RECAPTCHA_SITE_KEY =
 // App Check (reCAPTCHA Enterprise) yalnizca tarayicida baslatilir. Statik
 // export sirasinda bu modul Node'da da degerlendirilir; orada hicbir sey yapilmaz.
 let appCheckInstance: AppCheck | null = null;
+
+/** Firebase App Check'in tarayicida okudugu debug token global'i (SDK tiplerinde yok). */
+type AppCheckDebugGlobal = typeof globalThis & { FIREBASE_APPCHECK_DEBUG_TOKEN?: string | boolean };
+
 if (typeof window !== "undefined") {
   // localhost'ta ve ?debug_token=true ile App Check debug token'i kullanilir
   // (eski vanilla on yuzle ayni davranis).
@@ -35,8 +39,8 @@ if (typeof window !== "undefined") {
     window.location.hostname === "127.0.0.1" ||
     window.location.search.includes("debug_token=true")
   ) {
-    // @ts-ignore -- Firebase App Check debug hook'u
-    self.FIREBASE_APPCHECK_DEBUG_TOKEN =
+    // Firebase App Check debug hook'u: SDK bu global'i initializeAppCheck'ten once okur.
+    (self as AppCheckDebugGlobal).FIREBASE_APPCHECK_DEBUG_TOKEN =
       process.env.NEXT_PUBLIC_APPCHECK_DEBUG_TOKEN || "REDACTED-REVOKED-DEBUG-TOKEN";
   }
 

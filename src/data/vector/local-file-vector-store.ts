@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { InMemoryVectorStore } from "./in-memory-vector-store.js";
-import { VectorRecord } from "./types.js";
+import { VectorRecord, VectorSearchOptions, VectorSearchResult } from "./types.js";
 import { errorMessage } from "../../core/errors/index.js";
 
 export interface LocalFileVectorStoreOptions {
@@ -98,7 +98,10 @@ export class LocalFileVectorStore extends InMemoryVectorStore {
     await this.persist();
   }
 
-  public override async search(queryEmbedding: number[], options: any): Promise<any[]> {
+  public override async search(
+    queryEmbedding: number[],
+    options: VectorSearchOptions
+  ): Promise<VectorSearchResult[]> {
     await this.init();
     return super.search(queryEmbedding, options);
   }

@@ -158,7 +158,10 @@ export class FirestoreConversationRepository implements IConversationRepository 
       const nextSequence = currentCount + 1;
       const now = Timestamp.now();
 
-      const messageData: Record<string, any> = {
+      // Type aliases (not interfaces) so they satisfy Firestore's DocumentData.
+      const messageData: Omit<ConversationMessageDocument, "id" | "createdAt"> & {
+        createdAt: Timestamp;
+      } = {
         role: params.role,
         content: params.content,
         sequence: nextSequence,
@@ -173,7 +176,12 @@ export class FirestoreConversationRepository implements IConversationRepository 
       tx.set(messageDocRef, messageData);
 
       // If this is the very first user message, deterministically set conversation title
-      const updatePayload: Record<string, any> = {
+      const updatePayload: {
+        messageCount: number;
+        updatedAt: Timestamp;
+        lastMessageAt: Timestamp;
+        title?: string;
+      } = {
         messageCount: nextSequence,
         updatedAt: now,
         lastMessageAt: now
@@ -215,7 +223,9 @@ export class FirestoreConversationRepository implements IConversationRepository 
       .collection("messages")
       .doc(params.messageId);
 
-    const updateData: Record<string, any> = {};
+    const updateData: Partial<
+      Pick<ConversationMessageDocument, "content" | "status" | "finishReason" | "provider" | "model">
+    > = {};
     if (params.content !== undefined) updateData.content = params.content;
     if (params.status !== undefined) updateData.status = params.status;
     if (params.finishReason !== undefined) updateData.finishReason = params.finishReason;

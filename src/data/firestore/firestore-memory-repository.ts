@@ -1,4 +1,4 @@
-import { Firestore, Timestamp } from "firebase-admin/firestore";
+import { DocumentData, Firestore, Timestamp } from "firebase-admin/firestore";
 import { getFirestoreDb } from "./firestore-conversation-repository.js";
 import {
   IMemoryRepository,
@@ -9,16 +9,57 @@ import {
   CreateMemoryRecordParams,
   UpdateMemoryIndexStatusParams,
   UpdateMemoryStatusParams,
-  ListMemoriesOptions
+  ListMemoriesOptions,
+  MemoryIndexStatus,
+  MemoryStatus,
+  MemoryType
 } from "./memory.types.js";
+
+/**
+ * Shape of a `memory_vectors/{id}` document as written by createMemoryRecord.
+ * (A type alias, not an interface, so it satisfies Firestore's DocumentData.)
+ */
+type StoredMemoryVector = {
+  memoryId: string;
+  userId: string;
+  content: string;
+  memoryType: MemoryType;
+  sourceConversationId: string | null;
+  sourceMessageIds: string[];
+  embeddingProvider: string;
+  embeddingModel: string;
+  embeddingDimension: number;
+  embedding: number[] | null;
+  vectorStore: string;
+  vectorId: string;
+  status: MemoryStatus;
+  supersedesMemoryId: string | null;
+  supersededByMemoryId: string | null;
+  indexStatus: MemoryIndexStatus;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+};
+
+type MemoryIndexStatusUpdate = {
+  indexStatus: MemoryIndexStatus;
+  updatedAt: Timestamp;
+  indexedAt?: Timestamp;
+  lastError?: string;
+};
+
+type MemoryStatusUpdate = {
+  status: MemoryStatus;
+  updatedAt: Timestamp;
+  supersededByMemoryId?: string;
+};
 
 /**
  * Helper to convert Firestore Timestamps to ISO string dates.
  */
-function toIsoDate(val: any): string {
+function toIsoDate(val: unknown): string {
   if (!val) return new Date().toISOString();
-  if (typeof val.toDate === "function") {
-    return val.toDate().toISOString();
+  if (typeof (val as { toDate?: unknown }).toDate === "function") {
+    return (val as { toDate(): Date }).toDate().toISOString();
   }
   if (val instanceof Date) {
     return val.toISOString();
@@ -56,7 +97,7 @@ export class FirestoreMemoryRepository implements IMemoryRepository {
     const vectorId = params.vectorId || `vec_${id}`;
     const now = Timestamp.now();
 
-    const data: Record<string, any> = {
+    const data: StoredMemoryVector = {
       memoryId,
       userId: params.userId,
       content: params.content.trim(),
@@ -102,7 +143,8 @@ export class FirestoreMemoryRepository implements IMemoryRepository {
     };
   }
 
-  private toMemoryDoc(id: string, data: Record<string, any>): MemoryVectorDocument {
+  /** Maps a raw (untyped) Firestore document to the domain type. */
+  private toMemoryDoc(id: string, data: DocumentData): MemoryVectorDocument {
     return {
       id,
       memoryId: data.memoryId || id,
@@ -155,7 +197,7 @@ export class FirestoreMemoryRepository implements IMemoryRepository {
 
   public async updateIndexStatus(params: UpdateMemoryIndexStatusParams): Promise<void> {
     const docRef = this.db.collection(this.collectionName).doc(params.id);
-    const updates: Record<string, any> = {
+    const updates: MemoryIndexStatusUpdate = {
       indexStatus: params.indexStatus,
       updatedAt: Timestamp.now()
     };
@@ -172,7 +214,7 @@ export class FirestoreMemoryRepository implements IMemoryRepository {
 
   public async updateMemoryStatus(params: UpdateMemoryStatusParams): Promise<void> {
     const docRef = this.db.collection(this.collectionName).doc(params.id);
-    const updates: Record<string, any> = {
+    const updates: MemoryStatusUpdate = {
       status: params.status,
       updatedAt: Timestamp.now()
     };

@@ -1,53 +1,35 @@
 /**
  * Canonical User Profile & Context Types — B.U.T.L.E.R. Alfred
  *
- * Defines structured representations for Alfred's canonical user profile layer,
- * loaded from version-controlled Git files under `users/`.
+ * Alfred's canonical user profile is the human-authored Markdown under
+ * `users/` (USER_PROFILE.md, PREFERENCES.md, WORKING_STYLE.md). It is kept as
+ * the raw file contents and rendered into the system prompt by the pure
+ * `renderUserProfileBlock()` (./user-profile-renderer.ts), which both src/
+ * (ContextBuilder) and production (functions/index.js, via the embedded copy
+ * in ./user-profile.generated.ts) use. Parsing the files into fields is
+ * deliberately avoided: every edit to users/*.md reaches the prompt.
  *
- * Designed to cleanly coexist with future FirestoreMemoryProvider and
+ * Designed to cleanly coexist with FirestoreMemoryProvider and
  * VectorSearchProvider without creating competing sources of truth.
  */
 
-export interface CanonicalUserProfile {
-  name: string;
-  fullName: string;
-  role: string;
-  technicalProficiency: string;
-  coreCompetencies: string[];
-  primaryLanguages: string[];
-  broadPhilosophy: string;
-  expectationsFromAlfred: string[];
-}
-
-export interface CanonicalUserPreferences {
-  defaultLanguageRegister: string;
-  multilingualSupport: string[];
-  formsOfAddress: {
-    english: string;
-    turkish: string;
-    frequency: string;
-  };
-  forbiddenMannerisms: string[];
-  responseStructure: string;
-  pushbackTriggers: string[];
-  concisenessGuidelines: {
-    operational: string;
-    architectural: string;
-  };
-}
-
-export interface CanonicalWorkingStyle {
-  incrementalDevelopment: string;
-  progressionModel: string;
-  investigationProtocol: string;
-  complexityPolicy: string;
-  collaborationContract: string;
+/** The raw contents of the three canonical profile files. */
+export interface UserProfileSources {
+  /** users/USER_PROFILE.md */
+  userProfile: string;
+  /** users/PREFERENCES.md */
+  preferences: string;
+  /** users/WORKING_STYLE.md */
+  workingStyle: string;
 }
 
 export interface CanonicalUserContext {
-  profile: CanonicalUserProfile;
-  preferences: CanonicalUserPreferences;
-  workingStyle: CanonicalWorkingStyle;
+  sources: UserProfileSources;
+  /**
+   * "git": every file was read from users/ on disk.
+   * "fallback": users/ (or some file in it) was unreadable, so the missing
+   * files came from the copy embedded at build time (user-profile.generated.ts).
+   */
   source: "git" | "fallback";
   loadedAt: Date;
 }

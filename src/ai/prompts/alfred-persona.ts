@@ -6,7 +6,11 @@
  * sends, so src/ and the Cloud Functions share one persona.
  */
 
-import { ALFRED_PERSONA_PROMPT } from "./alfred-system-prompt.js";
+import {
+  ALFRED_PERSONA_PROMPT,
+  buildAlfredPersonaPrompt,
+  type AlfredRuntime
+} from "./alfred-system-prompt.js";
 import { ContextBuilder } from "../../alfred/cognitive/context/context-builder.js";
 import { CanonicalUserContext } from "../../alfred/cognitive/context/user-profile.types.js";
 
@@ -17,19 +21,22 @@ export const ALFRED_CANONICAL_SYSTEM_PROMPT = ALFRED_PERSONA_PROMPT;
  * with the canonical user profile loaded from Git (`users/`) and the
  * Conversational Governor.
  *
- * Note: this renders the profile from users/*.md at runtime, so it is NOT
- * byte-identical to production. Production (functions/index.js) sends
- * `buildAlfredSystemPrompt()` from ./alfred-system-prompt.ts, which carries a
- * hand-written profile summary instead.
+ * It uses the same persona, profile renderer and governor as production
+ * (`buildAlfredSystemPrompt()` in ./alfred-system-prompt.ts). The only
+ * difference is where users/*.md comes from: here UserProfileLoader reads the
+ * files on disk; production uses the copy embedded at build time. With the
+ * files unchanged and the same runtime, the two prompts are identical.
  */
 export function getAlfredSystemPrompt(options?: {
   includeUserProfile?: boolean;
   includeGovernor?: boolean;
   userContext?: CanonicalUserContext;
+  /** Provider/model stated in the persona; defaults to production's (Groq). */
+  runtime?: AlfredRuntime;
 }): string {
+  const { runtime, ...rest } = options ?? {};
   return ContextBuilder.buildSystemPrompt({
-    personaPrompt: ALFRED_CANONICAL_SYSTEM_PROMPT,
-    ...options
+    personaPrompt: runtime ? buildAlfredPersonaPrompt(runtime) : ALFRED_CANONICAL_SYSTEM_PROMPT,
+    ...rest
   });
 }
-

@@ -919,7 +919,13 @@ const SSH_EXECUTE_TOOL_DEFINITION = {
         });
     }
 
-    const systemPromptWithMemories = buildAlfredSystemPrompt(retrievedMemories);
+    // Persona states the provider/model actually answering this turn; the
+    // profile comes from users/*.md embedded at build time (functions/build.js).
+    const currentModel = activeProvider === "groq" ? groqModel : ollamaModel;
+    const systemPromptWithMemories = buildAlfredSystemPrompt({
+      runtime: { provider: activeProvider, model: currentModel },
+      memories: retrievedMemories
+    });
 
     const messagesPayload = [
       { role: "system", content: systemPromptWithMemories },
@@ -945,7 +951,6 @@ const SSH_EXECUTE_TOOL_DEFINITION = {
       }
     };
 
-    const currentModel = activeProvider === "groq" ? groqModel : ollamaModel;
     sendEvent({ type: "start", conversationId: convId, provider: activeProvider, model: currentModel });
     sendEvent({ type: "thinking" });
 

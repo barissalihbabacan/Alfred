@@ -84,7 +84,7 @@ export default tseslint.config(
 
   // --- Root / Next config files ---------------------------------------------
   {
-    files: ["eslint.config.js", "apps/web/next.config.mjs"],
+    files: ["eslint.config.js", "apps/web/next.config.mjs", "scripts/**/*.mjs"],
     languageOptions: {
       sourceType: "module",
       globals: { ...globals.node },

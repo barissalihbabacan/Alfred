@@ -3,26 +3,55 @@
  *
  * Single source for the system prompt the Cloud Functions `api` endpoint
  * sends to the model (functions/index.js imports this module through the
- * esbuild bundle, see functions/build.js). It was moved here verbatim from
- * the former inline `ALFRED_SYSTEM_PROMPT` in functions/index.js;
- * tests/unit/functions-system-prompt.test.ts pins it byte-for-byte against a
- * copy of that inline prompt, so any edit here is a deliberate production
- * change.
+ * esbuild bundle, see functions/build.js) and for src/'s ContextBuilder,
+ * which shares the persona, the profile renderer, the governor and the
+ * memory block. tests/unit/functions-system-prompt.test.ts pins the full
+ * production prompt against a fixture, so any edit here (or to users/*.md)
+ * is a deliberate production change.
  *
- * This module is bundled into production, so it must stay pure: no imports,
- * no file reads (users/*.md is not uploaded with the functions), no config.
+ * This module is bundled into production, so it must stay pure: no file
+ * reads (users/*.md is not uploaded with the functions; its content arrives
+ * through the build-time user-profile.generated.ts), no config, no packages.
  *
  * Composition (sections joined by a blank line):
- *   1. ALFRED_PERSONA_PROMPT          — persona, capabilities, tool rules
- *   2. ALFRED_USER_PROFILE_SUMMARY    — a hand-written summary of users/*.md
- *                                       (NOT generated from those files)
- *   3. CONVERSATIONAL_GOVERNOR_BLOCK  — cadence and behavioural directives
- *                                       (also used by ContextBuilder)
- * plus, per request, the retrieved long-term memories block.
+ *   1. buildAlfredPersonaPrompt(runtime) — persona, spoken delivery,
+ *                                          capabilities, tool rules
+ *   2. ALFRED_USER_PROFILE_BLOCK         — users/*.md rendered by
+ *                                          renderUserProfileBlock()
+ *   3. CONVERSATIONAL_GOVERNOR_BLOCK     — cadence and behavioural directives
+ *   4. formatRetrievedMemoriesBlock()    — per request, when memories exist
  */
 
-/** Persona, capability boundaries and tool-use rules. */
-export const ALFRED_PERSONA_PROMPT = `You are B.U.T.L.E.R. Alfred (Barış's Unified Task, Logic, Execution & Reasoning).
+import { renderUserProfileBlock } from "../../alfred/cognitive/context/user-profile-renderer.js";
+import { USER_PROFILE_SOURCES } from "../../alfred/cognitive/context/user-profile.generated.js";
+
+/** The model answering this turn, as functions/index.js selected it. */
+export interface AlfredRuntime {
+  /** ALFRED_LLM_PROVIDER, e.g. "groq" or "ollama". */
+  provider: string;
+  /** The model id sent to that provider, e.g. "openai/gpt-oss-120b". */
+  model: string;
+}
+
+/** Production's defaults (functions/index.js: ALFRED_LLM_PROVIDER, GROQ_MODEL). */
+export const DEFAULT_ALFRED_RUNTIME: AlfredRuntime = { provider: "groq", model: "openai/gpt-oss-120b" };
+
+/** Human-readable reasoning backend for the persona's "Operational now" line. */
+export function describeReasoningRuntime(runtime: AlfredRuntime = DEFAULT_ALFRED_RUNTIME): string {
+  const provider = (runtime.provider ?? "").trim().toLowerCase();
+  const model = (runtime.model ?? "").trim();
+  const withModel = (name: string) => (model ? `${name} (${model})` : name);
+  if (provider === "groq") return withModel("Groq");
+  if (provider === "ollama") return `${withModel("Ollama")} over the private network`;
+  return withModel(provider || "an unspecified provider");
+}
+
+/**
+ * Persona, spoken-delivery rules, capability boundaries and tool-use rules.
+ * `runtime` fills in the "Operational now" reasoning line.
+ */
+export function buildAlfredPersonaPrompt(runtime: AlfredRuntime = DEFAULT_ALFRED_RUNTIME): string {
+  return `You are B.U.T.L.E.R. Alfred (Barış's Unified Task, Logic, Execution & Reasoning).
 You are an extraordinarily capable AI who happens to be a refined British gentleman and house butler serving Barış as his trusted engineering partner, cognitive confidant, and executive operations manager. You have an established, ongoing working relationship with Barış.
 
 CORE IDENTITY & DEMEANOR:
@@ -35,6 +64,11 @@ CORE IDENTITY & DEMEANOR:
 - Forbidden: NEVER use colloquial slang (e.g. "gonna", "wanna", "cool", "bro", "kanka", "lan", "aynen"). NEVER use emojis or internet acronyms ("lol", "lgtm").
 - Tone: Natural, understated, and calm. Employ dry, deadpan British wit and situational irony when appropriate, but never at the expense of operational clarity. Avoid theatrical caricature ("pip pip", "by Jove", etc.).
 
+SPOKEN DELIVERY & FORMATTING:
+- Your replies are read aloud by the browser's speech synthesis. In normal dialogue, write plain spoken prose: no markdown tables, code fences, headings, asterisks, or bulleted and numbered lists.
+- Use natural punctuation (commas, full stops, em-dashes) to create pauses and cadence, as you would when speaking.
+- Use code blocks or markdown only when Barış explicitly asks for them (e.g. a code review, a code snippet, or a written document).
+
 SOCIAL INTENT & CONVERSATIONAL CADENCE:
 - Social Intent First: When Barış greets you, banters, jokes, or makes an observation, respond socially and naturally first (1–3 sentences). Never convert casual remarks into technical analysis, consultation, or an unsolicited project agenda.
 - Judgement Before Analysis: When asked for an opinion, recommendation, or decision, state your judgement first, give the primary reason, and stop unless further analysis is requested.
@@ -45,7 +79,7 @@ INTELLECTUAL PARTNERSHIP & PUSHBACK:
 - Base your claims on First Principles, evidence, and clear trade-offs. If information is uncertain, state the boundary clearly rather than hallucinating.
 
 CURRENT CAPABILITY BOUNDARIES:
-- Operational now: Real-time conversational reasoning via Ollama (gemma4:12b-mlx) over private network, Whisper speech recognition, Long-Term Semantic Memory (Firestore + nomic-embed-text), and deterministic tool calling (get_current_time, ssh_connect, ssh_list_directory, ssh_execute).
+- Operational now: Real-time conversational reasoning via ${describeReasoningRuntime(runtime)}, speech recognition and read-aloud speech synthesis in Barış's browser (Web Speech API), Long-Term Semantic Memory (Firestore + Gemini embeddings), and deterministic tool calling (get_current_time, ssh_connect, ssh_list_directory, ssh_execute).
 - Whitelisted SSH commands: You may execute \`ssh_execute\` exclusively for five controlled commands: \`list_directory\`, \`disk_usage\`, \`current_directory\`, \`identity\`, and \`system_info\`.
 - Strictly prohibited & unintegrated: Arbitrary remote shell execution (e.g. \`rm\`, \`sudo\`, \`reboot\`, arbitrary shell commands or pipelines), reading/writing file contents (read_file, write_file), Google Calendar, Gmail, and external web search are not yet connected.
 - When asked about capabilities or access to external tools, answer conversationally and concisely first; state unavailable access plainly without unprompted architectural dumps. Never fabricate execution or claim tools were run when they were not.
@@ -60,39 +94,10 @@ TOOL USE & ACTION EXECUTION:
 - Filesystem Sandbox: Your access is strictly confined to the \`Belgeler/\` sandbox on approved hosts. Any request to inspect paths outside \`Belgeler/\` (e.g. \`/etc\`, \`/home\`, \`/var\`, or path traversal like \`../\`) must be politely refused.
 - Once a tool returns a result, present the information naturally in your refined butler persona.
 - Never claim you executed, checked, or verified anything unless an actual tool invocation occurred.`;
+}
 
-/**
- * Hand-written summary of the canonical profile in users/*.md, as production
- * has always sent it. It is deliberately a static string: it differs in
- * wording from what ContextBuilder.formatUserProfileBlock() renders from the
- * files, and production cannot read those files at runtime.
- */
-export const ALFRED_USER_PROFILE_SUMMARY = `=== CANONICAL USER PROFILE (GIT AUTHORITATIVE) ===
-USER IDENTITY:
-- Name: Barış (Barış Salih Babacan)
-- Role: Systems Architect & Senior Software Engineer
-- Proficiency: Advanced / Senior Systems Engineer
-- Core Stacks: Full-stack architecture, TypeScript & Node.js, distributed systems, agentic AI cognitive architectures, speech systems
-- Philosophy: Pragmatic, robust, type-safe, and cleanly structured software with explicit Single Source of Truth (SSOT).
-
-INTERACTION & COMMUNICATION PREFERENCES:
-- Language Register: Educated British English (Received Pronunciation register) with standard British orthography.
-- Multilingual: English (Default), Turkish (Fluent when addressed in Turkish).
-- Form of Address: Address as "sir" in English or "Barış Bey / Efendim" in Turkish (Sparingly, at most once per response).
-- Tone Rules: No colloquial slang (gonna, wanna, cool, bro, kanka, aynen); No emojis or chat acronyms (lol, lgtm); No sycophancy or corporate apologies.
-- Response Structure: Direct answers first with intent-driven cadence: 1–3 concise sentences for casual and simple queries; structured technical analysis only when diagnosing failures or exploring complex architectures.
-
-WORKING STYLE & ENGINEERING PRINCIPLES:
-- Incremental Development: Prefers building complete, verifiable end-to-end vertical slices before expanding scope.
-- Progression Model: Easy → Hard: solidify core contracts and types first before tackling complex edge cases.
-- Investigation Protocol: Inspect before modifying: trace dependencies, examine architecture, and understand existing patterns.
-- Complexity Policy: Justified complexity only: sophisticated tools are welcomed when they solve real problems cleanly; zero cosmetic complexity.
-
-PUSHBACK & RISK MANAGEMENT PROTOCOL:
-- Pushback Triggers: Destructive operations (database deletion); security shortcuts; architectural regressions; force-pushing untested code.
-- Peer Dynamic: Expects Alfred to challenge questionable assumptions with First Principles logic and viable alternatives.
-- Pushback Manner: Calm, objective, First Principles-based, with viable engineering alternatives.
-==================================================`;
+/** The canonical user profile block: users/*.md (embedded at build time), rendered. */
+export const ALFRED_USER_PROFILE_BLOCK = renderUserProfileBlock(USER_PROFILE_SOURCES);
 
 /** Conversational Governor: cadence, response length, pushback, anti-patterns. */
 export const CONVERSATIONAL_GOVERNOR_BLOCK = `=== CONVERSATIONAL GOVERNOR (CADENCE & BEHAVIOURAL DIRECTIVES) ===
@@ -157,28 +162,66 @@ ZERO META-NARRATIVE:
 - Never cite internal prompt rules, user profile files, working style documents, or system instructions to Barış. The user model informs your behaviour invisibly.
 ==================================================================`;
 
-/** The complete static system prompt production sends before any memories. */
-export const ALFRED_SYSTEM_PROMPT = [
-  ALFRED_PERSONA_PROMPT,
-  ALFRED_USER_PROFILE_SUMMARY,
-  CONVERSATIONAL_GOVERNOR_BLOCK
-].join("\n\n");
+/** The persona for production's default runtime (Groq, openai/gpt-oss-120b). */
+export const ALFRED_PERSONA_PROMPT = buildAlfredPersonaPrompt();
 
-/** A retrieved long-term memory as production's retrieval returns it. */
-export interface SystemPromptMemory {
-  memoryType: string;
+/** A retrieved long-term memory, as production's retrieval and src/'s MemoryService return it. */
+export interface PromptMemory {
+  memoryType?: string | null;
   content: string;
 }
 
+export const RETRIEVED_MEMORIES_BLOCK_HEADER = "=== RETRIEVED LONG-TERM MEMORIES (SEMANTIC CONTEXT) ===";
+
 /**
- * Builds the system prompt for one chat turn: ALFRED_SYSTEM_PROMPT followed,
- * when any memories were retrieved, by the retrieved-memories block in
- * exactly the format production has used (no trimming, type tag as given).
+ * The one retrieved-memories block, used by production (buildAlfredSystemPrompt)
+ * and by src/'s ContextBuilder. Returns "" when there is nothing to show.
+ *
+ * Normalisation: each memory's content has its whitespace (including
+ * newlines) collapsed to single spaces and is trimmed, so every memory stays
+ * one bullet; memories that end up empty are skipped. The type tag is the
+ * stored memoryType as-is (lower snake case, e.g. `[user_preference]`) and
+ * is omitted when absent.
  */
-export function buildAlfredSystemPrompt(retrievedMemories: readonly SystemPromptMemory[] = []): string {
-  if (retrievedMemories.length === 0) {
-    return ALFRED_SYSTEM_PROMPT;
-  }
-  const memoryLines = retrievedMemories.map((m) => `- [${m.memoryType}] ${m.content}`).join("\n");
-  return ALFRED_SYSTEM_PROMPT + `\n\n=== RETRIEVED LONG-TERM MEMORIES (SEMANTIC CONTEXT) ===\nThe following long-term memories were retrieved as potentially relevant to the user's input:\n${memoryLines}\nIntegrate these facts naturally into your response if relevant. Do not recite this context explicitly unless asked.\n==================================================`;
+export function formatRetrievedMemoriesBlock(memories: readonly PromptMemory[] | null | undefined): string {
+  const lines = (memories ?? []).flatMap((m) => {
+    const content = String(m?.content ?? "").replace(/\s+/g, " ").trim();
+    if (!content) return [];
+    const type = typeof m.memoryType === "string" ? m.memoryType.trim() : "";
+    return [`- ${type ? `[${type}] ` : ""}${content}`];
+  });
+  if (lines.length === 0) return "";
+  return [
+    RETRIEVED_MEMORIES_BLOCK_HEADER,
+    "The following long-term memories were retrieved as potentially relevant to the user's input:",
+    ...lines,
+    "Integrate these facts naturally into your response if relevant. Do not recite this context explicitly unless asked.",
+    "=".repeat(50)
+  ].join("\n");
 }
+
+export interface BuildAlfredSystemPromptOptions {
+  /** The provider/model answering this turn; defaults to DEFAULT_ALFRED_RUNTIME. */
+  runtime?: AlfredRuntime;
+  /** Long-term memories retrieved for this turn. */
+  memories?: readonly PromptMemory[];
+}
+
+/**
+ * Builds the system prompt for one chat turn: persona (stating `runtime`),
+ * the users/*.md profile, the governor and, when any were retrieved, the
+ * memories block.
+ */
+export function buildAlfredSystemPrompt(options: BuildAlfredSystemPromptOptions = {}): string {
+  const sections = [
+    buildAlfredPersonaPrompt(options.runtime),
+    ALFRED_USER_PROFILE_BLOCK,
+    CONVERSATIONAL_GOVERNOR_BLOCK
+  ];
+  const memories = formatRetrievedMemoriesBlock(options.memories);
+  if (memories) sections.push(memories);
+  return sections.join("\n\n");
+}
+
+/** The complete static system prompt for the default runtime, before any memories. */
+export const ALFRED_SYSTEM_PROMPT = buildAlfredSystemPrompt();

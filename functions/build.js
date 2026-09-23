@@ -7,15 +7,23 @@
 // npm dependencies stay external (installed by Cloud Build from
 // functions/package.json); only first-party code from index.js and src/ is
 // inlined. After bundling, the build fails if:
-//   - the bundle no longer exports `api` and `alfredCallable`, or
+//   - the bundle no longer exports `api` and `alfredCallable`,
+//   - it no longer inlines user-profile.generated.ts (users/*.md), or
 //   - it imports a package that is not a dependency in functions/package.json
 //     (a src/ module pulling in a root-only dependency would otherwise build
 //     fine here and crash on cold start in production).
+//
+// Before bundling it regenerates src/alfred/cognitive/context/
+// user-profile.generated.ts from users/*.md (scripts/generate-user-profile-
+// sources.mjs), so the deployed system prompt always carries the current
+// profile even if the committed module was not refreshed. Nothing in the
+// bundle reads files at runtime.
 import { build } from "esbuild";
 import { readFileSync } from "node:fs";
 import { builtinModules } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { syncUserProfileSourcesModule } from "../scripts/generate-user-profile-sources.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const REQUIRED_EXPORTS = ["api", "alfredCallable"];
@@ -29,6 +37,10 @@ function packageName(specifier) {
   const parts = specifier.split("/");
   const name = specifier.startsWith("@") ? parts.slice(0, 2).join("/") : parts[0];
   return builtins.has(name) ? null : name;
+}
+
+if (syncUserProfileSourcesModule()) {
+  console.warn("users/*.md changed: regenerated src/alfred/cognitive/context/user-profile.generated.ts (commit it).");
 }
 
 const outfile = join(here, "lib", "index.js");
@@ -59,6 +71,11 @@ if (!output) {
 } else {
   for (const name of REQUIRED_EXPORTS) {
     if (!output.exports.includes(name)) problems.push(`bundle is missing export "${name}"`);
+  }
+  // Production's system prompt renders users/*.md from this embedded module.
+  const profileModule = "../src/alfred/cognitive/context/user-profile.generated.ts";
+  if (!Object.keys(output.inputs).includes(profileModule)) {
+    problems.push(`bundle does not include ${profileModule} (users/*.md would not reach the system prompt)`);
   }
   for (const imp of output.imports) {
     if (!imp.external) continue;

@@ -2,7 +2,11 @@ import { CanonicalUserContext } from "./user-profile.types.js";
 import { defaultUserProfileLoader } from "./user-profile-loader.js";
 import { CONVERSATION_CONFIG } from "../../../data/firestore/conversation-repository.interface.js";
 import { RetrievedMemory } from "../memory/types.js";
-import { CONVERSATIONAL_GOVERNOR_BLOCK } from "../../../ai/prompts/alfred-system-prompt.js";
+import {
+  CONVERSATIONAL_GOVERNOR_BLOCK,
+  formatRetrievedMemoriesBlock
+} from "../../../ai/prompts/alfred-system-prompt.js";
+import { renderUserProfileBlock } from "./user-profile-renderer.js";
 
 export interface ContextMessage {
   role: "user" | "assistant" | "system";
@@ -30,46 +34,19 @@ export interface BuildChatMessagesOptions extends ContextBuilderOptions {
  * 1. Alfred Canonical Persona (`docs/persona/ALFRED_PERSONA.md`)
  * 2. Canonical User Profile (`users/`)
  * 3. Conversational Governor (cadence, intent-driven length, pushback, anti-patterns)
- * 4. (Future) Dynamic Memories & History (Firestore)
- * 5. (Future) Retrieved Semantic Chunks (Vector DB)
+ * 4. Retrieved long-term memories (semantic retrieval)
  *
  * Enforces explicit section boundaries so that the LLM distinguishes
  * static baseline identity from dynamic conversation turns.
  */
 export class ContextBuilder {
   /**
-   * Formats the canonical user profile into a dense, structured markdown block.
-   * Free of executable instructions or prompt injection vectors.
+   * Renders the canonical user profile (users/*.md) into its prompt block.
+   * Delegates to the pure renderUserProfileBlock(), the same renderer
+   * production uses on the build-time copy of the files.
    */
   public static formatUserProfileBlock(ctx: CanonicalUserContext): string {
-    const { profile, preferences, workingStyle } = ctx;
-
-    return `=== CANONICAL USER PROFILE (GIT AUTHORITATIVE) ===
-USER IDENTITY:
-- Name: ${profile.name} (${profile.fullName})
-- Role: ${profile.role}
-- Proficiency: ${profile.technicalProficiency}
-- Core Stacks: ${profile.coreCompetencies.join(", ")}
-- Philosophy: ${profile.broadPhilosophy}
-
-INTERACTION & COMMUNICATION PREFERENCES:
-- Language Register: ${preferences.defaultLanguageRegister}
-- Multilingual: ${preferences.multilingualSupport.join(", ")}
-- Form of Address: Address as "${preferences.formsOfAddress.english}" in English or "${preferences.formsOfAddress.turkish}" in Turkish (${preferences.formsOfAddress.frequency}).
-- Tone Rules: ${preferences.forbiddenMannerisms.join("; ")}
-- Response Structure: ${preferences.responseStructure}
-
-WORKING STYLE & ENGINEERING PRINCIPLES:
-- Incremental Development: ${workingStyle.incrementalDevelopment}
-- Progression Model: ${workingStyle.progressionModel}
-- Investigation Protocol: ${workingStyle.investigationProtocol}
-- Complexity Policy: ${workingStyle.complexityPolicy}
-
-PUSHBACK & RISK MANAGEMENT PROTOCOL:
-- Pushback Triggers: ${preferences.pushbackTriggers.join("; ")}
-- Peer Dynamic: ${workingStyle.collaborationContract}
-- Pushback Manner: Calm, objective, First Principles-based, with viable engineering alternatives.
-==================================================`;
+    return renderUserProfileBlock(ctx.sources);
   }
 
   /**
@@ -82,22 +59,12 @@ PUSHBACK & RISK MANAGEMENT PROTOCOL:
   }
 
   /**
-   * Formats retrieved long-term memories into an explicit, structured markdown block.
+   * Formats retrieved long-term memories. Delegates to
+   * formatRetrievedMemoriesBlock(), the block production sends, so src/ and
+   * functions/index.js use one format. Returns "" when there are none.
    */
   public static formatMemoriesBlock(memories: RetrievedMemory[]): string {
-    if (!memories || memories.length === 0) {
-      return "";
-    }
-
-    const items = memories.map((m) => {
-      const typeTag = m.memoryType ? `[${m.memoryType.toUpperCase()}] ` : "";
-      return `- ${typeTag}${m.content.trim()}`;
-    });
-
-    return `=== RELEVANT LONG-TERM MEMORIES (SEMANTIC RETRIEVAL) ===
-The following memories are retrieved from long-term memory based on semantic relevance to the current conversation. They represent verified facts, decisions, and user preferences:
-${items.join("\n")}
-========================================================`;
+    return formatRetrievedMemoriesBlock(memories);
   }
 
   /**
@@ -124,11 +91,9 @@ ${items.join("\n")}
       sections.push(ContextBuilder.formatGovernorBlock());
     }
 
-    if (options?.relevantMemories && options.relevantMemories.length > 0) {
-      const memBlock = ContextBuilder.formatMemoriesBlock(options.relevantMemories);
-      if (memBlock) {
-        sections.push(memBlock);
-      }
+    const memBlock = ContextBuilder.formatMemoriesBlock(options?.relevantMemories ?? []);
+    if (memBlock) {
+      sections.push(memBlock);
     }
 
     return sections.join("\n\n");

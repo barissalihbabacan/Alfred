@@ -16,6 +16,7 @@
     "test:groq": "tsx scripts/test-groq.ts",
     "test:ollama": "tsx scripts/test-ollama.ts",
     "memory:reindex": "tsx scripts/reindex-memories.ts",
+    "generate:user-profile": "node scripts/generate-user-profile-sources.mjs",
     "dev:web": "next dev apps/web -p 3000",
     "build:web": "next build apps/web"
   },

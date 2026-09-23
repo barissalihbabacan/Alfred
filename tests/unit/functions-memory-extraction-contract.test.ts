@@ -576,11 +576,17 @@ describe("generateDeterministicTitle (production contract)", () => {
 });
 
 describe("functions/index.js uses the shared modules", () => {
-  const source = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
+  const index = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
+  // The candidate loop moved to functions/memory-persistence.js (bundled into
+  // the same functions/lib/index.js).
+  const persistence = readFileSync(new URL("../../functions/memory-persistence.js", import.meta.url), "utf8");
+  const source = `${index}\n${persistence}`;
 
   it("imports them instead of carrying copies", () => {
-    expect(source).toContain('from "../src/data/firestore/conversation-title.js"');
-    expect(source).toMatch(/buildMemoryExtractionSystemPrompt,[\s\S]*validateMemoryCandidate[\s\S]*from "\.\.\/src\/ai\/prompts\/memory-extraction\.js"/);
+    expect(index).toContain('from "../src/data/firestore/conversation-title.js"');
+    expect(index).toMatch(/buildMemoryExtractionSystemPrompt,[\s\S]*from "\.\.\/src\/ai\/prompts\/memory-extraction\.js"/);
+    expect(persistence).toContain('import { validateMemoryCandidate } from "../src/ai/prompts/memory-extraction.js";');
+    expect(persistence).toContain('import { PrivacyFilter } from "../src/alfred/cognitive/memory/privacy-filter.js";');
     expect(source).not.toMatch(/function\s+generateDeterministicTitle\s*\(/);
     expect(source).not.toContain("You are Alfred's autonomous memory extraction subsystem.");
     expect(source).not.toMatch(/confidence \|\| 0\) < 0\.70/);

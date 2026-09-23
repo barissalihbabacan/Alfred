@@ -29,7 +29,6 @@ export interface MemoryExtractionConfig {
   maxContextMessages: number;
   model?: string;
   timeoutMs: number;
-  deduplicationThreshold: number;
 }
 
 export interface MemorySystemConfig {
@@ -51,7 +50,6 @@ export const DEFAULT_EXTRACTION_ENABLED = true;
 export const DEFAULT_EXTRACTION_MIN_CONFIDENCE = 0.7;
 export const DEFAULT_EXTRACTION_MAX_MESSAGES = 6;
 export const DEFAULT_EXTRACTION_TIMEOUT_MS = 15000;
-export const DEFAULT_EXTRACTION_DEDUP_THRESHOLD = 0.85;
 
 export function getMemoryConfig(): MemorySystemConfig {
   const provider = (process.env.EMBEDDING_PROVIDER || DEFAULT_EMBEDDING_PROVIDER).trim().toLowerCase();
@@ -88,9 +86,6 @@ export function getMemoryConfig(): MemorySystemConfig {
   const rawExtTimeout = process.env.MEMORY_EXTRACTION_TIMEOUT_MS ? parseInt(process.env.MEMORY_EXTRACTION_TIMEOUT_MS, 10) : DEFAULT_EXTRACTION_TIMEOUT_MS;
   const extTimeoutMs = Number.isFinite(rawExtTimeout) && rawExtTimeout > 0 ? rawExtTimeout : DEFAULT_EXTRACTION_TIMEOUT_MS;
 
-  const rawDedup = process.env.MEMORY_EXTRACTION_DEDUP_THRESHOLD ? parseFloat(process.env.MEMORY_EXTRACTION_DEDUP_THRESHOLD) : DEFAULT_EXTRACTION_DEDUP_THRESHOLD;
-  const deduplicationThreshold = Number.isFinite(rawDedup) && rawDedup >= 0 && rawDedup <= 1 ? rawDedup : DEFAULT_EXTRACTION_DEDUP_THRESHOLD;
-
   return {
     embedding: {
       provider,
@@ -114,8 +109,7 @@ export function getMemoryConfig(): MemorySystemConfig {
       minConfidence,
       maxContextMessages,
       model: extractionModel,
-      timeoutMs: extTimeoutMs,
-      deduplicationThreshold
+      timeoutMs: extTimeoutMs
     }
   };
 }

@@ -388,18 +388,10 @@ async function sendMessage(text) {
   abortController = new AbortController();
 
   try {
-    const savedGroqKey = localStorage.getItem("alfred_groq_api_key");
-    const savedGeminiKey = localStorage.getItem("alfred_gemini_api_key");
     const requestHeaders = {
       "Content-Type": "application/json",
       "Accept": "text/event-stream"
     };
-    if (savedGroqKey) {
-      requestHeaders["x-groq-api-key"] = savedGroqKey;
-    }
-    if (savedGeminiKey) {
-      requestHeaders["x-gemini-api-key"] = savedGeminiKey;
-    }
 
     const recaptchaToken = await getRecaptchaToken("CHAT");
     if (recaptchaToken) {
@@ -758,14 +750,8 @@ function toggleMicrophone() {
 // Provider Modal Control
 function openProviderModal() {
   const ollamaUrl = localStorage.getItem("alfred_ollama_url") || "http://100.64.0.53:11434";
-  const groqKey = localStorage.getItem("alfred_groq_api_key") || "";
-  const geminiKey = localStorage.getItem("alfred_gemini_api_key") || "";
   const ollamaEl = document.getElementById("ollamaUrlInput");
-  const apiKeyEl = document.getElementById("apiKeyInput");
-  const geminiEl = document.getElementById("geminiApiKeyInput");
   if (ollamaEl) ollamaEl.value = ollamaUrl;
-  if (apiKeyEl) apiKeyEl.value = groqKey;
-  if (geminiEl) geminiEl.value = geminiKey;
   document.getElementById("providerModal").classList.add("open");
 }
 
@@ -775,11 +761,7 @@ function closeProviderModal() {
 
 function saveProviderSettings() {
   const ollamaUrl = document.getElementById("ollamaUrlInput").value.trim();
-  const groqKey = document.getElementById("apiKeyInput").value.trim();
-  const geminiKey = document.getElementById("geminiApiKeyInput") ? document.getElementById("geminiApiKeyInput").value.trim() : "";
   if (ollamaUrl) localStorage.setItem("alfred_ollama_url", ollamaUrl);
-  if (groqKey) localStorage.setItem("alfred_groq_api_key", groqKey);
-  if (geminiKey) localStorage.setItem("alfred_gemini_api_key", geminiKey);
   closeProviderModal();
 }
 
@@ -794,6 +776,10 @@ function toggleToolsMenu(e) {
 
 // Initialization
 window.addEventListener("DOMContentLoaded", () => {
+  // API anahtarlari artik yalnizca sunucuda (Secret Manager) tutuluyor;
+  // eski surumlerin tarayiciya kaydettigi kopyalari temizle.
+  localStorage.removeItem("alfred_groq_api_key");
+  localStorage.removeItem("alfred_gemini_api_key");
   setStatus("ready", "Ready");
   refreshConversationsList();
 

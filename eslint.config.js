@@ -27,6 +27,9 @@ export default tseslint.config(
       "**/audio_output/**",
       ".agents/**",
       "apps/web/next-env.d.ts",
+      // Build output: Next.js static export and the functions esbuild bundle.
+      "**/out/**",
+      "functions/lib/**",
     ],
   },
 
@@ -51,7 +54,6 @@ export default tseslint.config(
   // --- Next.js app (apps/web, TS/TSX) ---------------------------------------
   {
     files: ["apps/web/**/*.ts", "apps/web/**/*.tsx"],
-    ignores: ["apps/web/public/**"],
     plugins: { "react-hooks": reactHooks },
     languageOptions: {
       globals: { ...globals.browser, ...globals.node },
@@ -69,30 +71,6 @@ export default tseslint.config(
     files: ["**/*.js", "**/*.mjs", "**/*.cjs"],
     rules: {
       "no-unused-vars": ["warn", unusedVarsOptions],
-    },
-  },
-
-  // --- Vanilla front end served by Firebase Hosting -------------------------
-  {
-    // Loaded as a classic <script defer> from index.html.
-    files: ["apps/web/public/app.js"],
-    languageOptions: {
-      sourceType: "script",
-      // grecaptcha is injected by the reCAPTCHA Enterprise script tag.
-      globals: { ...globals.browser, grecaptcha: "readonly" },
-    },
-    rules: {
-      // Top-level functions are globals called from inline on*="" handlers in
-      // index.html and in generated markup, so only flag unused locals.
-      "no-unused-vars": ["warn", { ...unusedVarsOptions, vars: "local" }],
-    },
-  },
-  {
-    // Loaded as <script type="module"> from index.html.
-    files: ["apps/web/public/firebase-app.js"],
-    languageOptions: {
-      sourceType: "module",
-      globals: { ...globals.browser },
     },
   },
 

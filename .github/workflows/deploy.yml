@@ -10,7 +10,10 @@ on:
       - "functions/**"
       - "firebase.json"
       - ".firebaserc"
+      - "package.json"
+      - "package-lock.json"
       - ".github/workflows/deploy.yml"
+      - ".github/workflows/ci.yml"
   workflow_dispatch:
 
 concurrency:
@@ -36,10 +39,30 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: functions/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
+
+      - name: Install Root Dependencies
+        run: npm ci --no-audit --no-fund
+
+      # Hosting serves the static export in apps/web/out (firebase.json
+      # hosting.public), so it has to be built before every deploy.
+      - name: Build Web App (static export)
+        run: npm run build:web
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+
+      - name: Verify Static Export
+        run: test -f apps/web/out/index.html
 
       - name: Install Functions Dependencies
         run: npm ci --prefix functions
+
+      # firebase.json also runs this as the functions predeploy hook; building
+      # here too keeps a bundle failure in its own, readable step.
+      - name: Build Functions Bundle
+        run: npm run build --prefix functions
 
       - name: Authenticate to Google Cloud / Firebase
         uses: google-github-actions/auth@v2

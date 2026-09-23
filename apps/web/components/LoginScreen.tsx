@@ -4,8 +4,9 @@ import React, { useState } from "react";
 import { useAuth } from "../lib/AuthContext";
 
 export default function LoginScreen() {
-  const { signInGoogle, error, clearError } = useAuth();
+  const { signInGoogle, signInGoogleRedirect, error, clearError } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   const handleGoogleSignIn = async () => {
     if (isSubmitting) return;
@@ -16,6 +17,20 @@ export default function LoginScreen() {
       setIsSubmitting(false);
     }
   };
+
+  // Safari / acilir pencere engeli icin dogrudan yonlendirmeli giris. Basarili
+  // olursa sayfa Google'a gider; donuste oturum onAuthStateChanged ile gelir.
+  const handleRedirectSignIn = async () => {
+    if (isSubmitting || isRedirecting) return;
+    setIsRedirecting(true);
+    try {
+      await signInGoogleRedirect();
+    } finally {
+      setIsRedirecting(false);
+    }
+  };
+
+  const busy = isSubmitting || isRedirecting;
 
   return (
     <div style={{
@@ -207,6 +222,20 @@ export default function LoginScreen() {
                   </a>
                 </div>
               )}
+              {error.serverDetails && (
+                <div style={{
+                  marginTop: "8px",
+                  fontSize: "11px",
+                  color: "#cbd5e1",
+                  fontFamily: "monospace",
+                  wordBreak: "break-all",
+                  background: "rgba(0, 0, 0, 0.4)",
+                  padding: "6px 8px",
+                  borderRadius: "6px"
+                }}>
+                  Sunucu Yanıtı: {error.serverDetails}
+                </div>
+              )}
               {error.code && error.code !== "unknown_error" && (
                 <div style={{
                   marginTop: "6px",
@@ -242,7 +271,7 @@ export default function LoginScreen() {
         {/* Primary Action: Google Sign-In Button */}
         <button
           onClick={handleGoogleSignIn}
-          disabled={isSubmitting}
+          disabled={busy}
           style={{
             width: "100%",
             padding: "14px 20px",
@@ -258,8 +287,8 @@ export default function LoginScreen() {
             gap: "12px",
             boxShadow: "0 4px 14px rgba(0, 0, 0, 0.35)",
             transition: "all 0.2s ease",
-            opacity: isSubmitting ? 0.75 : 1,
-            cursor: isSubmitting ? "not-allowed" : "pointer"
+            opacity: busy ? 0.75 : 1,
+            cursor: busy ? "not-allowed" : "pointer"
           }}
           onMouseEnter={(e) => {
             if (!isSubmitting) {
@@ -274,7 +303,7 @@ export default function LoginScreen() {
             }
           }}
         >
-          {isSubmitting ? (
+          {busy ? (
             <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#374151" }}>
               <div style={{
                 width: "18px",
@@ -284,7 +313,7 @@ export default function LoginScreen() {
                 borderRadius: "50%",
                 animation: "spin 0.8s linear infinite"
               }} />
-              <span>Giriş Yapılıyor...</span>
+              <span>{isRedirecting ? "Google'a Yönlendiriliyor..." : "Giriş Yapılıyor..."}</span>
             </div>
           ) : (
             <>
@@ -310,6 +339,27 @@ export default function LoginScreen() {
               <span>Google ile Giriş Yap</span>
             </>
           )}
+        </button>
+
+        {/* Secondary Action: direct redirect sign-in (Safari / pop-up blockers) */}
+        <button
+          onClick={handleRedirectSignIn}
+          disabled={busy}
+          title="Safari veya tarayıcı engeli varsa doğrudan sayfayı yönlendirerek giriş yapın"
+          style={{
+            marginTop: "14px",
+            background: "transparent",
+            border: "none",
+            color: "var(--text-secondary)",
+            fontSize: "12px",
+            lineHeight: 1.45,
+            textDecoration: "underline",
+            textUnderlineOffset: "3px",
+            opacity: busy ? 0.5 : 1,
+            cursor: busy ? "not-allowed" : "pointer"
+          }}
+        >
+          Safari veya açılır pencere engeli yaşıyorsanız: <strong>Doğrudan Yönlendirme ile Giriş</strong>
         </button>
 
         {/* Security / Privacy Assurance */}

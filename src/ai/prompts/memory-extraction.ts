@@ -18,6 +18,60 @@ const VALID_MEMORY_TYPES = new Set<MemoryType>([
 const VALID_ACTIONS = new Set<MemoryExtractionAction>(["create", "forget", "supersede"]);
 
 /**
+ * Builds the user-turn text for the memory extraction call: optional recent
+ * context, then the current exchange. Shared with functions/index.js (bundled
+ * via esbuild), so the production prompt and this library emit identical text.
+ */
+export function buildMemoryExtractionUserPrompt(input: {
+  currentMessage: string;
+  assistantResponse?: string;
+  recentMessages?: Array<{ role: string; content: string }>;
+}): string {
+  const contextSegments: string[] = [];
+
+  if (input.recentMessages && input.recentMessages.length > 0) {
+    contextSegments.push("=== RECENT CONVERSATION CONTEXT ===");
+    for (const msg of input.recentMessages) {
+      contextSegments.push(`${msg.role.toUpperCase()}: ${msg.content}`);
+    }
+  }
+
+  contextSegments.push("=== CURRENT EXCHANGE ===");
+  contextSegments.push(`USER: ${input.currentMessage}`);
+  if (input.assistantResponse) {
+    contextSegments.push(`ASSISTANT: ${input.assistantResponse}`);
+  }
+
+  return `${contextSegments.join("\n")}\n\nAnalyze the above exchange. Output JSON only.`;
+}
+
+/**
+ * Reduces raw extraction-model output to the JSON text to parse: strips
+ * <think>...</think> reasoning traces (including an unterminated one), then
+ * takes the body of a ```json fenced block if present, otherwise the span from
+ * the first "{" to the last "}". Returns the trimmed text unchanged when
+ * neither is found. Shared with functions/index.js (bundled via esbuild).
+ */
+export function extractJsonPayload(rawText: string): string {
+  // Strip possible thinking tags, e.g. <think>...</think>
+  let clean = rawText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
+
+  // Extract JSON payload from markdown code blocks or search for first { and last }
+  const jsonBlockMatch = clean.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (jsonBlockMatch && jsonBlockMatch[1]) {
+    clean = jsonBlockMatch[1].trim();
+  } else {
+    const firstBrace = clean.indexOf("{");
+    const lastBrace = clean.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      clean = clean.slice(firstBrace, lastBrace + 1).trim();
+    }
+  }
+
+  return clean;
+}
+
+/**
  * Builds isolated messages for the Memory Extraction LLM invocation.
  * Strictly decoupled from Alfred's conversational persona.
  */
@@ -58,22 +112,7 @@ CRITICAL RULES:
 }
 If there is nothing worth remembering, return {"shouldRemember": false, "memories": []}.`;
 
-  const contextSegments: string[] = [];
-
-  if (input.recentMessages && input.recentMessages.length > 0) {
-    contextSegments.push("=== RECENT CONVERSATION CONTEXT ===");
-    for (const msg of input.recentMessages) {
-      contextSegments.push(`${msg.role.toUpperCase()}: ${msg.content}`);
-    }
-  }
-
-  contextSegments.push("=== CURRENT EXCHANGE ===");
-  contextSegments.push(`USER: ${input.currentMessage}`);
-  if (input.assistantResponse) {
-    contextSegments.push(`ASSISTANT: ${input.assistantResponse}`);
-  }
-
-  const userPrompt = `${contextSegments.join("\n")}\n\nAnalyze the above exchange. Output JSON only.`;
+  const userPrompt = buildMemoryExtractionUserPrompt(input);
 
   return [
     { role: "system", content: systemInstructions },
@@ -92,20 +131,7 @@ export function parseMemoryExtractionResponse(
     return { shouldRemember: false, candidates: [], rawResponse: rawText };
   }
 
-  // Strip possible thinking tags, e.g. <think>...</think>
-  let clean = rawText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
-
-  // Extract JSON payload from markdown code blocks or search for first { and last }
-  const jsonBlockMatch = clean.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  if (jsonBlockMatch && jsonBlockMatch[1]) {
-    clean = jsonBlockMatch[1].trim();
-  } else {
-    const firstBrace = clean.indexOf("{");
-    const lastBrace = clean.lastIndexOf("}");
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-      clean = clean.slice(firstBrace, lastBrace + 1).trim();
-    }
-  }
+  const clean = extractJsonPayload(rawText);
 
   let parsed: any;
   try {

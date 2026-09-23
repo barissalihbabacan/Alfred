@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-B.U.T.L.E.R. Alfred — a personal AI executive-assistant/agent system for Barış (*Barış's Unified Task, Logic, Execution & Reasoning*). Alfred is a British-butler-persona cognitive agent: a vendor-agnostic TypeScript core (`src/`) handles LLM providers, long-term memory, voice and tool execution; two separate front ends sit on top of it (see **Front ends** below). Deployed through Firebase.
+B.U.T.L.E.R. Alfred — a personal AI executive-assistant/agent system for Barış (*Barış's Unified Task, Logic, Execution & Reasoning*). Alfred is a British-butler-persona cognitive agent: a vendor-agnostic TypeScript core (`src/`) handles LLM providers, long-term memory, voice and tool execution; the production front end is a Next.js app built as a static export (see **Front ends** below). Deployed through Firebase.
 
 ## Commands
 
@@ -25,10 +25,10 @@ npm run test:ollama
 # Long-term memory
 npm run memory:reindex     # rebuild vector store from Firestore (source of truth)
 
-# Web app (apps/web, Next.js)
-npm run dev:web             # http://localhost:3000, hot reload
-npm run build:web
-npm run start:web
+# Web app (apps/web, Next.js static export -> apps/web/out)
+npm run dev:web             # http://localhost:3000, hot reload; /api/** proxied to ALFRED_API_ORIGIN
+npm run build:web           # static export to apps/web/out (what Hosting serves)
+firebase serve --only hosting   # serve apps/web/out locally with firebase.json rewrites/headers
 
 # Firebase Functions (functions/)
 npm run build --prefix functions          # esbuild: functions/index.js + src/ -> functions/lib/index.js
@@ -36,7 +36,7 @@ npm run check:bundle --prefix functions   # node --check + import smoke test of 
 npm run deploy --prefix functions   # firebase deploy --only functions
 ```
 
-No lint script is configured. As of the last check `npm run test:unit` is 273 passing tests across 32 files and `npm run typecheck` is clean — keep both green.
+No lint script is configured. As of the last check `npm run test:unit` is 296 passing tests across 35 files, `npm run typecheck` and `npx tsc -p apps/web/tsconfig.json --noEmit` are clean and `npm run build:web` succeeds — keep all of them green (CI runs all four).
 
 `tests/unit/*` run offline against in-memory repositories/stores; `tests/integration/*` and the `test:groq`/`test:ollama` scripts hit real providers and need `.env` populated (copy from `.env.example`).
 
@@ -57,11 +57,13 @@ Full detail lives in `docs/ARCHITECTURE.md` — read it before touching `src/alf
 - `users/` — canonical, git-versioned, **read-only-at-runtime** profile of Barış (`USER_PROFILE.md`, `PREFERENCES.md`, `WORKING_STYLE.md`). Loaded by `UserProfileLoader` and injected into the system prompt by `ContextBuilder`. Never written to by the running app.
 - `docs/persona/ALFRED_PERSONA.md` — canonical behavioral/linguistic spec for Alfred (British-butler tone, pushback style, "sir" usage, response length rules). Consult this before changing anything under `src/alfred/persona/` or `src/ai/prompts/`.
 
-### Front ends — there are two, and only one is served by Hosting
-- **Next.js app** (`apps/web/app/`, `apps/web/components/`, `apps/web/lib/`): pages plus `/api/chat`, `/api/stt`, `/api/health` route handlers. `VoiceChatPlayground.tsx` (~1400 lines) is the main UI. Run locally with `npm run dev:web`.
-- **Vanilla JS front end** (`apps/web/public/`: `index.html`, `app.js`, `firebase-app.js`, `styles.css`). `firebase.json` points Hosting at `apps/web/public`, so **this is what Firebase Hosting serves**; `/api/**` is rewritten to the `api` Cloud Function.
-
-Behaviour changed in one front end does not appear in the other. Check which one a task is about before editing.
+### Front end — one Next.js app, built as a static export
+- `apps/web/` (`app/`, `components/`, `lib/`) is the only front end. `next.config.mjs` sets `output: "export"`, so `npm run build:web` writes plain static files to `apps/web/out` and Firebase Hosting serves that directory. There is **no server runtime**: no route handlers (`app/api/*` was removed), no SSR, no middleware. Anything that needs a server belongs in `functions/index.js`.
+- `components/VoiceChatPlayground.tsx` is the chat UI; `components/LoginScreen.tsx` is the auth gate; `app/page.tsx` only mounts the chat once Firebase has restored an allowed session.
+- All backend calls go through `lib/api.ts` (`apiFetch`), which targets `/api/*` and adds the Firebase ID token (`Authorization: Bearer`) and the App Check token (`X-Firebase-AppCheck`). The `/chat` SSE stream is parsed by `lib/sse.ts`. Don't call `fetch("/api/...")` directly.
+- `npm run dev:web` rewrites `/api/**` to `ALFRED_API_ORIGIN` (default: the Functions emulator, `http://127.0.0.1:5001/butler-alfred/us-central1/api`; use `https://butler-alfred.web.app/api` to hit production). The rewrite exists only in dev; the export uses the Hosting rewrite.
+- Speech input is the browser Web Speech API (`SpeechRecognition`) and speech output is `speechSynthesis`. There is no server-side STT endpoint in production (the old Next `/api/stt` Groq Whisper route was unused by the UI and was removed with the other route handlers).
+- The previous vanilla-JS front end (`apps/web/public/*.js`) was removed in favour of this app.
 
 ### Tool execution
 `ToolRegistry` (`src/alfred/control-plane/tool-router/tool-registry.ts`, singleton via `getToolRegistry()`) holds `ITool` implementations; `ToolRouter` (`getToolRouter()`) dispatches model tool-calls to them. `PermissionManager` (`src/alfred/control-plane/permission-system/`) gates execution through `ToolExecutionContext extends PermissionContext`.
@@ -69,7 +71,7 @@ Behaviour changed in one front end does not appear in the other. Check which one
 SSH is the only real capability so far. `src/alfred/execution-plane/ssh/` holds the machinery: `ssh-client.interface.ts` with a real `ssh2-client.ts` and a `mock-ssh-client.ts` for tests, plus `ssh-connection-manager.ts`, `remote-command-executor.ts`, `command-registry.ts` (allow-list of runnable commands), `ssh-path-sandbox.ts` (path confinement) and `ls-parser.ts`. Hosts are referred to by alias (`home-server`), never raw credentials in tool arguments.
 
 ### Path aliases (tsconfig.json)
-`@alfred/*`, `@ai/*`, `@voice/*`, `@data/*`, `@integrations/*`, `@core/*` all map to `src/*` subfolders. `apps/web/` has its own `tsconfig.json`, is a separate Next.js compilation unit, and **does not import from `src/` at all** — it reimplements what it needs. Same warning as the two front ends: shared-looking logic is duplicated, not shared.
+`@alfred/*`, `@ai/*`, `@voice/*`, `@data/*`, `@integrations/*`, `@core/*` all map to `src/*` subfolders. `apps/web/` has its own `tsconfig.json`, is a separate Next.js compilation unit, and **does not import from `src/` at all** (its tsconfig has no `src` aliases). With the Next.js route handlers gone, the only HTTP entry point for Alfred is `functions/index.js`, which pulls in selected `src/` modules through the functions bundle (see **Functions bundle**).
 
 ### Storage model — three tiers, one source of truth
 1. **Git (`users/`)** — canonical authored baseline about Barış. Read-only at runtime, authoritative over vague inference.
@@ -83,26 +85,26 @@ Key distinctions to preserve when editing memory code:
 - Failure boundaries are intentionally non-cascading: embedding failure → no Firestore record; Firestore failure → no vector created; vector indexing failure → Firestore record kept with `indexStatus: "failed"` (re-indexable); extraction failure never affects the live chat response (it runs as a non-blocking background task).
 
 ### Streaming chat
-`apps/web/app/api/chat/route.ts` proxies to `AIProvider.streamChat()` over SSE. Provider "thinking" tokens (Gemma reasoning traces) are filtered server-side and only ever surface to the client as a `{"type":"thinking"}` marker — never as raw reasoning content. Client state machine: `Idle → Sending → Thinking → Streaming → Idle`.
+The `api` function's `POST /chat` (`functions/index.js`) streams SSE frames `data: {json}\n\n` with `type` = `start` (`conversationId`, `provider`, `model`), `thinking`, `chunk` (`text`), `tool_call`, `tool_result`, `done`, `error` (`error`). `chunk` text can contain `<think>` traces; the client strips them before rendering. After `done` the server keeps the connection open until the memory write finishes, so the UI releases the composer on `done` rather than on stream close, and a per-turn guard keeps a late-closing stream from resetting a newer turn. `tests/unit/web-sse-parser.test.ts` pins the frame format.
 
 ### Auth — single-user, Google only
 The app is locked to one person. There is no sign-up, no password login and no SMS MFA (all removed in Sep 2026).
 
 - **Google Sign-In only**, popup with an automatic fallback to redirect on `auth/internal-error`, `auth/popup-blocked` or `auth/cancelled-popup-request` (`apps/web/lib/auth.ts`).
-- **UID allow-list**: any account whose `uid` is not the single allowed value is signed straight back out with `auth/unauthorized-uid`. The UID has exactly one definition per runtime:
-  - **Hosting front end** — `apps/web/public/firebase-app.js` (`export const ALLOWED_UID`, also set as `window.ALLOWED_UID`). These are static files with no build step, so there is no env var. `app.js` reads `window.ALLOWED_UID` lazily inside `getCurrentUserId()`; it is a deferred classic script that runs *before* the `firebase-app.js` module, so never read it at `app.js` top level.
-  - **Next.js local-dev app** — `apps/web/lib/allowed-uid.ts` (`process.env.NEXT_PUBLIC_ALLOWED_UID || literal`), imported by `apps/web/lib/auth.ts` (which re-exports it) and `apps/web/app/api/chat/route.ts`.
+- **UID allow-list**: any account whose `uid` is not the single allowed value is signed straight back out with `auth/unauthorized-uid` (popup, redirect result, and restored sessions via `subscribeAuthState`). The UID has exactly one definition per runtime:
+  - **Web app** — `apps/web/lib/allowed-uid.ts` (`process.env.NEXT_PUBLIC_ALLOWED_UID || literal`; the `NEXT_PUBLIC_` value is inlined at build time, so it works in the static export), imported and re-exported by `apps/web/lib/auth.ts`.
   - **Cloud Functions** — `functions/index.js` (`process.env.ALLOWED_UID || literal`).
 
-  Changing the UID therefore means editing those three places (or setting the env vars). The UID is not a secret; the client-side checks are UX only, and real enforcement is server-side in `functions/index.js` (ID token + App Check).
-- **App Check** (reCAPTCHA Enterprise) is still in place: initialised in `apps/web/lib/firebase.ts` and `apps/web/public/firebase-app.js`, verified server-side in `functions/index.js` alongside the Firebase ID token.
-- **Server-side enforcement is what actually protects the data.** `functions/index.js` `api` rejects every request except `/` and `/health` without a valid Firebase ID token (401) or with a UID other than `ALLOWED_UID` (403). The user is always the token's UID; a client-supplied `userId` that differs is rejected, and a conversation owned by another `userId` returns 404. `alfredCallable` checks `request.auth.uid` the same way. The Hosting front end therefore loads the conversation list only after `firebase-app.js` fires the `alfred:authenticated` window event.
-- `tests/unit/uid-whitelist.test.ts` and `tests/unit/auth-error-messages.test.ts` pin this behaviour — they will fail if the UID or the error contract changes.
+  Changing the UID therefore means editing those two places (or setting the env vars). The UID is not a secret; the client-side check is UX only, and real enforcement is server-side in `functions/index.js` (ID token + App Check).
+- **App Check** (reCAPTCHA Enterprise) is still in place: initialised in `apps/web/lib/firebase.ts` (`getAppCheckToken()` feeds the `X-Firebase-AppCheck` header), verified server-side in `functions/index.js` alongside the Firebase ID token.
+- **Server-side enforcement is what actually protects the data.** `functions/index.js` `api` rejects every request except `/` and `/health` without a valid Firebase ID token (401) or with a UID other than `ALLOWED_UID` (403). The user is always the token's UID; a client-supplied `userId` that differs is rejected, and a conversation owned by another `userId` returns 404. `alfredCallable` checks `request.auth.uid` the same way. The web app therefore mounts the chat UI (and loads conversations) only after Firebase has restored an allowed session, and `apiFetch` refuses authenticated calls without a signed-in user.
+- `tests/unit/uid-whitelist.test.ts` (against a mocked Firebase Auth), `tests/unit/auth-error-messages.test.ts` and `tests/unit/web-api-client.test.ts` pin this behaviour — they will fail if the UID, the error contract or the auth headers change.
 
 ### Deployment — Firebase Hosting + Cloud Functions only
-- `firebase.json` — Firestore rules/indexes, the `functions` codebase, and Hosting. Hosting serves `apps/web/public`, rewrites `/api/**` to the `api` function and everything else to `index.html`, with `no-cache` on all paths.
-- There is no App Hosting (no backend exists; `apphosting.yaml` was removed). The Next.js app in `apps/web/app` is **not deployed anywhere** — it is local-dev only (`npm run dev:web`). Production is the vanilla front end on Hosting plus the `api` / `alfredCallable` functions.
-- **CI**: `.github/workflows/ci.yml` runs `npm ci`, `npm run typecheck` and `npm run test:unit` on every pull request (Node 22, no `.env`). `.github/workflows/deploy.yml` reuses it as a `test` job and only then runs `firebase deploy --only hosting,functions`, on any push to `main` touching `apps/**`, `src/**`, `functions/**`, `firebase.json` or `.firebaserc`. A red typecheck or unit test therefore blocks the deploy.
+- `firebase.json` — Firestore rules/indexes, the `functions` codebase, and Hosting. Hosting serves `apps/web/out` (the Next.js static export — it must be built first), rewrites `/api/**` to the `api` function and everything else to `index.html`. `Cache-Control` is `no-cache` everywhere except the content-hashed `/_next/static/**`, which is cached for a year (the later, more specific header rule wins).
+- There is no App Hosting and no server runtime for the web app (`apphosting.yaml` was removed). Production is the static export on Hosting plus the `api` / `alfredCallable` functions.
+- **CI**: `.github/workflows/ci.yml` runs `npm ci`, `npm run typecheck`, `npm run test:unit`, the functions bundle build/check, the `apps/web` typecheck and `npm run build:web` on every pull request (Node 22, no `.env`). `.github/workflows/deploy.yml` reuses it as a `test` job, then runs `npm ci`, `npm run build:web`, the functions bundle build and `firebase deploy --only hosting,functions`, on any push to `main` touching `apps/**`, `src/**`, `functions/**`, `firebase.json`, `.firebaserc`, `package.json`, `package-lock.json` or either workflow. A red typecheck, unit test or web build therefore blocks the deploy.
+- **Rollback**: `firebase hosting:rollback` (or Hosting → Release history → Roll back in the console) restores the previous Hosting release without a rebuild.
 
 ### Functions bundle — `functions/` imports `src/` via esbuild
 `functions/index.js` is the **source**, not what runs. `functions/build.js` bundles it with esbuild (ESM, `platform: node`, `target: node22`, `packages: "external"`) into `functions/lib/index.js`, which `functions/package.json` `"main"` points at. `functions/lib/` is gitignored and must be built before `firebase deploy` or the emulator: `firebase.json` runs `npm --prefix "$RESOURCE_DIR" run build` as the functions `predeploy` hook, and `deploy.yml` also builds explicitly. Only `functions/` is uploaded, so the bundle must be self-contained apart from npm packages.
@@ -126,7 +128,7 @@ The app is locked to one person. There is no sign-up, no password login and no S
 
 ## Notes for future sessions
 
-- `.env.example` holds placeholders (`gsk_your_groq_api_key_here`), not real keys. The real Groq key lives in the gitignored `.env` and `functions/.env`. `functions/.env` is loaded by the Firebase CLI as plain function env vars on deploy, so once the `GROQ_API_KEY` secret exists, remove `GROQ_API_KEY` from that file or the deploy will reject the name clash. (The `AIzaSy…` literal in `apps/web/lib/firebase.ts` / `public/firebase-app.js` is the public Firebase web config key, not a secret.)
+- `.env.example` holds placeholders (`gsk_your_groq_api_key_here`), not real keys. The real Groq key lives in the gitignored `.env` and `functions/.env`. `functions/.env` is loaded by the Firebase CLI as plain function env vars on deploy, so once the `GROQ_API_KEY` secret exists, remove `GROQ_API_KEY` from that file or the deploy will reject the name clash. (The `AIzaSy…` literal in `apps/web/lib/firebase.ts` is the public Firebase web config key, not a secret.)
 - Much of `src/` is still scaffolding. Implemented: `ai/providers`, `ai/embedding`, `ai/prompts`, `ai/tools`, `alfred/cognitive/context`, `alfred/cognitive/memory`, `alfred/control-plane/{tool-router,permission-system}`, `alfred/execution-plane/ssh`, `core/{config,errors,logging}`, `data/{firestore,vector}`, `voice/{stt,tts}`. Still empty `.gitkeep` placeholders: every other `execution-plane` capability (github, gmail, calendar, browser, terminal, files, web-search), `control-plane/{planner,scheduler,event-processor}`, `ai/{agents,middleware}`, all of `alfred/persona/*`, `core/{events,types,permissions}`, `data/{repositories,schemas,graphql}` and all of `integrations/*`. Check before assuming a capability exists.
 - `README.md` and many code comments (notably `functions/index.js`) are in Turkish. The README's auth section and badges, and the `assets/readme/*.svg` art, describe the Google-only flow; keep them in sync if auth changes again.
 - `.agents/skills/` holds a vendored `beautify-github-readme` skill (used for `assets/readme/` art); it is not application code.

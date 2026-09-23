@@ -48,7 +48,7 @@ As of the last check `npm run test:unit` is 568 passing tests across 47 files, `
 
 ## Architecture
 
-Full detail lives in `docs/ARCHITECTURE.md` — read it before touching `src/alfred/` or `src/data/`. Summary of the invariants that matter most:
+Full detail lives in `docs/ARCHITECTURE.md` — read it before touching `src/alfred/` or `src/data/`. Planned capabilities, what each needs, and the pattern for adding a tool to production are in `docs/FEATURE_ROADMAP.md`. Summary of the invariants that matter most:
 
 ### Layout
 - `src/alfred/` — Alfred's domain logic, split into three "planes": **cognitive** (context, memory — Alfred's understanding of state), **control-plane** (tool routing, permissions), **execution-plane** (capabilities Alfred can invoke). Kept as vendor-independent as possible.

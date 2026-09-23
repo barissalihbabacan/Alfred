@@ -48,6 +48,11 @@ const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
 
 const ALLOWED_UID = process.env.ALLOWED_UID || "test-owner-uid-123456";
 
+// App Check zorunlulugu. Kapaliyken token yine dogrulanir ve durumu
+// llm_request loguna yazilir (app_check); loglar gercek trafigin "valid"
+// oldugunu gosterince ENFORCE_APP_CHECK=true ile acilir.
+const ENFORCE_APP_CHECK = process.env.ENFORCE_APP_CHECK === "true";
+
 function gizliOku(secret, envAdi) {
   try {
     const deger = secret.value();
@@ -438,19 +443,24 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
   res.set("Access-Control-Allow-Origin", "*");
   const path = req.path || req.url || "";
 
-  // App Check verification
+  // App Check verification. appCheckStatus ("valid" | "invalid" | "missing")
+  // is logged on every llm_request so enforcement can be switched on
+  // (ENFORCE_APP_CHECK=true) only once the logs show real traffic is "valid".
   const appCheckToken = req.header("X-Firebase-AppCheck");
+  let appCheckStatus = "missing";
   if (appCheckToken) {
     try {
       await getAppCheck().verifyToken(appCheckToken);
+      appCheckStatus = "valid";
     } catch (err) {
-      console.warn("[AppCheck] Token verification failed:", err.message);
-      if (process.env.ENFORCE_APP_CHECK === "true") {
+      appCheckStatus = "invalid";
+      logger.warn("[AppCheck] Token verification failed.", { event: "app_check", outcome: "invalid", error: errMessage(err) });
+      if (ENFORCE_APP_CHECK) {
         res.status(401).json({ error: "Unauthorized: Invalid App Check token." });
         return;
       }
     }
-  } else if (process.env.ENFORCE_APP_CHECK === "true" && !path.endsWith("/health")) {
+  } else if (ENFORCE_APP_CHECK && !path.endsWith("/health")) {
     res.status(401).json({ error: "Unauthorized: Missing App Check token." });
     return;
   }
@@ -947,6 +957,7 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
         `LLM request ${outcome} (${activeProvider}/${currentModel}) in ${msSince(llmStart)}ms`, {
           ...llmMetrics,
           outcome,
+          app_check: appCheckStatus,
           latency_ms: msSince(llmStart),
           ...(err ? { error: errMessage(err) } : {})
         });
@@ -1278,7 +1289,7 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
 // Optional App Check callable function
 export const alfredCallable = onCall(
   {
-    enforceAppCheck: process.env.ENFORCE_APP_CHECK === "true",
+    enforceAppCheck: ENFORCE_APP_CHECK,
     secrets: [GROQ_API_KEY, GEMINI_API_KEY]
   },
   async (request) => {

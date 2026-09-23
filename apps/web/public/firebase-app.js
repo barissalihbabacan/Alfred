@@ -381,6 +381,8 @@ onAuthStateChanged(auth, async (user) => {
 
     const emailEl = document.getElementById("authCurrentUserEmail");
     if (emailEl) emailEl.textContent = user.email || "-";
+
+    window.dispatchEvent(new CustomEvent("alfred:authenticated"));
   } else {
     // Unauthenticated: lock app down completely with Auth Gate
     if (gateOverlay) gateOverlay.style.display = "flex";

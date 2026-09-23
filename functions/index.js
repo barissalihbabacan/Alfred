@@ -1,3 +1,7 @@
+// src/ altindaki paylasilan TypeScript modulleri; esbuild bunlari
+// functions/lib/index.js icine paketler (functions/build.js).
+import { cosineSimilarity } from "../src/data/vector/cosine-similarity.js";
+import { buildMemoryExtractionUserPrompt, extractJsonPayload } from "../src/ai/prompts/memory-extraction.js";
 import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { setGlobalOptions } from "firebase-functions/v2";
 import { defineSecret } from "firebase-functions/params";
@@ -79,22 +83,6 @@ function generateDeterministicTitle(message) {
   const words = clean.split(" ").slice(0, 6).join(" ");
   const truncated = words.length > 40 ? words.slice(0, 37) + "..." : words;
   return truncated.charAt(0).toUpperCase() + truncated.slice(1);
-}
-
-function cosineSimilarity(a, b) {
-  if (!a || !b || !Array.isArray(a) || !Array.isArray(b) || a.length !== b.length || a.length === 0) {
-    return 0;
-  }
-  let dot = 0;
-  let normA = 0;
-  let normB = 0;
-  for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i];
-    normA += a[i] * a[i];
-    normB += b[i] * b[i];
-  }
-  const denominator = Math.sqrt(normA) * Math.sqrt(normB);
-  return denominator === 0 ? 0 : dot / denominator;
 }
 
 // text-embedding-004 14 Ocak 2026'da kapatildi. gemini-embedding-001 varsayilan
@@ -271,20 +259,11 @@ CRITICAL RULES:
 }
 If there is nothing worth remembering, return {"shouldRemember": false, "memories": []}.`;
 
-  const contextSegments = [];
-  if (recentHistory && recentHistory.length > 0) {
-    contextSegments.push("=== RECENT CONVERSATION CONTEXT ===");
-    for (const msg of recentHistory) {
-      contextSegments.push(`${msg.role.toUpperCase()}: ${msg.content}`);
-    }
-  }
-  contextSegments.push("=== CURRENT EXCHANGE ===");
-  contextSegments.push(`USER: ${userMessage}`);
-  if (assistantResponse) {
-    contextSegments.push(`ASSISTANT: ${assistantResponse}`);
-  }
-
-  const userPrompt = `${contextSegments.join("\n")}\n\nAnalyze the above exchange. Output JSON only.`;
+  const userPrompt = buildMemoryExtractionUserPrompt({
+    currentMessage: userMessage,
+    assistantResponse,
+    recentMessages: recentHistory
+  });
 
   let extractionResText = "";
   let extractorProvider = null;
@@ -375,17 +354,7 @@ If there is nothing worth remembering, return {"shouldRemember": false, "memorie
 
   const rawText = extractionResText;
 
-  let clean = rawText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
-  const jsonMatch = clean.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  if (jsonMatch && jsonMatch[1]) {
-    clean = jsonMatch[1].trim();
-  } else {
-    const firstBrace = clean.indexOf("{");
-    const lastBrace = clean.lastIndexOf("}");
-    if (firstBrace !== -1 && lastBrace > firstBrace) {
-      clean = clean.slice(firstBrace, lastBrace + 1).trim();
-    }
-  }
+  const clean = extractJsonPayload(rawText);
 
   let parsed;
   try {

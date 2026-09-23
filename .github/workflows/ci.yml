@@ -23,7 +23,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
 
       - name: Install Dependencies
         run: npm ci --no-audit --no-fund
@@ -33,3 +35,15 @@ jobs:
 
       - name: Unit Tests
         run: npm run test:unit
+
+      - name: Install Functions Dependencies
+        run: npm ci --prefix functions --no-audit --no-fund
+
+      # functions/index.js + the src/ modules it imports -> functions/lib/index.js.
+      # The build itself fails if the api/alfredCallable exports disappear or the
+      # bundle imports a package missing from functions/package.json.
+      - name: Build Functions Bundle
+        run: npm run build --prefix functions
+
+      - name: Check Functions Bundle
+        run: npm run check:bundle --prefix functions

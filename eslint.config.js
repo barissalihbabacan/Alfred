@@ -1,8 +1,8 @@
 // ESLint flat config for B.U.T.L.E.R. Alfred.
 //
-// Goal: catch real bugs without forcing a mass reformat. Stylistic / noisy
-// rules are downgraded to "warn" so `npm run lint` passes on the current code
-// while still surfacing them. Formatting is intentionally not enforced here.
+// Goal: catch real bugs without forcing a mass reformat. Rules the codebase is
+// already clean on are errors so they can't regress; the remaining noisy ones
+// stay "warn". Formatting is intentionally not enforced here.
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 import globals from "globals";
@@ -44,8 +44,8 @@ export default tseslint.config(
     },
     rules: {
       "@typescript-eslint/no-explicit-any": "warn",
-      "@typescript-eslint/no-unused-vars": ["warn", unusedVarsOptions],
-      "@typescript-eslint/ban-ts-comment": "warn",
+      "@typescript-eslint/no-unused-vars": ["error", unusedVarsOptions],
+      "@typescript-eslint/ban-ts-comment": "error",
       // Empty interfaces that extend a provider type are used as named aliases.
       "@typescript-eslint/no-empty-object-type": ["error", { allowInterfaces: "with-single-extends" }],
     },
@@ -70,7 +70,7 @@ export default tseslint.config(
   {
     files: ["**/*.js", "**/*.mjs", "**/*.cjs"],
     rules: {
-      "no-unused-vars": ["warn", unusedVarsOptions],
+      "no-unused-vars": ["error", unusedVarsOptions],
     },
   },
 
@@ -98,9 +98,22 @@ export default tseslint.config(
     rules: {
       // `catch {}` is used deliberately for best-effort parsing / cleanup.
       "no-empty": ["error", { allowEmptyCatch: true }],
-      // Redundant escapes in regexes/strings are harmless; flag, don't block.
-      "no-useless-escape": "warn",
-      "prefer-const": "warn",
+      "no-useless-escape": "error",
+      "prefer-const": "error",
     },
+  },
+
+  // --- Temporary carve-outs ------------------------------------------------
+  // These files are being rewritten in a parallel PR (privacy filter / memory
+  // candidate validation). Their remaining warnings are deliberately left
+  // alone here to avoid conflicts; drop this block once that PR lands.
+  {
+    files: ["src/ai/prompts/memory-extraction.ts"],
+    rules: { "@typescript-eslint/no-unused-vars": ["warn", unusedVarsOptions] },
+  },
+  {
+    // In functions/index.js only the SENSITIVE_PATTERNS regexes still trip it.
+    files: ["src/alfred/cognitive/memory/privacy-filter.ts", "functions/index.js"],
+    rules: { "no-useless-escape": "warn" },
   },
 );

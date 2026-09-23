@@ -25,7 +25,7 @@ describe("Production Chat SSE Regression Tests", () => {
 
       const text = await res.text();
       const lines = text.split("\n");
-      const events: any[] = [];
+      const events: Array<{ type?: string; text?: string }> = [];
       let accumulatedContent = "";
 
       for (const line of lines) {

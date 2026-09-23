@@ -7,8 +7,15 @@ import {
 } from "../../src/core/errors/index.js";
 import { getAlfredSystemPrompt } from "../../src/ai/prompts/alfred-persona.js";
 
+type MockFetch = ReturnType<typeof vi.fn>;
+
+/** Tests feed the mock partial Response objects, so it is not a real fetch. */
+function asFetch(mock: MockFetch): typeof fetch {
+  return mock as unknown as typeof fetch;
+}
+
 describe("OllamaProvider Unit Tests", () => {
-  let mockFetch: any;
+  let mockFetch: MockFetch;
 
   beforeEach(() => {
     mockFetch = vi.fn();
@@ -37,7 +44,7 @@ describe("OllamaProvider Unit Tests", () => {
     });
 
     const provider = new OllamaProvider({
-      fetchFn: mockFetch,
+      fetchFn: asFetch(mockFetch),
       config: {
         baseUrl: "http://mock-ollama:11434",
         defaultModel: "gemma4:12b-mlx"
@@ -69,7 +76,7 @@ describe("OllamaProvider Unit Tests", () => {
       })
     });
 
-    const provider = new OllamaProvider({ fetchFn: mockFetch });
+    const provider = new OllamaProvider({ fetchFn: asFetch(mockFetch) });
 
     await provider.chat([
       { role: "system", content: "You are Alfred." },
@@ -102,7 +109,7 @@ describe("OllamaProvider Unit Tests", () => {
       })
     });
 
-    const provider = new OllamaProvider({ fetchFn: mockFetch });
+    const provider = new OllamaProvider({ fetchFn: asFetch(mockFetch) });
     await provider.chat([{ role: "user", content: "Test" }], { temperature: 0.42 });
 
     const parsedBody = JSON.parse(mockFetch.mock.calls[0][1].body);
@@ -120,7 +127,7 @@ describe("OllamaProvider Unit Tests", () => {
       })
     });
 
-    const provider = new OllamaProvider({ fetchFn: mockFetch });
+    const provider = new OllamaProvider({ fetchFn: asFetch(mockFetch) });
     await provider.chat([{ role: "user", content: "Test" }], { maxTokens: 250 });
 
     const parsedBody = JSON.parse(mockFetch.mock.calls[0][1].body);
@@ -128,11 +135,12 @@ describe("OllamaProvider Unit Tests", () => {
   });
 
   it("5. handles connection failure correctly and maps to NetworkError", async () => {
-    const connErr: any = new Error("connect ECONNREFUSED 100.64.0.53:11434");
-    connErr.code = "ECONNREFUSED";
+    const connErr = Object.assign(new Error("connect ECONNREFUSED 100.64.0.53:11434"), {
+      code: "ECONNREFUSED"
+    });
     mockFetch.mockRejectedValueOnce(connErr);
 
-    const provider = new OllamaProvider({ fetchFn: mockFetch });
+    const provider = new OllamaProvider({ fetchFn: asFetch(mockFetch) });
 
     await expect(provider.chat([{ role: "user", content: "Hello" }])).rejects.toThrow(
       NetworkError
@@ -140,11 +148,11 @@ describe("OllamaProvider Unit Tests", () => {
   });
 
   it("6. handles request timeout correctly and maps to NetworkError", async () => {
-    const timeoutErr: any = new Error("The operation was aborted due to timeout");
+    const timeoutErr = new Error("The operation was aborted due to timeout");
     timeoutErr.name = "AbortError";
     mockFetch.mockRejectedValueOnce(timeoutErr);
 
-    const provider = new OllamaProvider({ fetchFn: mockFetch, config: { timeoutMs: 500 } });
+    const provider = new OllamaProvider({ fetchFn: asFetch(mockFetch), config: { timeoutMs: 500 } });
 
     await expect(provider.chat([{ role: "user", content: "Hello" }])).rejects.toThrow(
       NetworkError
@@ -159,7 +167,7 @@ describe("OllamaProvider Unit Tests", () => {
       json: async () => ({ error: "model 'non-existent' not found" })
     });
 
-    const provider = new OllamaProvider({ fetchFn: mockFetch });
+    const provider = new OllamaProvider({ fetchFn: asFetch(mockFetch) });
 
     await expect(
       provider.chat([{ role: "user", content: "Hello" }], { model: "non-existent" })
@@ -175,7 +183,7 @@ describe("OllamaProvider Unit Tests", () => {
       }
     });
 
-    const provider = new OllamaProvider({ fetchFn: mockFetch });
+    const provider = new OllamaProvider({ fetchFn: asFetch(mockFetch) });
 
     await expect(provider.chat([{ role: "user", content: "Hello" }])).rejects.toThrow(
       AIProviderError
@@ -194,7 +202,7 @@ describe("OllamaProvider Unit Tests", () => {
     });
 
     const canonicalPrompt = getAlfredSystemPrompt();
-    const provider = new OllamaProvider({ fetchFn: mockFetch });
+    const provider = new OllamaProvider({ fetchFn: asFetch(mockFetch) });
 
     await provider.chat([
       { role: "system", content: canonicalPrompt },
@@ -218,7 +226,7 @@ describe("OllamaProvider Unit Tests", () => {
       });
 
       const provider = new OllamaProvider({
-        fetchFn: mockFetch,
+        fetchFn: asFetch(mockFetch),
         config: { defaultModel: "gemma4:12b-mlx" }
       });
 
@@ -238,7 +246,7 @@ describe("OllamaProvider Unit Tests", () => {
       });
 
       const provider = new OllamaProvider({
-        fetchFn: mockFetch,
+        fetchFn: asFetch(mockFetch),
         config: { defaultModel: "gemma4:12b-mlx" }
       });
 
@@ -251,7 +259,7 @@ describe("OllamaProvider Unit Tests", () => {
     it("reports 'unreachable' when server connection fails", async () => {
       mockFetch.mockRejectedValueOnce(new Error("ECONNREFUSED"));
 
-      const provider = new OllamaProvider({ fetchFn: mockFetch });
+      const provider = new OllamaProvider({ fetchFn: asFetch(mockFetch) });
       const diag = await provider.checkHealth();
       expect(diag.status).toBe("unreachable");
       expect(diag.reachable).toBe(false);
@@ -311,7 +319,7 @@ describe("OllamaProvider Unit Tests", () => {
       });
 
       const provider = new OllamaProvider({
-        fetchFn: mockFetch,
+        fetchFn: asFetch(mockFetch),
         config: { defaultModel: "gemma4:12b-mlx" }
       });
 
@@ -394,7 +402,7 @@ describe("OllamaProvider Unit Tests", () => {
         body: createMockStream(streamLines)
       });
 
-      const provider = new OllamaProvider({ fetchFn: mockFetch });
+      const provider = new OllamaProvider({ fetchFn: asFetch(mockFetch) });
 
       let userRenderedText = "";
       const thinkingLog: string[] = [];
@@ -446,7 +454,7 @@ describe("OllamaProvider Unit Tests", () => {
         body: createMockStream(malformedLines)
       });
 
-      const provider = new OllamaProvider({ fetchFn: mockFetch });
+      const provider = new OllamaProvider({ fetchFn: asFetch(mockFetch) });
       const stream = provider.streamChat([{ role: "user", content: "Hi" }]);
 
       await expect(async () => {
@@ -483,7 +491,7 @@ describe("OllamaProvider Unit Tests", () => {
         body: createMockStream(streamLines)
       });
 
-      const provider = new OllamaProvider({ fetchFn: mockFetch });
+      const provider = new OllamaProvider({ fetchFn: asFetch(mockFetch) });
       const stream = provider.streamChat([{ role: "user", content: "Hi" }], {
         signal: controller.signal
       });

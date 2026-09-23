@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
+import type { SSHConnectResult } from "../../src/ai/tools/ssh/ssh-connect.tool.js";
 import { ToolRegistry } from "../../src/alfred/control-plane/tool-router/tool-registry.js";
 import { ToolRouter } from "../../src/alfred/control-plane/tool-router/tool-router.js";
 import { SSHConnectTool } from "../../src/ai/tools/ssh/ssh-connect.tool.js";
@@ -41,8 +42,9 @@ describe("SSH Tool Routing & Permissions Suite", () => {
     expect(result.success).toBe(true);
     expect(result.toolName).toBe("ssh_connect");
     expect(result.toolCallId).toBe("call_ssh_123");
-    expect((result.data as any).status).toBe("connected");
-    expect((result.data as any).host).toBe("home-server");
+    const data = result.data as SSHConnectResult;
+    expect(data.status).toBe("connected");
+    expect(data.host).toBe("home-server");
   });
 
   it("denies execution if userId is absent (PermissionLevel.EXECUTE requires active user)", async () => {

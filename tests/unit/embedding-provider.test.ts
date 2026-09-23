@@ -4,6 +4,18 @@ import { OllamaEmbeddingProvider } from "../../src/ai/embedding/ollama-embedding
 import { GeminiEmbeddingProvider } from "../../src/ai/embedding/gemini-embedding-provider.js";
 import { cosineSimilarity } from "../../src/data/vector/cosine-similarity.js";
 
+
+/** Request body the Gemini provider sends to :embedContent. */
+interface GeminiEmbedContentBody {
+  content: { parts: Array<{ text: string }> };
+  outputDimensionality: number;
+}
+
+/** Request body the Gemini provider sends to :batchEmbedContents. */
+interface GeminiBatchEmbedBody {
+  requests: Array<{ outputDimensionality: number }>;
+}
+
 describe("Embedding Providers", () => {
   describe("MockEmbeddingProvider", () => {
     it("generates deterministic normalized vectors", async () => {
@@ -71,7 +83,7 @@ describe("Embedding Providers", () => {
             model: "nomic-embed-text",
             embeddings: [[0.1, 0.2, 0.3]]
           })
-        } as any;
+        } as unknown as Response;
       };
 
       const provider = new OllamaEmbeddingProvider({
@@ -94,7 +106,7 @@ describe("Embedding Providers", () => {
           status: 500,
           statusText: "Internal Server Error",
           text: async () => "model 'missing' not found"
-        } as any;
+        } as unknown as Response;
       };
 
       const provider = new OllamaEmbeddingProvider({
@@ -127,7 +139,7 @@ describe("Embedding Providers", () => {
 
     it("calls embedContent and parses 768-dim embedding", async () => {
       let capturedUrl = "";
-      let capturedBody: any = null;
+      let capturedBody: GeminiEmbedContentBody | null = null as GeminiEmbedContentBody | null;
 
       const mockFetch: typeof fetch = async (url, init) => {
         capturedUrl = String(url);
@@ -140,7 +152,7 @@ describe("Embedding Providers", () => {
               values: [0.12, -0.34, 0.56]
             }
           })
-        } as any;
+        } as unknown as Response;
       };
 
       const provider = new GeminiEmbeddingProvider({
@@ -154,13 +166,13 @@ describe("Embedding Providers", () => {
       expect(res).toEqual([0.12, -0.34, 0.56]);
       expect(capturedUrl).toContain("models/gemini-embedding-001:embedContent");
       expect(capturedUrl).toContain("key=test-gemini-key");
-      expect(capturedBody.content.parts[0].text).toBe("Barış'ın tercihi TypeScript");
-      expect(capturedBody.outputDimensionality).toBe(3);
+      expect(capturedBody?.content.parts[0].text).toBe("Barış'ın tercihi TypeScript");
+      expect(capturedBody?.outputDimensionality).toBe(3);
     });
 
     it("calls batchEmbedContents and parses multiple embeddings", async () => {
       let capturedUrl = "";
-      let capturedBody: any = null;
+      let capturedBody: GeminiBatchEmbedBody | null = null as GeminiBatchEmbedBody | null;
       const mockFetch: typeof fetch = async (url, init) => {
         capturedUrl = String(url);
         capturedBody = JSON.parse(init?.body as string);
@@ -173,7 +185,7 @@ describe("Embedding Providers", () => {
               { values: [0.3, 0.4] }
             ]
           })
-        } as any;
+        } as unknown as Response;
       };
 
       const provider = new GeminiEmbeddingProvider({
@@ -184,7 +196,7 @@ describe("Embedding Providers", () => {
       const res = await provider.embedBatch(["Birinci cümle", "İkinci cümle"]);
       expect(res).toEqual([[0.1, 0.2], [0.3, 0.4]]);
       expect(capturedUrl).toContain("models/gemini-embedding-001:batchEmbedContents");
-      expect(capturedBody.requests[0].outputDimensionality).toBe(768);
+      expect(capturedBody?.requests[0].outputDimensionality).toBe(768);
     });
 
     it("handles API error status gracefully", async () => {
@@ -194,7 +206,7 @@ describe("Embedding Providers", () => {
           status: 403,
           statusText: "Forbidden",
           text: async () => "API key invalid"
-        } as any;
+        } as unknown as Response;
       };
 
       const provider = new GeminiEmbeddingProvider({

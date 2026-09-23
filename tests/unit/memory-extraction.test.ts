@@ -14,7 +14,7 @@ import { AIProvider, ChatMessage, ChatCompletionResponse } from "../../src/ai/pr
 class MockAIProvider implements AIProvider {
   public readonly id = "mock-ai";
   public readonly name = "Mock AI Provider";
-  public responseJson: any = { shouldRemember: false, memories: [] };
+  public responseJson: unknown = { shouldRemember: false, memories: [] };
   public shouldFail = false;
   public lastMessages: ChatMessage[] = [];
 

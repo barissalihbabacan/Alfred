@@ -31,7 +31,7 @@ describe("ContextBuilder — Memory Integration", () => {
 
   it("returns empty string when memories array is empty or undefined", () => {
     expect(ContextBuilder.formatMemoriesBlock([])).toBe("");
-    expect(ContextBuilder.formatMemoriesBlock(undefined as any)).toBe("");
+    expect(ContextBuilder.formatMemoriesBlock(undefined as unknown as RetrievedMemory[])).toBe("");
   });
 
   it("injects memories into system prompt when present in ContextBuilderOptions", () => {

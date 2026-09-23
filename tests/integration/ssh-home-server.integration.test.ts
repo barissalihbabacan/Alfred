@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import type { SSHConnectResult } from "../../src/ai/tools/ssh/ssh-connect.tool.js";
+import { errorMessage } from "../../src/core/errors/index.js";
 import { SSHConnectionManager } from "../../src/alfred/execution-plane/ssh/ssh-connection-manager.js";
 import { ToolRouter } from "../../src/alfred/control-plane/tool-router/tool-router.js";
 import { ToolRegistry } from "../../src/alfred/control-plane/tool-router/tool-registry.js";
@@ -15,10 +17,10 @@ describe("SSH Home Server Integration Suite", () => {
       expect(result.message).toContain("Successfully connected to host 'home-server'");
       expect(typeof result.latencyMs).toBe("number");
       expect(result.latencyMs).toBeGreaterThan(0);
-    } catch (err: any) {
+    } catch (err: unknown) {
       // If network is offline or private mesh is momentarily disconnected, fail with clear message
-      if (/timed out|unreachable|refused/i.test(err?.message)) {
-        console.warn("[Integration Note] Home server offline or unreachable:", err.message);
+      if (/timed out|unreachable|refused/i.test(errorMessage(err))) {
+        console.warn("[Integration Note] Home server offline or unreachable:", errorMessage(err));
         return;
       }
       throw err;
@@ -46,11 +48,12 @@ describe("SSH Home Server Integration Suite", () => {
 
       expect(toolResult.success).toBe(true);
       expect(toolResult.toolName).toBe("ssh_connect");
-      expect((toolResult.data as any).status).toBe("connected");
-      expect((toolResult.data as any).host).toBe("home-server");
-    } catch (err: any) {
-      if (/timed out|unreachable|refused/i.test(err?.message)) {
-        console.warn("[Integration Note] Home server offline or unreachable:", err.message);
+      const data = toolResult.data as SSHConnectResult;
+      expect(data.status).toBe("connected");
+      expect(data.host).toBe("home-server");
+    } catch (err: unknown) {
+      if (/timed out|unreachable|refused/i.test(errorMessage(err))) {
+        console.warn("[Integration Note] Home server offline or unreachable:", errorMessage(err));
         return;
       }
       throw err;

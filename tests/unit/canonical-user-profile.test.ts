@@ -106,10 +106,11 @@ describe("Canonical User Profile Layer", () => {
     expect(typeof loader.clearCache).toBe("function");
 
     // Must NOT have mutating methods
-    expect((loader as any).saveContext).toBeUndefined();
-    expect((loader as any).writeProfile).toBeUndefined();
-    expect((loader as any).updateUser).toBeUndefined();
-    expect((loader as any).deleteProfile).toBeUndefined();
+    const untyped = loader as unknown as Record<string, unknown>;
+    expect(untyped.saveContext).toBeUndefined();
+    expect(untyped.writeProfile).toBeUndefined();
+    expect(untyped.updateUser).toBeUndefined();
+    expect(untyped.deleteProfile).toBeUndefined();
 
     // Verify files on disk have not been modified by read operations
     const profilePath = path.resolve(process.cwd(), "users/USER_PROFILE.md");

@@ -113,7 +113,7 @@ describe("SSHExecuteTool Unit Suite", () => {
       const val = tool.validateArgs({
         host: "home-server",
         command: "disk_usage",
-        args: "-h; rm -rf /" as any
+        args: "-h; rm -rf /"
       });
 
       expect(val.valid).toBe(false);

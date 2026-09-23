@@ -1,7 +1,14 @@
 // src/ altindaki paylasilan TypeScript modulleri; esbuild bunlari
 // functions/lib/index.js icine paketler (functions/build.js).
 import { cosineSimilarity } from "../src/data/vector/cosine-similarity.js";
-import { buildMemoryExtractionUserPrompt, extractJsonPayload } from "../src/ai/prompts/memory-extraction.js";
+import {
+  buildMemoryExtractionSystemPrompt,
+  buildMemoryExtractionUserPrompt,
+  extractJsonPayload,
+  getMemoryExtractionCandidates,
+  validateMemoryCandidate
+} from "../src/ai/prompts/memory-extraction.js";
+import { generateDeterministicTitle } from "../src/data/firestore/conversation-title.js";
 import { PrivacyFilter } from "../src/alfred/cognitive/memory/privacy-filter.js";
 import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { setGlobalOptions } from "firebase-functions/v2";
@@ -69,21 +76,6 @@ function msSince(start) {
 
 function errMessage(err) {
   return String(err?.message || err || "unknown error").slice(0, 300);
-}
-
-function generateDeterministicTitle(message) {
-  const clean = message
-    .replace(/^[\s#*>`"']+|[\s*>`"']+$/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  if (!clean) {
-    return "New Conversation";
-  }
-
-  const words = clean.split(" ").slice(0, 6).join(" ");
-  const truncated = words.length > 40 ? words.slice(0, 37) + "..." : words;
-  return truncated.charAt(0).toUpperCase() + truncated.slice(1);
 }
 
 // text-embedding-004 14 Ocak 2026'da kapatildi. gemini-embedding-001 varsayilan
@@ -227,38 +219,7 @@ async function extractAndPersistMemories({
   recentHistory
 }) {
   const userName = "Barış";
-  const systemInstructions = `You are Alfred's autonomous memory extraction subsystem.
-Your task is to analyze conversational exchanges and identify durable, long-term information worth remembering across future conversations.
-
-CRITICAL RULES:
-1. DURABILITY: Only extract information that will remain useful in future, separate conversations.
-   - GOOD: User preferences, stable facts about ${userName}, technical choices, architectural decisions, constraints, workflows, project facts.
-   - BAD (NEVER REMEMBER): Greetings ("hello"), chit-chat, transient moods, daily updates, casual questions, temporary debugging logs, conversation closures.
-2. NO SELF-MEMORIES: Assistant (Alfred) statements MUST NOT be converted into facts about ${userName}. Only information asserted, confirmed, or instructed by the user counts as a user memory.
-3. FACT VS SPECULATION: Never manufacture certainty.
-4. USER ATTRIBUTION: Clearly state the subject in third person (use "${userName}" rather than "the user").
-5. EXPLICIT INSTRUCTIONS:
-   - "Remember that X" -> High-priority candidate (action: "create", confidence >= 0.95).
-   - "Don't remember this" or "Do not save this" -> Do NOT extract any memory (shouldRemember: false).
-   - "Forget that X" or "I no longer prefer X" -> Create retraction candidate (action: "forget", confidence >= 0.95).
-6. TEMPORAL & SUPERSESSION:
-   - If user states they switched or migrated, specify action: "supersede" and set targetMemoryHint to describe the older fact being replaced.
-7. PRIVACY: NEVER extract passwords, API keys, private keys, bearer tokens, or secrets.
-8. RETURN ONLY A STRICT JSON OBJECT:
-{
-  "shouldRemember": boolean,
-  "memories": [
-    {
-      "content": string,
-      "memoryType": "user_preference" | "user_fact" | "project_fact" | "architectural_decision" | "technical_preference" | "constraint" | "relationship" | "workflow" | "general",
-      "confidence": number,
-      "action": "create" | "forget" | "supersede",
-      "targetMemoryHint": string,
-      "reasoning": string
-    }
-  ]
-}
-If there is nothing worth remembering, return {"shouldRemember": false, "memories": []}.`;
+  const systemInstructions = buildMemoryExtractionSystemPrompt(userName);
 
   const userPrompt = buildMemoryExtractionUserPrompt({
     currentMessage: userMessage,
@@ -367,16 +328,18 @@ If there is nothing worth remembering, return {"shouldRemember": false, "memorie
     return summarize("failed");
   }
 
-  if (!parsed || !parsed.shouldRemember || !Array.isArray(parsed.memories)) {
+  const memories = getMemoryExtractionCandidates(parsed);
+  if (!memories) {
     logger.info("[Memory] Nothing worth remembering in this turn.");
     return summarize("nothing");
   }
 
-  for (const candidate of parsed.memories) {
-    if (!candidate.content || typeof candidate.content !== "string") continue;
-    const content = candidate.content.trim();
-    if (content.length < 5) continue;
-    if ((candidate.confidence || 0) < 0.70) continue;
+  for (const candidate of memories) {
+    // Aday dogrulamasi src/ ile ortak (validateMemoryCandidate): icerik, uzunluk
+    // ve guven esigi. null donen aday sessizce atlanir (sayaca yazilmaz).
+    const validated = validateMemoryCandidate(candidate);
+    if (!validated) continue;
+    const content = validated.content;
 
     // Gizli bilgi filtresi src/ ile ortak (PrivacyFilter); bkz. privacy-filter.ts.
     if (!PrivacyFilter.check(content).isSafe) {
@@ -388,7 +351,7 @@ If there is nothing worth remembering, return {"shouldRemember": false, "memorie
       continue;
     }
 
-    const action = candidate.action || "create";
+    const action = validated.action;
 
     if (action === "forget") {
       try {
@@ -472,7 +435,7 @@ If there is nothing worth remembering, return {"shouldRemember": false, "memorie
         memoryId,
         userId,
         content,
-        memoryType: candidate.memoryType || "general",
+        memoryType: validated.memoryType,
         sourceConversationId: conversationId,
         sourceMessageIds: sourceMessageIds || [],
         embeddingProvider: embedding.model === GEMINI_EMBEDDING_MODEL ? "gemini" : "ollama",

@@ -78,7 +78,7 @@ graph TD
 
     subgraph "Memory Lifecycle & Validation (MemoryService)"
         Candidate --> PrivFilter["PrivacyFilter (Secret Scan)"]
-        PrivFilter --> ConfCheck["Confidence >= 0.75"]
+        PrivFilter --> ConfCheck["Confidence >= 0.70"]
         ConfCheck --> DedupCheck["Vector Search (Cosine >= 0.85)"]
         
         DedupCheck -->|Duplicate| Skip["Suppress & Log"]

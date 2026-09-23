@@ -986,7 +986,7 @@ const CITY_TIMEZONE_ALIASES = {
 
 function resolveTimezone(cityOrZone) {
   if (!cityOrZone || typeof cityOrZone !== "string") return null;
-  const cleaned = cityOrZone.trim().toLowerCase().replace(/[,\.]/g, "").replace(/\s+/g, " ");
+  const cleaned = cityOrZone.trim().toLowerCase().replace(/[,.]/g, "").replace(/\s+/g, " ");
 
   let tz = CITY_TIMEZONE_ALIASES[cleaned];
   if (!tz) {
@@ -1040,7 +1040,10 @@ function getCurrentTimeForCity(city) {
       return;
     }
 
-    const { message, conversationId: requestedConvId, stream = true } = req.body || {};
+    // SSE-only: the response is always `text/event-stream`. Clients may still
+    // send `stream: true`, but it is ignored; there is no non-streaming JSON
+    // mode (no client ever sent `stream: false`).
+    const { message, conversationId: requestedConvId } = req.body || {};
     if (!message || typeof message !== "string") {
       res.status(400).json({ error: "Message is required." });
       return;
@@ -1334,7 +1337,7 @@ function getCurrentTimeForCity(city) {
     };
 
     try {
-      let currentPayload = [...messagesPayload];
+      const currentPayload = [...messagesPayload];
       let activeTools = [
         TIME_TOOL_DEFINITION,
         SSH_TOOL_DEFINITION,

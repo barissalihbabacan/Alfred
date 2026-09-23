@@ -2,8 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   InMemoryConversationRepository,
   CONVERSATION_CONFIG,
-  generateDeterministicTitle,
-  IConversationRepository
+  generateDeterministicTitle
 } from "../../src/data/firestore/index.js";
 import { ContextBuilder } from "../../src/alfred/cognitive/context/context-builder.js";
 
@@ -213,9 +212,9 @@ describe("Milestone: Persistent Conversation History", () => {
   });
 
   it("Scenario 9: User Ownership and Isolation partitions conversations by userId", async () => {
-    const aliceConv = await repo.createConversation({ userId: "alice", title: "Alice's Chat" });
+    await repo.createConversation({ userId: "alice", title: "Alice's Chat" });
     const bobConv = await repo.createConversation({ userId: "bob", title: "Bob's Chat" });
-    const aliceConv2 = await repo.createConversation({ userId: "alice", title: "Alice's Second Chat" });
+    await repo.createConversation({ userId: "alice", title: "Alice's Second Chat" });
 
     const aliceList = await repo.listConversations("alice");
     const bobList = await repo.listConversations("bob");

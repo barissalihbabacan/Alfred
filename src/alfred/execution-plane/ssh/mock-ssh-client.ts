@@ -4,7 +4,7 @@
  * including connection states and SFTP directory listing.
  */
 
-import { ISSHClient, DirectoryEntry, FileType, SSHExecResult } from "./ssh-client.interface.js";
+import { ISSHClient, DirectoryEntry, SSHExecResult } from "./ssh-client.interface.js";
 import { SSHHostConfig } from "../../../core/config/ssh.config.js";
 import { SSHPathSandbox } from "./ssh-path-sandbox.js";
 

@@ -94,11 +94,11 @@ function renderMarkdown(text: string): string {
   });
 
   // Bold + Italic: ***text***
-  html = html.replace(/\*\*\*([^\*]+?)\*\*\*/g, "<strong><em>$1</em></strong>");
+  html = html.replace(/\*\*\*([^*]+?)\*\*\*/g, "<strong><em>$1</em></strong>");
   // Bold: **text**
-  html = html.replace(/\*\*([^\*]+?)\*\*/g, "<strong>$1</strong>");
+  html = html.replace(/\*\*([^*]+?)\*\*/g, "<strong>$1</strong>");
   // Italic: *text*
-  html = html.replace(/\*([^\*]+?)\*/g, "<em>$1</em>");
+  html = html.replace(/\*([^*]+?)\*/g, "<em>$1</em>");
   // Strikethrough: ~~text~~
   html = html.replace(/~~([^~]+?)~~/g, "<del>$1</del>");
 

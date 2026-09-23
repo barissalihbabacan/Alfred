@@ -1,7 +1,6 @@
 import {
   AudioTranscriptionOptions,
-  AudioTranscriptionResponse,
-  AISpeechToTextProvider
+  AudioTranscriptionResponse
 } from "../../ai/providers/types.js";
 
 export interface STTTranscriptionOptions extends AudioTranscriptionOptions {}

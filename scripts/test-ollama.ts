@@ -1,7 +1,6 @@
 import { getAIConfig } from "../src/core/config/index.js";
 import { OllamaProvider } from "../src/ai/providers/ollama/index.js";
 import { getAlfredSystemPrompt } from "../src/ai/prompts/alfred-persona.js";
-import { AIProviderError } from "../src/core/errors/index.js";
 
 const PERSONA_TEST_PROMPTS = [
   "Alfred, I'm just going to write a quick twenty-line script for this.",

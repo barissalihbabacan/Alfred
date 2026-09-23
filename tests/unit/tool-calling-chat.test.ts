@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { AIProvider, ChatMessage, ChatCompletionOptions, ChatCompletionResponse, ChatStreamChunk } from "../../src/ai/providers/types.js";
 import { getToolRegistry } from "../../src/alfred/control-plane/tool-router/tool-registry.js";
 import { getToolRouter } from "../../src/alfred/control-plane/tool-router/tool-router.js";
@@ -20,7 +20,7 @@ class MockToolCallingProvider implements AIProvider {
 
   public async chat(
     messages: ChatMessage[],
-    options?: ChatCompletionOptions
+    _options?: ChatCompletionOptions
   ): Promise<ChatCompletionResponse> {
     const lastMsg = messages[messages.length - 1];
 
@@ -75,7 +75,7 @@ class MockToolCallingProvider implements AIProvider {
 
   public async *streamChat(
     messages: ChatMessage[],
-    options?: ChatCompletionOptions
+    _options?: ChatCompletionOptions
   ): AsyncIterable<ChatStreamChunk> {
     const lastMsg = messages[messages.length - 1];
 
@@ -185,7 +185,7 @@ describe("Tool Calling End-to-End Orchestration Suite", () => {
       ];
 
       // First stream pass: model emits toolCalls
-      let receivedToolCalls: any[] = [];
+      const receivedToolCalls: any[] = [];
       for await (const chunk of mockProvider.streamChat(messages, {
         tools: toolRegistry.getDefinitions()
       })) {

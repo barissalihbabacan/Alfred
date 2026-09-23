@@ -4,7 +4,6 @@ import { IVectorStore } from "../../../data/vector/types.js";
 import { getVectorStore } from "../../../data/vector/factory.js";
 import {
   IPendingEmbeddingStore,
-  PendingEmbeddingRecord,
   getPendingEmbeddingStore,
   cosineSimilarity
 } from "../../../data/vector/index.js";

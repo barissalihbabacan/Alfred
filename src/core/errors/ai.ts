@@ -8,9 +8,9 @@ export function sanitizeErrorMessage(message: string): string {
   if (!message) return "";
   return message
     .replace(/gsk_[a-zA-Z0-9_-]{20,}/g, "gsk_***REDACTED***")
-    .replace(/Bearer\s+[a-zA-Z0-9_\-\.]{20,}/gi, "Bearer ***REDACTED***")
-    .replace(/api[_-]?key[:=]\s*["']?[a-zA-Z0-9_\-]{16,}["']?/gi, "api_key=***REDACTED***")
-    .replace(/key[:=]\s*["']?[a-zA-Z0-9_\-]{20,}["']?/gi, "key=***REDACTED***");
+    .replace(/Bearer\s+[a-zA-Z0-9_.-]{20,}/gi, "Bearer ***REDACTED***")
+    .replace(/api[_-]?key[:=]\s*["']?[a-zA-Z0-9_-]{16,}["']?/gi, "api_key=***REDACTED***")
+    .replace(/key[:=]\s*["']?[a-zA-Z0-9_-]{20,}["']?/gi, "key=***REDACTED***");
 }
 
 export class AIProviderError extends AlfredError {

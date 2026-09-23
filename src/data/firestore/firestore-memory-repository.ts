@@ -1,4 +1,4 @@
-import { Firestore, FieldValue, Timestamp } from "firebase-admin/firestore";
+import { Firestore, Timestamp } from "firebase-admin/firestore";
 import { getFirestoreDb } from "./firestore-conversation-repository.js";
 import {
   IMemoryRepository,

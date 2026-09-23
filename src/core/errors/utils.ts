@@ -31,12 +31,3 @@ export function errorName(err: unknown): string | undefined {
 export function isAbortError(err: unknown): boolean {
   return errorName(err) === "AbortError";
 }
-
-/**
- * Returns a string/number `code` property of a caught value (e.g. Node's
- * `ENOENT`), or `undefined` when there is none.
- */
-export function errorCode(err: unknown): string | number | undefined {
-  const code = readProperty(err, "code");
-  return typeof code === "string" || typeof code === "number" ? code : undefined;
-}

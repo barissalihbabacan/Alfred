@@ -5,6 +5,8 @@ import {
   ALFRED_SYSTEM_PROMPT,
   ALFRED_USER_PROFILE_BLOCK,
   CONVERSATIONAL_GOVERNOR_BLOCK,
+  buildConversationalGovernorBlock,
+  describeRequestPipeline,
   DEFAULT_ALFRED_RUNTIME,
   buildAlfredPersonaPrompt,
   buildAlfredSystemPrompt,
@@ -123,6 +125,22 @@ describe("3. capability line matches what production runs", () => {
     expect(ALFRED_PERSONA_PROMPT).toContain("speech recognition and read-aloud speech synthesis in Barış's browser (Web Speech API)");
     expect(ALFRED_PERSONA_PROMPT).toContain("Long-Term Semantic Memory (Firestore + Gemini embeddings)");
     expect(functionsSource).toContain('const GEMINI_EMBEDDING_MODEL = "gemini-embedding-001";');
+  });
+
+  it("the governor's known pipeline matches the provider answering the turn", () => {
+    const groq = describeRequestPipeline(GROQ);
+    expect(groq).toContain("Firebase Cloud Function 2nd Gen (api, Cloud Run) → Groq API (openai/gpt-oss-120b) → SSE response.");
+    expect(groq).toContain("Ollama on the MacBook over Tailscale is an optional alternative provider, not in the default path.");
+    expect(groq).not.toContain("Tailscale Funnel");
+    const ollama = describeRequestPipeline(OLLAMA);
+    expect(ollama).toContain("→ Tailscale Funnel → MacBook Ollama (gemma4:12b-mlx) → SSE response.");
+    expect(ollama).not.toContain("Groq");
+    for (const text of [groq, ollama]) expect(text).toContain("Gemini embeddings with Firestore as the source of truth");
+
+    expect(CONVERSATIONAL_GOVERNOR_BLOCK).toContain(`- Current known pipeline: ${groq}`);
+    expect(CONVERSATIONAL_GOVERNOR_BLOCK).not.toContain("MacBook Ollama (gemma4:12b-mlx) / Groq");
+    expect(buildConversationalGovernorBlock(OLLAMA)).toContain(`- Current known pipeline: ${ollama}`);
+    expect(buildAlfredSystemPrompt({ runtime: OLLAMA })).toContain(ollama);
   });
 
   it("the tool list is exactly the tools functions/index.js offers the model", () => {

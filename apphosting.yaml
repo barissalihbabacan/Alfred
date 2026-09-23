@@ -23,3 +23,5 @@ env:
   # defineSecret gecerli bir ortam degiskeni adi ister (tire kullanilamaz).
   - variable: GROQ_API_KEY
     secret: GROQ_API_KEY
+  - variable: GEMINI_API_KEY
+    secret: GEMINI_API_KEY

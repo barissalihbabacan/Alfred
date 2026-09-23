@@ -10,13 +10,13 @@ setGlobalOptions({ maxInstances: 10, timeoutSeconds: 120, memory: "512MiB" });
 
 // Secret Manager'dan cozulur.
 //
-// ON KOSUL: Secret Manager faturalandirma ister ve butler-alfred projesinde
-// faturalandirma su an KAPALI (11 Eyl 2026'dan beri; api fonksiyonu bu yuzden
-// 503 donuyor). Bu dosya faturalandirma acilip asagidaki secret'lar
-// olusturulana kadar deploy EDILEMEZ:
+// Secret'lar bir kez olusturulur:
 //
 //   firebase functions:secrets:set GROQ_API_KEY
 //   firebase functions:secrets:set GEMINI_API_KEY
+//
+// Emulatorde ayni adlar functions/.secret.local dosyasindan okunur
+// (gitignore'da). Anahtar istemciden (istek basligi) hicbir zaman alinmaz.
 //
 // Secret adlari defineSecret'in kisitlamasi geregi gecerli ortam degiskeni
 // adlari olmali; apphosting.yaml da ayni adi kullanacak sekilde guncellendi,
@@ -26,21 +26,14 @@ const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
 
 const ALLOWED_UID = process.env.ALLOWED_UID || "test-owner-uid-123456";
 
-// Anahtarin istemci basligindan gelmesine yalnizca emulatorde izin verilir.
-const EMULATOR = Boolean(process.env.FUNCTIONS_EMULATOR);
-
-function gizliOku(secret, envAdi, req, baslik) {
-  const fromSecret = (() => {
-    try {
-      return secret.value() || "";
-    } catch {
-      return "";
-    }
-  })();
-  const deger = fromSecret || process.env[envAdi] || "";
-  if (deger) return deger;
-  if (EMULATOR && req) return String(req.headers?.[baslik] || "");
-  return "";
+function gizliOku(secret, envAdi) {
+  try {
+    const deger = secret.value();
+    if (deger) return deger;
+  } catch {
+    // Secret baglanmamis (ornegin birim testinde): ortam degiskenine dus.
+  }
+  return process.env[envAdi] || "";
 }
 
 if (getApps().length === 0) {
@@ -604,7 +597,7 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
   // Health endpoint: /health or /api/health
   if (path.endsWith("/health")) {
     const activeProvider = (process.env.ALFRED_LLM_PROVIDER || process.env.AI_PROVIDER || "groq").trim().toLowerCase();
-    const groqKey = gizliOku(GROQ_API_KEY, "GROQ_API_KEY", req, "x-groq-api-key");
+    const groqKey = gizliOku(GROQ_API_KEY, "GROQ_API_KEY");
     const groqConfigured = !!groqKey;
 
     if (activeProvider === "groq") {
@@ -968,9 +961,9 @@ function getCurrentTimeForCity(city) {
 
     const trimmedMessage = message.trim();
     const activeProvider = (process.env.ALFRED_LLM_PROVIDER || process.env.AI_PROVIDER || "groq").trim().toLowerCase();
-    const groqKey = gizliOku(GROQ_API_KEY, "GROQ_API_KEY", req, "x-groq-api-key");
+    const groqKey = gizliOku(GROQ_API_KEY, "GROQ_API_KEY");
     const groqModel = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
-    const geminiKey = gizliOku(GEMINI_API_KEY, "GEMINI_API_KEY", req, "x-gemini-api-key");
+    const geminiKey = gizliOku(GEMINI_API_KEY, "GEMINI_API_KEY");
     const ollamaUrl = process.env.OLLAMA_BASE_URL || "https://ollama.example.invalid";
     const ollamaModel = process.env.OLLAMA_MODEL || "gemma4:12b-mlx";
 

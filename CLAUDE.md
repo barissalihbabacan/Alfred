@@ -96,17 +96,20 @@ The app is locked to one person. There is no sign-up, no password login and no S
 - `apphosting.yaml` — Firebase **App Hosting** runConfig (0–2 instances, concurrency 10, 2 CPU, 2 GiB) and the production env: `AI_PROVIDER=groq`, `GROQ_MODEL=llama-3.3-70b-versatile`, `GROQ_STT_MODEL=whisper-large-v3-turbo`, `TTS_PROVIDER=kokoro`, `TTS_VOICE=bm_george`, and `GROQ_API_KEY` from Secret Manager.
 - **CI**: `.github/workflows/ci.yml` runs `npm ci`, `npm run typecheck` and `npm run test:unit` on every pull request (Node 22, no `.env`). `.github/workflows/deploy.yml` reuses it as a `test` job and only then runs `firebase deploy --only hosting,functions`, on any push to `main` touching `apps/**`, `src/**`, `functions/**`, `firebase.json` or `.firebaserc`. A red typecheck or unit test therefore blocks the deploy.
 
-### Secrets
-`functions/index.js` resolves `GROQ_API_KEY` and `GEMINI_API_KEY` through `defineSecret()` (Secret Manager), with a `process.env` fallback. Accepting a key from the `x-groq-api-key` / `x-gemini-api-key` request header is gated behind `FUNCTIONS_EMULATOR` — production never takes a key from the caller.
+### Secrets — Groq/Gemini keys live only in Secret Manager
+`GROQ_API_KEY` and `GEMINI_API_KEY` are never taken from the caller. There is no request-header path, and the browser neither stores nor sends keys.
+- `functions/index.js` binds both through `defineSecret()`. `gizliOku()` falls back to `process.env` only when the secret isn't bound, e.g. in tests. The emulator reads `functions/.secret.local`, which is gitignored.
+- `apphosting.yaml` binds both as `secret:` env vars for the Next.js server.
+- `src/` and `apps/web` only read `process.env`: the platform injects the secrets there, and locally they come from `.env`.
 
-`apphosting.yaml` references the same secret names. `defineSecret` requires names that are valid environment variables, so the secrets are `GROQ_API_KEY` / `GEMINI_API_KEY`, not the `groq-api-key` style used previously. They are set with:
+`defineSecret` requires names that are valid environment variables, so the names are `GROQ_API_KEY` / `GEMINI_API_KEY` (not `groq-api-key`). **As of 23 Sep 2026 neither secret exists in `butler-alfred`**, and every `deploy.yml` run since 11 Sep has failed at `secretmanager.secrets.get` (403). Production is therefore still serving the last successful deploy, which predates the UID lock-down and these secret changes. To unblock:
 
 ```bash
 firebase functions:secrets:set GROQ_API_KEY
 firebase functions:secrets:set GEMINI_API_KEY
 ```
 
-Do not revert the secret wiring to plain `process.env`. (Billing on `butler-alfred` was disabled in Sep 2026 and has since been re-enabled; if the `api` function starts returning 503 with `billing is disabled` in `firebase functions:log`, that is the cause, not the code.)
+The CI service account (`FIREBASE_SERVICE_ACCOUNT_BUTLER_ALFRED`) also needs Secret Manager access, e.g. `roles/secretmanager.admin`, so the deploy can read the secrets and grant the functions runtime access to them. Do not "fix" a failing deploy by reverting to plain `process.env` or to header-supplied keys.
 
 ## Notes for future sessions
 

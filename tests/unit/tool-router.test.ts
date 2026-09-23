@@ -143,7 +143,7 @@ describe("Tool Registry & Router Suite", () => {
             arguments: JSON.stringify({ target: "" })
           }
         },
-        { userId: "baris", confirmed: true }
+        { userId: "baris", userRole: "owner", confirmed: true }
       );
 
       expect(result.success).toBe(false);
@@ -177,7 +177,7 @@ describe("Tool Registry & Router Suite", () => {
             arguments: JSON.stringify({ target: "prod" })
           }
         },
-        { userId: "baris", confirmed: false }
+        { userId: "baris", userRole: "owner", confirmed: false }
       );
 
       expect(unconfirmed.success).toBe(false);
@@ -193,7 +193,7 @@ describe("Tool Registry & Router Suite", () => {
             arguments: JSON.stringify({ target: "prod" })
           }
         },
-        { userId: "baris", confirmed: true }
+        { userId: "baris", userRole: "owner", confirmed: true }
       );
 
       expect(confirmed.success).toBe(true);

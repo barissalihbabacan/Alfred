@@ -172,6 +172,16 @@ async function retrieveRelevantMemories(db, query, userId, topK = 5, minScore = 
   return scored.slice(0, topK);
 }
 
+const MEMORY_EXTRACTION_BUDGET_MS = 10000;
+
+function withTimeout(promise, ms, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 async function extractAndPersistMemories({
   db,
   ollamaUrl,
@@ -319,6 +329,7 @@ If there is nothing worth remembering, return {"shouldRemember": false, "memorie
   }
 
   if (!parsed || !parsed.shouldRemember || !Array.isArray(parsed.memories)) {
+    console.log("[Memory] Nothing worth remembering in this turn.");
     return;
   }
 
@@ -1152,27 +1163,29 @@ function getCurrentTimeForCity(city) {
         console.error("Failed to persist assistant message to Firestore:", persistErr);
       }
 
-      // Background autonomous memory extraction (non-blocking)
-      void (async () => {
-        try {
-          await extractAndPersistMemories({
-            db,
-            ollamaUrl,
-            ollamaModel,
-            groqKey,
-            groqModel,
-            geminiKey,
-            userMessage: trimmedMessage,
-            assistantResponse: content,
-            userId,
-            conversationId: convId,
-            sourceMessageIds: [userMsgRef.id, asstMsgDocId].filter(Boolean),
-            recentHistory: boundedHistory
-          });
-        } catch (memExtErr) {
-          console.warn("Background memory extraction error:", memExtErr?.message || memExtErr);
-        }
-      })();
+      // Bellek cikarimi cevap kapanmadan once beklenir: Cloud Run yanit
+      // bittikten sonra CPU'yu kistigi icin arka planda birakilan is yarida
+      // kalir ya da hic calismaz. Istemci "done" olayini zaten aldi; burada
+      // yalnizca baglantinin kapanmasi gecikir, o da en fazla
+      // MEMORY_EXTRACTION_BUDGET_MS kadar.
+      try {
+        await withTimeout(extractAndPersistMemories({
+          db,
+          ollamaUrl,
+          ollamaModel,
+          groqKey,
+          groqModel,
+          geminiKey,
+          userMessage: trimmedMessage,
+          assistantResponse: content,
+          userId,
+          conversationId: convId,
+          sourceMessageIds: [userMsgRef.id, asstMsgDocId].filter(Boolean),
+          recentHistory: boundedHistory
+        }), MEMORY_EXTRACTION_BUDGET_MS, "memory extraction");
+      } catch (memExtErr) {
+        console.warn("[Memory] Extraction skipped:", memExtErr?.message || memExtErr);
+      }
     };
 
     try {

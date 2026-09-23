@@ -1,10 +1,12 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { User } from "firebase/auth";
 import {
   subscribeAuthState,
   signInWithGoogle,
+  signInWithGoogleRedirect,
+  checkRedirectResult,
   signOutCurrentUser,
   getAuthErrorDetails,
   AuthErrorInfo
@@ -12,10 +14,12 @@ import {
 
 interface AuthContextType {
   user: User | null;
+  /** true until Firebase has restored (or ruled out) a persisted session. */
   loading: boolean;
   error: AuthErrorInfo | null;
   clearError: () => void;
   signInGoogle: () => Promise<User | null>;
+  signInGoogleRedirect: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -27,38 +31,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<AuthErrorInfo | null>(null);
 
   useEffect(() => {
-    const unsubscribe = subscribeAuthState((currentUser) => {
-      setUser(currentUser);
-      setLoading(false);
-    });
+    const unsubscribe = subscribeAuthState(
+      (currentUser) => {
+        setUser(currentUser);
+        setLoading(false);
+      },
+      () => setError(getAuthErrorDetails({ code: "auth/unauthorized-uid" }))
+    );
+
+    // Yonlendirmeli giristen donuste olusan hatalar (ornegin Safari'de
+    // "missing initial state") yalnizca getRedirectResult ile yakalanir.
+    checkRedirectResult().catch((err) => setError(getAuthErrorDetails(err)));
 
     return () => unsubscribe();
   }, []);
 
-  const clearError = () => setError(null);
+  const clearError = useCallback(() => setError(null), []);
 
-  const signInGoogle = async (): Promise<User | null> => {
-    clearError();
+  const signInGoogle = useCallback(async (): Promise<User | null> => {
+    setError(null);
     try {
-      const loggedUser = await signInWithGoogle();
-      return loggedUser;
+      return await signInWithGoogle();
     } catch (err: any) {
-      const details = getAuthErrorDetails(err);
-      setError(details);
+      console.error("[Auth] Google Sign-In error:", err);
+      setError(getAuthErrorDetails(err));
       return null;
     }
-  };
+  }, []);
 
-  const logout = async () => {
-    clearError();
+  const signInGoogleRedirect = useCallback(async (): Promise<void> => {
+    setError(null);
+    try {
+      await signInWithGoogleRedirect();
+    } catch (err: any) {
+      console.error("[Auth] Direct redirect sign-in error:", err);
+      setError(getAuthErrorDetails(err));
+    }
+  }, []);
+
+  const logout = useCallback(async () => {
+    setError(null);
     try {
       await signOutCurrentUser();
       setUser(null);
     } catch (err: any) {
-      const details = getAuthErrorDetails(err);
-      setError(details);
+      setError(getAuthErrorDetails(err));
     }
-  };
+  }, []);
 
   return (
     <AuthContext.Provider
@@ -68,6 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         error,
         clearError,
         signInGoogle,
+        signInGoogleRedirect,
         logout
       }}
     >

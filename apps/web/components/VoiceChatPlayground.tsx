@@ -2,6 +2,8 @@
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useAuth } from "../lib/AuthContext";
+import { apiFetch, ensureOk } from "../lib/api";
+import { createSseParser, stripThinking, ChatStreamEvent } from "../lib/sse";
 
 export type AssistantState =
   | "Idle"
@@ -154,9 +156,56 @@ function renderMarkdown(text: string): string {
   return html;
 }
 
+const DEFAULT_MODEL_LABEL = "openai/gpt-oss-120b";
+const CONVERSATION_KEY = "alfred_conversation_id";
+// Eski surumlerin tarayiciya yazdigi anahtarlar. API anahtarlari artik yalnizca
+// sunucuda (Secret Manager) tutuluyor; Ollama URL alani da artik yok.
+const LEGACY_STORAGE_KEYS = ["alfred_groq_api_key", "alfred_gemini_api_key", "alfred_ollama_url"];
+
+function storageGet(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function storageSet(key: string, value: string | null) {
+  try {
+    if (value === null) window.localStorage.removeItem(key);
+    else window.localStorage.setItem(key, value);
+  } catch {
+    // Gizli sekme / engellenmis depolama: yok say.
+  }
+}
+
+function formatTime(value?: string | number | Date): string {
+  const date = value ? new Date(value) : new Date();
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+/** Seslendirme icin `<think>` izlerini ve markdown isaretlerini temizler. */
+function toSpeakableText(text: string): string {
+  return stripThinking(text)
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/[*_`~#>]/g, "")
+    .trim();
+}
+
+interface HealthInfo {
+  activeProvider: string;
+}
+
+interface ActiveTurn {
+  id: number;
+  controller: AbortController;
+  /** `done`, `error` ya da iptal geldiyse true; sonrasinda gelen olaylar yok sayilir. */
+  finished: boolean;
+}
+
 export default function VoiceChatPlayground() {
-  const { user } = useAuth();
-  const currentUserId = user?.uid || "guest_default";
+  const { user, logout } = useAuth();
+  const currentUserId = user?.uid || null;
 
   const [state, setState] = useState<AssistantState>("Idle");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -169,13 +218,18 @@ export default function VoiceChatPlayground() {
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [sttLang, setSttLang] = useState("tr-TR");
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showAccountModal, setShowAccountModal] = useState(false);
   const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
+  const [health, setHealth] = useState<HealthInfo | null>(null);
+  const [modelLabel, setModelLabel] = useState(DEFAULT_MODEL_LABEL);
 
   const toolsBtnRef = useRef<HTMLButtonElement | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const currentAudioElementRef = useRef<HTMLAudioElement | null>(null);
+  const turnSeqRef = useRef(0);
+  const activeTurnRef = useRef<ActiveTurn | null>(null);
+  const recognitionRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -187,16 +241,33 @@ export default function VoiceChatPlayground() {
     scrollToBottom();
   }, [messages, state, scrollToBottom]);
 
-  // Load conversations list and restore active conversation from Firestore
+  // Tamamlanmamis bir turu iptal eder (yeni sohbet / sohbet degistirme).
+  // `done` gelmis ama sunucunun bellek kaydi icin acik tuttugu baglantiya
+  // dokunulmaz; ekrandan bagimsiz olarak kapanmasi beklenir.
+  const cancelActiveTurn = useCallback(() => {
+    const turn = activeTurnRef.current;
+    activeTurnRef.current = null;
+    if (turn && !turn.finished) {
+      turn.finished = true;
+      turn.controller.abort();
+    }
+    setState("Idle");
+  }, []);
+
+  // Load conversations list (authenticated; this component only mounts once
+  // Firebase has restored an allowed session).
   const fetchConversations = useCallback(async (showSkeleton = false) => {
+    if (!currentUserId) return;
     if (showSkeleton) setConversationsLoading(true);
     try {
-      const res = await fetch(`/api/chat?userId=${encodeURIComponent(currentUserId)}`);
+      const res = await apiFetch(`/chat?userId=${encodeURIComponent(currentUserId)}`);
       if (res.ok) {
         const data = await res.json();
         if (data.success && Array.isArray(data.conversations)) {
           setConversations(data.conversations);
         }
+      } else {
+        console.warn("Failed to fetch conversation list:", res.status);
       }
     } catch (err) {
       console.warn("Failed to fetch conversation list:", err);
@@ -205,24 +276,41 @@ export default function VoiceChatPlayground() {
     }
   }, [currentUserId]);
 
-  const loadConversation = useCallback(async (id: string) => {
-    try {
-      setConversationId(id);
-      localStorage.setItem("alfred_conversation_id", id);
-      setMessagesLoading(true);
+  const handleNewConversation = useCallback(() => {
+    cancelActiveTurn();
+    setConversationId(null);
+    storageSet(CONVERSATION_KEY, null);
+    setMessages([]);
+    setErrorMessage(null);
+    textareaRef.current?.focus();
+  }, [cancelActiveTurn]);
 
-      const res = await fetch(`/api/chat?conversationId=${encodeURIComponent(id)}`);
+  const loadConversation = useCallback(async (id: string) => {
+    cancelActiveTurn();
+    setErrorMessage(null);
+    setConversationId(id);
+    storageSet(CONVERSATION_KEY, id);
+    setMessagesLoading(true);
+    try {
+      const res = await apiFetch(`/chat?conversationId=${encodeURIComponent(id)}`);
+      if (res.status === 404) {
+        // Silinmis (veya baska kullaniciya ait) sohbet: kayitli kimligi birak.
+        setConversationId(null);
+        storageSet(CONVERSATION_KEY, null);
+        setMessages([]);
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         if (data.success && Array.isArray(data.messages)) {
-          const loaded: Message[] = data.messages.map((m: any) => ({
-            id: m.id || "msg-" + m.sequence,
-            role: m.role,
-            text: m.content,
-            timestamp: m.createdAt
-              ? new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-              : new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-          }));
+          const loaded: Message[] = data.messages
+            .filter((m: any) => m.role === "user" || m.role === "assistant")
+            .map((m: any) => ({
+              id: m.id || "msg-" + m.sequence,
+              role: m.role,
+              text: m.content,
+              timestamp: formatTime(m.createdAt)
+            }));
           setMessages(loaded);
         }
       }
@@ -231,15 +319,64 @@ export default function VoiceChatPlayground() {
     } finally {
       setMessagesLoading(false);
     }
-  }, []);
+  }, [cancelActiveTurn]);
 
+  // Initial load: runs once the authenticated user is known.
   useEffect(() => {
+    if (!currentUserId) return;
+    for (const key of LEGACY_STORAGE_KEYS) storageSet(key, null);
+
     fetchConversations(true);
-    const savedConvId = localStorage.getItem("alfred_conversation_id");
+    const savedConvId = storageGet(CONVERSATION_KEY);
     if (savedConvId) {
       loadConversation(savedConvId);
     }
-  }, [fetchConversations, loadConversation]);
+  }, [currentUserId, fetchConversations, loadConversation]);
+
+  // Active provider (public /health endpoint, no token needed).
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch("/health", { anonymous: true })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.activeProvider) return;
+        setHealth({ activeProvider: data.activeProvider });
+        if (data.activeProvider === "groq") setModelLabel(DEFAULT_MODEL_LABEL);
+        else if (data.activeProvider === "ollama") setModelLabel("gemma4:12b-mlx");
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Cmd/Ctrl + K: new conversation.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        handleNewConversation();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [handleNewConversation]);
+
+  // Stop recognition / speech when the component unmounts (e.g. sign-out).
+  useEffect(() => {
+    return () => {
+      try {
+        recognitionRef.current?.stop();
+      } catch {
+        // ignore
+      }
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      const turn = activeTurnRef.current;
+      if (turn && !turn.finished) turn.controller.abort();
+    };
+  }, []);
 
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
@@ -255,21 +392,12 @@ export default function VoiceChatPlayground() {
     };
   }, [toolsMenuOpen]);
 
-  const handleNewConversation = () => {
-    setConversationId(null);
-    localStorage.removeItem("alfred_conversation_id");
-    setMessages([]);
-    if (textareaRef.current) {
-      textareaRef.current.focus();
-    }
-  };
-
   const handleDeleteConversation = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     if (!window.confirm("Bu sohbeti silmek istediğinizden emin misiniz?")) return;
 
     try {
-      const res = await fetch(`/api/chat?conversationId=${encodeURIComponent(id)}`, {
+      const res = await apiFetch(`/chat?conversationId=${encodeURIComponent(id)}`, {
         method: "DELETE"
       });
       if (!res.ok) {
@@ -311,141 +439,158 @@ export default function VoiceChatPlayground() {
       textareaRef.current.style.height = "auto";
     }
 
-    const userMsg: Message = {
-      id: "user-" + Date.now(),
-      role: "user",
-      text,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    };
-
-    const asstId = "asst-" + Date.now();
+    const now = Date.now();
+    const userMsg: Message = { id: "user-" + now, role: "user", text, timestamp: formatTime(now) };
+    const asstId = "asst-" + now;
     const placeholderAsst: Message = {
       id: asstId,
       role: "assistant",
       text: "",
       isThinking: true,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      timestamp: formatTime(now)
     };
 
     setMessages((prev) => [...prev, userMsg, placeholderAsst]);
     setState("Thinking");
 
+    // Onceki turun (done sonrasi hala acik) baglantisi varsa ona dokunulmaz; o
+    // turun gec gelen olaylari `isCurrent()` kontrolu ile yok sayilir.
+    const turn: ActiveTurn = { id: ++turnSeqRef.current, controller: new AbortController(), finished: false };
+    activeTurnRef.current = turn;
+    const isCurrent = () => activeTurnRef.current === turn;
+    const updateAssistant = (patch: Partial<Message>) => {
+      setMessages((prev) => prev.map((m) => (m.id === asstId ? { ...m, ...patch } : m)));
+    };
+
+    // "done" geldiginde giris alani serbest birakilir; sunucu bellek kaydi icin
+    // baglantiyi birkac saniye daha acik tutabilir. Yalnizca bu tur hala
+    // aktifse durum sifirlanir, yeni bir turun durumu ezilmez.
+    const finishTurn = () => {
+      turn.finished = true;
+      if (isCurrent()) setState("Idle");
+    };
+
     let accumulatedText = "";
-    abortControllerRef.current = new AbortController();
 
     try {
-      const res = await fetch("/api/chat", {
+      const res = await apiFetch("/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Accept": "text/event-stream"
+          Accept: "text/event-stream"
         },
         body: JSON.stringify({
           message: text,
           conversationId: conversationId || undefined,
-          userId: currentUserId,
+          userId: currentUserId || undefined,
           stream: true
         }),
-        signal: abortControllerRef.current.signal
+        signal: turn.controller.signal
       });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || `Server responded with status ${res.status}`);
-      }
+      await ensureOk(res);
 
       if (!res.body) {
-        throw new Error("No response stream received.");
+        throw new Error("Yanıt akışı alınamadı.");
       }
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
-      let buffer = "";
+      const parser = createSseParser();
+
+      const handleEvent = (event: ChatStreamEvent) => {
+        if (turn.finished || !isCurrent()) return;
+        switch (event.type) {
+          case "start":
+            if (event.model) setModelLabel(event.model);
+            if (event.conversationId) {
+              setConversationId(event.conversationId);
+              storageSet(CONVERSATION_KEY, event.conversationId);
+              fetchConversations();
+            }
+            setState("Thinking");
+            break;
+          case "thinking":
+          case "tool_call":
+          case "tool_result":
+            setState("Thinking");
+            break;
+          case "chunk":
+            accumulatedText += event.text || "";
+            setState("Streaming");
+            updateAssistant({ text: accumulatedText, isThinking: !stripThinking(accumulatedText) });
+            break;
+          case "done":
+            updateAssistant({ text: accumulatedText || "*(Yanıt boş)*", isThinking: false });
+            finishTurn();
+            break;
+          case "error":
+            throw new Error(event.error || "Akış sırasında bir hata oluştu.");
+        }
+      };
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
+        parser.push(decoder.decode(value, { stream: true })).forEach(handleEvent);
+      }
+      parser.push(decoder.decode()).forEach(handleEvent);
+      parser.flush().forEach(handleEvent);
 
-        buffer += decoder.decode(value, { stream: true });
-        const blocks = buffer.split("\n\n");
-        buffer = blocks.pop() || "";
-
-        for (const block of blocks) {
-          const trimmed = block.trim();
-          if (!trimmed.startsWith("data:")) continue;
-
-          const dataStr = trimmed.replace(/^data:\s*/, "");
-          try {
-            const event = JSON.parse(dataStr);
-            if (event.type === "start") {
-              if (event.conversationId) {
-                setConversationId(event.conversationId);
-                localStorage.setItem("alfred_conversation_id", event.conversationId);
-                fetchConversations();
-              }
-            } else if (event.type === "thinking") {
-              setState("Thinking");
-              setMessages((prev) =>
-                prev.map((m) => (m.id === asstId ? { ...m, isThinking: true } : m))
-              );
-            } else if (event.type === "chunk") {
-              setState("Streaming");
-              accumulatedText += (event.text || "");
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === asstId
-                    ? { ...m, text: accumulatedText, isThinking: false }
-                    : m
-                )
-              );
-            } else if (event.type === "done") {
-              setState("Idle");
-            } else if (event.type === "error") {
-              throw new Error(event.error || "Streaming error occurred.");
-            }
-          } catch (parseErr: any) {
-            if (parseErr.message && parseErr.message !== "Unexpected end of JSON input") {
-              console.warn("Parse error:", parseErr);
-            }
-          }
+      // Akis `done` olmadan kapandi.
+      if (!turn.finished && isCurrent()) {
+        if (accumulatedText) {
+          updateAssistant({ text: accumulatedText, isThinking: false });
+        } else {
+          throw new Error("Bağlantı yanıt tamamlanmadan kapandı.");
         }
       }
-
-      setState("Idle");
     } catch (err: any) {
-      if (err.name === "AbortError") {
-        setState("Idle");
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === asstId
-              ? { ...m, text: accumulatedText + "\n\n*(Yanıt durduruldu)*", isThinking: false }
-              : m
-          )
-        );
-      } else {
-        setState("Error");
-        setErrorMessage(err?.message || "Communication failed.");
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === asstId
-              ? { ...m, text: "İletişim sırasında bir hata oluştu.", isThinking: false }
-              : m
-          )
-        );
+      const wasFinished = turn.finished;
+      turn.finished = true;
+      if (!isCurrent() && err?.name === "AbortError") return;
+      if (err?.name === "AbortError") {
+        if (!wasFinished) {
+          updateAssistant({
+            text: accumulatedText
+              ? accumulatedText + "\n\n*(Yanıt Barış tarafından durduruldu)*"
+              : "*Yanıt durduruldu.*",
+            isThinking: false
+          });
+        }
+      } else if (!wasFinished) {
+        const msg = err?.message || "İletişim sırasında bir hata oluştu.";
+        if (isCurrent()) {
+          setState("Error");
+          setErrorMessage(msg);
+        }
+        updateAssistant({
+          text: accumulatedText || "İletişim sırasında bir hata oluştu.",
+          isThinking: false
+        });
       }
     } finally {
-      abortControllerRef.current = null;
+      turn.finished = true;
+      if (isCurrent()) {
+        activeTurnRef.current = null;
+        setState((s) => (s === "Error" ? s : "Idle"));
+      }
     }
   };
 
   const handleStopStreaming = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
+    const turn = activeTurnRef.current;
+    if (turn && !turn.finished) {
+      turn.controller.abort();
     }
   };
 
   const toggleRecording = () => {
     if (isRecording) {
+      try {
+        recognitionRef.current?.stop();
+      } catch {
+        // ignore
+      }
       setIsRecording(false);
       setState("Idle");
       return;
@@ -458,6 +603,7 @@ export default function VoiceChatPlayground() {
     }
 
     const rec = new SpeechRec();
+    recognitionRef.current = rec;
     rec.lang = sttLang;
     rec.interimResults = false;
 
@@ -468,44 +614,71 @@ export default function VoiceChatPlayground() {
 
     rec.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript;
-      setInputText((prev) => {
-        const next = prev ? prev + " " + transcript : transcript;
-        if (textareaRef.current) {
-          textareaRef.current.style.height = "auto";
-          textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 160) + "px";
-          textareaRef.current.focus();
+      setInputText((prev) => (prev ? prev + " " + transcript : transcript));
+      requestAnimationFrame(() => {
+        const ta = textareaRef.current;
+        if (ta) {
+          ta.style.height = "auto";
+          ta.style.height = Math.min(ta.scrollHeight, 160) + "px";
+          ta.focus();
         }
-        return next;
       });
     };
 
-    rec.onerror = () => {
+    rec.onerror = (event: any) => {
+      console.warn("Speech error:", event?.error);
       setIsRecording(false);
       setState("Idle");
     };
 
     rec.onend = () => {
+      recognitionRef.current = null;
       setIsRecording(false);
-      setState("Idle");
+      setState((s) => (s === "Listening" ? "Idle" : s));
     };
 
     rec.start();
   };
 
-  const playVoice = (text: string) => {
+  const toggleSpeak = (msg: Message) => {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
+    if (speakingId === msg.id) {
+      setSpeakingId(null);
+      setState((s) => (s === "Speaking" ? "Idle" : s));
+      return;
+    }
+    const text = toSpeakableText(msg.text);
+    if (!text) return;
     const utterance = new SpeechSynthesisUtterance(text);
     const isTurkish = /[çğıöşüÇĞİÖŞÜ]/i.test(text);
     utterance.lang = isTurkish ? "tr-TR" : "en-GB";
     utterance.rate = 1.0;
-    setState("Speaking");
-    utterance.onend = () => setState("Idle");
-    utterance.onerror = () => setState("Idle");
+    const reset = () => {
+      setSpeakingId((curr) => (curr === msg.id ? null : curr));
+      setState((s) => (s === "Speaking" ? "Idle" : s));
+    };
+    utterance.onend = reset;
+    utterance.onerror = reset;
+    setSpeakingId(msg.id);
+    setState((s) => (s === "Idle" || s === "Error" ? "Speaking" : s));
     window.speechSynthesis.speak(utterance);
   };
 
+  const handleSignOut = async () => {
+    setShowAccountModal(false);
+    cancelActiveTurn();
+    await logout();
+  };
+
   const isBusy = state === "Thinking" || state === "Streaming";
+  const displayName = user?.displayName || user?.email?.split("@")[0] || "Yönetici";
+  const engineText =
+    health?.activeProvider === "ollama"
+      ? { name: "Ollama", detail: modelLabel, active: true }
+      : health?.activeProvider === "offline"
+        ? { name: "Çevrimdışı", detail: "Groq anahtarı yok, Ollama erişilemiyor", active: false }
+        : { name: "Groq Cloud", detail: modelLabel, active: true };
 
   return (
     <div style={{
@@ -807,7 +980,11 @@ export default function VoiceChatPlayground() {
           justifyContent: "space-between",
           backgroundColor: "#171717"
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <button
+            onClick={() => setShowAccountModal(true)}
+            title="Hesap Bilgileri"
+            style={{ display: "flex", alignItems: "center", gap: "10px", background: "none", border: "none", color: "inherit", padding: 0, minWidth: 0, textAlign: "left" }}
+          >
             <div style={{
               width: "28px",
               height: "28px",
@@ -818,15 +995,26 @@ export default function VoiceChatPlayground() {
               alignItems: "center",
               justifyContent: "center",
               fontWeight: 700,
-              fontSize: "12px"
+              fontSize: "12px",
+              flexShrink: 0,
+              overflow: "hidden"
             }}>
-              B
+              {user?.photoURL ? (
+                <img
+                  src={user.photoURL}
+                  alt={displayName}
+                  referrerPolicy="no-referrer"
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
+              ) : (
+                displayName.charAt(0).toUpperCase()
+              )}
             </div>
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              <span style={{ fontSize: "13px", fontWeight: 600 }}>Barış</span>
-              <span style={{ fontSize: "11px", color: "#737373" }}>Systems Architect</span>
+            <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+              <span style={{ fontSize: "13px", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis" }}>{displayName}</span>
+              <span style={{ fontSize: "11px", color: "#737373" }}>Google ile Doğrulandı</span>
             </div>
-          </div>
+          </button>
           <button
             onClick={() => setShowSettingsModal(true)}
             style={{ background: "none", border: "none", color: "#8e8e8e", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px" }}
@@ -878,11 +1066,35 @@ export default function VoiceChatPlayground() {
             <div
               style={{ display: "flex", alignItems: "center", padding: "6px 10px", fontWeight: 600, fontSize: "14px", color: "#ececec", userSelect: "none" }}
             >
-              <span>gemma4:12b-mlx</span>
+              <span>{modelLabel}</span>
             </div>
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <button
+              onClick={handleSignOut}
+              title="Güvenli Çıkış Yap"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                background: "transparent",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                color: "#b4b4b4",
+                borderRadius: "6px",
+                padding: "4px 10px",
+                fontSize: "12px",
+                cursor: "pointer"
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+              <span>Çıkış</span>
+            </button>
+
             <select
               value={sttLang}
               onChange={(e) => setSttLang(e.target.value)}
@@ -1090,6 +1302,17 @@ export default function VoiceChatPlayground() {
                             <span>Kopyala</span>
                           </span>
                         )}
+                      </button>
+                      <button
+                        onClick={() => toggleSpeak(msg)}
+                        style={{ background: "none", border: "none", color: speakingId === msg.id ? "#10b981" : "#8e8e8e", cursor: "pointer", fontSize: "12px", padding: "2px 6px", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                        title={speakingId === msg.id ? "Seslendirmeyi Durdur" : "Seslendir"}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+                        </svg>
+                        <span>{speakingId === msg.id ? "Durdur" : "Seslendir"}</span>
                       </button>
                     </div>
                   )}
@@ -1345,7 +1568,7 @@ export default function VoiceChatPlayground() {
             </div>
 
             <p style={{ fontSize: "13px", color: "#b4b4b4", lineHeight: "1.5", marginBottom: "16px" }}>
-              Alfred varsayılan olarak Tailscale özel ağınızdaki yerel <strong>Ollama (gemma4:12b-mlx)</strong> motorunu kullanır.
+              Etkin motor sunucu tarafında (Cloud Functions, <code className="inline-code">ALFRED_LLM_PROVIDER</code>) seçilir; bu bilgi <code className="inline-code">/api/health</code> uç noktasından okunur.
             </p>
 
             <div style={{ marginBottom: "14px" }}>
@@ -1376,13 +1599,22 @@ export default function VoiceChatPlayground() {
                     <line x1="1" y1="9" x2="4" y2="9" />
                     <line x1="1" y1="14" x2="4" y2="14" />
                   </svg>
-                  <span><strong>Ollama</strong> — gemma4:12b-mlx</span>
+                  <span><strong>{engineText.name}</strong> — {engineText.detail}</span>
                 </div>
-                <span style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", color: "#10b981", fontWeight: 600 }}>
-                  <span style={{ display: "inline-block", width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#10b981" }} />
-                  Aktif
+                <span style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", color: engineText.active ? "#10b981" : "#ef4444", fontWeight: 600 }}>
+                  <span style={{ display: "inline-block", width: "6px", height: "6px", borderRadius: "50%", backgroundColor: engineText.active ? "#10b981" : "#ef4444" }} />
+                  {health ? (engineText.active ? "Aktif" : "Kapalı") : "Bilinmiyor"}
                 </span>
               </div>
+            </div>
+
+            <div style={{ marginBottom: "14px" }}>
+              <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#b4b4b4", marginBottom: "6px" }}>
+                API Anahtarları:
+              </label>
+              <p style={{ margin: 0, fontSize: "12px", color: "#8e8e8e", lineHeight: 1.5 }}>
+                Groq ve Gemini anahtarları sunucuda Google Secret Manager&apos;da tutulur; tarayıcıda saklanmaz.
+              </p>
             </div>
 
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "20px" }}>
@@ -1400,6 +1632,83 @@ export default function VoiceChatPlayground() {
                 }}
               >
                 Tamam
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Account Modal */}
+      {showAccountModal && (
+        <div
+          onClick={() => setShowAccountModal(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0, 0, 0, 0.75)",
+            backdropFilter: "blur(6px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "16px"
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: "#262626",
+              border: "1px solid rgba(255, 255, 255, 0.1)",
+              borderRadius: "16px",
+              width: "100%",
+              maxWidth: "420px",
+              padding: "24px",
+              boxShadow: "0 20px 50px rgba(0, 0, 0, 0.6)"
+            }}
+          >
+            <h3 style={{ fontSize: "16px", fontWeight: 600, marginBottom: "14px" }}>Hesap Bilgileri</h3>
+            <div style={{
+              background: "rgba(255, 255, 255, 0.03)",
+              border: "1px solid rgba(255, 255, 255, 0.08)",
+              borderRadius: "10px",
+              padding: "14px",
+              marginBottom: "18px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "12px"
+            }}>
+              <span style={{ fontSize: "13px", color: "#b4b4b4" }}>Aktif Kullanıcı:</span>
+              <strong style={{ fontSize: "13px", overflow: "hidden", textOverflow: "ellipsis" }}>{user?.email || "-"}</strong>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "12px" }}>
+              <button
+                onClick={handleSignOut}
+                style={{
+                  background: "transparent",
+                  border: "1px solid rgba(239, 68, 68, 0.3)",
+                  color: "#ef4444",
+                  padding: "8px 14px",
+                  borderRadius: "8px",
+                  fontSize: "13px",
+                  cursor: "pointer"
+                }}
+              >
+                Oturumu Kapat
+              </button>
+              <button
+                onClick={() => setShowAccountModal(false)}
+                style={{
+                  background: "transparent",
+                  border: "1px solid rgba(255, 255, 255, 0.12)",
+                  color: "#ececec",
+                  padding: "8px 14px",
+                  borderRadius: "8px",
+                  fontSize: "13px",
+                  cursor: "pointer"
+                }}
+              >
+                Kapat
               </button>
             </div>
           </div>

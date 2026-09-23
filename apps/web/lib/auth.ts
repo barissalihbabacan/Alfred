@@ -105,17 +105,24 @@ export async function signOutCurrentUser(): Promise<void> {
 }
 
 /**
- * Subscribe to auth state changes.
+ * Subscribe to auth state changes. A restored session whose UID is not the
+ * allowed one is signed straight back out; `onUnauthorized` lets the UI show
+ * the `auth/unauthorized-uid` message instead of silently returning to the gate.
  */
-export function subscribeAuthState(callback: (user: User | null) => void): () => void {
-  const auth = getFirebaseAuth();
+export function subscribeAuthState(
+  callback: (user: User | null) => void,
+  onUnauthorized?: (uid: string) => void,
+  auth: Auth = getFirebaseAuth()
+): () => void {
   return onAuthStateChanged(auth, async (user) => {
     if (user && user.uid !== ALLOWED_UID) {
+      console.warn("[Auth] Unauthorized UID detected in onAuthStateChanged:", user.uid);
       try {
         await signOut(auth);
       } catch (e) {
         console.warn("[Auth] Failed to sign out unauthorized user:", e);
       }
+      onUnauthorized?.(user.uid);
       callback(null);
       return;
     }
@@ -127,12 +134,27 @@ export interface AuthErrorInfo {
   code: string;
   title: string;
   message: string;
+  /** Firebase `customData` (sunucu yaniti), varsa JSON olarak. */
+  serverDetails?: string;
 }
 
 /**
  * Converts Firebase Auth error codes into clear, user-friendly Turkish messages.
  */
 export function getAuthErrorDetails(error: any): AuthErrorInfo {
+  const info = describeAuthError(error);
+  const customData = error?.customData;
+  if (customData && typeof customData === "object" && Object.keys(customData).length > 0) {
+    try {
+      info.serverDetails = JSON.stringify(customData);
+    } catch {
+      // Dongusel veri: detay gosterilmez.
+    }
+  }
+  return info;
+}
+
+function describeAuthError(error: any): AuthErrorInfo {
   const code = error?.code || "";
   const rawMsg = error?.message || "";
 

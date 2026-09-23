@@ -12,6 +12,7 @@ B.U.T.L.E.R. Alfred — a personal AI executive-assistant/agent system for Barı
 # Core library (src/)
 npm run build              # tsc build of src/
 npm run typecheck          # tsc --noEmit
+npm run lint               # eslint . (flat config: eslint.config.js)
 npm test                   # vitest run (all tests)
 npm run test:unit          # vitest run tests/unit
 npm run test:integration   # vitest run tests/integration
@@ -34,7 +35,7 @@ npm run start:web
 npm run deploy --prefix functions   # firebase deploy --only functions
 ```
 
-No lint script is configured. As of the last check `npm run test:unit` is 264 passing tests across 31 files and `npm run typecheck` is clean — keep both green.
+As of the last check `npm run test:unit` is 264 passing tests across 31 files, `npm run typecheck` is clean and `npm run lint` has 0 errors (≈209 warnings, mostly `no-explicit-any`) — keep all three green. `eslint.config.js` downgrades noisy rules on existing code to warnings; errors fail CI. There is no Prettier: formatting is not enforced, so don't mass-reformat files.
 
 `tests/unit/*` run offline against in-memory repositories/stores; `tests/integration/*` and the `test:groq`/`test:ollama` scripts hit real providers and need `.env` populated (copy from `.env.example`).
 
@@ -93,7 +94,7 @@ The app is locked to one person. There is no sign-up, no password login and no S
 ### Deployment — Firebase Hosting + Cloud Functions only
 - `firebase.json` — Firestore rules/indexes, the `functions` codebase, and Hosting. Hosting serves `apps/web/public`, rewrites `/api/**` to the `api` function and everything else to `index.html`, with `no-cache` on all paths.
 - There is no App Hosting (no backend exists; `apphosting.yaml` was removed). The Next.js app in `apps/web/app` is **not deployed anywhere** — it is local-dev only (`npm run dev:web`). Production is the vanilla front end on Hosting plus the `api` / `alfredCallable` functions.
-- **CI**: `.github/workflows/ci.yml` runs `npm ci`, `npm run typecheck` and `npm run test:unit` on every pull request (Node 22, no `.env`). `.github/workflows/deploy.yml` reuses it as a `test` job and only then runs `firebase deploy --only hosting,functions`, on any push to `main` touching `apps/**`, `src/**`, `functions/**`, `firebase.json` or `.firebaserc`. A red typecheck or unit test therefore blocks the deploy.
+- **CI**: `.github/workflows/ci.yml` runs `npm ci`, `npm run lint`, `npm run typecheck` and `npm run test:unit` on every pull request (Node 22, no `.env`). `.github/workflows/deploy.yml` reuses it as a `test` job and only then runs `firebase deploy --only hosting,functions`, on any push to `main` touching `apps/**`, `src/**`, `functions/**`, `firebase.json` or `.firebaserc`. A lint error, red typecheck or unit test failure therefore blocks the deploy.
 
 ### Secrets — Groq/Gemini keys live only in Secret Manager
 `GROQ_API_KEY` and `GEMINI_API_KEY` are never taken from the caller. There is no request-header path, and the browser neither stores nor sends keys.

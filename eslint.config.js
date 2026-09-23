@@ -1,0 +1,128 @@
+// ESLint flat config for B.U.T.L.E.R. Alfred.
+//
+// Goal: catch real bugs without forcing a mass reformat. Stylistic / noisy
+// rules are downgraded to "warn" so `npm run lint` passes on the current code
+// while still surfacing them. Formatting is intentionally not enforced here.
+import js from "@eslint/js";
+import tseslint from "typescript-eslint";
+import globals from "globals";
+import reactHooks from "eslint-plugin-react-hooks";
+
+const unusedVarsOptions = {
+  argsIgnorePattern: "^_",
+  varsIgnorePattern: "^_",
+  caughtErrorsIgnorePattern: "^_",
+  destructuredArrayIgnorePattern: "^_",
+};
+
+export default tseslint.config(
+  {
+    ignores: [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/.next/**",
+      "**/.claude/**",
+      "**/.firebase/**",
+      "**/coverage/**",
+      "**/audio_output/**",
+      ".agents/**",
+      "apps/web/next-env.d.ts",
+    ],
+  },
+
+  js.configs.recommended,
+
+  // --- TypeScript: core library, tests, scripts, Next.js app ---------------
+  {
+    files: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
+    extends: [tseslint.configs.recommended],
+    languageOptions: {
+      globals: { ...globals.node },
+    },
+    rules: {
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-unused-vars": ["warn", unusedVarsOptions],
+      "@typescript-eslint/ban-ts-comment": "warn",
+      // Empty interfaces that extend a provider type are used as named aliases.
+      "@typescript-eslint/no-empty-object-type": ["error", { allowInterfaces: "with-single-extends" }],
+    },
+  },
+
+  // --- Next.js app (apps/web, TS/TSX) ---------------------------------------
+  {
+    files: ["apps/web/**/*.ts", "apps/web/**/*.tsx"],
+    ignores: ["apps/web/public/**"],
+    plugins: { "react-hooks": reactHooks },
+    languageOptions: {
+      globals: { ...globals.browser, ...globals.node },
+    },
+    rules: {
+      // Only the two classic hook rules; the React Compiler rules shipped in
+      // eslint-plugin-react-hooks v7's "recommended" preset are not adopted.
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn",
+    },
+  },
+
+  // --- Plain JS: shared defaults --------------------------------------------
+  {
+    files: ["**/*.js", "**/*.mjs", "**/*.cjs"],
+    rules: {
+      "no-unused-vars": ["warn", unusedVarsOptions],
+    },
+  },
+
+  // --- Vanilla front end served by Firebase Hosting -------------------------
+  {
+    // Loaded as a classic <script defer> from index.html.
+    files: ["apps/web/public/app.js"],
+    languageOptions: {
+      sourceType: "script",
+      // grecaptcha is injected by the reCAPTCHA Enterprise script tag.
+      globals: { ...globals.browser, grecaptcha: "readonly" },
+    },
+    rules: {
+      // Top-level functions are globals called from inline on*="" handlers in
+      // index.html and in generated markup, so only flag unused locals.
+      "no-unused-vars": ["warn", { ...unusedVarsOptions, vars: "local" }],
+    },
+  },
+  {
+    // Loaded as <script type="module"> from index.html.
+    files: ["apps/web/public/firebase-app.js"],
+    languageOptions: {
+      sourceType: "module",
+      globals: { ...globals.browser },
+    },
+  },
+
+  // --- Firebase Cloud Functions (plain ESM on Node) -------------------------
+  {
+    files: ["functions/**/*.js"],
+    languageOptions: {
+      sourceType: "module",
+      globals: { ...globals.node },
+    },
+  },
+
+  // --- Root / Next config files ---------------------------------------------
+  {
+    files: ["eslint.config.js", "apps/web/next.config.mjs"],
+    languageOptions: {
+      sourceType: "module",
+      globals: { ...globals.node },
+    },
+  },
+
+  // --- Repo-wide relaxations for existing code (tighten over time) ---------
+  // Kept last so it overrides the presets above (incl. typescript-eslint).
+  {
+    rules: {
+      // `catch {}` is used deliberately for best-effort parsing / cleanup.
+      "no-empty": ["error", { allowEmptyCatch: true }],
+      // Redundant escapes in regexes/strings are harmless; flag, don't block.
+      "no-useless-escape": "warn",
+      "prefer-const": "warn",
+    },
+  },
+);

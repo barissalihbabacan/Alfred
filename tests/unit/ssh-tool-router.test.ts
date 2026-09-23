@@ -36,7 +36,7 @@ describe("SSH Tool Routing & Permissions Suite", () => {
 
     const result = await router.execute(toolCall, {
       userId: "user_baris",
-      userRole: "admin"
+      userRole: "owner"
     });
 
     expect(result.success).toBe(true);
@@ -76,7 +76,8 @@ describe("SSH Tool Routing & Permissions Suite", () => {
     };
 
     const result = await router.execute(toolCall, {
-      userId: "user_baris"
+      userId: "user_baris",
+      userRole: "owner"
     });
 
     expect(result.success).toBe(false);
@@ -95,7 +96,8 @@ describe("SSH Tool Routing & Permissions Suite", () => {
     };
 
     const result = await router.execute(toolCall, {
-      userId: "user_baris"
+      userId: "user_baris",
+      userRole: "owner"
     });
 
     expect(result.success).toBe(false);

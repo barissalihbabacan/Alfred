@@ -3,7 +3,6 @@
 import React from "react";
 import { AuthProvider, useAuth } from "../lib/AuthContext";
 import LoginScreen from "../components/LoginScreen";
-import UserBar from "../components/UserBar";
 import VoiceChatPlayground from "../components/VoiceChatPlayground";
 
 function AuthenticatedApp() {
@@ -65,22 +64,10 @@ function AuthenticatedApp() {
     return <LoginScreen />;
   }
 
-  // Once authenticated, render UserBar header & VoiceChatPlayground
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        backgroundColor: "var(--bg-primary)",
-        display: "flex",
-        flexDirection: "column"
-      }}
-    >
-      <UserBar />
-      <main style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-        <VoiceChatPlayground />
-      </main>
-    </div>
-  );
+  // Authenticated and allowed: the chat UI (account info and sign-out live in
+  // its sidebar footer / top bar). It only mounts now, so every API call it
+  // makes already has an ID token available.
+  return <VoiceChatPlayground />;
 }
 
 export default function HomePage() {

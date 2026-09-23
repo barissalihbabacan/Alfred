@@ -19,13 +19,7 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"],
-      "@alfred/*": ["../../src/alfred/*"],
-      "@ai/*": ["../../src/ai/*"],
-      "@voice/*": ["../../src/voice/*"],
-      "@data/*": ["../../src/data/*"],
-      "@integrations/*": ["../../src/integrations/*"],
-      "@core/*": ["../../src/core/*"]
+      "@/*": ["./*"]
     }
   },
   "include": [
@@ -34,5 +28,5 @@
     "**/*.tsx",
     ".next/types/**/*.ts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "out"]
 }

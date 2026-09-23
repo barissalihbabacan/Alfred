@@ -71,14 +71,18 @@ GEMINI_API_KEY=your_gemini_api_key_here
 
 ### 3. Web Oyun Alanını Başlatın
 ```bash
-# Geliştirme sunucusunu çalıştırın (hot-reload destekli)
+# Geliştirme sunucusu (hot-reload). /api/** istekleri ALFRED_API_ORIGIN'e
+# proxy'lenir; varsayılan hedef Functions emulator'üdür.
 npm run dev:web
+# Canlı backend'e bağlanmak için:
+ALFRED_API_ORIGIN=https://butler-alfred.web.app/api npm run dev:web
 
-# Veya prodüksiyon derlemesini başlatın
+# Prodüksiyon derlemesi: statik export -> apps/web/out
 npm run build:web
-npm run start:web
+# Export'u firebase.json rewrite/başlıklarıyla yerelde sunmak için:
+firebase serve --only hosting
 ```
-Tarayıcınızda **`http://localhost:3000`** adresine giderek Alfred ile ister yazarak ister mikrofona konuşarak etkileşime geçebilirsiniz.
+Tarayıcınızda **`http://localhost:3000`** adresine giderek Alfred ile ister yazarak ister mikrofona konuşarak etkileşime geçebilirsiniz. Web uygulamasının kendi sunucu tarafı yoktur; tüm API çağrıları (`/api/chat`, `/api/health`) `functions/index.js` içindeki `api` Cloud Function'ına gider ve Firebase ID token'ı ister.
 
 ---
 
@@ -100,7 +104,7 @@ Proje, bağımsız katmanlar ve net sorumluluk sınırları üzerine kuruludur:
 | **Embedding & Bellek**| `src/ai/embedding/` | Google Gemini `gemini-embedding-001` modeli ve Firestore vektör entegrasyonu. |
 | **Ses Katmanı (STT)** | `src/voice/stt/` | Groq Whisper STT adaptörü, canlı ses işleme ve çift modlu girdi yönlendirmesi. |
 | **Veri Katmanı** | `src/data/` | Cloud Firestore, yerel vektör veri tabanı ve bellek fabrikaları. |
-| **Web & Güvenlik** | `apps/web/` | Modüler Web Arayüzü (`styles.css`, `app.js`, `firebase-app.js`), Firebase Auth (Google Sign-In, tek kullanıcı), App Check (reCAPTCHA Enterprise) ve SSE akışı. |
+| **Web & Güvenlik** | `apps/web/` | Statik export olarak derlenen Next.js arayüzü (`VoiceChatPlayground`, `LoginScreen`), Firebase Auth (Google Sign-In, tek kullanıcı), App Check (reCAPTCHA Enterprise) ve `api` Cloud Function'ından SSE akışı. |
 
 ---
 
@@ -220,8 +224,8 @@ Geliştirme ve yerel testlerde varsayılan LLM sağlayıcısıdır:
 
 ### 3. Ses Tanıma (STT) & Çift Modlu Giriş
 Kullanıcı girdisi hem yazılı metin hem de canlı ses kaydı üzerinden kabul edilir:
-- **İstemci Yakalama**: Tarayıcı içi `MediaRecorder` API (Opus / WebM formatında doğrudan arka uca iletim).
-- **Sunucu Tarafı Tanıma**: Yukarıdaki Groq `whisper-large-v3-turbo` motoru ile anlık transkripsiyon.
+- **İstemci Yakalama**: Web arayüzü tarayıcının Web Speech API'sini (`SpeechRecognition`, TR/EN seçilebilir) kullanır; ses sunucuya gönderilmez.
+- **Sunucu Tarafı Tanıma**: `src/voice/stt/` altındaki Groq `whisper-large-v3-turbo` adaptörü çekirdek kütüphanede duruyor, ancak üretimdeki arayüze bağlı değildir (Cloud Functions'ta STT uç noktası yoktur).
 - **Yalın Mimari**: Ağır yerel TTS/STT kütüphaneleri çalışma zamanından arındırılmış; öncelik ultra düşük gecikmeli kademeli SSE metin akışındadır.
 
 ### 4. Sağlayıcı Seçimi
@@ -255,11 +259,12 @@ Alfred, operasyonel güvenlik ve yetkisiz erişim engellemesi için çift katman
 
 1. **reCAPTCHA Enterprise & App Check**: Bot, scraping ve yetkisiz API çağrılarını engellemek amacıyla istemcide `ReCaptchaEnterpriseProvider` başlatılır. Giden tüm isteklere `X-Firebase-AppCheck` başlığı eklenir; Cloud Functions arka ucu (`functions/index.js`) bu tokenı doğrular.
 2. **Google Sign-In & Tek Kullanıcı Kısıtı**: Uygulama yalnızca tek bir kişiye açıktır; kayıt olma ve e-posta/şifre ile giriş yoktur. Oturum Google hesabıyla açılır (açılır pencere engellenirse otomatik olarak yönlendirme akışına geçilir). Firebase `uid` değeri izin verilen tek UID ile eşleşmeyen her hesap anında oturumdan çıkarılır (`auth/unauthorized-uid`); aynı kontrol Cloud Functions tarafında Firebase ID token üzerinde de yapılır.
-3. **Modüler Web Mimarisi**: `apps/web/public/` katmanı temiz ve ayrık dosyalara bölünmüştür:
-   - `styles.css`: Karanlık tema, cam morfoloji (glassmorphism) ve mikro-animasyon stilleri.
-   - `app.js`: Sohbet motoru, canlı ses kaydı (MediaRecorder) ve SSE akış yönetimi.
-   - `firebase-app.js`: Firebase App Check, Google Sign-In ve yetkili UID doğrulama akışları.
-   - `index.html`: Yalın, anlamsal HTML5 kabuğu.
+3. **Web Mimarisi (Next.js statik export)**: `apps/web/` tek ön yüzdür ve `npm run build:web` ile `apps/web/out` klasörüne statik dosyalar olarak derlenir:
+   - `components/LoginScreen.tsx`: Google ile giriş kapısı (açılır pencere + doğrudan yönlendirme) ve Türkçe hata mesajları.
+   - `components/VoiceChatPlayground.tsx`: Sohbet arayüzü, konuşma listesi, Web Speech ile ses girişi, `speechSynthesis` ile seslendirme.
+   - `lib/auth.ts`, `lib/AuthContext.tsx`: Google Sign-In ve yetkili UID doğrulama akışları.
+   - `lib/firebase.ts`: Firebase yapılandırması ve App Check (reCAPTCHA Enterprise).
+   - `lib/api.ts`, `lib/sse.ts`: Her isteğe ID token ve App Check başlığı ekleyen istemci ve `/chat` SSE ayrıştırıcısı.
 
 ---
 
@@ -273,23 +278,27 @@ Proje, GitHub Actions üzerinden Firebase Hosting ve Cloud Functions altyapısı
                        ▼
        [.github/workflows/deploy.yml]
                        │
-        ┌──────────────┴──────────────┐
-        ▼                             ▼
-[1. Node.js 22 Kurulumu]    [2. Fonksiyon Bağımlılıkları]
-                               (npm ci --prefix functions)
-                                      │
-                                      ▼
-                        [3. Google Cloud Kimlik Doğrulama]
-                           (google-github-actions/auth)
-                                      │
-                                      ▼
-                        [4. Dağıtım (Firebase Tools)]
-                       Hosting (Web) + Cloud Functions (API)
+                       ▼
+   [1. CI: typecheck + unit test + web derlemesi]
+                       │
+                       ▼
+   [2. npm ci + npm run build:web → apps/web/out]
+                       │
+                       ▼
+   [3. Fonksiyon Bağımlılıkları (npm ci --prefix functions)]
+                       │
+                       ▼
+   [4. Google Cloud Kimlik Doğrulama (google-github-actions/auth)]
+                       │
+                       ▼
+   [5. Dağıtım (Firebase Tools)]
+       Hosting (apps/web/out) + Cloud Functions (API)
 ```
 
 - **İş Akışı**: [.github/workflows/deploy.yml](.github/workflows/deploy.yml)
-- **Yapılandırma**: `firebase.json` (Hosting: `apps/web/public`, Functions: `functions/`)
-- **Tetikleyici**: `apps/web/public/**`, `functions/**`, `firebase.json` veya iş akışı dosyalarındaki değişiklikler.
+- **Yapılandırma**: `firebase.json` (Hosting: `apps/web/out`, `/api/**` → `api` fonksiyonu, Functions: `functions/`)
+- **Tetikleyici**: `apps/**`, `src/**`, `functions/**`, `firebase.json`, `.firebaserc`, `package.json` / `package-lock.json` veya iş akışı dosyalarındaki değişiklikler. CI (typecheck, unit test, web derlemesi) kırmızıysa dağıtım yapılmaz.
+- **Geri Alma**: `firebase hosting:rollback` (veya Konsol → Hosting → Release history) önceki Hosting sürümünü yeniden derlemeden geri yükler.
 
 ---
 

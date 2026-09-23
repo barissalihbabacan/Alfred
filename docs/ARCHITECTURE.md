@@ -197,12 +197,14 @@ Alfred Cognitive Core
 ### Real-Time Streaming & "Thinking..." Architecture
 B.U.T.L.E.R. Alfred incorporates a real-time text streaming pipeline supporting progressive token rendering and transparent reasoning states:
 
+> **Production path (current):** the browser (Next.js static export in `apps/web/out`, served by Firebase Hosting) calls `POST /api/chat` with a Firebase ID token; Hosting rewrites it to the `api` Cloud Function in `functions/index.js`, which calls Groq/Ollama itself and streams `start` / `thinking` / `chunk` / `tool_call` / `tool_result` / `done` / `error` SSE frames. The Next.js route handler that used to wrap `AIProvider.streamChat()` (`apps/web/app/api/chat/route.ts`) was removed when the web app became a static export, so the diagram below describes the `src/` provider layer, which currently has no HTTP entry point of its own.
+
 ```
 Browser (Playground UI)
        │
-       │ POST /api/chat { message, history, stream: true }
+       │ POST /api/chat { message, conversationId, stream: true }
        ▼
-Server-Sent Events (SSE) Route (`apps/web/app/api/chat/route.ts`)
+SSE endpoint (formerly apps/web/app/api/chat/route.ts; see note above)
        │
        │ AsyncIterable<ChatStreamChunk>
        ▼

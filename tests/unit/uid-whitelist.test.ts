@@ -1,9 +1,40 @@
-import { describe, it, expect } from "vitest";
-import { ALLOWED_UID, getAuthErrorDetails } from "../../apps/web/lib/auth.js";
-import { POST } from "../../apps/web/app/api/chat/route.js";
-import { NextRequest } from "next/server";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+// The browser-side allow-list in apps/web/lib/auth.ts is exercised against a
+// mocked Firebase Auth SDK. Server-side enforcement lives in functions/index.js
+// (the `api` Cloud Function), which rejects any ID token whose UID differs.
+const authMocks = vi.hoisted(() => ({
+  onAuthStateChanged: vi.fn(),
+  signOut: vi.fn(async () => {}),
+  signInWithPopup: vi.fn(),
+  signInWithRedirect: vi.fn(async () => {}),
+  getRedirectResult: vi.fn()
+}));
+
+vi.mock("firebase/auth", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("firebase/auth")>();
+  return {
+    ...actual,
+    getAuth: vi.fn(() => ({ name: "mock-auth" })),
+    ...authMocks
+  };
+});
+
+import {
+  ALLOWED_UID,
+  getAuthErrorDetails,
+  subscribeAuthState,
+  signInWithGoogle,
+  checkRedirectResult
+} from "../../apps/web/lib/auth.js";
+
+const fakeAuth = { name: "fake-auth" } as any;
 
 describe("Single-User Authorization (UID Whitelist)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("defines the exact authorized UID constant", () => {
     expect(ALLOWED_UID).toBe("test-owner-uid-123456");
   });
@@ -14,56 +45,77 @@ describe("Single-User Authorization (UID Whitelist)", () => {
     expect(errorDetails.message).toContain("yalnızca yetkili yönetici erişebilir");
   });
 
-  it("rejects unauthorized UID with 403 in /api/chat when not in test bypass mode", async () => {
-    const originalVitest = process.env.VITEST;
-    const originalNodeEnv = process.env.NODE_ENV;
+  it("signs a restored session with a foreign UID straight back out", async () => {
+    const callback = vi.fn();
+    const onUnauthorized = vi.fn();
+    subscribeAuthState(callback, onUnauthorized, fakeAuth);
 
-    try {
-      delete process.env.VITEST;
-      process.env.NODE_ENV = "production";
+    const listener = authMocks.onAuthStateChanged.mock.calls[0][1];
+    await listener({ uid: "malicious_unauthorized_uid_123" });
 
-      const req = new NextRequest("http://localhost/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: "Hello Alfred",
-          userId: "malicious_unauthorized_uid_123"
-        })
-      });
-
-      const response = await POST(req);
-      expect(response.status).toBe(403);
-      const data = await response.json();
-      expect(data.error).toBe("Forbidden: Unauthorized UID.");
-    } finally {
-      process.env.VITEST = originalVitest;
-      process.env.NODE_ENV = originalNodeEnv;
-    }
+    expect(authMocks.signOut).toHaveBeenCalledWith(fakeAuth);
+    expect(onUnauthorized).toHaveBeenCalledWith("malicious_unauthorized_uid_123");
+    expect(callback).toHaveBeenCalledWith(null);
   });
 
-  it("accepts the authorized UID in /api/chat", async () => {
-    const originalVitest = process.env.VITEST;
-    const originalNodeEnv = process.env.NODE_ENV;
+  it("passes the allowed user through without signing out", async () => {
+    const callback = vi.fn();
+    const onUnauthorized = vi.fn();
+    subscribeAuthState(callback, onUnauthorized, fakeAuth);
 
-    try {
-      delete process.env.VITEST;
-      process.env.NODE_ENV = "production";
+    const user = { uid: ALLOWED_UID };
+    const listener = authMocks.onAuthStateChanged.mock.calls[0][1];
+    await listener(user);
 
-      const req = new NextRequest("http://localhost/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: "Hello Alfred",
-          userId: ALLOWED_UID
-        })
-      });
+    expect(authMocks.signOut).not.toHaveBeenCalled();
+    expect(onUnauthorized).not.toHaveBeenCalled();
+    expect(callback).toHaveBeenCalledWith(user);
+  });
 
-      const response = await POST(req);
-      // Status should not be 403 Forbidden
-      expect(response.status).not.toBe(403);
-    } finally {
-      process.env.VITEST = originalVitest;
-      process.env.NODE_ENV = originalNodeEnv;
+  it("rejects a popup sign-in with a foreign UID as auth/unauthorized-uid", async () => {
+    authMocks.signInWithPopup.mockResolvedValueOnce({ user: { uid: "someone-else" } });
+
+    await expect(signInWithGoogle()).rejects.toMatchObject({ code: "auth/unauthorized-uid" });
+    expect(authMocks.signOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns the allowed user from a popup sign-in", async () => {
+    const user = { uid: ALLOWED_UID };
+    authMocks.signInWithPopup.mockResolvedValueOnce({ user });
+
+    await expect(signInWithGoogle()).resolves.toBe(user);
+    expect(authMocks.signOut).not.toHaveBeenCalled();
+  });
+
+  it.each(["auth/popup-blocked", "auth/internal-error", "auth/cancelled-popup-request"])(
+    "falls back to redirect sign-in on %s",
+    async (code) => {
+      authMocks.signInWithPopup.mockRejectedValueOnce({ code });
+
+      // On fallback the promise never settles (the page navigates away).
+      const settled = vi.fn();
+      signInWithGoogle().then(settled, settled);
+      await vi.waitFor(() => expect(authMocks.signInWithRedirect).toHaveBeenCalledTimes(1));
+      expect(settled).not.toHaveBeenCalled();
     }
+  );
+
+  it("does not fall back to redirect when the user closes the popup", async () => {
+    authMocks.signInWithPopup.mockRejectedValueOnce({ code: "auth/popup-closed-by-user" });
+
+    await expect(signInWithGoogle()).rejects.toMatchObject({ code: "auth/popup-closed-by-user" });
+    expect(authMocks.signInWithRedirect).not.toHaveBeenCalled();
+  });
+
+  it("rejects a redirect result with a foreign UID", async () => {
+    authMocks.getRedirectResult.mockResolvedValueOnce({ user: { uid: "someone-else" } });
+
+    await expect(checkRedirectResult()).rejects.toMatchObject({ code: "auth/unauthorized-uid" });
+    expect(authMocks.signOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns null when there is no pending redirect result", async () => {
+    authMocks.getRedirectResult.mockResolvedValueOnce(null);
+    await expect(checkRedirectResult()).resolves.toBeNull();
   });
 });

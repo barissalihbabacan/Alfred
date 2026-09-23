@@ -82,4 +82,13 @@ describe("Firebase Auth User-Friendly Error Messages", () => {
     expect(details.title).toBe("İşlem Başarısız Oldu");
     expect(details.message).toBe("Something broke");
   });
+
+  it("exposes Firebase customData as serverDetails when present", () => {
+    const err = { code: "auth/internal-error", customData: { appName: "[DEFAULT]", serverResponse: "boom" } };
+    const details = getAuthErrorDetails(err);
+
+    expect(details.title).toBe("Sunucu Hatası");
+    expect(details.serverDetails).toBe(JSON.stringify(err.customData));
+    expect(getAuthErrorDetails({ code: "auth/internal-error" }).serverDetails).toBeUndefined();
+  });
 });

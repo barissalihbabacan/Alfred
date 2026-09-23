@@ -67,9 +67,6 @@ ALFRED_LLM_PROVIDER=groq
 
 # Google Gemini (Vektör embedding için)
 GEMINI_API_KEY=your_gemini_api_key_here
-
-# Yerel TTS Yapılandırması
-TTS_VOICE=bm_george
 ```
 
 ### 3. Web Oyun Alanını Başlatın
@@ -313,9 +310,6 @@ npm run test:integration
 # Groq LPU ve Ollama model bağlantı testleri
 npm run test:groq
 npm run test:ollama
-
-# Çevrimdışı nöral ses sentezi testi
-npm run test:tts
 ```
 
 ### Doğrulanan 5 Kritik Persona Senaryosu

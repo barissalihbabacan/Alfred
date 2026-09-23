@@ -11,7 +11,7 @@ import {
   VoiceProfile
 } from "./types.js";
 import { ALFRED_DEFAULT_VOICE_PROFILE, getProfileVoiceForProvider } from "./profiles/alfred.js";
-import { KokoroTTSProvider } from "./providers/kokoro/index.js";
+import { MockTTSProvider } from "./providers/mock/index.js";
 
 const execAsync = promisify(exec);
 
@@ -29,7 +29,7 @@ export class TTSService {
   private profile: VoiceProfile;
 
   constructor(options?: TTSServiceOptions) {
-    this.provider = options?.provider || new KokoroTTSProvider();
+    this.provider = options?.provider || new MockTTSProvider();
     this.profile = options?.profile || ALFRED_DEFAULT_VOICE_PROFILE;
   }
 

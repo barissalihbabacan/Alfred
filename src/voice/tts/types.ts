@@ -45,7 +45,7 @@ export interface VoiceProfile {
   readonly energy: string;
   readonly speed?: number;
   /**
-   * Mapping from provider ID (e.g. 'kokoro', 'elevenlabs') to provider-specific voice ID
+   * Mapping from provider ID (e.g. 'elevenlabs', 'openai') to provider-specific voice ID
    */
   readonly providerVoiceMap: Record<string, string>;
 }

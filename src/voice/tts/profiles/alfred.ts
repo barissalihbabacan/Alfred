@@ -22,7 +22,6 @@ export const ALFRED_DEFAULT_VOICE_PROFILE: VoiceProfile = {
   energy: "restrained",
   speed: 0.95,
   providerVoiceMap: {
-    kokoro: "bm_george",
     elevenlabs: "charlie", // Placeholder for future cloud provider
     openai: "onyx",        // Placeholder for future cloud provider
     azure: "en-GB-RyanNeural" // Placeholder for future cloud provider
@@ -36,7 +35,7 @@ export const ALFRED_DEFAULT_VOICE_PROFILE: VoiceProfile = {
 export function getProfileVoiceForProvider(
   profile: VoiceProfile,
   providerId: string,
-  fallback = "bm_george"
+  fallback = "charlie"
 ): string {
   return profile.providerVoiceMap[providerId.toLowerCase()] || fallback;
 }

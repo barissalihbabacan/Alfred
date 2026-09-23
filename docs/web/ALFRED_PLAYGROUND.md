@@ -11,7 +11,7 @@
 
 The **Web Voice & Chat Playground** represents the first end-to-end interactive vertical slice of **B.U.T.L.E.R. Alfred** (*Barış's Unified Task, Logic, Execution & Reasoning*).
 
-Its primary objective is enabling real-time human interaction with Alfred through dual input modalities (keyboard text and live microphone speech), grounded cognitive reasoning via the canonical British butler persona specification, and acoustic feedback synthesized using local neural Text-to-Speech (Kokoro-82M).
+Its primary objective is enabling real-time human interaction with Alfred through dual input modalities (keyboard text and live microphone speech), grounded cognitive reasoning via the canonical British butler persona specification, and acoustic feedback synthesized using browser-native Web Speech API or modular Text-to-Speech.
 
 ---
 
@@ -52,12 +52,9 @@ Its primary objective is enabling real-time human interaction with Alfred throug
                                  (Real-Time SSE)
                                         │
                                         ▼
-                                Local Kokoro TTS
-                            (Kokoro-82M ONNX Runtime)
-                         Voice: bm_george (en-GB 24kHz)
-                                        │
-                                        ▼
-                        Base64 24kHz Mono WAV Audio URL
+                                Browser Web Speech
+                             (window.speechSynthesis)
+                          Voice: en-GB British Butler
                                         │
                                         ▼
                       ┌───────────────────────────────────┐
@@ -151,9 +148,9 @@ GROQ_API_KEY=gsk_your_groq_api_key_here
 GROQ_MODEL=llama-3.3-70b-versatile
 GROQ_STT_MODEL=whisper-large-v3-turbo
 
-# Text-to-Speech (Kokoro-82M / Web Speech fallback)
-TTS_PROVIDER=kokoro
-TTS_VOICE=bm_george
+# Text-to-Speech (Optional)
+TTS_PROVIDER=mock
+TTS_VOICE=charlie
 TTS_LANGUAGE=en-GB
 TTS_SPEED=0.95
 ```
@@ -208,7 +205,7 @@ npx tsx scripts/verify-web-playground.ts
 
 ### Why Firebase Hosting + Server Runtime?
 - **Static Frontend**: Firebase Hosting is fundamentally a high-speed static CDN. It serves pre-rendered HTML, JavaScript bundles, CSS, and media assets globally with SSL.
-- **Server Runtime Requirement**: Kokoro-82M relies on `onnxruntime-node` (native C++ binaries) and requires ~500MB–1GB RAM in memory for model weights. Furthermore, Groq API keys must remain strictly confidential on the server.
+- **Server Runtime Requirement**: Server-side routes handle streaming LLM completions, secure tool dispatch, and Whisper STT processing. Furthermore, Groq API keys must remain strictly confidential on the server.
 - **Deployment Model**: Firebase Hosting serves the vanilla front end in `apps/web/public`. `/api/**` is rewritten to the `api` Cloud Function (`functions/index.js`), and every other path goes to `index.html`:
   ```json
   "hosting": {
@@ -235,5 +232,5 @@ npx -y firebase-tools@latest deploy --only hosting,functions
 As defined in the project roadmap, the following features are intentionally deferred to future milestones:
 1. **Ephemeral Memory Only**: Conversation history is retained in browser memory and request payload (last 10 turns); no persistent database or Firestore conversation collections are written.
 2. **No External Integrations**: Google Calendar, Gmail, GitHub actions, file manipulation, and terminal execution are not yet active in this milestone. Alfred explicitly acknowledges this boundary when asked.
-3. **Local ONNX CPU Latency**: On CPU, Kokoro-82M takes ~3–5 seconds per synthesized sentence. In production or GPU environments, this is accelerated to <300ms.
+3. **Browser Audio Synthesis**: The web playground leverages native browser Web Speech synthesis for zero-latency acoustic playback without heavy server runtimes.
 4. **Token-to-Audio Streaming**: While `synthesizeStream` exists in the core architecture, the web playground utilizes discrete turn-based audio buffering for maximum stability. Real-time token streaming will be introduced in subsequent milestones.

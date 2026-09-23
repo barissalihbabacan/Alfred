@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { AudioData } from "../../types.js";
-import { TTSOutputError } from "../../../../core/errors/index.js";
+import { AudioData } from "../tts/types.js";
+import { TTSOutputError } from "../../core/errors/index.js";
 
 /**
  * Encodes raw Float32Array PCM samples into a standard 16-bit integer RIFF/WAV buffer.
@@ -74,7 +74,7 @@ export function createAudioData(
         await fs.writeFile(resolved, wavBuffer);
       } catch (error) {
         throw new TTSOutputError(
-          "kokoro",
+          "audio",
           filePath,
           (error as Error).message,
           error

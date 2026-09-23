@@ -17,9 +17,11 @@ describe("VoiceProfile and TTSService Unit Tests", () => {
     expect(ALFRED_DEFAULT_VOICE_PROFILE.energy).toBe("restrained");
   });
 
-  it("should map Kokoro to bm_george by default", () => {
-    const voiceId = getProfileVoiceForProvider(ALFRED_DEFAULT_VOICE_PROFILE, "kokoro");
-    expect(voiceId).toBe("bm_george");
+  it("should map elevenlabs to charlie and fallback appropriately", () => {
+    const voiceId = getProfileVoiceForProvider(ALFRED_DEFAULT_VOICE_PROFILE, "elevenlabs");
+    expect(voiceId).toBe("charlie");
+    const fallbackVoice = getProfileVoiceForProvider(ALFRED_DEFAULT_VOICE_PROFILE, "unknown-provider");
+    expect(fallbackVoice).toBe("charlie");
   });
 
   it("should delegate speak() from TTSService to the underlying provider", async () => {

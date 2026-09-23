@@ -21,6 +21,6 @@ describe("Alfred Persona System Prompt", () => {
     expect(prompt).toContain("NEVER use colloquial slang");
     expect(prompt).toContain("NEVER use emojis");
     expect(prompt).toContain("Google Calendar");
-    expect(prompt).toContain("Kokoro-82M");
+    expect(prompt).toContain("Whisper");
   });
 });

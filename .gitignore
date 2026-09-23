@@ -50,6 +50,7 @@ logs/
 *.log
 
 # IDE metadata
+.claude/
 .idea/
 .vscode/*
 !.vscode/settings.json

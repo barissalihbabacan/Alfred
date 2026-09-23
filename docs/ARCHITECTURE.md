@@ -233,11 +233,11 @@ The `src/voice/` directory contains speech recognition and synthesis infrastruct
   - `types.ts`: Normalized `AudioData`, `ITTSProvider`, `VoiceProfile`, and streaming `TTSChunk` definitions.
   - `service.ts`: `TTSService` facade coordinating profiles, engine dispatch, and OS-level audio playback (`paplay`, `aplay`, `afplay`).
   - `profiles/alfred.ts`: Decoupled `ALFRED_DEFAULT_VOICE_PROFILE` (en-GB, British, formal-butler, calm, restrained).
-  - `providers/kokoro/`: Local offline neural TTS powered by Kokoro-82M ONNX runtime.
-- **Audio (`src/voice/audio/`)**: Audio stream capturing, buffering, and device input/output (planned).
+  - `providers/mock/`: Mock / test provider for deterministic local execution without heavy dependencies.
+- **Audio (`src/voice/audio/`)**: Audio data structures, 16-bit PCM WAV encoding utilities, and buffering.
 
 ### TTS Provider Abstraction
-Alfred does not couple directly to Kokoro. The high-level persona defines *how Alfred speaks* (voice profile), while the TTS engine defines *how text converts into audio waveforms*:
+Alfred does not couple to any specific speech engine. The high-level persona defines *how Alfred speaks* (voice profile), while the TTS engine defines *how text converts into audio waveforms* (with browser-native Web Speech API used on frontends, and pluggable providers for backend synthesis):
 
 ```
 Alfred Persona / Output Channel
@@ -253,14 +253,12 @@ Alfred Persona / Output Channel
               │
     ┌─────────┴──────────────────────┬──────────────────────┬─────────────┐
     ▼                                ▼                      ▼             ▼
- Kokoro-82M (Local, Initial)    ElevenLabs (Planned)    OpenAI (Planned)   Azure (Planned)
-(100% Offline, q8 ONNX)
+Mock / Local (Testing)          ElevenLabs (Planned)    OpenAI (Planned)   Azure (Planned)
 ```
 
-- **Initial Local Model**: **Kokoro-82M** (`onnx-community/Kokoro-82M-v1.0-ONNX`) running locally via ONNX Runtime CPU.
-- **Selected Voice**: **`bm_george`** — British English (en-GB) mature male Received Pronunciation with a calm, dignified, and restrained butler cadence.
-- **Streaming Design**: `synthesizeStream` supports token/sentence chunking (`TextSplitterStream`) for future real-time LLM streaming speech synthesis.
-- **Zero Cloud Dependence**: Requires no paid API keys or internet connection once the ONNX weights (~85MB) are cached locally.
+- **Frontend Voice**: Modern browsers utilize native Web Speech API (`window.speechSynthesis`), avoiding heavy server-side ONNX runtimes.
+- **Pluggable Architecture**: The `ITTSProvider` interface allows plugging in cloud TTS services (ElevenLabs, OpenAI, Azure) or local adapters whenever needed.
+- **Decoupled Audio**: Audio generation structures (`AudioData`) and WAV 16-bit encoders live under `src/voice/audio/`.
 
 ---
 

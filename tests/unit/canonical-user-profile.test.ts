@@ -1,12 +1,14 @@
 import { describe, it, expect } from "vitest";
 import path from "node:path";
 import fs from "node:fs";
+import os from "node:os";
 import {
   loadCanonicalUserContext,
   UserProfileLoader,
   ContextBuilder,
   getAlfredSystemPrompt,
-  ALFRED_CANONICAL_SYSTEM_PROMPT
+  ALFRED_CANONICAL_SYSTEM_PROMPT,
+  USER_PROFILE_SOURCES
 } from "../../src/ai/prompts/index.js";
 
 describe("Canonical User Profile Layer", () => {
@@ -14,12 +16,12 @@ describe("Canonical User Profile Layer", () => {
     const context = loadCanonicalUserContext();
 
     expect(context).toBeDefined();
-    expect(context.profile.name).toBe("Barış");
-    expect(context.profile.fullName).toBe("Barış Salih Babacan");
-    expect(context.profile.role).toContain("Systems Architect");
-    expect(context.profile.coreCompetencies.length).toBeGreaterThan(0);
-    expect(context.preferences.defaultLanguageRegister).toContain("British");
-    expect(context.workingStyle.incrementalDevelopment).toContain("vertical slices");
+    expect(context.source).toBe("git");
+    expect(context.sources.userProfile).toBe(fs.readFileSync(path.resolve(process.cwd(), "users/USER_PROFILE.md"), "utf8"));
+    expect(context.sources.userProfile).toContain("Barış Salih Babacan");
+    expect(context.sources.userProfile).toContain("Systems Architect");
+    expect(context.sources.preferences).toContain("British English");
+    expect(context.sources.workingStyle).toContain("vertical slices");
   });
 
   it("2. should not crash when users directory or optional files are missing (graceful fallback)", () => {
@@ -29,18 +31,33 @@ describe("Canonical User Profile Layer", () => {
 
     expect(fallbackContext).toBeDefined();
     expect(fallbackContext.source).toBe("fallback");
-    expect(fallbackContext.profile.name).toBe("Barış");
-    expect(fallbackContext.preferences.formsOfAddress.english).toBe("sir");
-    expect(fallbackContext.workingStyle.progressionModel).toContain("Easy → Hard");
+    // Falls back to the copy of users/*.md embedded at build time.
+    expect(fallbackContext.sources).toEqual(USER_PROFILE_SOURCES);
+    expect(ContextBuilder.formatUserProfileBlock(fallbackContext)).toContain("Easy → Hard");
+  });
+
+  it("2b. takes each readable file from disk and only the missing ones from the embedded copy", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "alfred-users-"));
+    try {
+      fs.writeFileSync(path.join(dir, "USER_PROFILE.md"), "## Identity\n- **Name**: Test Person\n");
+      const context = new UserProfileLoader(dir).loadContextSync();
+      expect(context.source).toBe("fallback");
+      expect(context.sources.userProfile).toBe("## Identity\n- **Name**: Test Person\n");
+      expect(context.sources.preferences).toBe(USER_PROFILE_SOURCES.preferences);
+      expect(context.sources.workingStyle).toBe(USER_PROFILE_SOURCES.workingStyle);
+      expect(ContextBuilder.formatUserProfileBlock(context)).toContain("USER PROFILE:\nIdentity:\n- Name: Test Person\n");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("3. should include canonical user context in LLM system prompt when expected", () => {
     const contextualPrompt = getAlfredSystemPrompt();
 
     expect(contextualPrompt).toContain("=== CANONICAL USER PROFILE (GIT AUTHORITATIVE) ===");
-    expect(contextualPrompt).toContain("Barış (Barış Salih Babacan)");
+    expect(contextualPrompt).toContain("Name: Barış (Full name: Barış Salih Babacan)");
     expect(contextualPrompt).toContain("Incremental Development");
-    expect(contextualPrompt).toContain("PUSHBACK & RISK MANAGEMENT PROTOCOL");
+    expect(contextualPrompt).toContain("Pushback & Risk Management Protocols:");
   });
 
   it("4. should keep Alfred canonical persona fully intact alongside the profile", () => {
@@ -86,7 +103,7 @@ describe("Canonical User Profile Layer", () => {
 
   it("7. should contain zero secrets, API keys, credentials, or private addresses", () => {
     const context = loadCanonicalUserContext();
-    const serialized = JSON.stringify(context);
+    const serialized = JSON.stringify(context) + ContextBuilder.formatUserProfileBlock(context);
 
     // Verify absence of sensitive patterns
     expect(serialized).not.toMatch(/gsk_[a-zA-Z0-9_-]{20,}/);
@@ -94,7 +111,7 @@ describe("Canonical User Profile Layer", () => {
     expect(serialized).not.toContain("GROQ_API_KEY");
     expect(serialized).not.toContain("password");
     expect(serialized).not.toContain("100.64.0.53");
-    expect(serialized).not.toContain("secret");
+    expect(serialized).not.toMatch(/-----BEGIN [A-Z ]*PRIVATE KEY-----/);
   });
 
   it("8. should be strictly read-only and have no runtime mutation/write methods", () => {

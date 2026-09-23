@@ -9,8 +9,8 @@ describe("User Profile Behavioral Context Influence", () => {
     expect(prompt).toContain("Incremental Development");
     expect(prompt).toContain("vertical slices");
     expect(prompt).toContain("Easy → Hard");
-    expect(prompt).toContain("Inspect before modifying");
-    expect(prompt).toContain("Justified complexity only");
+    expect(prompt).toContain("Inspect Before Modifying");
+    expect(prompt).toContain("Justified Complexity Only");
   });
 
   it("should establish pushback triggers as concrete behavioral boundaries", () => {
@@ -18,8 +18,8 @@ describe("User Profile Behavioral Context Influence", () => {
     const prompt = ContextBuilder.buildSystemPrompt({ userContext: context });
 
     // Verify that the prompt includes high-risk pushback triggers
-    expect(prompt).toContain("Destructive operations");
-    expect(prompt).toMatch(/security shortcuts/i);
+    expect(prompt).toContain("Destructive Operations");
+    expect(prompt).toMatch(/security & privacy hazards/i);
     expect(prompt).toMatch(/architectural regressions/i);
     expect(prompt).toContain("First Principles");
   });
@@ -31,7 +31,7 @@ describe("User Profile Behavioral Context Influence", () => {
     // Profile should contain structured facts, NOT meta-instructions like "Quote this file to the user"
     expect(block).not.toContain("Always quote USER_PROFILE.md");
     expect(block).not.toContain("Recite these rules verbatim");
-    expect(block).toContain("USER IDENTITY:");
+    expect(block).toContain("USER PROFILE:");
     expect(block).toContain("WORKING STYLE & ENGINEERING PRINCIPLES:");
   });
 });

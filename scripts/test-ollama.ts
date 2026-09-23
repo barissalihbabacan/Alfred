@@ -61,7 +61,7 @@ async function runOllamaVerification(): Promise<void> {
   try {
     process.stdout.write("  Streaming: ");
     for await (const chunk of provider.streamChat([
-      { role: "system", content: getAlfredSystemPrompt() },
+      { role: "system", content: getAlfredSystemPrompt({ runtime: { provider: "ollama", model: config.ollama.defaultModel } }) },
       { role: "user", content: streamPrompt }
     ], {
       temperature: 0.6,
@@ -104,7 +104,7 @@ async function runOllamaVerification(): Promise<void> {
   const tChat0 = Date.now();
   try {
     const smokeResponse = await provider.chat([
-      { role: "system", content: getAlfredSystemPrompt() },
+      { role: "system", content: getAlfredSystemPrompt({ runtime: { provider: "ollama", model: config.ollama.defaultModel } }) },
       { role: "user", content: smokePrompt }
     ]);
     const tElapsed = Date.now() - tChat0;
@@ -132,7 +132,7 @@ async function runOllamaVerification(): Promise<void> {
       const start = Date.now();
       try {
         const res = await provider.chat([
-          { role: "system", content: getAlfredSystemPrompt() },
+          { role: "system", content: getAlfredSystemPrompt({ runtime: { provider: "ollama", model: config.ollama.defaultModel } }) },
           { role: "user", content: promptText }
         ], {
           temperature: 0.6,

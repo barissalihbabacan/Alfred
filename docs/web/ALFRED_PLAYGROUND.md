@@ -127,8 +127,8 @@ npm run build:web
 ## 7. Deployment
 
 - `firebase.json` → `hosting.public: "apps/web/out"`, rewrites `/api/** → api` and `** → /index.html`; `Cache-Control: no-cache` everywhere except `/_next/static/**` (`public, max-age=31536000, immutable`).
-- `.github/workflows/deploy.yml` runs on pushes to `main`: the CI job (typecheck, unit tests, web typecheck, web build) must pass, then it runs `npm ci`, `npm run build:web`, and `firebase deploy --only hosting,functions`.
-- Manual deploy: `npm run build:web && npx firebase-tools deploy --only hosting,functions`.
+- `.github/workflows/deploy.yml` runs on pushes to `main`: the CI job (typecheck, unit tests, web typecheck, web build) must pass, then it runs `npm ci`, `npm run build:web`, and `firebase deploy --only hosting,functions,firestore:rules,firestore:indexes`.
+- Manual deploy: `npm run build:web && npx firebase-tools deploy --only hosting,functions,firestore:rules,firestore:indexes`.
 - Rollback: `firebase hosting:rollback`, or Firebase console → Hosting → Release history → Roll back. This restores the previous static release without a rebuild; the Cloud Function is not affected.
 
 ---

@@ -20,15 +20,15 @@ Firebase Hosting ── /api/** rewrite ──►  Cloud Function 2nd Gen `api` 
                                             ▼
                                         Groq API (openai/gpt-oss-120b)      ◄── default
                                         MacBook Ollama over Tailscale        ◄── only if ALFRED_LLM_PROVIDER=ollama
-                                            │  tool calls: get_current_time, ssh_connect,
-                                            │  ssh_list_directory, ssh_execute (5 allow-listed commands)
+                                            │  tool calls: get_current_time (the only tool offered;
+                                            │  server access over SSH is not connected)
                                             ▼
                                         SSE stream back to the browser
                                         then memory extraction (≤ 10 s) → Firestore memory_vectors
 ```
 
 - **One HTTP entry point.** Everything server-side runs in the `api` function. The web app is a static export with no route handlers or SSR.
-- **`functions/index.js` is bundled with `src/`.** esbuild builds it into `functions/lib/index.js` together with the shared `src/` modules it imports: the system prompt and user profile, memory-extraction prompt and candidate validation, `PrivacyFilter`, cosine similarity, conversation titles, the `get_current_time` tool, the embedding calls (`src/ai/embedding/embedding-client.ts`), and the SSH tools (definitions, argument checks and production's placeholder results). The rest of `functions/index.js` (chiefly Firestore memory persistence) is still hand-written and separate from its `src/` counterparts.
+- **`functions/index.js` is bundled with `src/`.** esbuild builds it into `functions/lib/index.js` together with the shared `src/` modules it imports: the system prompt and user profile, memory-extraction prompt and candidate validation, `PrivacyFilter`, cosine similarity, conversation titles, the `get_current_time` tool, and the embedding calls (`src/ai/embedding/embedding-client.ts`). The rest of `functions/index.js` (chiefly Firestore memory persistence) is still hand-written and separate from its `src/` counterparts.
 - **Secrets** (`GROQ_API_KEY`, `GEMINI_API_KEY`) live only in Secret Manager and are bound to the function. The browser never sees or sends a key.
 
 ---
@@ -219,13 +219,14 @@ The Execution Plane (`src/alfred/execution-plane/`) contains capabilities Alfred
 - **SSH** (implemented): `ssh2`-based client with a mock for tests, connection manager, an allow-listed command registry (`list_directory`, `disk_usage`, `current_directory`, `identity`, `system_info`), path sandbox, and `ls` parser. Hosts are referred to by alias (`home-server`), never by raw credentials in tool arguments.
 - **GitHub, Gmail, Calendar, Files, Browser, Terminal, Web Search, External APIs** (planned): Directories exist, but they are empty.
 
-Production offers the model exactly four tools, all imported from `src/ai/tools/`:
-- `get_current_time`, shared with `src/ai/tools/time/`. Its resolver folds Turkish and accented spellings and drops country suffixes;
-- `ssh_connect`;
-- `ssh_list_directory`;
-- `ssh_execute`, limited to the five allow-listed commands.
+Production offers the model exactly one tool: `get_current_time`, shared with `src/ai/tools/time/` (its resolver folds Turkish and accented spellings and drops country suffixes).
 
-The three SSH definitions and their argument checks live in `src/ai/tools/ssh/ssh-tool-definitions.ts`. Production does **not** connect over SSH: `functions/index.js` returns the canned results in `src/ai/tools/ssh/ssh-placeholder.ts` (a fixed `Belgeler/` listing, `df`, `pwd`, `whoami` and `uname` snapshots) after the same default host/path, allow-list check and path deny-list. The real execution plane above (ssh2 client, host registry, `SSHPathSandbox`, `ls` parser) is used only by the src tools and is not wired into production.
+**SSH is not connected in production.** The `api` function has no SSH connection. The `ssh_*` tools used to return canned output (a fixed `Belgeler/` listing, `df`, `pwd`, `whoami` and `uname` snapshots), which Alfred presented as real server state. They were therefore removed from the tool list:
+- An unexpected `ssh_*` call gets `Tool … not recognized.`
+- The persona tells Alfred to say plainly that server access is not connected, and never to invent connection results, listings, disk figures or command output.
+- `buildAlfredSystemPrompt({ sshAvailable: true })` restores the SSH instructions for a caller that really executes them.
+
+The SSH execution plane above (ssh2 client, host registry, `SSHPathSandbox`, `ls` parser) and the tool definitions in `src/ai/tools/ssh/ssh-tool-definitions.ts` stay available to the `src/` tools. Wiring real SSH into production (for example over Tailscale, with credentials in Secret Manager) is a separate design decision.
 
 ---
 

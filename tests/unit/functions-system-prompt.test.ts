@@ -150,50 +150,59 @@ describe("3. capability line matches what production runs", () => {
     expect(buildAlfredSystemPrompt({ runtime: OLLAMA })).toContain(ollama);
   });
 
-  it("the tool list is exactly the tools functions/index.js offers the model", () => {
+  it("the tool list is exactly the tools functions/index.js offers the model (get_current_time only)", () => {
     const active = /let activeTools = \[([^\]]*)\]/.exec(functionsSource)?.[1] ?? "";
-    expect(active.split(",").map((s) => s.trim()).filter(Boolean)).toEqual([
-      "TIME_TOOL_DEFINITION",
-      "SSH_TOOL_DEFINITION",
-      "SSH_LIST_DIRECTORY_TOOL_DEFINITION",
-      "SSH_EXECUTE_TOOL_DEFINITION"
-    ]);
-    // The SSH definitions are imported from src (bundled), not redefined inline.
-    expect(functionsSource).toContain(`import {
-  SSH_CONNECT_TOOL_DEFINITION as SSH_TOOL_DEFINITION,
-  SSH_LIST_DIRECTORY_TOOL_DEFINITION,
-  SSH_EXECUTE_TOOL_DEFINITION
-} from "../src/ai/tools/ssh/ssh-tool-definitions.js";`);
-    expect(functionsSource).not.toMatch(/const SSH_\w*TOOL_DEFINITION\b/);
-    expect(
-      [SSH_CONNECT_TOOL_DEFINITION, SSH_LIST_DIRECTORY_TOOL_DEFINITION, SSH_EXECUTE_TOOL_DEFINITION].map(
-        (def) => def.function.name
-      )
-    ).toEqual(["ssh_connect", "ssh_list_directory", "ssh_execute"]);
-    expect(ALFRED_PERSONA_PROMPT).toContain(
-      "deterministic tool calling (get_current_time, ssh_connect, ssh_list_directory, ssh_execute)."
-    );
+    expect(active.split(",").map((s) => s.trim()).filter(Boolean)).toEqual(["TIME_TOOL_DEFINITION"]);
+    expect(functionsSource).not.toContain("ssh-tool-definitions.js");
+    expect(ALFRED_PERSONA_PROMPT).toContain("and deterministic tool calling (get_current_time).");
+    expect(ALFRED_PERSONA_PROMPT).toContain("- You have access to one tool: `get_current_time`.");
+    for (const name of ["ssh_connect", "ssh_list_directory", "ssh_execute"]) {
+      expect(ALFRED_SYSTEM_PROMPT).not.toContain(name);
+    }
   });
 
-  it("the SSH allow-list is exactly the ssh_execute enum functions/index.js sends", () => {
+  it("says server access is not connected and forbids inventing server state", () => {
+    expect(ALFRED_PERSONA_PROMPT).toContain(
+      "- Not yet connected: access to Barış's servers (the home server over SSH: connecting, listing folders, disk usage, identity, system info or any command)"
+    );
+    expect(ALFRED_PERSONA_PROMPT).toContain("say plainly that server access is not connected to you yet");
+    expect(ALFRED_PERSONA_PROMPT).toContain(
+      "Never invent connection results, file listings, disk figures, usernames, system details or command output."
+    );
+    expect(ALFRED_PERSONA_PROMPT).toContain("Never claim you executed, checked, or verified anything unless an actual tool invocation occurred.");
+    expect(ALFRED_PERSONA_PROMPT).not.toContain("Belgeler/` sandbox");
+  });
+
+  it("sshAvailable restores the SSH instructions for a caller that really executes them", () => {
+    const withSsh = buildAlfredPersonaPrompt(GROQ, true);
+    expect(withSsh).toContain("deterministic tool calling (get_current_time, ssh_connect, ssh_list_directory, ssh_execute).");
+    expect(withSsh).toContain('invoke the `ssh_connect` tool with host: "home-server"');
+    expect(withSsh).toContain("Your access is strictly confined to the `Belgeler/` sandbox");
+    expect(withSsh).not.toContain("server access is not connected to you yet");
+    expect(buildAlfredSystemPrompt({ sshAvailable: true })).toContain(withSsh);
+    // Same rules as before SSH was switched off in production.
+    expect(withSsh).toContain("Google Calendar, Gmail, and external web search are not yet connected.");
+  });
+
+  it("the SSH allow-list text (when enabled) is exactly the ssh_execute enum", () => {
     const allowed = ["list_directory", "disk_usage", "current_directory", "identity", "system_info"];
     expect(SSH_EXECUTE_TOOL_DEFINITION.function.parameters.properties.command.enum).toEqual(allowed);
     expect(SSH_EXECUTE_TOOL_DEFINITION.function.description).toContain(
       `Permitted commands: ${allowed.map((c) => `'${c}'`).join(", ")}.`
     );
-    expect(ALFRED_PERSONA_PROMPT).toContain(
+    expect([SSH_CONNECT_TOOL_DEFINITION, SSH_LIST_DIRECTORY_TOOL_DEFINITION, SSH_EXECUTE_TOOL_DEFINITION].map((d) => d.function.name))
+      .toEqual(["ssh_connect", "ssh_list_directory", "ssh_execute"]);
+    expect(buildAlfredPersonaPrompt(GROQ, true)).toContain(
       "You may execute `ssh_execute` exclusively for five controlled commands: `list_directory`, `disk_usage`, `current_directory`, `identity`, and `system_info`."
     );
   });
 
-  it("keeps the unchanged persona rules (Turkish replies, forms of address, SSH host, sandbox)", () => {
+  it("keeps the unchanged persona rules (Turkish replies, forms of address, unconnected services)", () => {
     expect(ALFRED_PERSONA_PROMPT).toContain(
       "When Barış addresses you in Turkish (Türkçe), you MUST respond fluently and naturally in Turkish"
     );
     expect(ALFRED_PERSONA_PROMPT).toContain('"sir" (in English) or "Efendim" / "Barış Bey" (in Turkish)');
-    expect(ALFRED_PERSONA_PROMPT).toContain('invoke the `ssh_connect` tool with host: "home-server"');
-    expect(ALFRED_PERSONA_PROMPT).toContain("Your access is strictly confined to the `Belgeler/` sandbox");
-    expect(ALFRED_PERSONA_PROMPT).toContain("Google Calendar, Gmail, and external web search are not yet connected.");
+    expect(ALFRED_PERSONA_PROMPT).toContain("Google Calendar, Gmail, and external web search.");
   });
 });
 

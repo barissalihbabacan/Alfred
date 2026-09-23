@@ -5,6 +5,7 @@ import { initializeApp, getApps } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { getAppCheck } from "firebase-admin/app-check";
+import * as logger from "firebase-functions/logger";
 
 setGlobalOptions({ maxInstances: 10, timeoutSeconds: 120, memory: "512MiB" });
 
@@ -41,6 +42,29 @@ if (getApps().length === 0) {
 
 const db = getFirestore();
 db.settings({ ignoreUndefinedProperties: true });
+
+// Yapilandirilmis (JSON) operasyonel loglar. firebase-functions/logger tek
+// satirlik JSON yazar; Cloud Logging bunu jsonPayload olarak ayristirir ve
+// severity/message alanlarini kullanir. Her olayin sabit bir `event` alani
+// vardir (llm_request, tool_call, memory_retrieval, memory_extraction), boylece
+// Cloud Logging'de jsonPayload.event="llm_request" gibi sorgulanabilir.
+//
+// Buraya asla API anahtari, ID token, tam kullanici mesaji ya da bellek icerigi
+// konmaz (mevcut "Stored long-term memory" satiri disinda).
+//
+// logger.write kullanilir: logger.error, message alanina yigin izi ekler ve
+// her olayi Error Reporting'e tasir; metrik olaylarinda message okunur kalmali.
+function logEvent(severity, event, message, fields = {}) {
+  logger.write({ ...fields, severity, message, event });
+}
+
+function msSince(start) {
+  return Math.round(performance.now() - start);
+}
+
+function errMessage(err) {
+  return String(err?.message || err || "unknown error").slice(0, 300);
+}
 
 function generateDeterministicTitle(message) {
   const clean = message
@@ -115,10 +139,14 @@ async function getEmbedding(text, ollamaUrl, geminiKey) {
         }
       } else {
         const errText = await embedRes.text().catch(() => "");
-        console.warn(`[Embedding] Gemini ${GEMINI_EMBEDDING_MODEL} HTTP ${embedRes.status}: ${errText}`);
+        logger.warn(`[Embedding] Gemini ${GEMINI_EMBEDDING_MODEL} HTTP ${embedRes.status}: ${errText}`, {
+          event: "embedding_error", model: GEMINI_EMBEDDING_MODEL, http_status: embedRes.status
+        });
       }
     } catch (gErr) {
-      console.warn("[Embedding] Gemini embedding call failed:", gErr?.message || gErr);
+      logger.warn(`[Embedding] Gemini embedding call failed: ${errMessage(gErr)}`, {
+        event: "embedding_error", model: GEMINI_EMBEDDING_MODEL
+      });
     }
   }
 
@@ -147,17 +175,22 @@ async function getEmbedding(text, ollamaUrl, geminiKey) {
   throw new Error("[Embedding] Neither Gemini nor Ollama could generate embedding (check GEMINI_API_KEY).");
 }
 
-async function retrieveRelevantMemories(db, query, userId, topK = 5, minScore = 0.35) {
+// `stats` verilirse metrik alanlariyla doldurulur (memory_retrieval olayi icin).
+async function retrieveRelevantMemories(db, query, userId, topK = 5, minScore = 0.35, stats = null) {
   const memSnap = await db.collection("memory_vectors")
     .where("userId", "==", userId)
     .where("status", "==", "active")
     .get();
 
   const scored = [];
+  let candidateCount = 0;
+  let topScore = null;
   for (const doc of memSnap.docs) {
     const d = doc.data();
     if (karsilastirilabilir(d, query.model)) {
+      candidateCount++;
       const score = cosineSimilarity(query.values, d.embedding);
+      if (topScore === null || score > topScore) topScore = score;
       if (score >= minScore) {
         scored.push({
           memoryId: d.memoryId || doc.id,
@@ -169,7 +202,15 @@ async function retrieveRelevantMemories(db, query, userId, topK = 5, minScore = 
     }
   }
   scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, topK);
+  const result = scored.slice(0, topK);
+  if (stats) {
+    stats.active_count = memSnap.size;
+    stats.candidate_count = candidateCount;
+    stats.above_threshold_count = scored.length;
+    stats.returned_count = result.length;
+    stats.top_score = topScore === null ? null : Number(topScore.toFixed(4));
+  }
+  return result;
 }
 
 const MEMORY_EXTRACTION_BUDGET_MS = 10000;
@@ -246,6 +287,23 @@ If there is nothing worth remembering, return {"shouldRemember": false, "memorie
   const userPrompt = `${contextSegments.join("\n")}\n\nAnalyze the above exchange. Output JSON only.`;
 
   let extractionResText = "";
+  let extractorProvider = null;
+  // Aday basina sonuc sayaclari; memory_extraction olayi icin dondurulur.
+  const tally = { stored: 0, superseded: 0, retracted: 0, duplicate: 0, rejected: 0, failed: 0 };
+  const summarize = (fallbackOutcome) => {
+    const outcome = tally.superseded ? "superseded"
+      : tally.stored ? "stored"
+        : tally.retracted ? "retracted"
+          : tally.duplicate ? "duplicate"
+            : tally.failed ? "failed"
+              : fallbackOutcome;
+    return {
+      outcome,
+      count: tally.stored + tally.retracted,
+      extractor_provider: extractorProvider,
+      ...tally
+    };
+  };
 
   // 1. Try Groq if key is available
   if (groqKey) {
@@ -270,12 +328,17 @@ If there is nothing worth remembering, return {"shouldRemember": false, "memorie
       if (gRes.ok) {
         const gData = await gRes.json();
         extractionResText = gData.choices?.[0]?.message?.content || "";
+        if (extractionResText) extractorProvider = "groq";
       } else {
         const errTxt = await gRes.text().catch(() => "");
-        console.warn(`[Memory] Groq extraction HTTP ${gRes.status}: ${errTxt}`);
+        logger.warn(`[Memory] Groq extraction HTTP ${gRes.status}: ${errTxt}`, {
+          event: "memory_extraction_provider_error", provider: "groq", http_status: gRes.status
+        });
       }
     } catch (gErr) {
-      console.warn("[Memory] Groq extraction error:", gErr?.message || gErr);
+      logger.warn(`[Memory] Groq extraction error: ${errMessage(gErr)}`, {
+        event: "memory_extraction_provider_error", provider: "groq"
+      });
     }
   }
 
@@ -299,13 +362,16 @@ If there is nothing worth remembering, return {"shouldRemember": false, "memorie
       if (res.ok) {
         const oData = await res.json();
         extractionResText = oData?.message?.content || "";
+        if (extractionResText) extractorProvider = "ollama";
       }
     } catch (err) {
-      console.warn("[Memory] Ollama extraction call failed:", err?.message || err);
+      logger.warn(`[Memory] Ollama extraction call failed: ${errMessage(err)}`, {
+        event: "memory_extraction_provider_error", provider: "ollama"
+      });
     }
   }
 
-  if (!extractionResText) return;
+  if (!extractionResText) return summarize("failed");
 
   const rawText = extractionResText;
 
@@ -325,12 +391,15 @@ If there is nothing worth remembering, return {"shouldRemember": false, "memorie
   try {
     parsed = JSON.parse(clean);
   } catch {
-    return;
+    logger.warn("[Memory] Extraction response was not valid JSON.", {
+      event: "memory_extraction_parse_error", provider: extractorProvider
+    });
+    return summarize("failed");
   }
 
   if (!parsed || !parsed.shouldRemember || !Array.isArray(parsed.memories)) {
-    console.log("[Memory] Nothing worth remembering in this turn.");
-    return;
+    logger.info("[Memory] Nothing worth remembering in this turn.");
+    return summarize("nothing");
   }
 
   const SENSITIVE_PATTERNS = [
@@ -348,7 +417,11 @@ If there is nothing worth remembering, return {"shouldRemember": false, "memorie
     if ((candidate.confidence || 0) < 0.70) continue;
 
     if (SENSITIVE_PATTERNS.some(re => re.test(content))) {
-      console.warn("[Memory] Candidate rejected due to sensitive data policy:", content);
+      // Aday gizli bilgi iceriyor: icerigi loglamak onu sizdirmak olur.
+      logger.warn("[Memory] Candidate rejected due to sensitive data policy.", {
+        memory_type: candidate.memoryType || "general"
+      });
+      tally.rejected++;
       continue;
     }
 
@@ -380,10 +453,12 @@ If there is nothing worth remembering, return {"shouldRemember": false, "memorie
             status: "retracted",
             updatedAt: Timestamp.now()
           });
-          console.log(`[Memory] Retracted memory ${bestMatch.id} ("${bestMatch.data().content}")`);
+          logger.info(`[Memory] Retracted memory ${bestMatch.id} ("${bestMatch.data().content}")`);
+          tally.retracted++;
         }
       } catch (forgetErr) {
-        console.warn("[Memory] Retraction failed:", forgetErr?.message || forgetErr);
+        logger.warn(`[Memory] Retraction failed: ${errMessage(forgetErr)}`);
+        tally.failed++;
       }
       continue;
     }
@@ -404,7 +479,7 @@ If there is nothing worth remembering, return {"shouldRemember": false, "memorie
           const score = cosineSimilarity(embedding.values, d.embedding);
           if (action === "create" && score >= 0.85) {
             isDuplicate = true;
-            console.log(`[Memory] Suppressed duplicate memory: "${content}" (score: ${score})`);
+            logger.info(`[Memory] Suppressed duplicate memory: "${content}" (score: ${score})`);
             break;
           }
           if (action === "supersede" && score >= 0.5 && !supersedeTargetDoc) {
@@ -413,7 +488,10 @@ If there is nothing worth remembering, return {"shouldRemember": false, "memorie
         }
       }
 
-      if (isDuplicate) continue;
+      if (isDuplicate) {
+        tally.duplicate++;
+        continue;
+      }
 
       const memoryId = `mem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       const now = Timestamp.now();
@@ -424,7 +502,7 @@ If there is nothing worth remembering, return {"shouldRemember": false, "memorie
           supersededByMemoryId: memoryId,
           updatedAt: now
         });
-        console.log(`[Memory] Superseded memory ${supersedeTargetDoc.id} with ${memoryId}`);
+        logger.info(`[Memory] Superseded memory ${supersedeTargetDoc.id} with ${memoryId}`);
       }
 
       await db.collection("memory_vectors").doc(memoryId).set({
@@ -448,11 +526,16 @@ If there is nothing worth remembering, return {"shouldRemember": false, "memorie
         indexedAt: now
       });
 
-      console.log(`[Memory] Stored long-term memory in Firestore: "${content}" (${candidate.memoryType})`);
+      logger.info(`[Memory] Stored long-term memory in Firestore: "${content}" (${candidate.memoryType})`);
+      tally.stored++;
+      if (action === "supersede" && supersedeTargetDoc) tally.superseded++;
     } catch (saveErr) {
-      console.warn("[Memory] Failed to save memory candidate:", saveErr?.message || saveErr);
+      logger.warn(`[Memory] Failed to save memory candidate: ${errMessage(saveErr)}`);
+      tally.failed++;
     }
   }
+
+  return summarize("nothing");
 }
 
 const ALFRED_SYSTEM_PROMPT = `You are B.U.T.L.E.R. Alfred (Barış's Unified Task, Logic, Execution & Reasoning).
@@ -1082,14 +1165,35 @@ function getCurrentTimeForCity(city) {
 
     // 4. Retrieve relevant long-term semantic memories (cloud Gemini or Ollama)
     let retrievedMemories = [];
+    const MEMORY_TOP_K = 5;
+    const MEMORY_MIN_SCORE = 0.35;
+    const retrievalStart = performance.now();
+    let embeddingModel = null;
     try {
       const queryEmbedding = await getEmbedding(trimmedMessage, ollamaUrl, geminiKey);
-      retrievedMemories = await retrieveRelevantMemories(db, queryEmbedding, userId, 5, 0.35);
-      if (retrievedMemories.length > 0) {
-        console.log(`[Memory] Retrieved ${retrievedMemories.length} relevant memories for user ${userId}`);
-      }
+      embeddingModel = queryEmbedding.model;
+      const embeddingMs = msSince(retrievalStart);
+      const retrievalStats = {};
+      retrievedMemories = await retrieveRelevantMemories(db, queryEmbedding, userId, MEMORY_TOP_K, MEMORY_MIN_SCORE, retrievalStats);
+      logEvent("INFO", "memory_retrieval",
+        `[Memory] Retrieved ${retrievedMemories.length} relevant memories for user ${userId}`, {
+          outcome: "ok",
+          embedding_model: embeddingModel,
+          top_k: MEMORY_TOP_K,
+          min_score: MEMORY_MIN_SCORE,
+          ...retrievalStats,
+          embedding_ms: embeddingMs,
+          duration_ms: msSince(retrievalStart)
+        });
     } catch (memSearchErr) {
-      console.warn("Semantic memory retrieval bypassed:", memSearchErr?.message || memSearchErr);
+      logEvent("WARNING", "memory_retrieval",
+        `[Memory] Semantic memory retrieval bypassed: ${errMessage(memSearchErr)}`, {
+          outcome: "error",
+          embedding_model: embeddingModel,
+          top_k: MEMORY_TOP_K,
+          min_score: MEMORY_MIN_SCORE,
+          duration_ms: msSince(retrievalStart)
+        });
     }
 
     let systemPromptWithMemories = ALFRED_SYSTEM_PROMPT;
@@ -1168,8 +1272,9 @@ function getCurrentTimeForCity(city) {
       // kalir ya da hic calismaz. Istemci "done" olayini zaten aldi; burada
       // yalnizca baglantinin kapanmasi gecikir, o da en fazla
       // MEMORY_EXTRACTION_BUDGET_MS kadar.
+      const extractionStart = performance.now();
       try {
-        await withTimeout(extractAndPersistMemories({
+        const summary = await withTimeout(extractAndPersistMemories({
           db,
           ollamaUrl,
           ollamaModel,
@@ -1183,9 +1288,66 @@ function getCurrentTimeForCity(city) {
           sourceMessageIds: [userMsgRef.id, asstMsgDocId].filter(Boolean),
           recentHistory: boundedHistory
         }), MEMORY_EXTRACTION_BUDGET_MS, "memory extraction");
+        const outcome = summary?.outcome || "nothing";
+        logEvent(outcome === "failed" ? "WARNING" : "INFO", "memory_extraction",
+          `[Memory] Extraction finished: ${outcome}`, {
+            ...summary,
+            outcome,
+            count: summary?.count || 0,
+            duration_ms: msSince(extractionStart)
+          });
       } catch (memExtErr) {
-        console.warn("[Memory] Extraction skipped:", memExtErr?.message || memExtErr);
+        const timedOut = /timed out/i.test(String(memExtErr?.message || ""));
+        logEvent("WARNING", "memory_extraction",
+          `[Memory] Extraction skipped: ${errMessage(memExtErr)}`, {
+            outcome: timedOut ? "timeout" : "failed",
+            count: 0,
+            budget_ms: MEMORY_EXTRACTION_BUDGET_MS,
+            duration_ms: msSince(extractionStart)
+          });
       }
+    };
+
+    // llm_request olayi icin tur boyunca biriken metrikler. Tur basina tek olay
+    // yazilir; birden fazla model cagrisi (arac turlari) toplanir.
+    const llmStart = performance.now();
+    const llmMetrics = {
+      provider: activeProvider,
+      model: currentModel,
+      llm_calls: 0,
+      tool_rounds: 0,
+      tool_calls: 0,
+      rate_limit_retries: 0,
+      time_to_first_token_ms: null,
+      prompt_tokens: null,
+      completion_tokens: null,
+      total_tokens: null,
+      reasoning_tokens: null
+    };
+    const addUsage = (usage) => {
+      if (!usage || typeof usage !== "object") return;
+      for (const [field, value] of [
+        ["prompt_tokens", usage.prompt_tokens],
+        ["completion_tokens", usage.completion_tokens],
+        ["total_tokens", usage.total_tokens],
+        ["reasoning_tokens", usage.completion_tokens_details?.reasoning_tokens]
+      ]) {
+        if (typeof value === "number") llmMetrics[field] = (llmMetrics[field] || 0) + value;
+      }
+    };
+    const markFirstToken = () => {
+      if (llmMetrics.time_to_first_token_ms === null) {
+        llmMetrics.time_to_first_token_ms = msSince(llmStart);
+      }
+    };
+    const logLlmRequest = (outcome, err) => {
+      logEvent(outcome === "ok" ? "INFO" : "ERROR", "llm_request",
+        `LLM request ${outcome} (${activeProvider}/${currentModel}) in ${msSince(llmStart)}ms`, {
+          ...llmMetrics,
+          outcome,
+          latency_ms: msSince(llmStart),
+          ...(err ? { error: errMessage(err) } : {})
+        });
     };
 
     try {
@@ -1222,6 +1384,7 @@ function getCurrentTimeForCity(city) {
 
           let attempts = 0;
           let groqRes;
+          llmMetrics.llm_calls++;
           while (attempts < 3) {
             attempts++;
             groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -1244,7 +1407,10 @@ function getCurrentTimeForCity(city) {
                 waitSec = match ? parseFloat(match[1]) + 0.6 : 5.0;
               }
               const waitMs = Math.min(Math.max(waitSec * 1000, 2500), 15000);
-              console.warn(`[Groq] Rate limit (429) hit, waiting ${Math.round(waitMs)}ms before retry ${attempts}...`);
+              llmMetrics.rate_limit_retries++;
+              logger.warn(`[Groq] Rate limit (429) hit, waiting ${Math.round(waitMs)}ms before retry ${attempts}...`, {
+                event: "llm_rate_limited", provider: "groq", model: groqModel, wait_ms: Math.round(waitMs), attempt: attempts
+              });
               await new Promise((r) => setTimeout(r, waitMs));
               continue;
             }
@@ -1277,11 +1443,20 @@ function getCurrentTimeForCity(city) {
 
               try {
                 const chunk = JSON.parse(dataStr);
+                // Groq token kullanimini finish_reason'li son chunk'ta verir;
+                // stream_options olmadan da hem `usage` hem `x_groq.usage` gelir
+                // (ikisi ayni degerdir, yalnizca biri sayilir). stream_options
+                // include_usage bilerek eklenmedi: ayni kullanimi choices: [] olan
+                // ek bir chunk'ta tekrar gonderir ve toplam iki kat sayilirdi.
+                // Kullanim, choice kontrolunden once okunur.
+                addUsage(chunk.usage || chunk.x_groq?.usage);
                 const choice = chunk.choices?.[0];
                 if (!choice) continue;
 
                 const delta = choice.delta;
                 if (!delta) continue;
+
+                if (delta.content || delta.tool_calls) markFirstToken();
 
                 if (delta.tool_calls && Array.isArray(delta.tool_calls)) {
                   for (const tc of delta.tool_calls) {
@@ -1331,6 +1506,7 @@ function getCurrentTimeForCity(city) {
             requestBody.tools = activeTools;
           }
 
+          llmMetrics.llm_calls++;
           const ollamaRes = await fetch(`${ollamaUrl.replace(/\/+$/, "")}/api/chat`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1362,6 +1538,14 @@ function getCurrentTimeForCity(city) {
               try {
                 const chunk = JSON.parse(trimmed);
 
+                if (chunk.message?.content || chunk.message?.tool_calls?.length) markFirstToken();
+                // Ollama son chunk'ta (done: true) token sayilarini verir.
+                if (chunk.done && (typeof chunk.prompt_eval_count === "number" || typeof chunk.eval_count === "number")) {
+                  const p = chunk.prompt_eval_count || 0;
+                  const c = chunk.eval_count || 0;
+                  addUsage({ prompt_tokens: p, completion_tokens: c, total_tokens: p + c });
+                }
+
                 if (chunk.message?.tool_calls && chunk.message.tool_calls.length > 0) {
                   passToolCalls.push(...chunk.message.tool_calls);
                 }
@@ -1381,6 +1565,8 @@ function getCurrentTimeForCity(city) {
         }
 
         if (passToolCalls.length > 0) {
+          llmMetrics.tool_rounds++;
+          llmMetrics.tool_calls += passToolCalls.length;
           sendEvent({
             type: "tool_call",
             toolCalls: passToolCalls.map((tc) => ({
@@ -1410,6 +1596,7 @@ function getCurrentTimeForCity(city) {
               try { fnArgs = JSON.parse(fnArgs); } catch {}
             }
 
+            const toolStart = performance.now();
             let toolResult;
             if (fnName === "get_current_time") {
               toolResult = getCurrentTimeForCity(fnArgs?.city);
@@ -1529,6 +1716,23 @@ function getCurrentTimeForCity(city) {
               toolResult = { error: `Tool ${fnName} not recognized.` };
             }
 
+            // Argumanlar loglanmaz; yalnizca arac adi ve (izin listesindeyse)
+            // ssh_execute komut adi.
+            const toolOk = !toolResult?.error;
+            const toolName = typeof fnName === "string" ? fnName.slice(0, 64) : null;
+            const sshCommand = fnName === "ssh_execute" && SSH_EXECUTE_TOOL_DEFINITION.function.parameters.properties.command.enum.includes(fnArgs?.command)
+              ? fnArgs.command
+              : undefined;
+            logEvent(toolOk ? "INFO" : "WARNING", "tool_call",
+              `Tool ${toolName} ${toolOk ? "ok" : "error"}`, {
+                tool: toolName,
+                command: sshCommand,
+                provider: activeProvider,
+                round: toolTurn,
+                outcome: toolOk ? "ok" : "error",
+                duration_ms: msSince(toolStart)
+              });
+
             sendEvent({ type: "tool_call", tool: fnName, arguments: fnArgs });
             sendEvent({ type: "tool_result", tool: fnName, toolCallId: tc.id, result: toolResult });
 
@@ -1546,6 +1750,7 @@ function getCurrentTimeForCity(city) {
         }
       }
 
+      logLlmRequest("ok");
       sendEvent({ type: "done" });
       const cleanContent = accumulatedText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
       if (cleanContent) {
@@ -1553,6 +1758,7 @@ function getCurrentTimeForCity(city) {
       }
       res.end();
     } catch (err) {
+      logLlmRequest("error", err);
       console.error(`Cloud Function ${activeProvider} stream failed:`, err);
 
       // Persist interrupted message if partially generated

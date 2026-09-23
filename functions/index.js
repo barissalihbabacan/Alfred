@@ -234,7 +234,8 @@ async function extractAndPersistMemories({
   let extractionResText = "";
   let extractorProvider = null;
   // Aday basina sonuc sayaclari; memory_extraction olayi icin dondurulur.
-  const tally = { stored: 0, superseded: 0, retracted: 0, duplicate: 0, rejected: 0, failed: 0 };
+  // rejected: gizli bilgi filtresi; invalid: validateMemoryCandidate reddetti.
+  const tally = { stored: 0, superseded: 0, retracted: 0, duplicate: 0, rejected: 0, invalid: 0, failed: 0 };
   const summarize = (fallbackOutcome) => {
     const outcome = tally.superseded ? "superseded"
       : tally.stored ? "stored"
@@ -339,17 +340,21 @@ async function extractAndPersistMemories({
   }
 
   for (const candidate of memories) {
-    // Aday dogrulamasi src/ ile ortak (validateMemoryCandidate): icerik, uzunluk
-    // ve guven esigi. null donen aday sessizce atlanir (sayaca yazilmaz).
+    // Aday dogrulamasi src/ ile ortak (validateMemoryCandidate): nesne olmayan
+    // aday, icerik, uzunluk ve guven esigi; action ve memoryType istemdeki
+    // degerlere normalize edilir. Gecersiz aday atlanir, liste devam eder.
     const validated = validateMemoryCandidate(candidate);
-    if (!validated) continue;
+    if (!validated) {
+      tally.invalid++;
+      continue;
+    }
     const content = validated.content;
 
     // Gizli bilgi filtresi src/ ile ortak (PrivacyFilter); bkz. privacy-filter.ts.
     if (!PrivacyFilter.check(content).isSafe) {
       // Aday gizli bilgi iceriyor: icerigi loglamak onu sizdirmak olur.
       logger.warn("[Memory] Candidate rejected due to sensitive data policy.", {
-        memory_type: candidate.memoryType || "general"
+        memory_type: validated.memoryType
       });
       tally.rejected++;
       continue;
@@ -456,7 +461,7 @@ async function extractAndPersistMemories({
         indexedAt: now
       });
 
-      logger.info(`[Memory] Stored long-term memory in Firestore: "${content}" (${candidate.memoryType})`);
+      logger.info(`[Memory] Stored long-term memory in Firestore: "${content}" (${validated.memoryType})`);
       tally.stored++;
       if (action === "supersede" && supersedeTargetDoc) tally.superseded++;
     } catch (saveErr) {

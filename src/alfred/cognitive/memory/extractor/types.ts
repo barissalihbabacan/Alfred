@@ -8,7 +8,6 @@ export interface ExtractedMemoryCandidate {
   confidence: number;
   action: MemoryExtractionAction;
   subject?: string;
-  targetMemoryHint?: string;
   reasoning?: string;
 }
 

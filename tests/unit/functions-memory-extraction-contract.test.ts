@@ -6,6 +6,11 @@ import {
   getMemoryExtractionCandidates,
   parseMemoryExtractionResponse,
   validateMemoryCandidate,
+  normalizeMemoryAction,
+  normalizeMemoryType,
+  parseMemoryConfidence,
+  MEMORY_EXTRACTION_ACTIONS,
+  MEMORY_EXTRACTION_TYPES,
   MEMORY_MIN_CONFIDENCE,
   type ValidatedMemoryCandidate
 } from "../../src/ai/prompts/memory-extraction.js";
@@ -17,9 +22,15 @@ import { DEFAULT_EXTRACTION_MIN_CONFIDENCE } from "../../src/core/config/memory.
  * Production contract for the memory-extraction prompt, candidate validation
  * and conversation titles, which functions/index.js now imports from src/
  * (bundled via esbuild). The `legacy*` functions below are verbatim copies of
- * the code functions/index.js carried inline before the migration; the
- * differential tests prove the shared modules make the same decision for
- * every input, so the migration is a no-op in production.
+ * the code functions/index.js carried inline before the migration.
+ *
+ * The candidate validation has since been fixed on purpose (null entries no
+ * longer abort the turn; unknown actions are "create"; memoryType and
+ * confidence are validated), and the prompt no longer asks for the unused
+ * targetMemoryHint. The differential tests therefore prove two things: on
+ * every input where the legacy loop was right (`legacyWasCorrect`) the shared
+ * validator makes the identical decision, and on every input it matches the
+ * fixed rules (`fixedDecide`: clean the three fields, then run the legacy loop).
  */
 
 // ---------------------------------------------------------------------------
@@ -113,11 +124,62 @@ function legacyGenerateDeterministicTitle(message: string): string {
 // Helpers
 // ---------------------------------------------------------------------------
 
+const PROMPT_ACTIONS = ["create", "forget", "supersede"];
+const PROMPT_TYPES = [
+  "user_preference", "user_fact", "project_fact", "architectural_decision", "technical_preference",
+  "constraint", "relationship", "workflow", "general"
+];
+
+/**
+ * The inputs on which the legacy loop was already right, i.e. everything the
+ * validation fixes leave alone: a plain object whose action is missing/falsy
+ * or exactly one of the prompt's actions, whose memoryType is missing/falsy
+ * or exactly one of the prompt's types, and whose confidence is missing/falsy
+ * or a number / plain decimal string in [0, 1].
+ */
+function legacyWasCorrect(candidate: unknown): boolean {
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return false;
+  const c = candidate as Record<string, unknown>;
+  const actionOk = !c.action || (typeof c.action === "string" && PROMPT_ACTIONS.includes(c.action));
+  const typeOk = !c.memoryType || (typeof c.memoryType === "string" && PROMPT_TYPES.includes(c.memoryType));
+  const conf = c.confidence;
+  const confOk =
+    conf === undefined || conf === null || conf === false || conf === "" ||
+    (typeof conf === "number" && conf >= 0 && conf <= 1) ||
+    (typeof conf === "string" && /^[+-]?(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?$/i.test(conf.trim()) && Number(conf) >= 0 && Number(conf) <= 1);
+  return actionOk && typeOk && confOk;
+}
+
+/**
+ * The fixed rules, written as "clean the three fields, then run the legacy
+ * loop": a non-object is skipped; action and memoryType are matched
+ * case-insensitively after trimming (unknown -> dropped, so the legacy
+ * defaults "create" / "general" apply); confidence must be a finite number
+ * or decimal string in [0, 1] (anything else -> dropped, so the legacy
+ * "missing confidence" rejection applies).
+ */
+function fixedDecide(candidate: unknown): LegacyDecision {
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return { kind: "skip" };
+  const c = candidate as Record<string, unknown>;
+  const cleaned: Record<string, unknown> = { content: c.content };
+  const norm = (v: unknown) => (typeof v === "string" ? v.trim().toLowerCase() : undefined);
+  const action = norm(c.action);
+  if (action && PROMPT_ACTIONS.includes(action)) cleaned.action = action;
+  const memoryType = norm(c.memoryType);
+  if (memoryType && PROMPT_TYPES.includes(memoryType)) cleaned.memoryType = memoryType;
+  const conf = c.confidence;
+  const confNum =
+    typeof conf === "number" ? conf
+      : typeof conf === "string" && /^[+-]?(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?$/i.test(conf.trim()) ? Number(conf.trim())
+        : NaN;
+  if (Number.isFinite(confNum) && confNum >= 0 && confNum <= 1) cleaned.confidence = confNum;
+  return legacyDecide(cleaned);
+}
+
 function sharedDecide(candidate: unknown): LegacyDecision {
   const v: ValidatedMemoryCandidate | null = validateMemoryCandidate(candidate);
   if (!v) return { kind: "skip" };
-  const branch = v.action === "unrecognized" ? "store-no-dedup" : v.action;
-  return { kind: "process", content: v.content, branch, memoryType: v.memoryType };
+  return { kind: "process", content: v.content, branch: v.action, memoryType: v.memoryType };
 }
 
 type Outcome = { ok: LegacyDecision } | { threw: string };
@@ -147,22 +209,24 @@ const CONTENT_VALUES: unknown[] = [
   "x".repeat(1001), "şifre", "şifreler", 0, 1, 12345, true, false, [], ["Barış likes tea"], {}, { text: "hi" }
 ];
 const CONFIDENCE_VALUES: unknown[] = [
-  undefined, null, 0, 0.1, 0.69, 0.6999999, 0.7, 0.70000001, 0.75, 0.8, 0.95, 1, 1.5, -1,
-  "", "0.9", "0.5", "0.70", "high", "1e0", " 0.8 ", true, false, [], [0.9], [0.1], [0.8, 0.9], {}, { valueOf: 1 }
+  undefined, null, 0, 0.1, 0.69, 0.6999999, 0.7, 0.70000001, 0.75, 0.8, 0.95, 1, 1.5, -1, -0.1,
+  NaN, Infinity, -Infinity, "", " ", "0.9", "0.5", "0.70", "high", "1e0", " 0.8 ", "0x1", "1.5", "NaN", "Infinity",
+  true, false, [], [0.9], [0.1], [0.8, 0.9], {}, { valueOf: 1 }
 ];
 const ACTION_VALUES: unknown[] = [
-  undefined, null, "", "create", "forget", "supersede", "CREATE", "Forget", "update", "delete", " create",
-  0, 1, true, false, [], ["forget"], {}
+  undefined, null, "", "create", "forget", "supersede", "CREATE", "Forget", " supersede ", "update", "UPDATE ",
+  "merge", "delete", " create", 0, 1, true, false, [], ["forget"], {}
 ];
 const MEMORY_TYPE_VALUES: unknown[] = [
-  undefined, null, "", "user_preference", "project_fact", "general", "bogus_type", "USER_FACT", 0, 7, true, false, [], ["user_fact"], {}
+  undefined, null, "", "user_preference", "project_fact", "general", "workflow", "bogus_type", "USER_FACT",
+  " constraint ", "preference", 0, 7, true, false, [], ["user_fact"], {}
 ];
 
 function* candidateMatrix(): Generator<unknown> {
   for (const content of CONTENT_VALUES) {
     for (const confidence of CONFIDENCE_VALUES) {
       for (const action of ACTION_VALUES) {
-        // memoryType does not influence decisions, so cycle it rather than
+        // memoryType never decides skip-or-process, so cycle it rather than
         // multiplying the matrix again.
         const memoryType = MEMORY_TYPE_VALUES[(CONTENT_VALUES.indexOf(content) + ACTION_VALUES.indexOf(action)) % MEMORY_TYPE_VALUES.length];
         const c: Record<string, unknown> = {};
@@ -177,27 +241,54 @@ function* candidateMatrix(): Generator<unknown> {
 }
 
 const NON_OBJECT_CANDIDATES: unknown[] = [
-  null, undefined, 0, 1, "", "Barış prefers pnpm.", true, false, [], [1, 2], ["content"]
+  null, undefined, 0, 1, "", "Barış prefers pnpm.", true, false, [], [1, 2], ["content"],
+  [{ content: "Barış prefers pnpm.", confidence: 0.9 }]
 ];
 
 function pick<T>(r: () => number, xs: T[]): T {
   return xs[Math.floor(r() * xs.length)]!;
 }
 
+const label = (c: unknown) => {
+  try {
+    return JSON.stringify(c) ?? String(c);
+  } catch {
+    return String(c);
+  }
+};
+
 // ---------------------------------------------------------------------------
 
 describe("memory extraction system prompt (production contract)", () => {
-  it("is byte-identical to the prompt production carried inline", () => {
+  it("is the prompt production carried inline, minus the unused targetMemoryHint", () => {
+    const withoutHint = (p: string) =>
+      p
+        .replace(
+          'specify action: "supersede" and set targetMemoryHint to describe the older fact being replaced.',
+          'specify action: "supersede" and state the new fact in content; it replaces the closest older memory on the same subject.'
+        )
+        .replace('      "targetMemoryHint": string,\n', "");
     for (const name of ["Barış", "Bruce Wayne", "", "O'Brien \"Jr\"", "${userName}", "çğıöşü İ"]) {
-      expect(buildMemoryExtractionSystemPrompt(name)).toBe(legacySystemPrompt(name));
+      expect(buildMemoryExtractionSystemPrompt(name)).toBe(withoutHint(legacySystemPrompt(name)));
     }
+    expect(buildMemoryExtractionSystemPrompt("Barış")).not.toContain("targetMemoryHint");
+  });
+
+  it("asks for exactly the actions and memory types the validator accepts", () => {
+    const prompt = buildMemoryExtractionSystemPrompt("Barış");
+    const union = (field: string) =>
+      [...prompt.match(new RegExp(`"${field}": ((?:"[a-z_]+"(?: \\| )?)+)`))![1]!.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);
+    expect(union("action")).toEqual([...MEMORY_EXTRACTION_ACTIONS]);
+    expect(union("memoryType")).toEqual([...MEMORY_EXTRACTION_TYPES]);
+    expect([...MEMORY_EXTRACTION_ACTIONS].sort()).toEqual([...PROMPT_ACTIONS].sort());
+    expect([...MEMORY_EXTRACTION_TYPES].sort()).toEqual([...PROMPT_TYPES].sort());
   });
 
   it("buildMemoryExtractionPrompt sends it as the system message, defaulting the name to Barış", () => {
     const [sys] = buildMemoryExtractionPrompt({ currentMessage: "hi", userId: "u" });
-    expect(sys!.content).toBe(legacySystemPrompt("Barış"));
+    expect(sys!.content).toBe(buildMemoryExtractionSystemPrompt("Barış"));
     const [sysNamed] = buildMemoryExtractionPrompt({ currentMessage: "hi", userId: "u", userName: "Bruce" });
-    expect(sysNamed!.content).toBe(legacySystemPrompt("Bruce"));
+    expect(sysNamed!.content).toBe(buildMemoryExtractionSystemPrompt("Bruce"));
   });
 });
 
@@ -213,7 +304,7 @@ describe("getMemoryExtractionCandidates (production gate)", () => {
 
   it("agrees with production on every payload shape", () => {
     for (const p of payloads) {
-      expect(getMemoryExtractionCandidates(p), JSON.stringify(p) ?? String(p)).toEqual(legacyGate(p));
+      expect(getMemoryExtractionCandidates(p), label(p)).toEqual(legacyGate(p));
     }
   });
 
@@ -223,33 +314,40 @@ describe("getMemoryExtractionCandidates (production gate)", () => {
   });
 });
 
-describe("validateMemoryCandidate (differential against production's inline loop)", () => {
-  it("makes the same decision for every combination in the value matrix", () => {
+describe("validateMemoryCandidate (differential against production's former inline loop)", () => {
+  it("matches the legacy loop wherever it was right, and the fixed rules everywhere", () => {
     let n = 0;
+    let unchanged = 0;
     let processed = 0;
     for (const c of candidateMatrix()) {
-      const expected = outcome(() => legacyDecide(c));
       const actual = outcome(() => sharedDecide(c));
-      expect(actual, JSON.stringify(c)).toEqual(expected);
+      expect(actual, label(c)).toEqual({ ok: fixedDecide(c) });
+      if (legacyWasCorrect(c)) {
+        expect(actual, label(c)).toEqual(outcome(() => legacyDecide(c)));
+        unchanged++;
+      }
+      if ("ok" in actual && actual.ok.kind === "process") processed++;
       n++;
-      if ("ok" in expected && expected.ok.kind === "process") processed++;
     }
     expect(n).toBe(CONTENT_VALUES.length * CONFIDENCE_VALUES.length * ACTION_VALUES.length);
-    // Sanity: the matrix exercises both outcomes heavily.
+    // Sanity: the matrix exercises both outcomes and both classes heavily.
     expect(processed).toBeGreaterThan(500);
     expect(n - processed).toBeGreaterThan(500);
+    expect(unchanged).toBeGreaterThan(1000);
+    expect(n - unchanged).toBeGreaterThan(1000);
   });
 
-  it("makes the same decision (including throwing) for non-object candidates", () => {
+  it("skips non-object candidates instead of throwing", () => {
     for (const c of NON_OBJECT_CANDIDATES) {
-      expect(outcome(() => sharedDecide(c)), String(c)).toEqual(outcome(() => legacyDecide(c)));
+      expect(() => validateMemoryCandidate(c), label(c)).not.toThrow();
+      expect(validateMemoryCandidate(c), label(c)).toBeNull();
     }
-    // Production throws on a null/undefined entry (reading .content).
-    expect(() => validateMemoryCandidate(null)).toThrow(TypeError);
-    expect(() => validateMemoryCandidate(undefined)).toThrow(TypeError);
+    // The legacy loop threw on these, aborting the rest of the turn.
+    expect(() => legacyDecide(null)).toThrow(TypeError);
+    expect(() => legacyDecide(undefined)).toThrow(TypeError);
   });
 
-  it("makes the same decision for 5000 random candidates parsed from JSON", () => {
+  it("matches on 5000 random candidates parsed from JSON", () => {
     const r = rng(20260923);
     const jsonable = (xs: unknown[]) => xs.filter((x) => x !== undefined);
     for (let i = 0; i < 5000; i++) {
@@ -261,29 +359,106 @@ describe("validateMemoryCandidate (differential against production's inline loop
       if (r() < 0.3) obj.targetMemoryHint = "old fact";
       // Round-trip through JSON, as production only ever sees JSON.parse output.
       const c: unknown = JSON.parse(JSON.stringify(obj));
-      expect(outcome(() => sharedDecide(c)), JSON.stringify(c)).toEqual(outcome(() => legacyDecide(c)));
+      const actual = outcome(() => sharedDecide(c));
+      expect(actual, label(c)).toEqual({ ok: fixedDecide(c) });
+      if (legacyWasCorrect(c)) expect(actual, label(c)).toEqual(outcome(() => legacyDecide(c)));
     }
   });
 
-  it("pins the production thresholds and coercions", () => {
+  it("pins the unchanged thresholds", () => {
     expect(MEMORY_MIN_CONFIDENCE).toBe(0.7);
     expect(validateMemoryCandidate({ content: "abcde", confidence: 0.7 })).not.toBeNull();
     expect(validateMemoryCandidate({ content: "abcde", confidence: 0.69 })).toBeNull();
-    expect(validateMemoryCandidate({ content: "abcde" })).toBeNull(); // missing confidence -> 0
     expect(validateMemoryCandidate({ content: "abcd", confidence: 1 })).toBeNull(); // < 5 chars
     expect(validateMemoryCandidate({ content: "  abcd  ", confidence: 1 })).toBeNull(); // trimmed first
     expect(validateMemoryCandidate({ content: "x".repeat(5000), confidence: 1 })).not.toBeNull(); // no max length
-    expect(validateMemoryCandidate({ content: "abcde", confidence: "0.9" })?.confidence).toBe(0.9);
-    expect(validateMemoryCandidate({ content: "abcde", confidence: "high" })?.confidence).toBeNaN();
-    expect(validateMemoryCandidate({ content: "abcde", confidence: [] })).toBeNull();
-    expect(validateMemoryCandidate({ content: "abcde", confidence: 1, action: "update" })?.action).toBe("unrecognized");
     expect(validateMemoryCandidate({ content: "abcde", confidence: 1, action: "" })?.action).toBe("create");
-    expect(validateMemoryCandidate({ content: "abcde", confidence: 1, memoryType: 7 })?.memoryType).toBe(7);
     expect(validateMemoryCandidate({ content: "abcde", confidence: 1, memoryType: "" })?.memoryType).toBe("general");
+  });
+
+  describe("fix 2: only the prompt's actions, case-insensitive; anything else is create", () => {
+    const action = (a: unknown) => validateMemoryCandidate({ content: "abcde", confidence: 1, action: a })?.action;
+
+    it.each([
+      ["create", "create"], ["forget", "forget"], ["supersede", "supersede"],
+      ["CREATE", "create"], ["Forget", "forget"], [" SuperSede\n", "supersede"], [" create", "create"]
+    ])("%j -> %s", (input, expected) => {
+      expect(action(input)).toBe(expected);
+    });
+
+    it.each([["update"], ["UPDATE "], ["merge"], ["delete"], ["retract"], [""], [true], [1], [["forget"]], [{}], [null]])(
+      "%j -> create (was: stored without the duplicate check when truthy)",
+      (input) => {
+        expect(action(input)).toBe("create");
+      }
+    );
+
+    it("exports the allowed actions", () => {
+      expect(normalizeMemoryAction("  FORGET ")).toBe("forget");
+      expect(normalizeMemoryAction("update")).toBe("create");
+    });
+  });
+
+  describe("fix 3: memoryType restricted to the prompt's types; unknown is general", () => {
+    const memoryType = (t: unknown) => validateMemoryCandidate({ content: "abcde", confidence: 1, memoryType: t })?.memoryType;
+
+    it.each(PROMPT_TYPES.map((t) => [t]))("%s is kept", (t) => {
+      expect(memoryType(t)).toBe(t);
+    });
+
+    it.each([["USER_FACT", "user_fact"], [" constraint ", "constraint"]])("%j -> %s", (input, expected) => {
+      expect(memoryType(input)).toBe(expected);
+    });
+
+    it.each([["bogus_type"], ["preference"], ["memory"], [7], [true], [["user_fact"]], [{}], [null], [undefined]])(
+      "%j -> general (was: written to Firestore as-is when truthy)",
+      (input) => {
+        expect(memoryType(input)).toBe("general");
+        expect(normalizeMemoryType(input)).toBe("general");
+      }
+    );
+  });
+
+  describe("fix 4: confidence must be a finite number in [0, 1] (numeric strings allowed)", () => {
+    const conf = (c: unknown) => {
+      const obj: Record<string, unknown> = { content: "abcde" };
+      if (c !== undefined) obj.confidence = c;
+      return validateMemoryCandidate(obj);
+    };
+
+    it.each([
+      [0.7, 0.7], [0.9, 0.9], [1, 1], ["0.9", 0.9], [" 0.8 ", 0.8], ["1", 1], ["1e0", 1], [".75", 0.75]
+    ])("%j is accepted as %d", (input, expected) => {
+      expect(conf(input)?.confidence).toBe(expected);
+      expect(parseMemoryConfidence(input)).toBe(expected);
+    });
+
+    it.each([
+      ["high"], [NaN], [Infinity], [-Infinity], [1.5], ["1.5"], [-0.1], ["-0.1"], [undefined], [null], [""], [" "],
+      ["0x1"], ["NaN"], ["Infinity"], [true], [[0.9]], [{}], [{ valueOf: 1 }]
+    ])("%j is rejected", (input) => {
+      expect(conf(input)).toBeNull();
+    });
+
+    it("rejects the values the legacy loop wrongly accepted", () => {
+      for (const bad of ["high", Infinity, 1.5, "1.5", true, [0.9], {}]) {
+        const legacy = legacyDecide({ content: "abcde", confidence: bad });
+        expect(legacy.kind, label(bad)).toBe("process");
+        expect(conf(bad), label(bad)).toBeNull();
+      }
+    });
+
+    it("still rejects in-range values below 0.70, and a missing confidence", () => {
+      expect(conf(0.69)).toBeNull();
+      expect(conf("0.5")).toBeNull();
+      expect(conf(0)).toBeNull();
+      expect(conf(undefined)).toBeNull();
+      expect(parseMemoryConfidence(0.5)).toBe(0.5);
+    });
   });
 });
 
-describe("parseMemoryExtractionResponse (src, now on production rules)", () => {
+describe("parseMemoryExtractionResponse (src, on production rules)", () => {
   const parse = (memories: unknown[]) =>
     parseMemoryExtractionResponse(JSON.stringify({ shouldRemember: true, memories }));
 
@@ -293,53 +468,71 @@ describe("parseMemoryExtractionResponse (src, now on production rules)", () => {
     expect(parse([{ content: "Barış uses pnpm.", confidence: 0.69 }]).candidates).toHaveLength(0);
   });
 
-  it("rejects a candidate without confidence (was: defaulted to 0.8)", () => {
+  it("rejects a candidate without confidence", () => {
     expect(parse([{ content: "Barış uses pnpm." }]).candidates).toHaveLength(0);
   });
 
-  it("accepts content over 1000 characters (was: rejected)", () => {
+  it("accepts content over 1000 characters", () => {
     const long = "Barış ".repeat(300).trim();
     expect(parse([{ content: long, confidence: 0.9 }]).candidates[0]!.content).toBe(long);
   });
 
-  it("accepts a numeric-string confidence and keeps it unrounded (was: 0.8 default / rounded)", () => {
+  it("accepts a numeric-string confidence and keeps it unrounded", () => {
     const [c] = parse([{ content: "Barış uses pnpm.", confidence: "0.9" }]).candidates;
     expect(c!.confidence).toBe(0.9);
     expect(parse([{ content: "Barış uses pnpm.", confidence: 0.87654 }]).candidates[0]!.confidence).toBe(0.87654);
   });
 
-  it("narrows what src types cannot hold: unknown memoryType -> general, unrecognized action -> create", () => {
+  it("returns exactly the validator's action and memoryType (unknown -> create / general)", () => {
     const [c] = parse([{ content: "Barış uses pnpm.", confidence: 0.9, memoryType: "bogus", action: "update" }]).candidates;
     expect(c!.memoryType).toBe("general");
     expect(c!.action).toBe("create");
+    const [d] = parse([{ content: "Barış uses pnpm.", confidence: 0.9, memoryType: "WORKFLOW", action: " Forget" }]).candidates;
+    expect(d!.memoryType).toBe("workflow");
+    expect(d!.action).toBe("forget");
   });
 
-  it("keeps the candidates before a null entry and drops the rest, as production persists them", () => {
+  it("skips null and other non-object entries mid-list and keeps the rest (fix 1)", () => {
     const res = parse([
       { content: "First durable fact.", confidence: 0.9 },
       null,
-      { content: "Never reached in production.", confidence: 0.9 }
+      "a bare string",
+      42,
+      [{ content: "nested", confidence: 1 }],
+      { content: "Second durable fact.", confidence: 0.9, action: "supersede" }
     ]);
-    expect(res.candidates.map((c) => c.content)).toEqual(["First durable fact."]);
+    expect(res.candidates.map((c) => [c.content, c.action])).toEqual([
+      ["First durable fact.", "create"],
+      ["Second durable fact.", "supersede"]
+    ]);
   });
 
-  it("accepts exactly the candidates production would process, in order", () => {
+  it("accepts exactly the candidates the shared validator accepts, in order, with its values", () => {
     const r = rng(7);
-    for (let round = 0; round < 200; round++) {
+    for (let round = 0; round < 300; round++) {
       const memories: unknown[] = [];
       const len = Math.floor(r() * 6);
       for (let i = 0; i < len; i++) {
-        memories.push({
+        memories.push(r() < 0.1 ? null : {
           content: pick(r, CONTENT_VALUES.filter((x) => x !== undefined)),
           confidence: r() < 0.5 ? Math.round(r() * 100) / 100 : pick(r, CONFIDENCE_VALUES.filter((x) => x !== undefined)),
-          action: pick(r, ["create", "forget", "supersede", ""])
+          action: pick(r, ACTION_VALUES.filter((x) => x !== undefined)),
+          memoryType: pick(r, MEMORY_TYPE_VALUES.filter((x) => x !== undefined))
         });
       }
       const json: unknown[] = JSON.parse(JSON.stringify(memories));
-      const expected = json
-        .map((c) => legacyDecide(c))
-        .flatMap((d) => (d.kind === "process" ? [d.content] : []));
-      expect(parse(json).candidates.map((c) => c.content)).toEqual(expected);
+      const expected = json.flatMap((c) => {
+        const v = validateMemoryCandidate(c);
+        return v ? [v] : [];
+      });
+      const got = parse(json).candidates.map(({ content, action, memoryType, confidence }) => ({ content, action, memoryType, confidence }));
+      expect(got).toEqual(expected);
+      // And on legacy-correct lists, the same candidates the old loop processed.
+      if (json.every(legacyWasCorrect)) {
+        expect(got.map((c) => c.content)).toEqual(
+          json.map((c) => legacyDecide(c)).flatMap((d) => (d.kind === "process" ? [d.content] : []))
+        );
+      }
     }
   });
 });

@@ -609,7 +609,8 @@ export class MemoryService {
       // 4. Handle supersession
       if (candidate.action === "supersede") {
         try {
-          const lookupQuery = candidate.targetMemoryHint || candidate.content;
+          // Same target lookup as production: the new fact's own content.
+          const lookupQuery = candidate.content;
           const related = await this.searchMemories(lookupQuery, input.userId, {
             topK: 3,
             minScore: 0.5

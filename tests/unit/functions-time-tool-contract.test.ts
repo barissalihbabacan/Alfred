@@ -193,19 +193,26 @@ describe("get_current_time tool definition (production contract)", () => {
     expect(JSON.stringify(new GetCurrentTimeTool().getDefinition())).toBe(JSON.stringify(LEGACY_TIME_TOOL_DEFINITION));
   });
 
-  it("keeps production's alias table", () => {
-    expect(CITY_TIMEZONE_ALIASES).toEqual(LEGACY_CITY_TIMEZONE_ALIASES);
-    expect(Object.keys(CITY_TIMEZONE_ALIASES)).toEqual(Object.keys(LEGACY_CITY_TIMEZONE_ALIASES));
+  it("keeps every entry of production's original alias table unchanged", () => {
+    for (const [city, zone] of Object.entries(LEGACY_CITY_TIMEZONE_ALIASES)) {
+      expect(CITY_TIMEZONE_ALIASES[city], city).toBe(zone);
+    }
   });
 });
 
-describe("resolveTimezone (differential against production)", () => {
-  it(`agrees on every input (${ZONES.length} runtime zones x 7 spellings plus Turkish, world and edge cases)`, () => {
+// The resolver was later fixed to match more spellings. The contract is now:
+// whatever the original production resolver resolved still resolves to the
+// same zone; only inputs it returned null for may resolve differently.
+function expectNoRegression(input: unknown) {
+  const legacy = legacyResolveTimezone(input);
+  if (legacy) expect(resolveTimezone(input), JSON.stringify(input) ?? String(input)).toEqual(legacy);
+}
+
+describe("resolveTimezone (no regression against production)", () => {
+  it(`never changes a zone production resolved (${ZONES.length} runtime zones x 7 spellings plus Turkish, world and edge cases)`, () => {
     const inputs = allInputs();
     expect(inputs.length).toBeGreaterThan(2500);
-    for (const input of inputs) {
-      expect(resolveTimezone(input), JSON.stringify(input) ?? String(input)).toEqual(legacyResolveTimezone(input));
-    }
+    for (const input of inputs) expectNoRegression(input);
   }, 60_000);
 
   it("agrees on 3000 random strings built from zone fragments", () => {
@@ -216,32 +223,64 @@ describe("resolveTimezone (differential against production)", () => {
       let s = "";
       const len = Math.floor(r() * 6);
       for (let j = 0; j < len; j++) s += fragments[Math.floor(r() * fragments.length)];
-      expect(resolveTimezone(s), JSON.stringify(s)).toEqual(legacyResolveTimezone(s));
+      expectNoRegression(s);
     }
   }, 60_000);
 
-  it("pins production's Turkish handling", () => {
-    expect(resolveTimezone("Istanbul")).toEqual({ timezone: "Europe/Istanbul", matchedCity: "Istanbul" });
-    expect(resolveTimezone("Istanbul, Turkey")).toBeNull(); // no comma/country stripping
-    expect(resolveTimezone("Ankara")?.timezone).toBe("Europe/Istanbul");
-    expect(resolveTimezone("Izmir")?.timezone).toBe("Europe/Istanbul");
-    // Production bug, kept: dotted capital İ lower-cases to "i" + U+0307, so
-    // "İstanbul" / "İzmir" miss the aliases and resolve to nothing.
-    expect(resolveTimezone("İstanbul")).toBeNull();
-    expect(resolveTimezone("İzmir")).toBeNull();
-    // Only the three alias cities and IANA names resolve; others do not.
-    expect(resolveTimezone("Bursa")).toBeNull();
-    expect(resolveTimezone("Antalya")).toBeNull();
+  it("resolves Turkish spellings production missed", () => {
+    for (const input of ["İstanbul", "İSTANBUL", "İzmir", "İZMİR", "Eskişehir", "Diyarbakır", "Şanlıurfa", "Çanakkale",
+      "Muğla", "Kadıköy", "Beşiktaş", "Üsküdar", "Bursa", "Antalya", "Türkiye", "Turkey"]) {
+      expect(resolveTimezone(input)?.timezone, input).toBe("Europe/Istanbul");
+    }
+    expect(resolveTimezone("İstanbul")).toEqual({ timezone: "Europe/Istanbul", matchedCity: "İstanbul" });
   });
 
-  it("pins other production quirks", () => {
+  it("drops a country after a comma, a trailing country name and a Turkish case suffix", () => {
+    expect(resolveTimezone("Istanbul, Turkey")?.timezone).toBe("Europe/Istanbul");
+    expect(resolveTimezone("İstanbul, Türkiye")?.timezone).toBe("Europe/Istanbul");
+    expect(resolveTimezone("London, UK")?.timezone).toBe("Europe/London");
+    expect(resolveTimezone("Paris France")?.timezone).toBe("Europe/Paris");
+    expect(resolveTimezone("New York, USA")?.timezone).toBe("America/New_York");
+    expect(resolveTimezone("İstanbul'da saat kaç")?.timezone).toBe("Europe/Istanbul");
+    expect(resolveTimezone("Londra'da")?.timezone).toBe("Europe/London");
+  });
+
+  it("folds accents and knows Turkish names and big cities without their own IANA zone", () => {
+    expect(resolveTimezone("São Paulo")?.timezone).toBe("America/Sao_Paulo");
+    expect(resolveTimezone("Zürich")?.timezone).toBe("Europe/Zurich");
+    expect(resolveTimezone("München")?.timezone).toBe("Europe/Berlin");
+    expect(resolveTimezone("Münih")?.timezone).toBe("Europe/Berlin");
+    expect(resolveTimezone("Londra")?.timezone).toBe("Europe/London");
+    expect(resolveTimezone("Moskova")?.timezone).toBe("Europe/Moscow");
+    expect(resolveTimezone("Mumbai")?.timezone).toBe("Asia/Kolkata");
+    expect(resolveTimezone("Miami")?.timezone).toBe("America/New_York");
+    expect(resolveTimezone("NYC")?.timezone).toBe("America/New_York");
+  });
+
+  it("accepts zone names Intl knows but does not list, canonicalized", () => {
+    expect(resolveTimezone("US/Eastern")?.timezone).toBe(
+      new Intl.DateTimeFormat("en-US", { timeZone: "US/Eastern" }).resolvedOptions().timeZone
+    );
+    expect(resolveTimezone("US/Pacific")).not.toBeNull();
+    // Bare abbreviations stay unresolved: Intl maps "EST" to America/Panama.
+    expect(resolveTimezone("EST")).toBeNull();
+  });
+
+  it("does not guess when what follows a comma is not a country", () => {
+    expect(resolveTimezone("Paris, Texas")).toBeNull();
+    expect(resolveTimezone("Sam")).toBeNull();
+  });
+
+  it("still rejects nonsense and object-prototype keys", () => {
+    for (const input of ["Gondor", "constructor", "__proto__", "toString", "", " ", ",", "a/b", undefined, null, 0, {}, []]) {
+      expect(resolveTimezone(input), String(input)).toBeNull();
+    }
+  });
+
+  it("keeps production's normalization for inputs it handled", () => {
     expect(resolveTimezone("  new   york ")).toEqual({ timezone: "America/New_York", matchedCity: "new   york" });
     expect(resolveTimezone("sao paulo")?.timezone).toBe("America/Sao_Paulo");
     expect(resolveTimezone("europe/london")?.timezone).toBe("Europe/London");
-    expect(resolveTimezone("Zulu")).toBeNull();
-    expect(resolveTimezone("constructor")).toBeNull();
-    expect(resolveTimezone("__proto__")).toBeNull();
-    expect(resolveTimezone("Mumbai")).toBeNull();
   });
 });
 
@@ -251,13 +290,14 @@ describe("getCurrentTimeForCity (differential against production)", () => {
     ...ZONES.filter((_, i) => i % 15 === 0)
   ];
 
-  it("returns the same object at DST edges, leap day and year end, for every sampled input", () => {
+  it("returns production's object at DST edges, leap day and year end, for every input production resolved", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     for (const iso of INSTANTS) {
       vi.setSystemTime(new Date(iso));
       for (const input of sample) {
         const label = `${iso} ${JSON.stringify(input) ?? String(input)}`;
         const expected = legacyGetCurrentTimeForCity(input);
+        if ("error" in expected) continue; // may resolve now; covered by the resolver tests
         expect(getCurrentTimeForCity(input), label).toEqual(expected);
         expect(getCurrentTimeForCity(input, new Date(iso)), label).toEqual(expected);
       }

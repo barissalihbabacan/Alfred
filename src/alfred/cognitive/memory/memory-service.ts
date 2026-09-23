@@ -545,9 +545,11 @@ export class MemoryService {
    * 3. Scans candidates through privacy filter to eliminate secrets/credentials.
    * 4. Embeds the candidate and plans its write against the user's active
    *    Firestore records with the decision rules shared with production
-   *    (memory-write-planner.ts): forget retracts the best match >= 0.5,
-   *    create is skipped as a duplicate when any match is >= 0.85, supersede
-   *    replaces the first match >= 0.5 (repository order), preserving lineage.
+   *    (memory-write-planner.ts): forget retracts the best match >= 0.5;
+   *    create and supersede are skipped when an active memory has the same
+   *    normalized content (any embedding model); create is also skipped when
+   *    any comparable match is >= 0.85; supersede replaces the best match
+   *    >= 0.5 (earliest in repository order on ties), preserving lineage.
    * 5. Persists durable new memories via the canonical MemoryService pipeline
    *    (Firestore record, then vector-store index).
    */
@@ -610,6 +612,7 @@ export class MemoryService {
         const activeRecords = await this.memoryRepo.listAllActive(input.userId);
         const plan = planMemoryWrite({
           action: candidate.action,
+          content,
           embedding: { values: embedding, model: this.embeddingProvider.model },
           activeMemories: activeRecords,
           recordOf: (record) => record
@@ -630,11 +633,16 @@ export class MemoryService {
           case "skipDuplicate":
             result.skippedDuplicates.push(candidate.content);
             console.log(
-              `[MemoryService] Suppressed duplicate candidate: "${content}" (matches "${plan.target.content}" with score ${plan.score})`
+              `[MemoryService] Suppressed duplicate candidate: "${content}" (matches "${plan.target.content}", ${plan.match}${plan.score === null ? "" : ` score ${plan.score}`})`
             );
             break;
           case "supersede":
           case "create": {
+            // Supersede ordering: the repository and the vector store cannot
+            // share a transaction, so the new memory is written (and indexed)
+            // first and the old one is marked superseded only afterwards. A
+            // failure in between leaves both active (a recoverable duplicate),
+            // never the old fact lost. Production commits both in one batch.
             const oldRecord = plan.kind === "supersede" ? plan.target : null;
             const newRecord = await this.persistEmbeddedMemory({
               content,

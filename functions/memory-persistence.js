@@ -6,6 +6,11 @@
 // bagimliliklari (db, logger, Timestamp) parametre olarak gelir; boylece
 // tests/unit/memory-write-planner.test.ts bu dosyayi dogrudan calistirip eski
 // satir ici dongunun birebir kopyasiyla karsilastirabilir.
+//
+// Loglar bellek metnini ICERMEZ (kullanici metni loglanmaz): yalnizca
+// memory_id, memory_type ve content_length. Supersede tek bir Firestore
+// batch'i ile yazilir: eski kaydin "superseded" isaretlenmesi ile yeni kayit
+// birlikte commit edilir, ya ikisi ya hicbiri.
 import {
   buildMemoryRetractionUpdate,
   buildMemorySupersessionUpdate,
@@ -84,6 +89,7 @@ export async function persistMemoryCandidates({
         const activeDocs = await readActiveMemories(db, userId);
         const plan = planMemoryWrite({
           action,
+          content,
           embedding: queryEmbedding,
           activeMemories: activeDocs,
           recordOf: docData
@@ -92,7 +98,12 @@ export async function persistMemoryCandidates({
         if (plan.kind === "retract") {
           const target = plan.target;
           await target.ref.update(buildMemoryRetractionUpdate(now()));
-          logger.info(`[Memory] Retracted memory ${target.id} ("${target.data().content}")`);
+          const retracted = target.data() || {};
+          logger.info(`[Memory] Retracted memory ${target.id}`, {
+            memory_id: target.id,
+            memory_type: retracted.memoryType ?? null,
+            content_length: typeof retracted.content === "string" ? retracted.content.length : 0
+          });
           tally.retracted++;
         }
       } catch (forgetErr) {
@@ -107,13 +118,20 @@ export async function persistMemoryCandidates({
       const activeDocs = await readActiveMemories(db, userId);
       const plan = planMemoryWrite({
         action,
+        content,
         embedding,
         activeMemories: activeDocs,
         recordOf: docData
       });
 
       if (plan.kind === "skipDuplicate") {
-        logger.info(`[Memory] Suppressed duplicate memory: "${content}" (score: ${plan.score})`);
+        logger.info("[Memory] Suppressed duplicate memory", {
+          memory_id: plan.target.id,
+          memory_type: validated.memoryType,
+          content_length: content.length,
+          match: plan.match,
+          score: plan.score
+        });
         tally.duplicate++;
         continue;
       }
@@ -121,13 +139,8 @@ export async function persistMemoryCandidates({
       const supersedeTargetDoc = plan.kind === "supersede" ? plan.target : null;
       const memoryId = generateMemoryId();
       const timestamp = now();
-
-      if (supersedeTargetDoc) {
-        await supersedeTargetDoc.ref.update(buildMemorySupersessionUpdate(memoryId, timestamp));
-        logger.info(`[Memory] Superseded memory ${supersedeTargetDoc.id} with ${memoryId}`);
-      }
-
-      await db.collection("memory_vectors").doc(memoryId).set(buildMemoryVectorRecord({
+      const newRef = db.collection("memory_vectors").doc(memoryId);
+      const record = buildMemoryVectorRecord({
         memoryId,
         userId,
         content,
@@ -137,9 +150,25 @@ export async function persistMemoryCandidates({
         embedding,
         supersedesMemoryId: supersedeTargetDoc ? supersedeTargetDoc.id : null,
         now: timestamp
-      }));
+      });
 
-      logger.info(`[Memory] Stored long-term memory in Firestore: "${content}" (${validated.memoryType})`);
+      if (supersedeTargetDoc) {
+        // Tek batch: eski kaydi "superseded" isaretle + yeni kaydi yaz. Commit
+        // basarisiz olursa ikisi de yazilmaz; eski bilgi kaybolmaz.
+        const batch = db.batch();
+        batch.update(supersedeTargetDoc.ref, buildMemorySupersessionUpdate(memoryId, timestamp));
+        batch.set(newRef, record);
+        await batch.commit();
+        logger.info(`[Memory] Superseded memory ${supersedeTargetDoc.id} with ${memoryId}`);
+      } else {
+        await newRef.set(record);
+      }
+
+      logger.info("[Memory] Stored long-term memory in Firestore", {
+        memory_id: memoryId,
+        memory_type: validated.memoryType,
+        content_length: content.length
+      });
       tally.stored++;
       if (supersedeTargetDoc) tally.superseded++;
     } catch (saveErr) {

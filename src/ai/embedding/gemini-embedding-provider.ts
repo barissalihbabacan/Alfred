@@ -1,5 +1,5 @@
 import { IEmbeddingProvider, EmbeddingOptions } from "./types.js";
-import { getMemoryConfig } from "../../core/config/index.js";
+import { getMemoryConfig, DEFAULT_EMBEDDING_MODEL } from "../../core/config/index.js";
 
 export interface GeminiEmbeddingProviderOptions {
   apiKey?: string;
@@ -12,8 +12,10 @@ export interface GeminiEmbeddingProviderOptions {
 /**
  * GeminiEmbeddingProvider
  *
- * Connects to Google's Gemini REST API (text-embedding-004)
- * Generates 768-dimensional dense vectors for semantic memory retrieval.
+ * Connects to Google's Gemini REST API (gemini-embedding-001; text-embedding-004
+ * was shut down on 14 Jan 2026). The model defaults to 3072 dimensions, so
+ * outputDimensionality pins it to the configured dimension (768). Outputs below
+ * 3072 are not normalised, which is fine because retrieval uses cosine similarity.
  */
 export class GeminiEmbeddingProvider implements IEmbeddingProvider {
   public readonly id = "gemini" as const;
@@ -27,7 +29,7 @@ export class GeminiEmbeddingProvider implements IEmbeddingProvider {
   constructor(options?: GeminiEmbeddingProviderOptions) {
     const memoryConfig = getMemoryConfig().embedding;
     this.apiKey = (options?.apiKey || process.env.GEMINI_API_KEY || "").trim();
-    this.model = options?.model || (memoryConfig.provider === "gemini" ? memoryConfig.model : "text-embedding-004");
+    this.model = options?.model || (memoryConfig.provider === "gemini" ? memoryConfig.model : DEFAULT_EMBEDDING_MODEL);
     this.dimension = options?.dimension || 768;
     this.timeoutMs = options?.timeoutMs || memoryConfig.timeoutMs || 15000;
     this.fetchFn = options?.fetchFn || globalThis.fetch;
@@ -63,7 +65,8 @@ export class GeminiEmbeddingProvider implements IEmbeddingProvider {
           model: cleanModel,
           content: {
             parts: [{ text: text.trim() }]
-          }
+          },
+          outputDimensionality: this.dimension
         }),
         signal: controller.signal
       });
@@ -114,7 +117,8 @@ export class GeminiEmbeddingProvider implements IEmbeddingProvider {
         model: cleanModel,
         content: {
           parts: [{ text: t.trim() }]
-        }
+        },
+        outputDimensionality: this.dimension
       }));
 
       const res = await this.fetchFn(url, {

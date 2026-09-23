@@ -1,8 +1,7 @@
 // ESLint flat config for B.U.T.L.E.R. Alfred.
 //
 // Goal: catch real bugs without forcing a mass reformat. The code-quality
-// rules below are errors so they cannot regress; the only warnings left come
-// from the temporary carve-outs at the bottom. Formatting is not enforced here.
+// rules below are errors so they cannot regress. Formatting is not enforced here.
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 import globals from "globals";
@@ -101,22 +100,5 @@ export default tseslint.config(
       "no-useless-escape": "error",
       "prefer-const": "error",
     },
-  },
-
-  // --- Temporary carve-outs ------------------------------------------------
-  // These files are being rewritten in a parallel PR (privacy filter / memory
-  // candidate validation). Their remaining warnings are deliberately left
-  // alone here to avoid conflicts; drop this block once that PR lands.
-  {
-    files: ["src/ai/prompts/memory-extraction.ts"],
-    rules: {
-      "@typescript-eslint/no-unused-vars": ["warn", unusedVarsOptions],
-      "@typescript-eslint/no-explicit-any": "warn",
-    },
-  },
-  {
-    // In functions/index.js only the SENSITIVE_PATTERNS regexes still trip it.
-    files: ["src/alfred/cognitive/memory/privacy-filter.ts", "functions/index.js"],
-    rules: { "no-useless-escape": "warn" },
   },
 );

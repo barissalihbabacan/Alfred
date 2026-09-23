@@ -37,7 +37,7 @@ npm run check:bundle --prefix functions   # node --check + import smoke test of 
 npm run deploy --prefix functions   # firebase deploy --only functions
 ```
 
-As of the last check `npm run test:unit` is 296 passing tests across 35 files, `npm run typecheck` and `npx tsc -p apps/web/tsconfig.json --noEmit` are clean, `npm run build:web` succeeds and `npm run lint` has 0 errors (warnings allowed, mostly `no-explicit-any`) — keep all of them green (CI runs them all). `eslint.config.js` downgrades noisy rules on existing code to warnings; errors fail CI. There is no Prettier: formatting is not enforced, so don't mass-reformat files.
+As of the last check `npm run test:unit` is 343 passing tests across 38 files, `npm run typecheck` and `npx tsc -p apps/web/tsconfig.json --noEmit` are clean, `npm run build:web` succeeds and `npm run lint` has 0 errors and 0 warnings — keep all of them green (CI runs them all). Every rule in `eslint.config.js` is an error, including `no-explicit-any` (use `unknown` plus narrowing, and `errorMessage()` from `src/core/errors` for caught errors), so any lint finding fails CI. There is no Prettier: formatting is not enforced, so don't mass-reformat files.
 
 `tests/unit/*` run offline against in-memory repositories/stores; `tests/integration/*` and the `test:groq`/`test:ollama` scripts hit real providers and need `.env` populated (copy from `.env.example`).
 

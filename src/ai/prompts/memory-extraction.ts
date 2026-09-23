@@ -132,7 +132,7 @@ export function parseMemoryExtractionResponse(
 
   const clean = extractJsonPayload(rawText);
 
-  let parsed: any;
+  let parsed: unknown;
   try {
     parsed = JSON.parse(clean);
   } catch {
@@ -144,14 +144,16 @@ export function parseMemoryExtractionResponse(
     return { shouldRemember: false, candidates: [], rawResponse: rawText };
   }
 
-  if (!parsed.shouldRemember || !Array.isArray(parsed.memories)) {
+  const payload = parsed as { shouldRemember?: unknown; memories?: unknown };
+  if (!payload.shouldRemember || !Array.isArray(payload.memories)) {
     return { shouldRemember: false, candidates: [], rawResponse: rawText };
   }
 
   const validCandidates: ExtractedMemoryCandidate[] = [];
 
-  for (const item of parsed.memories) {
-    if (typeof item !== "object" || item === null) continue;
+  for (const entry of payload.memories as unknown[]) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const item = entry as Record<string, unknown>;
 
     const content = typeof item.content === "string" ? item.content.trim() : "";
     if (!content || content.length < 5 || content.length > 1000) continue;

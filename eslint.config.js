@@ -1,8 +1,8 @@
 // ESLint flat config for B.U.T.L.E.R. Alfred.
 //
-// Goal: catch real bugs without forcing a mass reformat. Rules the codebase is
-// already clean on are errors so they can't regress; the remaining noisy ones
-// stay "warn". Formatting is intentionally not enforced here.
+// Goal: catch real bugs without forcing a mass reformat. The code-quality
+// rules below are errors so they cannot regress; the only warnings left come
+// from the temporary carve-outs at the bottom. Formatting is not enforced here.
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 import globals from "globals";
@@ -43,7 +43,7 @@ export default tseslint.config(
       globals: { ...globals.node },
     },
     rules: {
-      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-unused-vars": ["error", unusedVarsOptions],
       "@typescript-eslint/ban-ts-comment": "error",
       // Empty interfaces that extend a provider type are used as named aliases.
@@ -109,7 +109,10 @@ export default tseslint.config(
   // alone here to avoid conflicts; drop this block once that PR lands.
   {
     files: ["src/ai/prompts/memory-extraction.ts"],
-    rules: { "@typescript-eslint/no-unused-vars": ["warn", unusedVarsOptions] },
+    rules: {
+      "@typescript-eslint/no-unused-vars": ["warn", unusedVarsOptions],
+      "@typescript-eslint/no-explicit-any": "warn",
+    },
   },
   {
     // In functions/index.js only the SENSITIVE_PATTERNS regexes still trip it.

@@ -102,7 +102,7 @@ The app is locked to one person. There is no sign-up, no password login and no S
 - `apphosting.yaml` binds both as `secret:` env vars for the Next.js server.
 - `src/` and `apps/web` only read `process.env`: the platform injects the secrets there, and locally they come from `.env`.
 
-`defineSecret` requires names that are valid environment variables, so the names are `GROQ_API_KEY` / `GEMINI_API_KEY` (not `groq-api-key`). **As of 23 Sep 2026 neither secret exists in `butler-alfred`**, and every `deploy.yml` run since 11 Sep has failed at `secretmanager.secrets.get` (403). Production is therefore still serving the last successful deploy, which predates the UID lock-down and these secret changes. To unblock:
+`defineSecret` requires names that are valid environment variables, so the names are `GROQ_API_KEY` / `GEMINI_API_KEY` (not `groq-api-key`). **As of 23 Sep 2026 neither secret exists in `butler-alfred`**, and every `deploy.yml` run since 11 Sep has failed at `secretmanager.secrets.get` (403). So CI has not shipped anything since then; what is live comes from manual deploys (the served Hosting files already include the UID lock-down). To unblock CI:
 
 ```bash
 firebase functions:secrets:set GROQ_API_KEY

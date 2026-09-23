@@ -12,6 +12,7 @@ B.U.T.L.E.R. Alfred — a personal AI executive-assistant/agent system for Barı
 # Core library (src/)
 npm run build              # tsc build of src/
 npm run typecheck          # tsc --noEmit
+npm run typecheck:tests    # tsc -p tsconfig.tests.json (tests/ + scripts/, which tsconfig.json excludes)
 npm run lint               # eslint . (flat config: eslint.config.js)
 npm test                   # vitest run (all tests)
 npm run test:unit          # vitest run tests/unit
@@ -37,7 +38,7 @@ npm run check:bundle --prefix functions   # node --check + import smoke test of 
 npm run deploy --prefix functions   # firebase deploy --only functions
 ```
 
-As of the last check `npm run test:unit` is 343 passing tests across 38 files, `npm run typecheck` and `npx tsc -p apps/web/tsconfig.json --noEmit` are clean, `npm run build:web` succeeds and `npm run lint` has 0 errors and 0 warnings — keep all of them green (CI runs them all). Every rule in `eslint.config.js` is an error, including `no-explicit-any` (use `unknown` plus narrowing, and `errorMessage()` from `src/core/errors` for caught errors), so any lint finding fails CI. There is no Prettier: formatting is not enforced, so don't mass-reformat files.
+As of the last check `npm run test:unit` is 343 passing tests across 38 files, `npm run typecheck`, `npm run typecheck:tests` and `npx tsc -p apps/web/tsconfig.json --noEmit` are clean, `npm run build:web` succeeds and `npm run lint` has 0 errors and 0 warnings — keep all of them green (CI runs them all). Every rule in `eslint.config.js` is an error, including `no-explicit-any` (use `unknown` plus narrowing, and `errorMessage()` from `src/core/errors` for caught errors), so any lint finding fails CI. There is no Prettier: formatting is not enforced, so don't mass-reformat files.
 
 `tests/unit/*` run offline against in-memory repositories/stores; `tests/integration/*` and the `test:groq`/`test:ollama` scripts hit real providers and need `.env` populated (copy from `.env.example`).
 
@@ -104,7 +105,7 @@ The app is locked to one person. There is no sign-up, no password login and no S
 ### Deployment — Firebase Hosting + Cloud Functions only
 - `firebase.json` — Firestore rules/indexes, the `functions` codebase, and Hosting. Hosting serves `apps/web/out` (the Next.js static export — it must be built first), rewrites `/api/**` to the `api` function and everything else to `index.html`. `Cache-Control` is `no-cache` everywhere except the content-hashed `/_next/static/**`, which is cached for a year (the later, more specific header rule wins).
 - There is no App Hosting and no server runtime for the web app (`apphosting.yaml` was removed). Production is the static export on Hosting plus the `api` / `alfredCallable` functions.
-- **CI**: `.github/workflows/ci.yml` runs `npm ci`, `npm run lint`, `npm run typecheck`, `npm run test:unit`, the functions bundle build/check, the `apps/web` typecheck and `npm run build:web` on every pull request (Node 22, no `.env`). `.github/workflows/deploy.yml` reuses it as a `test` job, then runs `npm ci`, `npm run build:web`, the functions bundle build and `firebase deploy --only hosting,functions`, on any push to `main` touching `apps/**`, `src/**`, `functions/**`, `firebase.json`, `.firebaserc`, `package.json`, `package-lock.json` or either workflow. A lint error, red typecheck, unit test or web build therefore blocks the deploy.
+- **CI**: `.github/workflows/ci.yml` runs `npm ci`, `npm run lint`, `npm run typecheck`, `npm run typecheck:tests`, `npm run test:unit`, the functions bundle build/check, the `apps/web` typecheck and `npm run build:web` on every pull request (Node 22, no `.env`). `.github/workflows/deploy.yml` reuses it as a `test` job, then runs `npm ci`, `npm run build:web`, the functions bundle build and `firebase deploy --only hosting,functions`, on any push to `main` touching `apps/**`, `src/**`, `functions/**`, `firebase.json`, `.firebaserc`, `package.json`, `package-lock.json` or either workflow. A lint error, red typecheck, unit test or web build therefore blocks the deploy.
 - **Rollback**: `firebase hosting:rollback` (or Hosting → Release history → Roll back in the console) restores the previous Hosting release without a rebuild.
 
 ### Functions bundle — `functions/` imports `src/` via esbuild

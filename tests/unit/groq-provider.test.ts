@@ -203,7 +203,7 @@ describe("GroqProvider Unit Tests", () => {
             function: {
               name: "ssh_execute",
               description: "Executes command",
-              parameters: {}
+              parameters: { type: "object", properties: {} }
             }
           }
         ]

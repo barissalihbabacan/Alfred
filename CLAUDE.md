@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-B.U.T.L.E.R. Alfred — a personal AI executive-assistant/agent system for Barış (*Barış's Unified Task, Logic, Execution & Reasoning*). Alfred is a British-butler-persona cognitive agent: a vendor-agnostic TypeScript core (`src/`) handles LLM providers, long-term memory, voice and tool execution; the production front end is a Next.js app built as a static export (see **Front ends** below). Deployed through Firebase.
+B.U.T.L.E.R. Alfred — a personal AI executive-assistant/agent system for Barış (*Barış's Unified Task, Logic, Execution & Reasoning*). Alfred is a British-butler-persona cognitive agent: a vendor-agnostic TypeScript core (`src/`) handles LLM providers, long-term memory, voice and tool execution; the production front end is a Next.js app built as a static export (see **Front end** below). Deployed through Firebase.
 
 ## Commands
 
@@ -52,7 +52,7 @@ Full detail lives in `docs/ARCHITECTURE.md` — read it before touching `src/alf
 - `src/data/` — persistence abstractions: Firestore repositories, vector store, embedding providers. Always accessed through interfaces + factories (e.g. `getConversationRepository()`, `getVectorStore()`, `getEmbeddingProvider()`), each with an in-memory implementation used by unit tests.
 - `src/core/` — cross-cutting config, errors and logging. `logging/` is a small JSON-to-stdout `StructuredLogger` (not wired into production; `functions/index.js` has its own `logEvent()` on `firebase-functions/logger`). `events/`, `types/`, `permissions/` are still empty placeholders.
 - **Structured logs**: the `api` function emits `llm_request`, `tool_call`, `memory_retrieval` and `memory_extraction` events (tokens, latency, TTFT, scores, outcomes; never API keys, ID tokens or user message text). Query them in Cloud Logging with `jsonPayload.event="llm_request"`.
-- `apps/web/` — see **Front ends**.
+- `apps/web/` — see **Front end**.
 - `functions/` — Firebase Cloud Functions backend (plain JS, separate `package.json`/deploy cycle). Not a thin layer: `functions/index.js` is ~1550 lines and carries its own system prompt, tool wiring and two entry points — `api` (`onRequest`, behind the `/api/**` Hosting rewrite) and `alfredCallable` (`onCall`). It is being migrated to import from `src/` (bundled with esbuild, see **Functions bundle** below), but most of it is still hand-written: except for the modules listed there, changes to Alfred's behaviour often need to be made here **and** in `src/` — those parts are not shared code.
 - `users/` — canonical, git-versioned, **read-only-at-runtime** profile of Barış (`USER_PROFILE.md`, `PREFERENCES.md`, `WORKING_STYLE.md`). Loaded by `UserProfileLoader` and injected into the system prompt by `ContextBuilder`. Never written to by the running app.
 - `docs/persona/ALFRED_PERSONA.md` — canonical behavioral/linguistic spec for Alfred (British-butler tone, pushback style, "sir" usage, response length rules). Consult this before changing anything under `src/alfred/persona/` or `src/ai/prompts/`.

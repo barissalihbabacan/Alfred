@@ -5,7 +5,7 @@
  *   start        { conversationId, provider, model }
  *   thinking     {}
  *   chunk        { text }            -- `<think>` izleri icerebilir, gosterimde temizlenir
- *   tool_call    { tool, arguments }
+ *   tool_call    { tool, arguments } veya { toolCalls: [{ id, name, arguments }] }
  *   tool_result  { tool, toolCallId, result }
  *   done         {}                  -- yanit bitti; sunucu bellek kaydi icin baglantiyi bir sure acik tutabilir
  *   error        { error }
@@ -14,7 +14,7 @@ export type ChatStreamEvent =
   | { type: "start"; conversationId?: string; provider?: string; model?: string }
   | { type: "thinking" }
   | { type: "chunk"; text?: string }
-  | { type: "tool_call"; tool?: string; arguments?: unknown }
+  | { type: "tool_call"; tool?: string; arguments?: unknown; toolCalls?: unknown[] }
   | { type: "tool_result"; tool?: string; toolCallId?: string; result?: unknown }
   | { type: "done" }
   | { type: "error"; error?: string };

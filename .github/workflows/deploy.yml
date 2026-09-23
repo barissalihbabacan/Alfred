@@ -10,6 +10,8 @@ on:
       - "functions/**"
       - "firebase.json"
       - ".firebaserc"
+      - "firestore.rules"
+      - "firestore.indexes.json"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/deploy.yml"
@@ -69,5 +71,5 @@ jobs:
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BUTLER_ALFRED }}
 
-      - name: Deploy Hosting and Cloud Functions
-        run: npx firebase-tools deploy --only hosting,functions --non-interactive
+      - name: Deploy Hosting, Cloud Functions and Firestore rules/indexes
+        run: npx firebase-tools deploy --only hosting,functions,firestore:rules,firestore:indexes --non-interactive

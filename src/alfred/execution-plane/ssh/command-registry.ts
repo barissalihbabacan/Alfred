@@ -9,20 +9,10 @@ import { SSHPathSandbox, SANDBOX_ROOT_NAME } from "./ssh-path-sandbox.js";
 import { LSParser } from "./ls-parser.js";
 import { SSHListDirectoryResult } from "./ssh-client.interface.js";
 
-export type AllowedSSHCommand =
-  | "list_directory"
-  | "disk_usage"
-  | "current_directory"
-  | "identity"
-  | "system_info";
+import { ALLOWED_SSH_COMMANDS, AllowedSSHCommand } from "./allowed-commands.js";
 
-export const ALLOWED_SSH_COMMANDS: readonly AllowedSSHCommand[] = [
-  "list_directory",
-  "disk_usage",
-  "current_directory",
-  "identity",
-  "system_info"
-] as const;
+export { ALLOWED_SSH_COMMANDS };
+export type { AllowedSSHCommand };
 
 /**
  * Safely escapes a string for POSIX shell argument literal inclusion.

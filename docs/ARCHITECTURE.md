@@ -28,7 +28,7 @@ Firebase Hosting ── /api/** rewrite ──►  Cloud Function 2nd Gen `api` 
 ```
 
 - **One HTTP entry point.** Everything server-side runs in the `api` function. The web app is a static export with no route handlers or SSR.
-- **`functions/index.js` is bundled with `src/`.** esbuild builds it into `functions/lib/index.js` together with the shared `src/` modules it imports: the system prompt and user profile, memory-extraction prompt and candidate validation, `PrivacyFilter`, cosine similarity, conversation titles, the `get_current_time` tool and the embedding calls (`src/ai/embedding/embedding-client.ts`). The rest of `functions/index.js` (Firestore memory persistence, SSH tool definitions) is still hand-written and separate from its `src/` counterparts.
+- **`functions/index.js` is bundled with `src/`.** esbuild builds it into `functions/lib/index.js` together with the shared `src/` modules it imports: the system prompt and user profile, memory-extraction prompt and candidate validation, `PrivacyFilter`, cosine similarity, conversation titles, the `get_current_time` tool, the embedding calls (`src/ai/embedding/embedding-client.ts`), and the SSH tools (definitions, argument checks and production's placeholder results). The rest of `functions/index.js` (chiefly Firestore memory persistence) is still hand-written and separate from its `src/` counterparts.
 - **Secrets** (`GROQ_API_KEY`, `GEMINI_API_KEY`) live only in Secret Manager and are bound to the function. The browser never sees or sends a key.
 
 ---
@@ -219,11 +219,13 @@ The Execution Plane (`src/alfred/execution-plane/`) contains capabilities Alfred
 - **SSH** (implemented): `ssh2`-based client with a mock for tests, connection manager, an allow-listed command registry (`list_directory`, `disk_usage`, `current_directory`, `identity`, `system_info`), path sandbox, and `ls` parser. Hosts are referred to by alias (`home-server`), never by raw credentials in tool arguments.
 - **GitHub, Gmail, Calendar, Files, Browser, Terminal, Web Search, External APIs** (planned): Directories exist, but they are empty.
 
-Production offers the model exactly four tools, all defined in `functions/index.js`:
+Production offers the model exactly four tools, all imported from `src/ai/tools/`:
 - `get_current_time`, shared with `src/ai/tools/time/`. Its resolver folds Turkish and accented spellings and drops country suffixes;
 - `ssh_connect`;
 - `ssh_list_directory`;
 - `ssh_execute`, limited to the five allow-listed commands.
+
+The three SSH definitions and their argument checks live in `src/ai/tools/ssh/ssh-tool-definitions.ts`. Production does **not** connect over SSH: `functions/index.js` returns the canned results in `src/ai/tools/ssh/ssh-placeholder.ts` (a fixed `Belgeler/` listing, `df`, `pwd`, `whoami` and `uname` snapshots) after the same default host/path, allow-list check and path deny-list. The real execution plane above (ssh2 client, host registry, `SSHPathSandbox`, `ls` parser) is used only by the src tools and is not wired into production.
 
 ---
 

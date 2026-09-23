@@ -4,3 +4,4 @@ export * from "./time/get-current-time.tool.js";
 export * from "./ssh/ssh-connect.tool.js";
 export * from "./ssh/ssh-list-directory.tool.js";
 export * from "./ssh/ssh-execute.tool.js";
+export * from "./ssh/ssh-tool-definitions.js";

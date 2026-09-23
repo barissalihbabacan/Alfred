@@ -109,15 +109,41 @@ describe("SSHExecuteTool Unit Suite", () => {
       expect(mockClient.execCalls.length).toBe(0);
     });
 
-    it("rejects raw string argument for args parameter", () => {
+    it("ignores a raw string args parameter: nothing from it reaches the command", () => {
+      // Production ignores args for every command but list_directory, and
+      // reads only args.path there, so a string is accepted and dropped.
       const val = tool.validateArgs({
         host: "home-server",
         command: "disk_usage",
         args: "-h; rm -rf /"
       });
 
-      expect(val.valid).toBe(false);
-      expect(val.error).toContain("structured key-value object");
+      expect(val.valid).toBe(true);
+      expect(val.parsedArgs).toEqual({ host: "home-server", command: "disk_usage", args: {} });
+
+      const listing = tool.validateArgs({
+        host: "home-server",
+        command: "list_directory",
+        args: "../../etc; rm -rf /"
+      });
+      expect(listing.valid).toBe(true);
+      expect(listing.parsedArgs?.args).toEqual({ path: "Belgeler" });
+    });
+
+    it("uses production's text for a missing, non-string or padded command", () => {
+      const allowed = "list_directory, disk_usage, current_directory, identity, system_info";
+      for (const [command, shown] of [
+        [undefined, "undefined"],
+        [null, "null"],
+        [42, "42"],
+        [" disk_usage", " disk_usage"],
+        ["DISK_USAGE", "DISK_USAGE"]
+      ] as const) {
+        expect(tool.validateArgs({ host: "home-server", command })).toEqual({
+          valid: false,
+          error: `Command '${shown}' is not permitted. Only strictly whitelisted commands (${allowed}) may be executed.`
+        });
+      }
     });
   });
 

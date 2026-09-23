@@ -1,6 +1,10 @@
 /**
  * B.U.T.L.E.R. Alfred — Tool: ssh_list_directory(host, path)
  * Safe, read-only directory listing tool strictly confined to the "Belgeler/" filesystem sandbox.
+ *
+ * Definition, defaults and the first path check (with its error text) come from
+ * ./ssh-tool-definitions.ts, which production (functions/index.js) bundles too.
+ * The real listing then goes through SSHPathSandbox and realpath containment.
  */
 
 import { ITool, ToolDefinition, ToolParameterSchema, ToolExecutionContext } from "../types.js";
@@ -10,6 +14,13 @@ import {
   getSSHConnectionManager
 } from "../../../alfred/execution-plane/ssh/ssh-connection-manager.js";
 import { SSHListDirectoryResult } from "../../../alfred/execution-plane/ssh/ssh-client.interface.js";
+import {
+  SSH_LIST_DIRECTORY_TOOL_DEFINITION,
+  SSH_LIST_DIRECTORY_TOOL_NAME,
+  getSshSandboxPathDenial,
+  resolveSshHostArg,
+  resolveSshListPathArg
+} from "./ssh-tool-definitions.js";
 
 export interface SSHListDirectoryArgs {
   host: string;
@@ -18,28 +29,11 @@ export interface SSHListDirectoryArgs {
 
 export class SSHListDirectoryTool
   implements ITool<SSHListDirectoryArgs, SSHListDirectoryResult> {
-  public readonly name = "ssh_list_directory";
-  public readonly description =
-    "Lists directory contents on an approved remote host within the permitted 'Belgeler/' filesystem sandbox. Use this tool when the user inquires about files or folders in their documents directory.";
+  public readonly name = SSH_LIST_DIRECTORY_TOOL_NAME;
+  public readonly description = SSH_LIST_DIRECTORY_TOOL_DEFINITION.function.description;
   public readonly permissionLevel = PermissionLevel.SAFE_READ;
 
-  public readonly parameterSchema: ToolParameterSchema = {
-    type: "object",
-    properties: {
-      host: {
-        type: "string",
-        description:
-          "The identifier of the approved remote host to inspect (e.g. 'home-server')."
-      },
-      path: {
-        type: "string",
-        description:
-          "The directory path to inspect, strictly within the 'Belgeler/' sandbox root (e.g. 'Belgeler', 'Belgeler/project')."
-      }
-    },
-    required: ["host", "path"],
-    additionalProperties: false
-  };
+  public readonly parameterSchema: ToolParameterSchema = SSH_LIST_DIRECTORY_TOOL_DEFINITION.function.parameters;
 
   private connectionManager: SSHConnectionManager;
 
@@ -58,26 +52,35 @@ export class SSHListDirectoryTool
     };
   }
 
+  /**
+   * Production's rules: a missing or empty host becomes 'home-server' and a
+   * missing or empty path 'Belgeler'; a path containing ".." or starting with
+   * /etc, /var or /home is refused with production's error text. The path is
+   * passed on untrimmed (SSHPathSandbox trims and normalises it).
+   *
+   * src-only: a host or path that is not a string is rejected (production
+   * would echo such a host, and throws a TypeError on such a path).
+   */
   public validateArgs(
     args: unknown
   ): { valid: boolean; error?: string; parsedArgs?: SSHListDirectoryArgs } {
-    if (!args || typeof args !== "object") {
-      return {
-        valid: false,
-        error: "Invalid arguments: expected an object containing 'host' and 'path' properties."
-      };
+    const host = resolveSshHostArg(args);
+    const path = resolveSshListPathArg(args);
+
+    // Production's check first, so its error wins whatever the host is.
+    const denial = typeof path === "string" ? getSshSandboxPathDenial(path) : null;
+    if (denial) {
+      return { valid: false, error: denial };
     }
 
-    const cast = args as Record<string, unknown>;
-
-    if (typeof cast.host !== "string" || !cast.host.trim()) {
+    if (typeof host !== "string" || !host.trim()) {
       return {
         valid: false,
         error: "Missing required argument 'host'. Please specify an approved host (e.g. 'home-server')."
       };
     }
 
-    if (typeof cast.path !== "string") {
+    if (typeof path !== "string") {
       return {
         valid: false,
         error: "Missing required argument 'path'. Please specify a directory path within 'Belgeler/'."
@@ -87,8 +90,8 @@ export class SSHListDirectoryTool
     return {
       valid: true,
       parsedArgs: {
-        host: cast.host.trim(),
-        path: cast.path.trim()
+        host: host.trim(),
+        path
       }
     };
   }

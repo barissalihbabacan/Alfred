@@ -8,33 +8,57 @@ import {
   buildMemoryVectorRecord,
   createMemoryWriteTally,
   generateMemoryId,
+  normalizeMemoryContent,
   planMemoryWrite,
   summarizeMemoryWriteTally,
   type ComparableMemoryRecord,
   type MemoryWriteAction
 } from "../../src/alfred/cognitive/memory/memory-write-planner.js";
-import { GEMINI_EMBEDDING_MODEL, OLLAMA_EMBEDDING_MODEL } from "../../src/ai/embedding/embedding-client.js";
+import {
+  GEMINI_EMBEDDING_MODEL,
+  OLLAMA_EMBEDDING_MODEL,
+  isComparableEmbedding
+} from "../../src/ai/embedding/embedding-client.js";
+import { cosineSimilarity } from "../../src/data/vector/cosine-similarity.js";
+import { validateMemoryCandidate } from "../../src/ai/prompts/memory-extraction.js";
+import { PrivacyFilter } from "../../src/alfred/cognitive/memory/privacy-filter.js";
 import { persistMemoryCandidates } from "../../functions/memory-persistence.js";
 import { legacyPersistMemories } from "./fixtures/legacy-memory-persistence.js";
 
 /**
  * The memory persistence decisions (forget / duplicate / supersede / create)
  * are shared by functions/memory-persistence.js (production) and MemoryService
- * through memory-write-planner.ts. The differential suite runs the production
- * module and a verbatim copy of the former inline loop of functions/index.js
+ * through memory-write-planner.ts.
+ *
+ * The differential suite runs the production module and a verbatim copy of
+ * the former inline loop of functions/index.js
  * (fixtures/legacy-memory-persistence.js) against the same fake Firestore,
- * fake embeddings and injected failures, and requires identical writes,
- * embedding calls, log lines, tallies, summaries and final store contents.
+ * fake embeddings and injected failures. Five production bugs were fixed
+ * since that copy was taken:
+ *
+ * 1. supersede is one Firestore batch (old marked superseded + new record);
+ * 2. supersede targets the best match >= 0.5, not the first;
+ * 3. supersede skips an exact normalized-content duplicate;
+ * 4. create and supersede skip an exact normalized-content duplicate across
+ *    embedding models;
+ * 5. log lines carry memory_id / memory_type / content_length, never text.
+ *
+ * `affectedByFixes` finds the turns where 1-4 change the outcome; every other
+ * turn must produce identical reads, writes, embedding calls, tallies,
+ * summaries and final store contents, and identical log lines up to fix 5
+ * (`logKey`). All turns, affected or not, must satisfy the fixed invariants
+ * (`checkInvariants`). The explicit tests below pin each fix.
  */
 
 type Rec = ComparableMemoryRecord & { id: string };
 
-function rec(id: string, embedding: unknown, embeddingModel: unknown = GEMINI_EMBEDDING_MODEL): Rec {
-  return { id, embedding, embeddingModel };
+function rec(id: string, embedding: unknown, embeddingModel: unknown = GEMINI_EMBEDDING_MODEL, content: unknown = `stored ${id}`): Rec {
+  return { id, embedding, embeddingModel, content };
 }
 
-function plan(action: MemoryWriteAction, values: number[], memories: Rec[], model = GEMINI_EMBEDDING_MODEL) {
-  const result = planMemoryWrite({ action, embedding: { values, model }, activeMemories: memories, recordOf: (m) => m });
+function plan(action: MemoryWriteAction, values: number[], memories: Rec[], model = GEMINI_EMBEDDING_MODEL, content = "the candidate") {
+  const result = planMemoryWrite({ action, content, embedding: { values, model }, activeMemories: memories, recordOf: (m) => m });
+  if (result.kind === "skipDuplicate") return { kind: result.kind, target: result.target.id, score: result.score, match: result.match };
   return "target" in result ? { kind: result.kind, target: result.target.id, score: result.score } : { kind: result.kind };
 }
 
@@ -64,17 +88,50 @@ describe("planMemoryWrite", () => {
 
   it("create is a duplicate at the first comparable match >= 0.85", () => {
     const first = plan("create", [1, 0], [rec("a", AT_06), rec("b", [1, 0.1]), rec("c", [1, 0])]);
-    expect(first).toMatchObject({ kind: "skipDuplicate", target: "b" });
+    expect(first).toMatchObject({ kind: "skipDuplicate", target: "b", match: "embedding" });
     expect(plan("create", [1, 0], [rec("a", AT_08)])).toEqual({ kind: "create" });
-    expect(plan("create", UNIT5, [rec("a", EXACTLY_085)])).toEqual({ kind: "skipDuplicate", target: "a", score: 0.85 });
+    expect(plan("create", UNIT5, [rec("a", EXACTLY_085)])).toEqual({ kind: "skipDuplicate", target: "a", score: 0.85, match: "embedding" });
     expect(plan("create", UNIT5, [rec("a", [17, 10, 3, 1, 1.01])])).toEqual({ kind: "create" });
   });
 
-  it("supersede takes the first comparable match >= 0.5, not the best, and never dedups", () => {
-    expect(plan("supersede", [1, 0], [rec("a", [0, 1]), rec("b", AT_06), rec("c", [1, 0])])).toEqual({ kind: "supersede", target: "b", score: 0.6 });
-    expect(plan("supersede", [1, 0], [rec("a", [1, 0])])).toMatchObject({ kind: "supersede", target: "a" });
+  it("supersede takes the best comparable match >= 0.5 (fix 2), earliest on ties, and is not cosine-deduped", () => {
+    // Formerly "b" (the first match >= 0.5); now "c", the best.
+    expect(plan("supersede", [1, 0], [rec("a", [0, 1]), rec("b", AT_06), rec("c", [1, 0])])).toEqual({ kind: "supersede", target: "c", score: 1 });
+    expect(plan("supersede", [1, 0], [rec("a", AT_06), rec("b", AT_08), rec("c", AT_08)])).toEqual({ kind: "supersede", target: "b", score: 0.8 });
+    // Cosine 1.0 with different text is a legitimate update, not a duplicate.
+    expect(plan("supersede", [1, 0], [rec("a", [1, 0])])).toEqual({ kind: "supersede", target: "a", score: 1 });
     expect(plan("supersede", [1, 0], [rec("a", [0, 1])])).toEqual({ kind: "create" });
     expect(plan("supersede", UNIT5, [rec("a", BELOW_05), rec("b", EXACTLY_05)])).toEqual({ kind: "supersede", target: "b", score: 0.5 });
+    expect(plan("supersede", UNIT5, [rec("a", BELOW_05)])).toEqual({ kind: "create" });
+  });
+
+  it("create and supersede skip an exact normalized-content duplicate across all models (fixes 3 and 4)", () => {
+    const content = "Barış prefers dark roast coffee.";
+    const memories = [
+      rec("far", [0, 1], GEMINI_EMBEDDING_MODEL, "Something else entirely."),
+      rec("other-model", [5, 5, 5], OLLAMA_EMBEDDING_MODEL, "  barış PREFERS dark\n roast   coffee. "),
+      rec("same", [1, 0], GEMINI_EMBEDDING_MODEL, content)
+    ];
+    for (const action of ["create", "supersede"] as const) {
+      expect(plan(action, [1, 0], memories, GEMINI_EMBEDDING_MODEL, content)).toEqual({
+        kind: "skipDuplicate", target: "other-model", score: null, match: "exact_content"
+      });
+    }
+    // No embedding at all still counts; non-string content never does.
+    expect(plan("create", [1, 0], [rec("bare", undefined, undefined, content)], GEMINI_EMBEDDING_MODEL, content))
+      .toMatchObject({ kind: "skipDuplicate", target: "bare", match: "exact_content" });
+    expect(plan("create", [1, 0], [rec("num", [0, 1], GEMINI_EMBEDDING_MODEL, 42)], GEMINI_EMBEDDING_MODEL, "42 is the answer"))
+      .toEqual({ kind: "create" });
+    // Not fuzzy: punctuation or a single word changes it.
+    expect(plan("create", [1, 0], [rec("a", [0, 1], GEMINI_EMBEDDING_MODEL, "Barış prefers dark roast coffee")], GEMINI_EMBEDDING_MODEL, content))
+      .toEqual({ kind: "create" });
+    // forget ignores content.
+    expect(plan("forget", [1, 0], [rec("a", [0, 1], GEMINI_EMBEDDING_MODEL, content)], GEMINI_EMBEDDING_MODEL, content))
+      .toEqual({ kind: "noMatch" });
+  });
+
+  it("normalizeMemoryContent trims, collapses whitespace and lower-cases", () => {
+    expect(normalizeMemoryContent("  Barış\tUSES \n\n Vim.  ")).toBe("barış uses vim.");
   });
 
   it("only compares non-empty embeddings from the same model", () => {
@@ -171,8 +228,9 @@ function pick<T>(r: () => number, items: readonly T[]): T {
   return items[Math.floor(r() * items.length)]!;
 }
 
+
 type Data = Record<string, unknown>;
-type Event = { kind: string; [key: string]: unknown };
+type Event = { kind: string; failed?: true; [key: string]: unknown };
 
 interface Failures {
   embed: number;
@@ -181,15 +239,22 @@ interface Failures {
   set: number;
 }
 
+const NO_FAILURES: Failures = { embed: 0, get: 0, update: 0, set: 0 };
+
 /**
  * Minimal Firestore double: `collection().where().where().get()` returns the
  * matching documents in document-id order (Firestore's default), `data()`
- * returns a fresh copy, `ref.update` merges and `doc().set` replaces. Each
- * operation kind fails according to its own seeded stream, so two runs that
- * issue the same operations see the same failures.
+ * returns a fresh copy, `ref.update` merges, `doc().set` replaces and
+ * `batch()` queues updates/sets that `commit()` applies all together or not at
+ * all. Each write kind fails according to its own seeded stream (a batch rolls
+ * each queued op in order and stops at the first failure, which consumes the
+ * streams exactly like the same writes issued one by one), so two runs that
+ * issue the same operations see the same failures. Failed events are flagged.
  */
 class FakeFirestore {
   readonly store = new Map<string, Data>();
+  /** Every batch created, with its op kinds and whether it committed. */
+  readonly batches: Array<{ ops: string[]; committed: boolean }> = [];
   private readonly failRng: Record<keyof Failures, () => number>;
 
   constructor(initial: Array<[string, Data]>, private readonly events: Event[], seed: number, private readonly failures: Failures) {
@@ -206,15 +271,29 @@ class FakeFirestore {
     return this.failRng[kind]() < this.failures[kind];
   }
 
+  /** Records a write event, then throws if its seeded stream says it fails. */
+  private attempt(kind: "update" | "set", id: string, payload: Data): void {
+    const event: Event = { kind, collection: "memory_vectors", id, payload: structuredClone(payload) };
+    this.events.push(event);
+    if (this.fails(kind)) {
+      event.failed = true;
+      throw new Error(`${kind} ${id} failed`);
+    }
+  }
+
+  private apply(kind: "update" | "set", id: string, payload: Data): void {
+    this.store.set(id, kind === "update" ? { ...this.store.get(id), ...structuredClone(payload) } : structuredClone(payload));
+  }
+
   private snapshotDoc(id: string) {
     return {
       id,
       data: () => structuredClone(this.store.get(id)) as Data,
       ref: {
+        id,
         update: async (payload: Data) => {
-          this.events.push({ kind: "update", collection: "memory_vectors", id, payload: structuredClone(payload) });
-          if (this.fails("update")) throw new Error(`update ${id} failed`);
-          this.store.set(id, { ...this.store.get(id), ...structuredClone(payload) });
+          this.attempt("update", id, payload);
+          this.apply("update", id, payload);
         }
       }
     };
@@ -229,23 +308,48 @@ class FakeFirestore {
         return query;
       },
       get: async () => {
-        this.events.push({ kind: "get", collection: name, filters: [...filters] });
-        if (this.fails("get")) throw new Error("query failed");
+        const event: Event = { kind: "get", collection: name, filters: [...filters] };
+        this.events.push(event);
+        if (this.fails("get")) {
+          event.failed = true;
+          throw new Error("query failed");
+        }
         const ids = [...this.store.keys()]
           .filter((id) => filters.every(([f, v]) => this.store.get(id)![f] === v))
           .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+        // What the caller saw, for the "affected by the fixes" walk below.
+        event.docs = ids.map((id) => ({ id, data: structuredClone(this.store.get(id)) }));
         const docs = ids.map((id) => this.snapshotDoc(id));
         return { docs, size: docs.length };
       },
       doc: (id: string) => ({
+        id,
         set: async (payload: Data) => {
-          this.events.push({ kind: "set", collection: name, id, payload: structuredClone(payload) });
-          if (this.fails("set")) throw new Error(`set ${id} failed`);
-          this.store.set(id, structuredClone(payload));
+          this.attempt("set", id, payload);
+          this.apply("set", id, payload);
         }
       })
     };
     return query;
+  }
+
+  batch() {
+    const ops: Array<{ kind: "update" | "set"; id: string; payload: Data }> = [];
+    const record = { ops: [] as string[], committed: false };
+    this.batches.push(record);
+    const queue = (kind: "update" | "set") => (ref: { id: string }, payload: Data) => {
+      ops.push({ kind, id: ref.id, payload: structuredClone(payload) });
+      record.ops.push(kind);
+    };
+    return {
+      update: queue("update"),
+      set: queue("set"),
+      commit: async () => {
+        for (const op of ops) this.attempt(op.kind, op.id, op.payload);
+        for (const op of ops) this.apply(op.kind, op.id, op.payload);
+        record.committed = true;
+      }
+    };
   }
 }
 
@@ -261,6 +365,16 @@ const CONTENTS = [
   "password: hunter2hunter2", // PrivacyFilter rejects
   "abc", // too short
   "   Barış likes tea.   "
+];
+// Stored-only texts: most existing memories differ in wording from every
+// candidate, so exact-content duplicates (fixes 3 and 4) stay the exception
+// and most scenarios remain comparable with the legacy loop.
+const STORED_ONLY = [
+  "Barış drinks espresso every morning.",
+  "The staging database is Firestore.",
+  "Barış is based in Turkey.",
+  "Barış enjoys green tea.",
+  "Alfred runs on Cloud Functions."
 ];
 
 function randomVector(r: () => number, dim: number): number[] {
@@ -285,7 +399,7 @@ function randomDoc(r: () => number, i: number): [string, Data] {
   const data: Data = {
     memoryId: id,
     userId: r() < 0.85 ? USER : "someone_else",
-    content: pick(r, CONTENTS),
+    content: r() < 0.15 ? pick(r, CONTENTS) : pick(r, STORED_ONLY),
     status: pick(r, ["active", "active", "active", "active", "superseded", "retracted"]),
     embeddingModel: r() < 0.9 ? e.model : undefined
   };
@@ -326,7 +440,7 @@ function makeScenario(seed: number): Scenario {
   const embeddings = new Map<string, { values: number[]; model: string }>();
   for (const content of CONTENTS) {
     // Candidates embed their trimmed content; sometimes reuse an existing
-    // memory's vector so exact duplicates/matches are frequent.
+    // memory's vector so cosine duplicates/matches are frequent.
     const reuse = docs.length > 0 && r() < 0.35 ? docs[Math.floor(r() * docs.length)]![1] : null;
     const values = reuse && Array.isArray(reuse.embedding) && reuse.embedding.length > 0 ? (reuse.embedding as number[]) : null;
     embeddings.set(content.trim(), values ? { values, model: String(reuse!.embeddingModel ?? GEMINI_EMBEDDING_MODEL) } : randomEmbedding(r));
@@ -339,12 +453,26 @@ function makeScenario(seed: number): Scenario {
     embeddings,
     failures: noisy
       ? { embed: 0.15, get: 0.1, update: 0.15, set: 0.15 }
-      : { embed: 0, get: 0, update: 0, set: 0 },
+      : NO_FAILURES,
     sourceMessageIds: r() < 0.8 ? ["msg_u", "msg_a"] : undefined
   };
 }
 
 type Runner = "legacy" | "shared";
+
+/**
+ * The log lines fix 5 rewrote (they used to embed memory text) compare by
+ * kind and memory id; every other log line compares verbatim, arguments too.
+ */
+function logKey(e: Event): unknown[] {
+  const args = e.args as unknown[];
+  const msg = String(args[0]);
+  const retracted = /^\[Memory\] Retracted memory (\S+)/.exec(msg);
+  if (retracted) return [e.level, "retracted", retracted[1]];
+  if (msg.startsWith("[Memory] Suppressed duplicate memory")) return [e.level, "duplicate"];
+  if (msg.startsWith("[Memory] Stored long-term memory in Firestore")) return [e.level, "stored"];
+  return [e.level, ...args];
+}
 
 async function run(runner: Runner, s: Scenario) {
   const events: Event[] = [];
@@ -356,8 +484,12 @@ async function run(runner: Runner, s: Scenario) {
   let tsCounter = 0;
   const Timestamp = { now: () => ({ ts: ++tsCounter }) };
   const getEmbedding = async (text: string, ollamaUrl: unknown, geminiKey: unknown) => {
-    events.push({ kind: "embed", text, ollamaUrl, geminiKey });
-    if (db.fails("embed")) throw new Error("Neither Gemini nor Ollama could generate embedding");
+    const event: Event = { kind: "embed", text, ollamaUrl, geminiKey };
+    events.push(event);
+    if (db.fails("embed")) {
+      event.failed = true;
+      throw new Error("Neither Gemini nor Ollama could generate embedding");
+    }
     const e = s.embeddings.get(text);
     if (!e) throw new Error(`no embedding for ${text}`);
     return { values: [...e.values], model: e.model };
@@ -395,27 +527,139 @@ async function run(runner: Runner, s: Scenario) {
   } finally {
     vi.restoreAllMocks();
   }
-  return { events, tally, summary, store: [...db.store.entries()].sort(), timestamps: tsCounter };
+  const logs = events.filter((e) => e.kind === "log");
+  return {
+    // Writes/reads/embeds and logs are separate streams: the batch moves the
+    // "Superseded memory" log after the commit, i.e. after the new record's set.
+    comparable: {
+      io: events.filter((e) => e.kind !== "log"),
+      logs: logs.map(logKey),
+      tally,
+      summary,
+      store: [...db.store.entries()].sort(),
+      timestamps: tsCounter
+    },
+    events,
+    logs,
+    store: new Map(db.store)
+  };
+}
+
+type FixReason = "fix1-atomic-supersede" | "fix2-best-match" | "fix3-4-exact-duplicate";
+
+/**
+ * Walks a legacy run and reports the first place where fixes 1-4 change
+ * production's behaviour; from there on the two runs legitimately diverge.
+ * Fix 5 (log text) applies to every run and is handled by `logKey`.
+ */
+function affectedByFixes(s: Scenario, events: Event[]): FixReason | null {
+  // Fix 1: the old record was marked superseded but the new record's set failed.
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i]!;
+    if (e.kind === "update" && (e.payload as Data).status === "superseded" && !e.failed) {
+      const next = events.slice(i + 1).find((x) => x.kind !== "log");
+      if (next?.kind === "set" && next.failed) return "fix1-atomic-supersede";
+    }
+  }
+
+  let cursor = 0;
+  for (const candidate of s.memories) {
+    const v = validateMemoryCandidate(candidate);
+    if (!v || !PrivacyFilter.check(v.content).isSafe) continue;
+    while (cursor < events.length && events[cursor]!.kind !== "embed") cursor++;
+    const embedEvent = events[cursor++];
+    if (!embedEvent || embedEvent.text !== v.content) throw new Error(`walk out of sync at seed ${s.seed}`);
+    if (embedEvent.failed || v.action === "forget") continue;
+    const get = events.slice(cursor).find((e) => e.kind !== "log");
+    if (!get || get.kind !== "get" || get.failed) continue;
+    const docs = get.docs as Array<{ id: string; data: Data }>;
+
+    const normalized = normalizeMemoryContent(v.content);
+    if (docs.some((d) => typeof d.data.content === "string" && normalizeMemoryContent(d.data.content) === normalized)) {
+      return "fix3-4-exact-duplicate";
+    }
+    if (v.action === "supersede") {
+      const embedding = s.embeddings.get(v.content)!;
+      let first: string | null = null;
+      let best: string | null = null;
+      let bestScore = 0;
+      for (const d of docs) {
+        if (!isComparableEmbedding(d.data, embedding.model)) continue;
+        const score = cosineSimilarity(embedding.values, d.data.embedding as number[]);
+        if (score >= MEMORY_MATCH_THRESHOLD && first === null) first = d.id;
+        if (score > bestScore) {
+          bestScore = score;
+          best = d.id;
+        }
+      }
+      if (first !== null && first !== best) return "fix2-best-match";
+    }
+  }
+  return null;
+}
+
+const CANDIDATE_TEXTS = CONTENTS.map((c) => c.trim()).filter((c) => c.length >= 5);
+const STORED_TEXTS = [...CANDIDATE_TEXTS, ...STORED_ONLY];
+
+/** Properties the fixed module must have in every scenario, affected or not. */
+function checkInvariants(s: Scenario, shared: Awaited<ReturnType<typeof run>>) {
+  const where = `seed ${s.seed}`;
+  // Fix 5: no memory text in any log call.
+  for (const log of shared.logs) {
+    const text = JSON.stringify(log.args);
+    for (const t of STORED_TEXTS) expect(text.includes(t), `${where}: ${text}`).toBe(false);
+  }
+  // Fix 1: a new record that supersedes X exists iff X points back at it.
+  const initial = new Set(s.docs.map(([id]) => id));
+  for (const [id, d] of shared.store) {
+    if (!initial.has(id) && d.supersedesMemoryId) {
+      const old = shared.store.get(String(d.supersedesMemoryId));
+      expect(old?.status, where).toBe("superseded");
+      expect(old?.supersededByMemoryId, where).toBe(id);
+    }
+    if (d.supersededByMemoryId) {
+      expect(shared.store.get(String(d.supersededByMemoryId))?.supersedesMemoryId, where).toBe(id);
+    }
+  }
+  // Fixes 3 and 4: a record written this turn never duplicates another active one.
+  const active = [...shared.store].filter(([, d]) => d.userId === USER && d.status === "active");
+  for (const [id, d] of active) {
+    if (initial.has(id)) continue;
+    const norm = normalizeMemoryContent(String(d.content));
+    const twins = active.filter(([otherId, o]) => otherId !== id && typeof o.content === "string" && normalizeMemoryContent(o.content) === norm);
+    expect(twins, where).toEqual([]);
+  }
 }
 
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("functions/memory-persistence.js matches the pre-refactor inline loop", () => {
-  it("makes identical writes, logs, tallies and summaries over 5000 random turns", async () => {
+describe("functions/memory-persistence.js vs the pre-refactor inline loop", () => {
+  it("is identical wherever fixes 1-4 do not apply, and keeps the fixed invariants everywhere (8000 random turns)", async () => {
     const coverage = {
       stored: 0, superseded: 0, retracted: 0, duplicate: 0, rejected: 0, invalid: 0, failed: 0,
       duplicateAfterSameTurnWrite: 0, failedAfterSupersede: 0
     };
-    for (let seed = 1; seed <= 5000; seed++) {
+    const affected: Record<FixReason, number> = { "fix1-atomic-supersede": 0, "fix2-best-match": 0, "fix3-4-exact-duplicate": 0 };
+    let unaffected = 0;
+
+    for (let seed = 1; seed <= 8000; seed++) {
       const s = makeScenario(seed);
       const legacy = await run("legacy", s);
       const shared = await run("shared", s);
-      expect(shared, `seed ${seed}`).toEqual(legacy);
+      checkInvariants(s, shared);
+
+      const reason = affectedByFixes(s, legacy.events);
+      if (reason) {
+        affected[reason]++;
+        continue;
+      }
+      unaffected++;
+      expect(shared.comparable, `seed ${seed}`).toEqual(legacy.comparable);
 
       for (const key of ["stored", "superseded", "retracted", "duplicate", "rejected", "invalid", "failed"] as const) {
-        coverage[key] += legacy.tally[key];
+        coverage[key] += legacy.comparable.tally[key];
       }
       // Walk the legacy event stream for the harder interactions.
       let writtenThisTurn = false;
@@ -429,12 +673,219 @@ describe("functions/memory-persistence.js matches the pre-refactor inline loop",
         if (msg.startsWith("[Memory] Suppressed duplicate memory") && writtenThisTurn) coverage.duplicateAfterSameTurnWrite++;
       }
     }
-    // Every branch must actually be exercised, including failures and
-    // same-turn interactions.
+    // Most turns stay comparable, every branch is exercised in them
+    // (including failures and same-turn interactions), and every fix is
+    // actually hit by the random scenarios.
+    if (process.env.PRINT_COVERAGE) console.log({ unaffected, affected, coverage });
+    expect(unaffected).toBeGreaterThan(3000);
     for (const [key, count] of Object.entries(coverage)) {
       expect(count, key).toBeGreaterThan(20);
     }
-  }, 120_000);
+    for (const [key, count] of Object.entries(affected)) {
+      expect(count, key).toBeGreaterThan(20);
+    }
+  }, 180_000);
+});
+
+// ---------------------------------------------------------------------------
+// Explicit tests for the fixes
+// ---------------------------------------------------------------------------
+
+type Embeddings = Record<string, { values: number[]; model: string }>;
+
+function activeDoc(id: string, content: string, embedding: number[], embeddingModel = GEMINI_EMBEDDING_MODEL, memoryType = "general"): [string, Data] {
+  return [id, { memoryId: id, userId: USER, content, memoryType, status: "active", embedding, embeddingModel }];
+}
+
+function cand(content: string, action: string, memoryType = "project_fact") {
+  return { content, action, memoryType, confidence: 0.95 };
+}
+
+async function persist(docs: Array<[string, Data]>, memories: unknown[], embeddings: Embeddings, failures: Partial<Failures> = {}) {
+  const events: Event[] = [];
+  const db = new FakeFirestore(docs, events, 7, { ...NO_FAILURES, ...failures });
+  const logs: unknown[][] = [];
+  const logger = {
+    info: (...args: unknown[]) => { logs.push(args); },
+    warn: (...args: unknown[]) => { logs.push(args); }
+  };
+  const tally = createMemoryWriteTally();
+  let ts = 0;
+  await persistMemoryCandidates({
+    db,
+    memories,
+    userId: USER,
+    conversationId: "conv_1",
+    sourceMessageIds: ["msg_1"],
+    embed: async (text: string) => {
+      const e = embeddings[text];
+      if (!e) throw new Error("no embedding");
+      return { values: [...e.values], model: e.model };
+    },
+    logger,
+    now: () => ({ ts: ++ts }),
+    errMessage: (err: unknown) => String((err as Error)?.message || err),
+    tally
+  });
+  const newIds = [...db.store.keys()].filter((id) => !docs.some(([d]) => d === id));
+  return { db, events, logs, tally, store: db.store, newIds };
+}
+
+describe("memory persistence fixes (production module)", () => {
+  const NEW = "Barış migrated CI to GitHub Actions.";
+  const OLD = "Barış uses Jenkins for CI.";
+
+  it("fix 1: a supersede commits the old-record update and the new record in one batch", async () => {
+    const r = await persist([activeDoc("old", OLD, [1, 0])], [cand(NEW, "supersede")], { [NEW]: { values: [1, 0.1], model: GEMINI_EMBEDDING_MODEL } });
+    expect(r.db.batches).toEqual([{ ops: ["update", "set"], committed: true }]);
+    const [newId] = r.newIds;
+    expect(r.store.get("old")).toMatchObject({ status: "superseded", supersededByMemoryId: newId });
+    expect(r.store.get(newId!)).toMatchObject({ status: "active", supersedesMemoryId: "old", content: NEW });
+    expect(r.tally).toMatchObject({ stored: 1, superseded: 1, failed: 0 });
+  });
+
+  it("fix 1: a plain create is a single set, no batch", async () => {
+    const r = await persist([], [cand(NEW, "create")], { [NEW]: { values: [1, 0], model: GEMINI_EMBEDDING_MODEL } });
+    expect(r.db.batches).toEqual([]);
+    expect(r.newIds).toHaveLength(1);
+  });
+
+  for (const failing of ["set", "update"] as const) {
+    it(`fix 1: when the batch's ${failing} fails, neither write lands and the old fact survives`, async () => {
+      const r = await persist(
+        [activeDoc("old", OLD, [1, 0])],
+        [cand(NEW, "supersede")],
+        { [NEW]: { values: [1, 0.1], model: GEMINI_EMBEDDING_MODEL } },
+        { [failing]: 1 }
+      );
+      expect(r.db.batches).toEqual([{ ops: ["update", "set"], committed: false }]);
+      expect(r.store.get("old")).toEqual(activeDoc("old", OLD, [1, 0])[1]);
+      expect(r.newIds).toEqual([]);
+      expect(r.tally).toMatchObject({ stored: 0, superseded: 0, failed: 1 });
+      expect(r.logs.map((l) => String(l[0]))).toEqual([`[Memory] Failed to save memory candidate: ${failing} ${failing === "set" ? r.events.find((e) => e.kind === "set")!.id : "old"} failed`]);
+    });
+  }
+
+  it("fix 1: the legacy loop lost the old fact when the new record's set failed", async () => {
+    const events: Event[] = [];
+    const db = new FakeFirestore([activeDoc("old", OLD, [1, 0])], events, 7, { ...NO_FAILURES, set: 1 });
+    const silent = { info: () => {}, warn: () => {} };
+    await legacyPersistMemories({
+      db, logger: silent, Timestamp: { now: () => 1 },
+      getEmbedding: async () => ({ values: [1, 0.1], model: GEMINI_EMBEDDING_MODEL }),
+      errMessage: String, ollamaUrl: "", geminiKey: "", memories: [cand(NEW, "supersede")],
+      userId: USER, conversationId: "c", sourceMessageIds: [], extractorProvider: null
+    });
+    // Old record superseded, pointing at a record that was never written.
+    expect(db.store.get("old")?.status).toBe("superseded");
+    expect(db.store.size).toBe(1);
+  });
+
+  it("fix 2: a supersede replaces the best match, not the first one >= 0.5", async () => {
+    const r = await persist(
+      [activeDoc("a_first", "Barış uses Travis for CI.", [3, 4]), activeDoc("b_best", OLD, [4, 3]), activeDoc("c_tie", "Barış uses Drone for CI.", [4, 3])],
+      [cand(NEW, "supersede")],
+      { [NEW]: { values: [1, 0], model: GEMINI_EMBEDDING_MODEL } }
+    );
+    expect(r.store.get("b_best")?.status).toBe("superseded");
+    expect(r.store.get("a_first")?.status).toBe("active");
+    expect(r.store.get("c_tie")?.status).toBe("active");
+    expect(r.store.get(r.newIds[0]!)?.supersedesMemoryId).toBe("b_best");
+  });
+
+  it("fix 3: a supersede whose normalized content already exists is skipped as a duplicate", async () => {
+    const r = await persist(
+      [activeDoc("same", "  barış MIGRATED ci to github\tactions. ", [0, 1]), activeDoc("old", OLD, [1, 0])],
+      [cand(NEW, "supersede")],
+      { [NEW]: { values: [1, 0], model: GEMINI_EMBEDDING_MODEL } }
+    );
+    expect(r.tally).toMatchObject({ duplicate: 1, stored: 0, superseded: 0 });
+    expect(r.newIds).toEqual([]);
+    expect(r.store.get("old")?.status).toBe("active");
+    expect(r.events.filter((e) => e.kind === "update" || e.kind === "set")).toEqual([]);
+    expect(r.logs).toEqual([["[Memory] Suppressed duplicate memory", {
+      memory_id: "same", memory_type: "project_fact", content_length: NEW.length, match: "exact_content", score: null
+    }]]);
+  });
+
+  it("fix 3: a supersede that is only semantically close (cosine 1.0, other text) still supersedes", async () => {
+    const r = await persist([activeDoc("old", OLD, [1, 0])], [cand(NEW, "supersede")], { [NEW]: { values: [1, 0], model: GEMINI_EMBEDDING_MODEL } });
+    expect(r.tally).toMatchObject({ stored: 1, superseded: 1, duplicate: 0 });
+  });
+
+  it("fix 4: an exact duplicate embedded by another model is detected for create and supersede", async () => {
+    for (const action of ["create", "supersede"]) {
+      const r = await persist(
+        [activeDoc("ollama_twin", NEW, [9, 9, 9], OLLAMA_EMBEDDING_MODEL)],
+        [cand(NEW, action)],
+        { [NEW]: { values: [1, 0], model: GEMINI_EMBEDDING_MODEL } }
+      );
+      expect(r.tally, action).toMatchObject({ duplicate: 1, stored: 0 });
+      expect(r.newIds, action).toEqual([]);
+    }
+  });
+
+  it("fix 4: cosine dedup still only compares vectors from the same model", async () => {
+    const r = await persist(
+      [activeDoc("ollama_near", "Barış moved CI to GitHub Actions.", [1, 0], OLLAMA_EMBEDDING_MODEL)],
+      [cand(NEW, "create")],
+      { [NEW]: { values: [1, 0], model: GEMINI_EMBEDDING_MODEL } }
+    );
+    expect(r.tally).toMatchObject({ stored: 1, duplicate: 0 });
+  });
+
+  it("fix 5: no log call contains memory text; ids, types and lengths are logged instead", async () => {
+    const texts = {
+      tea: "Barış likes tea with lemon.",
+      teaShout: "barış LIKES tea   with Lemon.",
+      teaNear: "Barış enjoys lemon tea.",
+      coffee: "Barış drinks coffee.",
+      forgetCoffee: "Forget that Barış drinks coffee.",
+      secret: "password: hunter2hunter2",
+      broken: "This one fails to embed."
+    };
+    const r = await persist(
+      [activeDoc("coffee", texts.coffee, [0, 1], GEMINI_EMBEDDING_MODEL, "user_preference"), activeDoc("old", OLD, [1, 0])],
+      [
+        cand(texts.tea, "create", "user_preference"),
+        cand(texts.teaNear, "create", "user_preference"), // cosine duplicate
+        cand(` ${texts.teaShout} `, "create"), // exact duplicate once normalized
+        cand(NEW, "supersede"),
+        cand(texts.forgetCoffee, "forget"),
+        cand(texts.secret, "create"),
+        cand(texts.broken, "create")
+      ],
+      {
+        [texts.tea]: { values: [1, 1], model: GEMINI_EMBEDDING_MODEL },
+        [texts.teaNear]: { values: [1, 1.05], model: GEMINI_EMBEDDING_MODEL },
+        [texts.teaShout]: { values: [5, -1], model: GEMINI_EMBEDDING_MODEL },
+        [NEW]: { values: [1, 0.1], model: GEMINI_EMBEDDING_MODEL },
+        [texts.forgetCoffee]: { values: [0, 1], model: GEMINI_EMBEDDING_MODEL }
+      }
+    );
+    expect(r.tally).toMatchObject({ stored: 2, superseded: 1, duplicate: 2, retracted: 1, rejected: 1, failed: 1 });
+
+    const all = [...Object.values(texts), NEW, OLD];
+    for (const args of r.logs) {
+      const line = JSON.stringify(args);
+      for (const t of all) expect(line.includes(t), line).toBe(false);
+    }
+    const byMessage = (m: string) => r.logs.filter((l) => String(l[0]).startsWith(m)).map((l) => l[1]);
+    const idOf = (content: string) => r.newIds.find((id) => r.store.get(id)!.content === content);
+    const teaId = idOf(texts.tea);
+    const newId = idOf(NEW);
+    expect(byMessage("[Memory] Stored long-term memory in Firestore")).toEqual([
+      { memory_id: teaId, memory_type: "user_preference", content_length: texts.tea.length },
+      { memory_id: newId, memory_type: "project_fact", content_length: NEW.length }
+    ]);
+    expect(byMessage("[Memory] Suppressed duplicate memory")).toEqual([
+      { memory_id: teaId, memory_type: "user_preference", content_length: texts.teaNear.length, match: "embedding", score: expect.any(Number) },
+      { memory_id: teaId, memory_type: "project_fact", content_length: texts.teaShout.length, match: "exact_content", score: null }
+    ]);
+    expect(byMessage("[Memory] Retracted memory")).toEqual([
+      { memory_id: "coffee", memory_type: "user_preference", content_length: texts.coffee.length }
+    ]);
+  });
 });
 
 describe("functions wiring", () => {
@@ -453,7 +904,10 @@ describe("functions wiring", () => {
     expect(persistence).toContain('from "../src/alfred/cognitive/memory/memory-write-planner.js"');
     expect(persistence).toContain("planMemoryWrite({");
     expect(persistence).toContain("buildMemoryVectorRecord({");
+    expect(persistence).toContain("db.batch()");
     expect(persistence).not.toMatch(/cosineSimilarity|isComparableEmbedding|0\.85|>= 0\.5/);
     expect(persistence).not.toMatch(/from "firebase-/);
+    // Fix 5: memory text is never interpolated into a log line.
+    expect(persistence).not.toMatch(/\$\{content\}|\.content\}/);
   });
 });

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { MemoryService } from "../../src/alfred/cognitive/memory/memory-service.js";
 import { InMemoryMemoryRepository } from "../../src/data/firestore/in-memory-memory-repository.js";
 import { InMemoryVectorStore } from "../../src/data/vector/in-memory-vector-store.js";
@@ -492,7 +492,8 @@ describe("Autonomous Long-Term Memory Extraction Suite", () => {
       "Barış migrated CI to GitHub Actions.": [1, 0],
       "Barış likes tea with lemon.": [0, 1],
       "Barış uses GitHub Actions for CI.": [1, 0],
-      "Barış uses GitHub Actions for CI builds.": [0.9, 0.3]
+      "Barış uses GitHub Actions for CI builds.": [0.9, 0.3],
+      "barış USES github  actions for CI.": [0.2, 1]
     };
     let memoryRepo: InMemoryMemoryRepository;
     let vectorStore: InMemoryVectorStore;
@@ -524,15 +525,28 @@ describe("Autonomous Long-Term Memory Extraction Suite", () => {
       service = makeService(new TableEmbeddingProvider(vectors));
     });
 
-    it("supersedes the first active match >= 0.5 in repository order, not the best one", async () => {
+    it("supersedes the best active match >= 0.5, not the first one in repository order", async () => {
       const jenkins = await service.createMemory({ content: "Barış uses Jenkins for CI.", userId: "baris" });
-      await service.createMemory({ content: "Barış uses CircleCI for CI.", userId: "baris" });
+      const circle = await service.createMemory({ content: "Barış uses CircleCI for CI.", userId: "baris" });
 
       const result = await turn([{ content: "Barış migrated CI to GitHub Actions.", action: "supersede" }]);
 
-      expect(result.superseded).toEqual([{ oldMemoryId: jenkins.memoryId, newMemoryId: result.created[0]!.memoryId }]);
-      expect(result.created[0]!.supersedesMemoryId).toBe(jenkins.memoryId);
-      expect((await memoryRepo.getMemoryRecordByMemoryId(jenkins.memoryId))?.status).toBe("superseded");
+      expect(result.superseded).toEqual([{ oldMemoryId: circle.memoryId, newMemoryId: result.created[0]!.memoryId }]);
+      expect(result.created[0]!.supersedesMemoryId).toBe(circle.memoryId);
+      expect((await memoryRepo.getMemoryRecordByMemoryId(circle.memoryId))?.status).toBe("superseded");
+      expect((await memoryRepo.getMemoryRecordByMemoryId(jenkins.memoryId))?.status).toBe("active");
+    });
+
+    it("supersede writes the new memory before marking the old one, so a failed write loses nothing", async () => {
+      const old = await service.createMemory({ content: "Barış uses Jenkins for CI.", userId: "baris" });
+      vi.spyOn(memoryRepo, "createMemoryRecord").mockRejectedValueOnce(new Error("firestore down"));
+
+      const result = await turn([{ content: "Barış migrated CI to GitHub Actions.", action: "supersede" }]);
+
+      expect(result.created).toEqual([]);
+      expect(result.superseded).toEqual([]);
+      expect((await memoryRepo.getMemoryRecordByMemoryId(old.memoryId))?.status).toBe("active");
+      expect((await memoryRepo.listAllActive("baris")).map((m) => m.memoryId)).toEqual([old.memoryId]);
     });
 
     it("forget retracts the best active match, found in the repository even with retrieval disabled", async () => {
@@ -556,21 +570,44 @@ describe("Autonomous Long-Term Memory Extraction Suite", () => {
       expect(result.skippedDuplicates).toEqual(["Barış uses GitHub Actions for CI builds."]);
     });
 
-    it("a supersede candidate is never dropped as a duplicate", async () => {
+    it("a supersede candidate is not cosine-deduped: a semantically identical update still supersedes", async () => {
       const old = await service.createMemory({ content: "Barış uses GitHub Actions for CI.", userId: "baris" });
-      const result = await turn([{ content: "Barış uses GitHub Actions for CI.", action: "supersede" }]);
+      // Different text, cosine 1.0 against the old memory.
+      const result = await turn([{ content: "Barış migrated CI to GitHub Actions.", action: "supersede" }]);
       expect(result.skippedDuplicates).toEqual([]);
       expect(result.superseded).toEqual([{ oldMemoryId: old.memoryId, newMemoryId: result.created[0]!.memoryId }]);
     });
 
-    it("only compares memories embedded by the same model", async () => {
+    it("a supersede candidate with exactly the same normalized content is skipped as a duplicate", async () => {
+      const old = await service.createMemory({ content: "Barış uses GitHub Actions for CI.", userId: "baris" });
+      const result = await turn([{ content: "  barış USES github  actions for CI.", action: "supersede" }]);
+      expect(result.skippedDuplicates).toEqual(["barış USES github  actions for CI."]);
+      expect(result.superseded).toEqual([]);
+      expect((await memoryRepo.getMemoryRecordByMemoryId(old.memoryId))?.status).toBe("active");
+    });
+
+    it("only compares vectors embedded by the same model", async () => {
       await service.createMemory({ content: "Barış uses GitHub Actions for CI.", userId: "baris" });
       service = makeService(new TableEmbeddingProvider(vectors, "other-model"));
 
-      const result = await turn([{ content: "Barış uses GitHub Actions for CI.", action: "create" }]);
+      // Same vector, different text, other model: not a duplicate.
+      const result = await turn([{ content: "Barış migrated CI to GitHub Actions.", action: "create" }]);
 
       expect(result.skippedDuplicates).toEqual([]);
       expect(result.created).toHaveLength(1);
+    });
+
+    it("detects an exact-content duplicate across embedding models", async () => {
+      await service.createMemory({ content: "Barış uses GitHub Actions for CI.", userId: "baris" });
+      service = makeService(new TableEmbeddingProvider(vectors, "other-model"));
+
+      const result = await turn([
+        { content: "Barış uses GitHub Actions for CI.", action: "create" },
+        { content: "Barış uses GitHub Actions for CI.", action: "supersede" }
+      ]);
+
+      expect(result.skippedDuplicates).toEqual(["Barış uses GitHub Actions for CI.", "Barış uses GitHub Actions for CI."]);
+      expect(result.created).toEqual([]);
     });
 
     it("drops a candidate whose active-memory read fails instead of writing blind", async () => {

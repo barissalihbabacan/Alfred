@@ -9,17 +9,29 @@
  * embed the candidate, ask `planMemoryWrite` what to do and perform the writes
  * themselves. Ids and timestamps are injected, so the record builders are pure.
  *
- * The semantics are production's, byte for byte (pinned by
- * tests/unit/memory-write-planner.test.ts against a verbatim copy of the
- * former inline loop in functions/index.js):
+ * Rules (tests/unit/memory-write-planner.test.ts pins them, and proves them
+ * equal to the former inline loop of functions/index.js wherever the fixes
+ * listed under "History" do not apply):
  *
  * - forget: the *best* comparable active memory (highest cosine, the earliest
  *   one on ties, strictly above 0) is retracted when its score is >= 0.5.
- * - create: the candidate is a duplicate as soon as *any* comparable active
- *   memory scores >= 0.85 (the first one in snapshot order is reported).
- * - supersede: the *first* comparable active memory in snapshot order that
- *   scores >= 0.5 is superseded (not the best one). A supersede candidate is
- *   never checked for duplicates, and without a target it is a plain create.
+ * - create and supersede: first an exact-content duplicate check against
+ *   *every* active memory, whatever model embedded it (or whether it has an
+ *   embedding at all): the candidate is skipped when an active memory has the
+ *   same `normalizeMemoryContent` (trimmed, whitespace collapsed, lower-cased).
+ *   The first such memory in snapshot order is reported.
+ * - create: otherwise a duplicate as soon as *any* comparable active memory
+ *   scores >= 0.85 (the first one in snapshot order is reported).
+ * - supersede: otherwise the *best* comparable active memory scoring >= 0.5
+ *   (highest cosine, the earliest in snapshot order on ties) is superseded;
+ *   without such a target it is a plain create. There is deliberately no
+ *   cosine dedup for supersede: a legitimate update ("moved from X to Y") can
+ *   be semantically very close to the fact it replaces.
+ *
+ * History (fix-memory-persistence): supersede used to take the *first* match
+ * >= 0.5 in snapshot order rather than the best, and neither supersede nor a
+ * create whose near-twin was embedded by another model (Gemini -> Ollama
+ * fallback turns) had any duplicate check.
  *
  * "Comparable" is `isComparableEmbedding`: a non-empty stored embedding made by
  * the same model as the candidate's. The active set is re-read for every
@@ -46,7 +58,20 @@ export type MemoryWriteAction = "create" | "forget" | "supersede";
 export interface ComparableMemoryRecord {
   embedding?: unknown;
   embeddingModel?: unknown;
+  /** Stored memory text, for the exact-content duplicate check. */
+  content?: unknown;
 }
+
+/**
+ * Canonical form for the exact-content duplicate check: trimmed, runs of
+ * whitespace collapsed to one space, lower-cased. Deliberately not fuzzy.
+ */
+export function normalizeMemoryContent(content: string): string {
+  return content.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+/** How a duplicate was detected. */
+export type MemoryDuplicateMatch = "exact_content" | "embedding";
 
 /**
  * What to do with one candidate. `T` is whatever the caller passed as an
@@ -54,19 +79,23 @@ export interface ComparableMemoryRecord {
  *
  * - `retract`: forget matched `target`; mark it retracted.
  * - `noMatch`: forget found nothing to retract; nothing to write.
- * - `skipDuplicate`: create duplicates `target`; nothing to write.
+ * - `skipDuplicate`: create or supersede duplicates `target`; nothing to
+ *   write. `match` says how: `exact_content` (score is null; the target may
+ *   not even have a comparable embedding) or `embedding` (create only).
  * - `supersede`: write the new memory and mark `target` superseded by it.
  * - `create`: write the new memory (also a supersede with no target).
  */
 export type MemoryWritePlan<T> =
   | { kind: "retract"; target: T; score: number }
   | { kind: "noMatch" }
-  | { kind: "skipDuplicate"; target: T; score: number }
+  | { kind: "skipDuplicate"; target: T; score: number | null; match: MemoryDuplicateMatch }
   | { kind: "supersede"; target: T; score: number }
   | { kind: "create" };
 
 export interface PlanMemoryWriteInput<T> {
   action: MemoryWriteAction;
+  /** The candidate's validated content, for the exact-content duplicate check. */
+  content: string;
   /** The candidate's embedding. */
   embedding: EmbeddingResult;
   /** The user's active memories, in the order the store returned them. */
@@ -77,47 +106,63 @@ export interface PlanMemoryWriteInput<T> {
 
 export function planMemoryWrite<T>({
   action,
+  content,
   embedding,
   activeMemories,
   recordOf
 }: PlanMemoryWriteInput<T>): MemoryWritePlan<T> {
+  const records = activeMemories.map((memory) => ({ memory, record: recordOf(memory) }));
+
   if (action === "forget") {
-    let bestMatch: T | null = null;
-    let bestScore = 0;
-    for (const memory of activeMemories) {
-      const record = recordOf(memory);
-      if (isComparableEmbedding(record, embedding.model)) {
-        const score = cosineSimilarity(embedding.values, record.embedding as number[]);
-        if (score > bestScore) {
-          bestScore = score;
-          bestMatch = memory;
-        }
-      }
-    }
-    if (bestMatch !== null && bestScore >= MEMORY_MATCH_THRESHOLD) {
-      return { kind: "retract", target: bestMatch, score: bestScore };
+    const best = bestComparableMatch(records, embedding);
+    if (best && best.score >= MEMORY_MATCH_THRESHOLD) {
+      return { kind: "retract", target: best.memory, score: best.score };
     }
     return { kind: "noMatch" };
   }
 
-  let supersedeTarget: { memory: T; score: number } | null = null;
-  for (const memory of activeMemories) {
-    const record = recordOf(memory);
-    if (isComparableEmbedding(record, embedding.model)) {
-      const score = cosineSimilarity(embedding.values, record.embedding as number[]);
-      if (action === "create" && score >= MEMORY_DUPLICATE_THRESHOLD) {
-        return { kind: "skipDuplicate", target: memory, score };
-      }
-      if (action === "supersede" && score >= MEMORY_MATCH_THRESHOLD && !supersedeTarget) {
-        supersedeTarget = { memory, score };
-      }
+  // Exact-content duplicate: every active memory, whatever embedded it.
+  const normalized = normalizeMemoryContent(content);
+  for (const { memory, record } of records) {
+    if (typeof record.content === "string" && normalizeMemoryContent(record.content) === normalized) {
+      return { kind: "skipDuplicate", target: memory, score: null, match: "exact_content" };
     }
   }
 
-  if (action === "supersede" && supersedeTarget) {
-    return { kind: "supersede", target: supersedeTarget.memory, score: supersedeTarget.score };
+  if (action === "create") {
+    for (const { memory, record } of records) {
+      if (isComparableEmbedding(record, embedding.model)) {
+        const score = cosineSimilarity(embedding.values, record.embedding as number[]);
+        if (score >= MEMORY_DUPLICATE_THRESHOLD) {
+          return { kind: "skipDuplicate", target: memory, score, match: "embedding" };
+        }
+      }
+    }
+    return { kind: "create" };
+  }
+
+  const best = bestComparableMatch(records, embedding);
+  if (best && best.score >= MEMORY_MATCH_THRESHOLD) {
+    return { kind: "supersede", target: best.memory, score: best.score };
   }
   return { kind: "create" };
+}
+
+/** Highest-cosine comparable memory (the earliest on ties, strictly above 0), or null. */
+function bestComparableMatch<T>(
+  records: ReadonlyArray<{ memory: T; record: ComparableMemoryRecord }>,
+  embedding: EmbeddingResult
+): { memory: T; score: number } | null {
+  let best: { memory: T; score: number } | null = null;
+  for (const { memory, record } of records) {
+    if (isComparableEmbedding(record, embedding.model)) {
+      const score = cosineSimilarity(embedding.values, record.embedding as number[]);
+      if (score > (best ? best.score : 0)) {
+        best = { memory, score };
+      }
+    }
+  }
+  return best;
 }
 
 /** `mem_<ms>_<6 base-36 chars>`, production's memory id format. */

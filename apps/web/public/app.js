@@ -386,6 +386,19 @@ async function sendMessage(text) {
   const placeholder = appendAssistantMessagePlaceholder();
   let accumulatedText = "";
   abortController = new AbortController();
+  const turnController = abortController;
+  // Sunucu "done" sonrasi bellek kaydi icin baglantiyi birkac saniye acik
+  // tutabilir; giris alani "done" gelince serbest birakilir. Yalnizca bu tur
+  // hala aktifse sifirla, yeni bir turun durumunu ezme.
+  const releaseComposer = () => {
+    if (abortController !== turnController) return;
+    isGenerating = false;
+    abortController = null;
+    sendBtn.classList.remove("stop");
+    sendBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>`;
+    handleTextareaInput(document.getElementById("userInput"));
+    setStatus("ready", "Ready");
+  };
 
   try {
     const requestHeaders = {
@@ -461,7 +474,7 @@ async function sendMessage(text) {
               placeholder.update(accumulatedText);
             } else if (event.type === "done") {
               placeholder.finish(accumulatedText);
-              setStatus("ready", "Ready");
+              releaseComposer();
             } else if (event.type === "error") {
               throw new Error(event.error || "Streaming hatası oluştu.");
             }
@@ -484,12 +497,7 @@ async function sendMessage(text) {
       placeholder.error(err.message || "İletişim sırasında bir hata oluştu.");
     }
   } finally {
-    isGenerating = false;
-    abortController = null;
-    sendBtn.classList.remove("stop");
-    sendBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>`;
-    handleTextareaInput(document.getElementById("userInput"));
-    setStatus("ready", "Ready");
+    releaseComposer();
   }
 }
 

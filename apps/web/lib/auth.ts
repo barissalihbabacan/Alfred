@@ -11,8 +11,9 @@ import {
   UserCredential
 } from "firebase/auth";
 import { app } from "./firebase";
+import { ALLOWED_UID } from "./allowed-uid";
 
-export const ALLOWED_UID = "test-owner-uid-123456";
+export { ALLOWED_UID };
 
 let authInstance: Auth | null = null;
 let googleProviderInstance: GoogleAuthProvider | null = null;

@@ -86,7 +86,12 @@ Key distinctions to preserve when editing memory code:
 The app is locked to one person. There is no sign-up, no password login and no SMS MFA (all removed in Sep 2026).
 
 - **Google Sign-In only**, popup with an automatic fallback to redirect on `auth/internal-error`, `auth/popup-blocked` or `auth/cancelled-popup-request` (`apps/web/lib/auth.ts`).
-- **UID allow-list**: any account whose `uid` is not the single allowed value is signed straight back out with `auth/unauthorized-uid`. The UID literal is currently repeated in **five** places — `apps/web/lib/auth.ts`, `apps/web/app/api/chat/route.ts`, `apps/web/public/firebase-app.js`, `apps/web/public/app.js`, `functions/index.js` (the last two read `process.env.ALLOWED_UID` first). Change all five together, and prefer moving new call sites to the env var.
+- **UID allow-list**: any account whose `uid` is not the single allowed value is signed straight back out with `auth/unauthorized-uid`. The UID has exactly one definition per runtime:
+  - **Hosting front end** — `apps/web/public/firebase-app.js` (`export const ALLOWED_UID`, also set as `window.ALLOWED_UID`). These are static files with no build step, so there is no env var. `app.js` reads `window.ALLOWED_UID` lazily inside `getCurrentUserId()`; it is a deferred classic script that runs *before* the `firebase-app.js` module, so never read it at `app.js` top level.
+  - **Next.js local-dev app** — `apps/web/lib/allowed-uid.ts` (`process.env.NEXT_PUBLIC_ALLOWED_UID || literal`), imported by `apps/web/lib/auth.ts` (which re-exports it) and `apps/web/app/api/chat/route.ts`.
+  - **Cloud Functions** — `functions/index.js` (`process.env.ALLOWED_UID || literal`).
+
+  Changing the UID therefore means editing those three places (or setting the env vars). The UID is not a secret; the client-side checks are UX only, and real enforcement is server-side in `functions/index.js` (ID token + App Check).
 - **App Check** (reCAPTCHA Enterprise) is still in place: initialised in `apps/web/lib/firebase.ts` and `apps/web/public/firebase-app.js`, verified server-side in `functions/index.js` alongside the Firebase ID token.
 - `tests/unit/uid-whitelist.test.ts` and `tests/unit/auth-error-messages.test.ts` pin this behaviour — they will fail if the UID or the error contract changes.
 

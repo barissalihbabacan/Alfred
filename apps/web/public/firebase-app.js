@@ -55,6 +55,9 @@ window.getAppCheckToken = async () => {
   }
 };
 
+// Single source of truth for the allowed UID on the Hosting front end (no build
+// step, so no env var). app.js reads it via window.ALLOWED_UID. Not a secret:
+// real enforcement is server-side in functions/index.js.
 export const ALLOWED_UID = "test-owner-uid-123456";
 window.ALLOWED_UID = ALLOWED_UID;
 

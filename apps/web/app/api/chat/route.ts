@@ -10,6 +10,7 @@ import { getToolRegistry } from "../../../../../src/alfred/control-plane/tool-ro
 import { getToolRouter } from "../../../../../src/alfred/control-plane/tool-router/tool-router.js";
 import { timezoneResolver } from "../../../../../src/ai/tools/time/timezone-resolver.js";
 import { ToolCall } from "../../../../../src/ai/tools/types.js";
+import { ALLOWED_UID } from "../../../lib/allowed-uid.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -224,7 +225,6 @@ export async function POST(req: NextRequest) {
     }
 
     const repo = getConversationRepository();
-    const ALLOWED_UID = process.env.ALLOWED_UID || "test-owner-uid-123456";
     const isTest = process.env.NODE_ENV === "test" || Boolean(process.env.VITEST);
     if (!isTest && body.userId && body.userId !== ALLOWED_UID && body.userId !== "guest_default") {
       return NextResponse.json(

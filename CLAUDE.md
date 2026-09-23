@@ -34,7 +34,7 @@ npm run start:web
 npm run deploy --prefix functions   # firebase deploy --only functions
 ```
 
-No lint script is configured. As of the last check `npm run test:unit` is 264 passing tests across 31 files and `npm run typecheck` is clean — keep both green.
+No lint script is configured. As of the last check `npm run test:unit` is 273 passing tests across 32 files and `npm run typecheck` is clean — keep both green.
 
 `tests/unit/*` run offline against in-memory repositories/stores; `tests/integration/*` and the `test:groq`/`test:ollama` scripts hit real providers and need `.env` populated (copy from `.env.example`).
 
@@ -48,7 +48,8 @@ Full detail lives in `docs/ARCHITECTURE.md` — read it before touching `src/alf
 - `src/ai/tools/` — tool definitions the model can call (`types.ts` defines `ITool`, `ToolDefinition`, `ToolCall`, `ToolResult`, `ToolExecutionContext`). Currently `ssh/` (connect, execute, list-directory) and `time/` (get-current-time, timezone-resolver).
 - `src/voice/` — STT (Groq Whisper) and TTS (`ITTSProvider` abstraction with mock/fallback, browser Web Speech used in frontend).
 - `src/data/` — persistence abstractions: Firestore repositories, vector store, embedding providers. Always accessed through interfaces + factories (e.g. `getConversationRepository()`, `getVectorStore()`, `getEmbeddingProvider()`), each with an in-memory implementation used by unit tests.
-- `src/core/` — cross-cutting config and errors. `logging/`, `events/`, `types/`, `permissions/` are still empty placeholders.
+- `src/core/` — cross-cutting config, errors and logging. `logging/` is a small JSON-to-stdout `StructuredLogger` (not wired into production; `functions/index.js` has its own `logEvent()` on `firebase-functions/logger`). `events/`, `types/`, `permissions/` are still empty placeholders.
+- **Structured logs**: the `api` function emits `llm_request`, `tool_call`, `memory_retrieval` and `memory_extraction` events (tokens, latency, TTFT, scores, outcomes; never API keys, ID tokens or user message text). Query them in Cloud Logging with `jsonPayload.event="llm_request"`.
 - `apps/web/` — see **Front ends**.
 - `functions/` — Firebase Cloud Functions backend (plain JS, separate `package.json`/deploy cycle). Not a thin layer: `functions/index.js` is ~1550 lines and carries its own system prompt, tool wiring and two entry points — `api` (`onRequest`, behind the `/api/**` Hosting rewrite) and `alfredCallable` (`onCall`). Changes to Alfred's behaviour often need to be made here **and** in `src/` — the two are not shared code.
 - `users/` — canonical, git-versioned, **read-only-at-runtime** profile of Barış (`USER_PROFILE.md`, `PREFERENCES.md`, `WORKING_STYLE.md`). Loaded by `UserProfileLoader` and injected into the system prompt by `ContextBuilder`. Never written to by the running app.
@@ -108,7 +109,7 @@ The app is locked to one person. There is no sign-up, no password login and no S
 ## Notes for future sessions
 
 - `.env.example` holds placeholders (`gsk_your_groq_api_key_here`), not real keys. The real Groq key lives in the gitignored `.env` and `functions/.env`. `functions/.env` is loaded by the Firebase CLI as plain function env vars on deploy, so once the `GROQ_API_KEY` secret exists, remove `GROQ_API_KEY` from that file or the deploy will reject the name clash. (The `AIzaSy…` literal in `apps/web/lib/firebase.ts` / `public/firebase-app.js` is the public Firebase web config key, not a secret.)
-- Much of `src/` is still scaffolding. Implemented: `ai/providers`, `ai/embedding`, `ai/prompts`, `ai/tools`, `alfred/cognitive/context`, `alfred/cognitive/memory`, `alfred/control-plane/{tool-router,permission-system}`, `alfred/execution-plane/ssh`, `core/{config,errors}`, `data/{firestore,vector}`, `voice/{stt,tts}`. Still empty `.gitkeep` placeholders: every other `execution-plane` capability (github, gmail, calendar, browser, terminal, files, web-search), `control-plane/{planner,scheduler,event-processor}`, `ai/{agents,middleware}`, all of `alfred/persona/*`, `core/{logging,events,types,permissions}`, `data/{repositories,schemas,graphql}` and all of `integrations/*`. Check before assuming a capability exists.
+- Much of `src/` is still scaffolding. Implemented: `ai/providers`, `ai/embedding`, `ai/prompts`, `ai/tools`, `alfred/cognitive/context`, `alfred/cognitive/memory`, `alfred/control-plane/{tool-router,permission-system}`, `alfred/execution-plane/ssh`, `core/{config,errors,logging}`, `data/{firestore,vector}`, `voice/{stt,tts}`. Still empty `.gitkeep` placeholders: every other `execution-plane` capability (github, gmail, calendar, browser, terminal, files, web-search), `control-plane/{planner,scheduler,event-processor}`, `ai/{agents,middleware}`, all of `alfred/persona/*`, `core/{events,types,permissions}`, `data/{repositories,schemas,graphql}` and all of `integrations/*`. Check before assuming a capability exists.
 - `README.md` and many code comments (notably `functions/index.js`) are in Turkish. The README's auth section and badges, and the `assets/readme/*.svg` art, describe the Google-only flow; keep them in sync if auth changes again.
 - `.agents/skills/` holds a vendored `beautify-github-readme` skill (used for `assets/readme/` art); it is not application code.
 - `dist/`, `audio_output/`, `.next/` and `.firebase/` are generated and gitignored; `users/` and `assets/` are tracked on purpose.

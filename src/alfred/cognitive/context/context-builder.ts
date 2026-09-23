@@ -3,8 +3,9 @@ import { defaultUserProfileLoader } from "./user-profile-loader.js";
 import { CONVERSATION_CONFIG } from "../../../data/firestore/conversation-repository.interface.js";
 import { RetrievedMemory } from "../memory/types.js";
 import {
-  CONVERSATIONAL_GOVERNOR_BLOCK,
-  formatRetrievedMemoriesBlock
+  buildConversationalGovernorBlock,
+  formatRetrievedMemoriesBlock,
+  type AlfredRuntime
 } from "../../../ai/prompts/alfred-system-prompt.js";
 import { renderUserProfileBlock } from "./user-profile-renderer.js";
 
@@ -19,6 +20,8 @@ export interface ContextBuilderOptions {
   includeUserProfile?: boolean;
   includeGovernor?: boolean;
   relevantMemories?: RetrievedMemory[];
+  /** Provider/model answering the turn; the governor states its pipeline. Defaults to Groq. */
+  runtime?: AlfredRuntime;
 }
 
 export interface BuildChatMessagesOptions extends ContextBuilderOptions {
@@ -52,10 +55,11 @@ export class ContextBuilder {
   /**
    * Formats the Conversational Governor directives to control tone, cadence,
    * length, humour, pushback, and anti-patterns. The text is shared with
-   * production (src/ai/prompts/alfred-system-prompt.ts).
+   * production (src/ai/prompts/alfred-system-prompt.ts); `runtime` fills in
+   * the known request pipeline.
    */
-  public static formatGovernorBlock(): string {
-    return CONVERSATIONAL_GOVERNOR_BLOCK;
+  public static formatGovernorBlock(runtime?: AlfredRuntime): string {
+    return buildConversationalGovernorBlock(runtime);
   }
 
   /**
@@ -88,7 +92,7 @@ export class ContextBuilder {
     }
 
     if (includeGovernor) {
-      sections.push(ContextBuilder.formatGovernorBlock());
+      sections.push(ContextBuilder.formatGovernorBlock(options?.runtime));
     }
 
     const memBlock = ContextBuilder.formatMemoriesBlock(options?.relevantMemories ?? []);

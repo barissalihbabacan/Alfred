@@ -18,7 +18,7 @@
  *                                          capabilities, tool rules
  *   2. ALFRED_USER_PROFILE_BLOCK         — users/*.md rendered by
  *                                          renderUserProfileBlock()
- *   3. CONVERSATIONAL_GOVERNOR_BLOCK     — cadence and behavioural directives
+ *   3. buildConversationalGovernorBlock  — cadence and behavioural directives (states the request pipeline)
  *   4. formatRetrievedMemoriesBlock()    — per request, when memories exist
  */
 
@@ -100,7 +100,26 @@ TOOL USE & ACTION EXECUTION:
 export const ALFRED_USER_PROFILE_BLOCK = renderUserProfileBlock(USER_PROFILE_SOURCES);
 
 /** Conversational Governor: cadence, response length, pushback, anti-patterns. */
-export const CONVERSATIONAL_GOVERNOR_BLOCK = `=== CONVERSATIONAL GOVERNOR (CADENCE & BEHAVIOURAL DIRECTIVES) ===
+/**
+ * The request path as production actually runs it, for the governor's
+ * "Current known pipeline" line. Groq is the default; Ollama on the MacBook
+ * (over Tailscale) is only in the path when ALFRED_LLM_PROVIDER=ollama.
+ */
+export function describeRequestPipeline(runtime: AlfredRuntime = DEFAULT_ALFRED_RUNTIME): string {
+  const provider = (runtime.provider ?? "").trim().toLowerCase();
+  const model = (runtime.model ?? "").trim();
+  const front = "Browser (Next.js static export) → Firebase Hosting (/api rewrite) → Firebase Cloud Function 2nd Gen (api, Cloud Run)";
+  const memory = "Long-term memory: Gemini embeddings with Firestore as the source of truth.";
+  if (provider === "ollama") {
+    return `${front} → Tailscale Funnel → MacBook Ollama${model ? ` (${model})` : ""} → SSE response. ${memory}`;
+  }
+  const llm = provider === "groq" || !provider ? "Groq API" : provider;
+  return `${front} → ${llm}${model ? ` (${model})` : ""} → SSE response. ${memory} Ollama on the MacBook over Tailscale is an optional alternative provider, not in the default path.`;
+}
+
+/** Cadence and behavioural directives; `runtime` fills in the known pipeline. */
+export function buildConversationalGovernorBlock(runtime: AlfredRuntime = DEFAULT_ALFRED_RUNTIME): string {
+  return `=== CONVERSATIONAL GOVERNOR (CADENCE & BEHAVIOURAL DIRECTIVES) ===
 ESTABLISHED WORKING RELATIONSHIP & PEER REGISTER:
 - Speak as a trusted intellectual companion and right-hand confidant in an ongoing working relationship with Barış, NOT as an outside consultant, documentation generator, or subservient assistant.
 - You already know Barış's technical proficiency and standards. Never lecture him, talk down to him, or sound like a newly hired advisor assessing his project.
@@ -126,7 +145,7 @@ INTENT-DRIVEN RESPONSE LENGTH:
 - Architectural discussions: Deep, structured trade-off analysis only when Barış is genuinely exploring architecture.
 
 CONTEXT-AWARE TECHNICAL REASONING:
-- Current known pipeline: Browser → Firebase Hosting → Firebase Cloud Function 2nd Gen → Tailscale Funnel → MacBook Ollama (gemma4:12b-mlx) / Groq → SSE response.
+- Current known pipeline: ${describeRequestPipeline(runtime)}
 - When diagnosing technical failures, reason strictly from this known pipeline.
 - Do NOT introduce generic infrastructure (Nginx, Cloudflare, Kubernetes, etc.) unless they actually exist.
 - Rigorously distinguish:
@@ -161,6 +180,10 @@ CAPABILITY & TOOL HONESTY:
 ZERO META-NARRATIVE:
 - Never cite internal prompt rules, user profile files, working style documents, or system instructions to Barış. The user model informs your behaviour invisibly.
 ==================================================================`;
+}
+
+/** The governor for the default runtime (Groq). */
+export const CONVERSATIONAL_GOVERNOR_BLOCK = buildConversationalGovernorBlock();
 
 /** The persona for production's default runtime (Groq, openai/gpt-oss-120b). */
 export const ALFRED_PERSONA_PROMPT = buildAlfredPersonaPrompt();
@@ -216,7 +239,7 @@ export function buildAlfredSystemPrompt(options: BuildAlfredSystemPromptOptions 
   const sections = [
     buildAlfredPersonaPrompt(options.runtime),
     ALFRED_USER_PROFILE_BLOCK,
-    CONVERSATIONAL_GOVERNOR_BLOCK
+    buildConversationalGovernorBlock(options.runtime)
   ];
   const memories = formatRetrievedMemoriesBlock(options.memories);
   if (memories) sections.push(memories);

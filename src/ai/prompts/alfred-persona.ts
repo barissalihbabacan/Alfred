@@ -37,6 +37,7 @@ export function getAlfredSystemPrompt(options?: {
   const { runtime, ...rest } = options ?? {};
   return ContextBuilder.buildSystemPrompt({
     personaPrompt: runtime ? buildAlfredPersonaPrompt(runtime) : ALFRED_CANONICAL_SYSTEM_PROMPT,
+    runtime,
     ...rest
   });
 }

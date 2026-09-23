@@ -3,8 +3,11 @@
   "version": "0.1.0",
   "description": "Firebase Cloud Functions backend for B.U.T.L.E.R. Alfred",
   "type": "module",
-  "main": "index.js",
+  "main": "lib/index.js",
   "scripts": {
+    "build": "node build.js",
+    "check:bundle": "node --check lib/index.js && node --input-type=module -e \"const m = await import('./lib/index.js'); for (const n of ['api', 'alfredCallable']) if (typeof m[n] !== 'function') throw new Error('missing export ' + n); console.log('bundle import OK')\"",
+    "gcp-build": "",
     "deploy": "firebase deploy --only functions"
   },
   "engines": {
@@ -13,6 +16,9 @@
   "dependencies": {
     "firebase-admin": "^12.7.0",
     "firebase-functions": "^6.0.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
   },
   "private": true
 }

@@ -41,6 +41,11 @@ jobs:
       - name: Install Functions Dependencies
         run: npm ci --prefix functions
 
+      # firebase.json also runs this as the functions predeploy hook; building
+      # here too keeps a bundle failure in its own, readable step.
+      - name: Build Functions Bundle
+        run: npm run build --prefix functions
+
       - name: Authenticate to Google Cloud / Firebase
         uses: google-github-actions/auth@v2
         with:

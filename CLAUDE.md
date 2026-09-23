@@ -31,6 +31,8 @@ npm run build:web
 npm run start:web
 
 # Firebase Functions (functions/)
+npm run build --prefix functions          # esbuild: functions/index.js + src/ -> functions/lib/index.js
+npm run check:bundle --prefix functions   # node --check + import smoke test of the bundle
 npm run deploy --prefix functions   # firebase deploy --only functions
 ```
 
@@ -50,7 +52,7 @@ Full detail lives in `docs/ARCHITECTURE.md` — read it before touching `src/alf
 - `src/data/` — persistence abstractions: Firestore repositories, vector store, embedding providers. Always accessed through interfaces + factories (e.g. `getConversationRepository()`, `getVectorStore()`, `getEmbeddingProvider()`), each with an in-memory implementation used by unit tests.
 - `src/core/` — cross-cutting config and errors. `logging/`, `events/`, `types/`, `permissions/` are still empty placeholders.
 - `apps/web/` — see **Front ends**.
-- `functions/` — Firebase Cloud Functions backend (plain JS, separate `package.json`/deploy cycle). Not a thin layer: `functions/index.js` is ~1550 lines and carries its own system prompt, tool wiring and two entry points — `api` (`onRequest`, behind the `/api/**` Hosting rewrite) and `alfredCallable` (`onCall`). Changes to Alfred's behaviour often need to be made here **and** in `src/` — the two are not shared code.
+- `functions/` — Firebase Cloud Functions backend (plain JS, separate `package.json`/deploy cycle). Not a thin layer: `functions/index.js` is ~1550 lines and carries its own system prompt, tool wiring and two entry points — `api` (`onRequest`, behind the `/api/**` Hosting rewrite) and `alfredCallable` (`onCall`). It is being migrated to import from `src/` (bundled with esbuild, see **Functions bundle** below), but most of it is still hand-written: except for the modules listed there, changes to Alfred's behaviour often need to be made here **and** in `src/` — those parts are not shared code.
 - `users/` — canonical, git-versioned, **read-only-at-runtime** profile of Barış (`USER_PROFILE.md`, `PREFERENCES.md`, `WORKING_STYLE.md`). Loaded by `UserProfileLoader` and injected into the system prompt by `ContextBuilder`. Never written to by the running app.
 - `docs/persona/ALFRED_PERSONA.md` — canonical behavioral/linguistic spec for Alfred (British-butler tone, pushback style, "sir" usage, response length rules). Consult this before changing anything under `src/alfred/persona/` or `src/ai/prompts/`.
 
@@ -96,6 +98,17 @@ The app is locked to one person. There is no sign-up, no password login and no S
 - There is no App Hosting (no backend exists; `apphosting.yaml` was removed). The Next.js app in `apps/web/app` is **not deployed anywhere** — it is local-dev only (`npm run dev:web`). Production is the vanilla front end on Hosting plus the `api` / `alfredCallable` functions.
 - **CI**: `.github/workflows/ci.yml` runs `npm ci`, `npm run typecheck` and `npm run test:unit` on every pull request (Node 22, no `.env`). `.github/workflows/deploy.yml` reuses it as a `test` job and only then runs `firebase deploy --only hosting,functions`, on any push to `main` touching `apps/**`, `src/**`, `functions/**`, `firebase.json` or `.firebaserc`. A red typecheck or unit test therefore blocks the deploy.
 
+### Functions bundle — `functions/` imports `src/` via esbuild
+`functions/index.js` is the **source**, not what runs. `functions/build.js` bundles it with esbuild (ESM, `platform: node`, `target: node22`, `packages: "external"`) into `functions/lib/index.js`, which `functions/package.json` `"main"` points at. `functions/lib/` is gitignored and must be built before `firebase deploy` or the emulator: `firebase.json` runs `npm --prefix "$RESOURCE_DIR" run build` as the functions `predeploy` hook, and `deploy.yml` also builds explicitly. Only `functions/` is uploaded, so the bundle must be self-contained apart from npm packages.
+
+- Import shared code with **relative paths** to the `.js` specifier of the `.ts` file (`import { x } from "../src/data/vector/cosine-similarity.js"`), same as inside `src/`. esbuild strips types; `npm run typecheck` is what type-checks `src/`.
+- npm dependencies are **not** bundled. `build.js` fails if the bundle imports a package that is not in `functions/package.json` `dependencies`, or if it stops exporting `api` / `alfredCallable`. A `src/` module that needs a new package means adding it to `functions/package.json` too.
+- Only migrate pure modules. Nothing bundled may read files at import time (e.g. `UserProfileLoader` reading `users/*.md` would break: those files are not uploaded) or pull in `src/core/config`, whose modules import `dotenv` (a root-only dependency, so the build check rejects it) and call `dotenv.config()` at import time.
+- `"gcp-build": ""` in `functions/package.json` is deliberate: Cloud Build would otherwise run the `build` script in the cloud, where `../src` does not exist. Don't remove it.
+- **Shared so far** (anything changed here ships to production): `cosineSimilarity` (`src/data/vector/cosine-similarity.ts`), `buildMemoryExtractionUserPrompt` and `extractJsonPayload` (`src/ai/prompts/memory-extraction.ts`). `tests/unit/functions-shared-modules.test.ts` pins their production contract.
+- **Still duplicated, and diverged** (do not swap one for the other without deciding which behaviour wins): memory-extraction system prompt and candidate validation (`parseMemoryExtractionResponse` vs the inline loop), `PrivacyFilter` vs the inline `SENSITIVE_PATTERNS`, `ALFRED_SYSTEM_PROMPT` vs `src/ai/prompts/alfred-persona.ts`, `generateDeterministicTitle`, the time tool / timezone resolver, embedding calls, and the SSH tool definitions.
+- CI (`ci.yml`, same `Typecheck & Unit Tests` job) installs `functions/` deps, builds the bundle and runs `check:bundle`, so a broken bundle blocks the deploy.
+
 ### Secrets — Groq/Gemini keys live only in Secret Manager
 `GROQ_API_KEY` and `GEMINI_API_KEY` are never taken from the caller. There is no request-header path, and the browser neither stores nor sends keys.
 - `functions/index.js` binds both through `defineSecret()`. `gizliOku()` falls back to `process.env` only when the secret isn't bound, e.g. in tests. The emulator reads `functions/.secret.local`, which is gitignored.
@@ -111,4 +124,4 @@ The app is locked to one person. There is no sign-up, no password login and no S
 - Much of `src/` is still scaffolding. Implemented: `ai/providers`, `ai/embedding`, `ai/prompts`, `ai/tools`, `alfred/cognitive/context`, `alfred/cognitive/memory`, `alfred/control-plane/{tool-router,permission-system}`, `alfred/execution-plane/ssh`, `core/{config,errors}`, `data/{firestore,vector}`, `voice/{stt,tts}`. Still empty `.gitkeep` placeholders: every other `execution-plane` capability (github, gmail, calendar, browser, terminal, files, web-search), `control-plane/{planner,scheduler,event-processor}`, `ai/{agents,middleware}`, all of `alfred/persona/*`, `core/{logging,events,types,permissions}`, `data/{repositories,schemas,graphql}` and all of `integrations/*`. Check before assuming a capability exists.
 - `README.md` and many code comments (notably `functions/index.js`) are in Turkish. The README's auth section and badges, and the `assets/readme/*.svg` art, describe the Google-only flow; keep them in sync if auth changes again.
 - `.agents/skills/` holds a vendored `beautify-github-readme` skill (used for `assets/readme/` art); it is not application code.
-- `dist/`, `audio_output/`, `.next/` and `.firebase/` are generated and gitignored; `users/` and `assets/` are tracked on purpose.
+- `dist/`, `audio_output/`, `.next/`, `.firebase/` and `functions/lib/` are generated and gitignored; `users/` and `assets/` are tracked on purpose.

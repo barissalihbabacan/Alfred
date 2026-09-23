@@ -1,5 +1,4 @@
 // State Management
-const ALLOWED_UID = "test-owner-uid-123456";
 let isGenerating = false;
 let isRecording = false;
 let recognition = null;
@@ -18,8 +17,12 @@ async function getAuthHeader() {
   return {};
 }
 
+// ALLOWED_UID is defined once, in firebase-app.js (as window.ALLOWED_UID).
+// That module script executes after this deferred classic script, so read it
+// lazily at call time, never at top level. Callers run after DOMContentLoaded
+// or on user action, by which point the module has run.
 function getCurrentUserId() {
-  return window.firebaseAuth?.currentUser?.uid || ALLOWED_UID;
+  return window.firebaseAuth?.currentUser?.uid || window.ALLOWED_UID;
 }
 
 function escapeHtml(str) {

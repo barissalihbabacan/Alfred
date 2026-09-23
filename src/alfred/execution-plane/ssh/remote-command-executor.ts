@@ -8,7 +8,12 @@
 import { SSHClientFactory, SSHListDirectoryResult } from "./ssh-client.interface.js";
 import { SSH2Client } from "./ssh2-client.js";
 import { SSHConfig, resolveSSHHost } from "../../../core/config/ssh.config.js";
-import { CommandRegistry, AllowedSSHCommand } from "./command-registry.js";
+import {
+  CommandRegistry,
+  AllowedSSHCommand,
+  SSHCommandResult,
+  SSHCommandResultMap
+} from "./command-registry.js";
 
 export interface RemoteCommandExecutorOptions {
   clientFactory?: SSHClientFactory;
@@ -28,11 +33,21 @@ export class RemoteCommandExecutor {
    * Executes a strictly whitelisted command on an approved SSH host.
    * Enforces argument validation, trusted template generation, and clean disconnection.
    */
+  public async executeCommand<C extends AllowedSSHCommand>(
+    hostIdentifier: string,
+    command: C,
+    rawArgs?: unknown
+  ): Promise<SSHCommandResultMap[C]>;
   public async executeCommand(
     hostIdentifier: string,
     command: AllowedSSHCommand | string,
     rawArgs?: unknown
-  ): Promise<any> {
+  ): Promise<SSHCommandResult>;
+  public async executeCommand(
+    hostIdentifier: string,
+    command: AllowedSSHCommand | string,
+    rawArgs?: unknown
+  ): Promise<SSHCommandResult> {
     if (!hostIdentifier || typeof hostIdentifier !== "string" || !hostIdentifier.trim()) {
       throw new Error("Invalid host parameter: Host name must be a non-empty string.");
     }

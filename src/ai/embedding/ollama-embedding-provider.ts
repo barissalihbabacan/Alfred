@@ -1,5 +1,6 @@
 import { IEmbeddingProvider, EmbeddingOptions } from "./types.js";
 import { EmbeddingConfig, getMemoryConfig } from "../../core/config/index.js";
+import { isAbortError } from "../../core/errors/index.js";
 
 export interface OllamaEmbeddingProviderOptions {
   config?: Partial<EmbeddingConfig>;
@@ -83,8 +84,8 @@ export class OllamaEmbeddingProvider implements IEmbeddingProvider {
             return data.embeddings;
           }
         }
-      } catch (err: any) {
-        if (err?.name === "AbortError") {
+      } catch (err: unknown) {
+        if (isAbortError(err)) {
           throw new Error(`[OllamaEmbeddingProvider] Embedding generation timed out after ${timeoutMs}ms.`);
         }
         // Fall back to /api/embeddings for legacy Ollama or single queries
@@ -121,8 +122,8 @@ export class OllamaEmbeddingProvider implements IEmbeddingProvider {
       }
 
       return results;
-    } catch (err: any) {
-      if (err?.name === "AbortError") {
+    } catch (err: unknown) {
+      if (isAbortError(err)) {
         throw new Error(`[OllamaEmbeddingProvider] Embedding generation timed out after ${timeoutMs}ms.`);
       }
       throw err;

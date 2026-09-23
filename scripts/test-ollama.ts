@@ -1,6 +1,7 @@
 import { getAIConfig } from "../src/core/config/index.js";
 import { OllamaProvider } from "../src/ai/providers/ollama/index.js";
 import { getAlfredSystemPrompt } from "../src/ai/prompts/alfred-persona.js";
+import { errorMessage } from "../src/core/errors/index.js";
 
 const PERSONA_TEST_PROMPTS = [
   "Alfred, I'm just going to write a quick twenty-line script for this.",
@@ -34,14 +35,14 @@ async function runOllamaVerification(): Promise<void> {
 
   if (!health.reachable) {
     console.error(`\n✖ [Failed] Ollama server is unreachable at ${config.ollama.baseUrl}`);
-    console.error(`  Details: ${(health as any).error}`);
+    console.error(`  Details: ${health.error}`);
     console.error("  Please ensure your Tailscale connection is active or check OLLAMA_BASE_URL.");
     process.exit(1);
   }
 
   if (!health.modelAvailable) {
     console.error(`\n✖ [Failed] Configured model '${config.ollama.defaultModel}' not found on server.`);
-    console.error(`  Available models: ${(health as any).availableModels?.join(", ") || "none"}`);
+    console.error(`  Available models: ${health.availableModels?.join(", ") || "none"}`);
     process.exit(1);
   }
 
@@ -92,8 +93,8 @@ async function runOllamaVerification(): Promise<void> {
     console.log(`  Thinking Chunks                    : ${thinkingChunksCount}`);
     console.log(`  Content Chunks                     : ${contentChunksCount}`);
     console.log(`  Accumulated Characters             : ${accumulatedContent.length}`);
-  } catch (err: any) {
-    console.error("\n✖ [Streaming Test Failed]", err?.message || err);
+  } catch (err: unknown) {
+    console.error("\n✖ [Streaming Test Failed]", errorMessage(err));
     process.exit(1);
   }
 
@@ -113,8 +114,8 @@ async function runOllamaVerification(): Promise<void> {
       console.log(`  Tokens  : ${smokeResponse.usage.promptTokens} prompt + ${smokeResponse.usage.completionTokens} completion = ${smokeResponse.usage.totalTokens} total`);
     }
     console.log(`  Content : "${smokeResponse.content.trim()}"`);
-  } catch (err: any) {
-    console.error("✖ [Smoke Test Failed]", err?.message || err);
+  } catch (err: unknown) {
+    console.error("✖ [Smoke Test Failed]", errorMessage(err));
     process.exit(1);
   }
 
@@ -144,8 +145,8 @@ async function runOllamaVerification(): Promise<void> {
           console.log(`  Tokens  : ${res.usage.promptTokens} prompt + ${res.usage.completionTokens} completion = ${res.usage.totalTokens} total`);
         }
         console.log(`  Alfred  :\n${res.content.trim()}`);
-      } catch (err: any) {
-        console.error(`  ✖ Prompt #${i + 1} failed:`, err?.message || err);
+      } catch (err: unknown) {
+        console.error(`  ✖ Prompt #${i + 1} failed:`, errorMessage(err));
       }
     }
     console.log("\n================================================================");

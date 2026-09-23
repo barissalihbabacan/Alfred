@@ -1,13 +1,17 @@
 import { describe, it, expect, vi } from "vitest";
+import type { User } from "firebase/auth";
 import { apiFetch, ensureOk, ApiError, ApiDeps } from "../../apps/web/lib/api.js";
 
-function makeDeps(overrides: Partial<ApiDeps> = {}): ApiDeps & { fetchImpl: ReturnType<typeof vi.fn> } {
+type TestDeps = ApiDeps & { fetchImpl: ReturnType<typeof vi.fn> };
+
+function makeDeps(overrides: Partial<ApiDeps> = {}): TestDeps {
   return {
-    getUser: () => ({ getIdToken: vi.fn(async () => "id-token-123") }) as any,
+    // Only getIdToken is used by apiFetch.
+    getUser: () => ({ getIdToken: vi.fn(async () => "id-token-123") }) as unknown as User,
     getAppCheckToken: vi.fn(async () => "app-check-456"),
     fetchImpl: vi.fn(async () => new Response("{}", { status: 200 })),
     ...overrides
-  } as any;
+  } as TestDeps;
 }
 
 describe("Web API client (apps/web/lib/api.ts)", () => {

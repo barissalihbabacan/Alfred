@@ -7,6 +7,7 @@
 import { ToolCall, ToolResult, ToolExecutionContext } from "../../../ai/tools/types.js";
 import { ToolRegistry, getToolRegistry } from "./tool-registry.js";
 import { PermissionManager } from "../permission-system/permission-manager.js";
+import { errorMessage } from "../../../core/errors/index.js";
 
 export interface ToolRouterOptions {
   registry?: ToolRegistry;
@@ -65,12 +66,12 @@ export class ToolRouter {
         typeof toolCall.function.arguments === "string" && toolCall.function.arguments.trim().length > 0
           ? JSON.parse(toolCall.function.arguments)
           : {};
-    } catch (parseErr: any) {
+    } catch (parseErr: unknown) {
       return {
         toolCallId,
         toolName,
         success: false,
-        error: `Failed to parse tool arguments JSON: ${parseErr?.message || parseErr}`,
+        error: `Failed to parse tool arguments JSON: ${errorMessage(parseErr)}`,
         executionTimeMs: Math.round(performance.now() - startTime)
       };
     }
@@ -108,13 +109,13 @@ export class ToolRouter {
         data,
         executionTimeMs
       };
-    } catch (execErr: any) {
+    } catch (execErr: unknown) {
       const executionTimeMs = Math.round(performance.now() - startTime);
       return {
         toolCallId,
         toolName,
         success: false,
-        error: execErr?.message || `Execution of tool '${toolName}' failed unexpectedly.`,
+        error: errorMessage(execErr, `Execution of tool '${toolName}' failed unexpectedly.`),
         executionTimeMs
       };
     }

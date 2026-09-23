@@ -5,6 +5,7 @@
  */
 
 import path from "node:path";
+import { errorMessage } from "../../../core/errors/index.js";
 
 export const SANDBOX_ROOT_NAME = "Belgeler";
 
@@ -66,10 +67,10 @@ export class SSHPathSandbox {
     let sanitized: string;
     try {
       sanitized = this.sanitizeRawPath(rawPath);
-    } catch (err: any) {
+    } catch (err: unknown) {
       return {
         valid: false,
-        error: `Invalid path: ${err?.message || err}`
+        error: `Invalid path: ${errorMessage(err)}`
       };
     }
 

@@ -13,16 +13,18 @@ import {
 import {
   CommandRegistry,
   AllowedSSHCommand,
-  ALLOWED_SSH_COMMANDS
+  ALLOWED_SSH_COMMANDS,
+  SSHCommandResult,
+  SSHCommandResultMap
 } from "../../../alfred/execution-plane/ssh/command-registry.js";
 
-export interface SSHExecuteArgs {
+export interface SSHExecuteArgs<C extends AllowedSSHCommand = AllowedSSHCommand> {
   host: string;
-  command: AllowedSSHCommand;
+  command: C;
   args?: Record<string, unknown>;
 }
 
-export class SSHExecuteTool implements ITool<SSHExecuteArgs, any> {
+export class SSHExecuteTool implements ITool<SSHExecuteArgs, SSHCommandResult> {
   public readonly name = "ssh_execute";
   public readonly description =
     "Executes a strictly whitelisted remote command on an approved host. Permitted commands: 'list_directory', 'disk_usage', 'current_directory', 'identity', 'system_info'. Arbitrary shell commands are strictly prohibited.";
@@ -144,7 +146,10 @@ export class SSHExecuteTool implements ITool<SSHExecuteArgs, any> {
     };
   }
 
-  public async execute(args: SSHExecuteArgs, _context?: ToolExecutionContext): Promise<any> {
+  public async execute<C extends AllowedSSHCommand>(
+    args: SSHExecuteArgs<C>,
+    _context?: ToolExecutionContext
+  ): Promise<SSHCommandResultMap[C]> {
     return this.connectionManager.executeCommand(args.host, args.command, args.args);
   }
 }

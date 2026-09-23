@@ -28,9 +28,9 @@ export interface ConversationDocument {
   id: string;
   userId: string;
   title: string;
-  createdAt: Date | any;
-  updatedAt: Date | any;
-  lastMessageAt: Date | any;
+  createdAt: Date;
+  updatedAt: Date;
+  lastMessageAt: Date;
   messageCount: number;
 }
 
@@ -40,7 +40,7 @@ export interface ConversationMessageDocument {
   content: string;
   sequence: number;
   status: MessageStatus;
-  createdAt: Date | any;
+  createdAt: Date;
   provider?: string;
   model?: string;
   finishReason?: string;

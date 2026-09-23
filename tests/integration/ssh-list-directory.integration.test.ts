@@ -1,4 +1,7 @@
 import { describe, it, expect } from "vitest";
+import type { SSHCommandResultMap } from "../../src/alfred/execution-plane/ssh/command-registry.js";
+import type { SSHListDirectoryResult } from "../../src/alfred/execution-plane/ssh/ssh-client.interface.js";
+import { errorMessage } from "../../src/core/errors/index.js";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -40,9 +43,9 @@ describe("SSH List Directory Integration Suite (Real Home Server)", () => {
           expect.unreachable("Found directory entry after non-directory entry in sorted results.");
         }
       }
-    } catch (err: any) {
-      if (/timed out|unreachable|refused/i.test(err?.message)) {
-        console.warn("[Integration Note] Home server offline or unreachable:", err.message);
+    } catch (err: unknown) {
+      if (/timed out|unreachable|refused/i.test(errorMessage(err))) {
+        console.warn("[Integration Note] Home server offline or unreachable:", errorMessage(err));
         return;
       }
       throw err;
@@ -64,9 +67,9 @@ describe("SSH List Directory Integration Suite (Real Home Server)", () => {
         (e) => e.name === "package.json" && e.type === "file"
       );
       expect(hasPackageJson).toBe(true);
-    } catch (err: any) {
-      if (/timed out|unreachable|refused/i.test(err?.message)) {
-        console.warn("[Integration Note] Home server offline or unreachable:", err.message);
+    } catch (err: unknown) {
+      if (/timed out|unreachable|refused/i.test(errorMessage(err))) {
+        console.warn("[Integration Note] Home server offline or unreachable:", errorMessage(err));
         return;
       }
       throw err;
@@ -139,11 +142,12 @@ describe("SSH List Directory Integration Suite (Real Home Server)", () => {
 
       expect(toolResult.success).toBe(true);
       expect(toolResult.toolName).toBe("ssh_list_directory");
-      expect((toolResult.data as any).host).toBe("home-server");
-      expect((toolResult.data as any).totalCount).toBeGreaterThan(0);
-    } catch (err: any) {
-      if (/timed out|unreachable|refused/i.test(err?.message)) {
-        console.warn("[Integration Note] Home server offline or unreachable:", err.message);
+      const data = toolResult.data as SSHListDirectoryResult;
+      expect(data.host).toBe("home-server");
+      expect(data.totalCount).toBeGreaterThan(0);
+    } catch (err: unknown) {
+      if (/timed out|unreachable|refused/i.test(errorMessage(err))) {
+        console.warn("[Integration Note] Home server offline or unreachable:", errorMessage(err));
         return;
       }
       throw err;
@@ -170,11 +174,12 @@ describe("SSH List Directory Integration Suite (Real Home Server)", () => {
       });
 
       expect(result.success).toBe(true);
-      expect((result.data as any).command).toBe("disk_usage");
-      expect((result.data as any).output).toContain("Filesystem");
-    } catch (err: any) {
-      if (/timed out|unreachable|refused/i.test(err?.message)) {
-        console.warn("[Integration Note] Home server offline or unreachable:", err.message);
+      const data = result.data as SSHCommandResultMap["disk_usage"];
+      expect(data.command).toBe("disk_usage");
+      expect(data.output).toContain("Filesystem");
+    } catch (err: unknown) {
+      if (/timed out|unreachable|refused/i.test(errorMessage(err))) {
+        console.warn("[Integration Note] Home server offline or unreachable:", errorMessage(err));
         return;
       }
       throw err;

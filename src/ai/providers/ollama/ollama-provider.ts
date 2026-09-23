@@ -9,7 +9,15 @@ import {
 } from "../types.js";
 import { getAIConfig, OllamaConfig } from "../../../core/config/index.js";
 import { handleOllamaError } from "./ollama-error-handler.js";
-import { AIProviderError } from "../../../core/errors/index.js";
+import { AIProviderError, errorMessage } from "../../../core/errors/index.js";
+import type {
+  OllamaChatResponse,
+  OllamaErrorBody,
+  OllamaRequestMessage,
+  OllamaResponseToolCall,
+  OllamaTagModel,
+  OllamaTagsResponse
+} from "./ollama-api.types.js";
 
 export interface OllamaProviderOptions {
   config?: Partial<OllamaConfig>;
@@ -31,6 +39,61 @@ export type OllamaHealthStatus =
       modelAvailable: false;
       error: string;
     };
+
+/** Maps Alfred's ChatMessage array to Ollama's /api/chat message format. */
+function toOllamaMessages(messages: ChatMessage[]): OllamaRequestMessage[] {
+  return messages.map((m) => {
+    const msg: OllamaRequestMessage = {
+      role: m.role as "system" | "user" | "assistant" | "tool",
+      content: m.content
+    };
+    if (m.toolCalls && m.toolCalls.length > 0) {
+      msg.tool_calls = m.toolCalls.map((tc) => ({
+        id: tc.id,
+        type: "function",
+        function: {
+          name: tc.function.name,
+          arguments:
+            typeof tc.function.arguments === "string"
+              ? (() => {
+                  try {
+                    return JSON.parse(tc.function.arguments) as unknown;
+                  } catch {
+                    return tc.function.arguments;
+                  }
+                })()
+              : tc.function.arguments
+        }
+      }));
+    }
+    return msg;
+  });
+}
+
+/** Maps Ollama's response tool calls to Alfred's ToolCall shape. */
+function toToolCalls(rawToolCalls: OllamaResponseToolCall[]): ToolCall[] {
+  return rawToolCalls.map((tc, index) => ({
+    id: tc.id || `call_ollama_${Date.now()}_${index}`,
+    type: "function" as const,
+    function: {
+      name: tc.function?.name || "",
+      arguments:
+        typeof tc.function?.arguments === "object"
+          ? JSON.stringify(tc.function.arguments)
+          : String(tc.function?.arguments || "{}")
+    }
+  }));
+}
+
+/** True for a web ReadableStream (has getReader()). */
+function hasGetReader(body: unknown): body is ReadableStream<Uint8Array> {
+  return typeof (body as { getReader?: unknown }).getReader === "function";
+}
+
+/** True for a Node-style async iterable body. */
+function isAsyncIterableBody(body: unknown): body is AsyncIterable<Uint8Array | string> {
+  return typeof body === "object" && body !== null && Symbol.asyncIterator in body;
+}
 
 /**
  * Ollama AI Provider implementation for B.U.T.L.E.R. Alfred.
@@ -70,32 +133,7 @@ export class OllamaProvider implements AIProvider, AIChatStreamProvider {
     const url = `${this.config.baseUrl.replace(/\/+$/, "")}/api/chat`;
 
     // Map internal ChatMessage array to Ollama's format
-    const ollamaMessages = messages.map((m) => {
-      const msg: any = {
-        role: m.role as "system" | "user" | "assistant" | "tool",
-        content: m.content
-      };
-      if (m.toolCalls && m.toolCalls.length > 0) {
-        msg.tool_calls = m.toolCalls.map((tc) => ({
-          id: tc.id,
-          type: "function",
-          function: {
-            name: tc.function.name,
-            arguments:
-              typeof tc.function.arguments === "string"
-                ? (() => {
-                    try {
-                      return JSON.parse(tc.function.arguments);
-                    } catch {
-                      return tc.function.arguments;
-                    }
-                  })()
-                : tc.function.arguments
-          }
-        }));
-      }
-      return msg;
-    });
+    const ollamaMessages = toOllamaMessages(messages);
 
     // Map completion parameters to Ollama's options
     const ollamaOptions: Record<string, unknown> = {};
@@ -154,9 +192,9 @@ export class OllamaProvider implements AIProvider, AIChatStreamProvider {
     }
 
     if (!response.ok) {
-      let errorData: any;
+      let errorData: OllamaErrorBody;
       try {
-        errorData = await response.json();
+        errorData = (await response.json()) as OllamaErrorBody;
       } catch {
         errorData = { error: await response.text().catch(() => "") };
       }
@@ -172,9 +210,9 @@ export class OllamaProvider implements AIProvider, AIChatStreamProvider {
       );
     }
 
-    let data: any;
+    let data: OllamaChatResponse;
     try {
-      data = await response.json();
+      data = (await response.json()) as OllamaChatResponse;
     } catch (jsonError) {
       throw new AIProviderError(
         "ollama",
@@ -199,17 +237,7 @@ export class OllamaProvider implements AIProvider, AIChatStreamProvider {
 
     let toolCalls: ToolCall[] | undefined = undefined;
     if (Array.isArray(data.message.tool_calls) && data.message.tool_calls.length > 0) {
-      toolCalls = data.message.tool_calls.map((tc: any, index: number) => ({
-        id: tc.id || `call_ollama_${Date.now()}_${index}`,
-        type: "function" as const,
-        function: {
-          name: tc.function?.name || "",
-          arguments:
-            typeof tc.function?.arguments === "object"
-              ? JSON.stringify(tc.function.arguments)
-              : String(tc.function?.arguments || "{}")
-        }
-      }));
+      toolCalls = toToolCalls(data.message.tool_calls);
     }
 
     return {
@@ -260,9 +288,11 @@ export class OllamaProvider implements AIProvider, AIChatStreamProvider {
         };
       }
 
-      const data: any = await res.json();
-      const models: any[] = Array.isArray(data?.models) ? data.models : [];
-      const availableModelNames = models.map((m) => m.name || m.model).filter(Boolean);
+      const data = (await res.json()) as OllamaTagsResponse | null;
+      const models: OllamaTagModel[] = Array.isArray(data?.models) ? data.models : [];
+      const availableModelNames = models
+        .map((m) => m.name || m.model)
+        .filter((name): name is string => Boolean(name));
 
       const isModelAvailable = availableModelNames.some(
         (name: string) =>
@@ -287,12 +317,12 @@ export class OllamaProvider implements AIProvider, AIChatStreamProvider {
         model: modelToCheck,
         availableModels: availableModelNames
       };
-    } catch (err: any) {
+    } catch (err: unknown) {
       return {
         status: "unreachable",
         reachable: false,
         modelAvailable: false,
-        error: err?.message || "Connection refused or timed out"
+        error: errorMessage(err, "Connection refused or timed out")
       };
     } finally {
       clearTimeout(timeoutId);
@@ -311,32 +341,7 @@ export class OllamaProvider implements AIProvider, AIChatStreamProvider {
     const model = options?.model || this.config.defaultModel;
     const url = `${this.config.baseUrl.replace(/\/+$/, "")}/api/chat`;
 
-    const ollamaMessages = messages.map((m) => {
-      const msg: any = {
-        role: m.role as "system" | "user" | "assistant" | "tool",
-        content: m.content
-      };
-      if (m.toolCalls && m.toolCalls.length > 0) {
-        msg.tool_calls = m.toolCalls.map((tc) => ({
-          id: tc.id,
-          type: "function",
-          function: {
-            name: tc.function.name,
-            arguments:
-              typeof tc.function.arguments === "string"
-                ? (() => {
-                    try {
-                      return JSON.parse(tc.function.arguments);
-                    } catch {
-                      return tc.function.arguments;
-                    }
-                  })()
-                : tc.function.arguments
-          }
-        }));
-      }
-      return msg;
-    });
+    const ollamaMessages = toOllamaMessages(messages);
 
     const ollamaOptions: Record<string, unknown> = {};
     const temperature = options?.temperature ?? this.config.temperature;
@@ -393,9 +398,9 @@ export class OllamaProvider implements AIProvider, AIChatStreamProvider {
 
     if (!response.ok) {
       clearTimeout(timeoutId);
-      let errorData: any;
+      let errorData: OllamaErrorBody;
       try {
-        errorData = await response.json();
+        errorData = (await response.json()) as OllamaErrorBody;
       } catch {
         errorData = { error: await response.text().catch(() => "") };
       }
@@ -421,8 +426,8 @@ export class OllamaProvider implements AIProvider, AIChatStreamProvider {
 
     try {
       // Support both web ReadableStream (with getReader) and Node / async iterables
-      const body = response.body as any;
-      if (typeof body.getReader === "function") {
+      const body: unknown = response.body;
+      if (hasGetReader(body)) {
         const reader = body.getReader();
         try {
           while (true) {
@@ -441,9 +446,9 @@ export class OllamaProvider implements AIProvider, AIChatStreamProvider {
               const trimmed = line.trim();
               if (!trimmed) continue;
 
-              let parsed: any;
+              let parsed: OllamaChatResponse;
               try {
-                parsed = JSON.parse(trimmed);
+                parsed = JSON.parse(trimmed) as OllamaChatResponse;
               } catch (jsonErr) {
                 throw new AIProviderError(
                   "ollama",
@@ -495,17 +500,7 @@ export class OllamaProvider implements AIProvider, AIChatStreamProvider {
 
               let toolCalls: ToolCall[] | undefined = undefined;
               if (Array.isArray(parsed.message?.tool_calls) && parsed.message.tool_calls.length > 0) {
-                toolCalls = parsed.message.tool_calls.map((tc: any, index: number) => ({
-                  id: tc.id || `call_ollama_${Date.now()}_${index}`,
-                  type: "function" as const,
-                  function: {
-                    name: tc.function?.name || "",
-                    arguments:
-                      typeof tc.function?.arguments === "object"
-                        ? JSON.stringify(tc.function.arguments)
-                        : String(tc.function?.arguments || "{}")
-                  }
-                }));
+                toolCalls = toToolCalls(parsed.message.tool_calls);
               }
 
               yield {
@@ -524,7 +519,7 @@ export class OllamaProvider implements AIProvider, AIChatStreamProvider {
             reader.releaseLock();
           } catch {}
         }
-      } else if (Symbol.asyncIterator in body) {
+      } else if (isAsyncIterableBody(body)) {
         for await (const chunk of body) {
           if (controller.signal.aborted || options?.signal?.aborted) {
             break;
@@ -539,9 +534,9 @@ export class OllamaProvider implements AIProvider, AIChatStreamProvider {
             const trimmed = line.trim();
             if (!trimmed) continue;
 
-            let parsed: any;
+            let parsed: OllamaChatResponse;
             try {
-              parsed = JSON.parse(trimmed);
+              parsed = JSON.parse(trimmed) as OllamaChatResponse;
             } catch (jsonErr) {
               throw new AIProviderError(
                 "ollama",
@@ -581,17 +576,7 @@ export class OllamaProvider implements AIProvider, AIChatStreamProvider {
 
             let toolCalls: ToolCall[] | undefined = undefined;
             if (Array.isArray(parsed.message?.tool_calls) && parsed.message.tool_calls.length > 0) {
-              toolCalls = parsed.message.tool_calls.map((tc: any, index: number) => ({
-                id: tc.id || `call_ollama_${Date.now()}_${index}`,
-                type: "function" as const,
-                function: {
-                  name: tc.function?.name || "",
-                  arguments:
-                    typeof tc.function?.arguments === "object"
-                      ? JSON.stringify(tc.function.arguments)
-                      : String(tc.function?.arguments || "{}")
-                }
-              }));
+              toolCalls = toToolCalls(parsed.message.tool_calls);
             }
 
             yield {

@@ -55,7 +55,7 @@ describe("SSHListDirectoryTool Suite", () => {
       expect(tool.validateArgs({ path: "Belgeler" }).valid).toBe(false);
       expect(tool.validateArgs({ host: "home-server" }).valid).toBe(false);
       expect(tool.validateArgs({ host: "", path: "Belgeler" }).valid).toBe(false);
-      expect(tool.validateArgs({ host: "home-server", path: null as any }).valid).toBe(false);
+      expect(tool.validateArgs({ host: "home-server", path: null }).valid).toBe(false);
       expect(tool.validateArgs(null).valid).toBe(false);
       expect(tool.validateArgs("string").valid).toBe(false);
     });
@@ -82,7 +82,7 @@ describe("SSHListDirectoryTool Suite", () => {
       // Verify SSH exec was invoked with trusted command and SFTP was never used
       expect(mockClient.execCalls.length).toBe(1);
       expect(mockClient.execCalls[0]).toContain("ls -la");
-      expect((mockClient as any).sftp).toBeUndefined();
+      expect((mockClient as unknown as Record<string, unknown>).sftp).toBeUndefined();
 
       // Connection must be closed
       expect(mockClient.disconnectCalls).toBe(1);

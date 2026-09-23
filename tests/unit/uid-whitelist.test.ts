@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Auth } from "firebase/auth";
 
 // The browser-side allow-list in apps/web/lib/auth.ts is exercised against a
 // mocked Firebase Auth SDK. Server-side enforcement lives in functions/index.js
@@ -28,7 +29,7 @@ import {
   checkRedirectResult
 } from "../../apps/web/lib/auth.js";
 
-const fakeAuth = { name: "fake-auth" } as any;
+const fakeAuth = { name: "fake-auth" } as unknown as Auth;
 
 describe("Single-User Authorization (UID Whitelist)", () => {
   beforeEach(() => {

@@ -10,6 +10,7 @@ import {
   buildMemoryExtractionPrompt,
   parseMemoryExtractionResponse
 } from "../../../../ai/prompts/memory-extraction.js";
+import { errorMessage } from "../../../../core/errors/index.js";
 
 export interface MemoryExtractorOptions {
   provider?: AIProvider;
@@ -90,8 +91,8 @@ export class MemoryExtractor implements IMemoryExtractor {
       }
 
       return result;
-    } catch (err: any) {
-      console.warn(`[MemoryExtraction] Extraction failed gracefully (${Date.now() - startTime}ms):`, err?.message || err);
+    } catch (err: unknown) {
+      console.warn(`[MemoryExtraction] Extraction failed gracefully (${Date.now() - startTime}ms):`, errorMessage(err));
       return { shouldRemember: false, candidates: [] };
     }
   }

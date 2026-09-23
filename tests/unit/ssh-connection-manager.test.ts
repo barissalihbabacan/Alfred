@@ -53,7 +53,7 @@ describe("SSHConnectionManager Suite", () => {
     it("rejects empty or invalid host input", async () => {
       await expect(manager.verifyConnection("")).rejects.toThrow(/Invalid host parameter/i);
       await expect(manager.verifyConnection("   ")).rejects.toThrow(/Invalid host parameter/i);
-      await expect(manager.verifyConnection(null as any)).rejects.toThrow(/Invalid host parameter/i);
+      await expect(manager.verifyConnection(null as unknown as string)).rejects.toThrow(/Invalid host parameter/i);
     });
 
     it("handles connection timeouts and ensures disconnect is called", async () => {

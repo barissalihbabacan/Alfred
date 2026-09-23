@@ -1,11 +1,20 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { ToolRegistry } from "../../src/alfred/control-plane/tool-router/tool-registry.js";
 import { ToolRouter } from "../../src/alfred/control-plane/tool-router/tool-router.js";
-import { GetCurrentTimeTool } from "../../src/ai/tools/time/get-current-time.tool.js";
+import { GetCurrentTimeTool, GetCurrentTimeResult } from "../../src/ai/tools/time/get-current-time.tool.js";
 import { ITool, ToolDefinition, ToolParameterSchema, ToolExecutionContext } from "../../src/ai/tools/types.js";
 import { PermissionLevel } from "../../src/alfred/control-plane/permission-system/types.js";
 
-class MockDestructiveTool implements ITool {
+interface DeleteDatabaseArgs {
+  target: string;
+}
+
+interface DeleteDatabaseResult {
+  deleted: boolean;
+  target: string;
+}
+
+class MockDestructiveTool implements ITool<DeleteDatabaseArgs, DeleteDatabaseResult> {
   public readonly name = "delete_database";
   public readonly description = "Destructive tool that purges database records.";
   public readonly permissionLevel = PermissionLevel.DESTRUCTIVE;
@@ -26,12 +35,13 @@ class MockDestructiveTool implements ITool {
     };
   }
 
-  public validateArgs(args: any) {
-    if (!args || !args.target) return { valid: false, error: "Missing target" };
-    return { valid: true, parsedArgs: args };
+  public validateArgs(args: unknown) {
+    const candidate = args as Partial<DeleteDatabaseArgs> | null | undefined;
+    if (!candidate || !candidate.target) return { valid: false, error: "Missing target" };
+    return { valid: true, parsedArgs: candidate as DeleteDatabaseArgs };
   }
 
-  public async execute(args: any, _context: ToolExecutionContext) {
+  public async execute(args: DeleteDatabaseArgs, _context: ToolExecutionContext) {
     return { deleted: true, target: args.target };
   }
 }
@@ -88,8 +98,9 @@ describe("Tool Registry & Router Suite", () => {
       expect(result.success).toBe(true);
       expect(result.toolName).toBe("get_current_time");
       expect(result.toolCallId).toBe("call_123");
-      expect((result.data as any)?.city).toBe("London");
-      expect((result.data as any)?.timezone).toBe("Europe/London");
+      const data = result.data as GetCurrentTimeResult | undefined;
+      expect(data?.city).toBe("London");
+      expect(data?.timezone).toBe("Europe/London");
       expect(typeof result.executionTimeMs).toBe("number");
     });
 
@@ -168,7 +179,7 @@ describe("Tool Registry & Router Suite", () => {
       );
 
       expect(confirmed.success).toBe(true);
-      expect((confirmed.data as any)?.deleted).toBe(true);
+      expect((confirmed.data as DeleteDatabaseResult | undefined)?.deleted).toBe(true);
     });
 
     it("executes batch tool calls via executeAll", async () => {
@@ -193,9 +204,9 @@ describe("Tool Registry & Router Suite", () => {
 
       expect(results.length).toBe(2);
       expect(results[0].success).toBe(true);
-      expect((results[0].data as any)?.city).toBe("London");
+      expect((results[0].data as GetCurrentTimeResult | undefined)?.city).toBe("London");
       expect(results[1].success).toBe(true);
-      expect((results[1].data as any)?.city).toBe("Tokyo");
+      expect((results[1].data as GetCurrentTimeResult | undefined)?.city).toBe("Tokyo");
     });
   });
 });

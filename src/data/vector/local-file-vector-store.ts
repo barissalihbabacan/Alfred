@@ -1,7 +1,8 @@
 import fs from "fs";
 import path from "path";
 import { InMemoryVectorStore } from "./in-memory-vector-store.js";
-import { VectorRecord } from "./types.js";
+import { VectorRecord, VectorSearchOptions, VectorSearchResult } from "./types.js";
+import { errorMessage } from "../../core/errors/index.js";
 
 export interface LocalFileVectorStoreOptions {
   filePath?: string;
@@ -47,8 +48,8 @@ export class LocalFileVectorStore extends InMemoryVectorStore {
           }
         }
       }
-    } catch (err: any) {
-      console.warn(`[LocalFileVectorStore] Failed to read ${this.filePath}, starting with empty index:`, err?.message || err);
+    } catch (err: unknown) {
+      console.warn(`[LocalFileVectorStore] Failed to read ${this.filePath}, starting with empty index:`, errorMessage(err));
     } finally {
       this.isLoaded = true;
     }
@@ -80,8 +81,8 @@ export class LocalFileVectorStore extends InMemoryVectorStore {
       const tmpPath = `${this.filePath}.tmp.${Date.now()}`;
       await fs.promises.writeFile(tmpPath, data, "utf-8");
       await fs.promises.rename(tmpPath, this.filePath);
-    } catch (err: any) {
-      console.error(`[LocalFileVectorStore] Failed to persist vector store to ${this.filePath}:`, err?.message || err);
+    } catch (err: unknown) {
+      console.error(`[LocalFileVectorStore] Failed to persist vector store to ${this.filePath}:`, errorMessage(err));
     }
   }
 
@@ -97,7 +98,10 @@ export class LocalFileVectorStore extends InMemoryVectorStore {
     await this.persist();
   }
 
-  public override async search(queryEmbedding: number[], options: any): Promise<any[]> {
+  public override async search(
+    queryEmbedding: number[],
+    options: VectorSearchOptions
+  ): Promise<VectorSearchResult[]> {
     await this.init();
     return super.search(queryEmbedding, options);
   }

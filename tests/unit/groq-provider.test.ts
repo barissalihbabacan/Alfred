@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { ToolCall } from "../../src/ai/providers/types.js";
+import type Groq from "groq-sdk";
 import { GroqProvider } from "../../src/ai/providers/groq/groq-provider.js";
 import {
   MissingApiKeyError,
@@ -8,22 +10,33 @@ import {
   NetworkError
 } from "../../src/core/errors/index.js";
 
+function createMockGroqClient() {
+  return {
+    chat: {
+      completions: {
+        create: vi.fn()
+      }
+    },
+    audio: {
+      transcriptions: {
+        create: vi.fn()
+      }
+    }
+  };
+}
+
+type MockGroqClient = ReturnType<typeof createMockGroqClient>;
+
+/** The mock only implements the two endpoints GroqProvider calls. */
+function asGroq(mock: MockGroqClient): Groq {
+  return mock as unknown as Groq;
+}
+
 describe("GroqProvider Unit Tests", () => {
-  let mockGroqClient: any;
+  let mockGroqClient: MockGroqClient;
 
   beforeEach(() => {
-    mockGroqClient = {
-      chat: {
-        completions: {
-          create: vi.fn()
-        }
-      },
-      audio: {
-        transcriptions: {
-          create: vi.fn()
-        }
-      }
-    };
+    mockGroqClient = createMockGroqClient();
   });
 
   it("should report configured when an API key is provided", () => {
@@ -62,7 +75,7 @@ describe("GroqProvider Unit Tests", () => {
       }
     });
 
-    const provider = new GroqProvider({ client: mockGroqClient, apiKey: "test-key" });
+    const provider = new GroqProvider({ client: asGroq(mockGroqClient), apiKey: "test-key" });
 
     const response = await provider.chat(
       [{ role: "user", content: "Status report?" }],
@@ -84,11 +97,10 @@ describe("GroqProvider Unit Tests", () => {
   });
 
   it("should handle 401 authentication errors and map to InvalidCredentialsError", async () => {
-    const error: any = new Error("Unauthorized");
-    error.status = 401;
+    const error = Object.assign(new Error("Unauthorized"), { status: 401 });
     mockGroqClient.chat.completions.create.mockRejectedValueOnce(error);
 
-    const provider = new GroqProvider({ client: mockGroqClient, apiKey: "test-key" });
+    const provider = new GroqProvider({ client: asGroq(mockGroqClient), apiKey: "test-key" });
 
     await expect(provider.chat([{ role: "user", content: "Hi" }])).rejects.toThrow(
       InvalidCredentialsError
@@ -96,12 +108,13 @@ describe("GroqProvider Unit Tests", () => {
   });
 
   it("should handle 429 rate limit errors and map to RateLimitError", async () => {
-    const error: any = new Error("Rate limit reached");
-    error.status = 429;
-    error.headers = { "retry-after": "5" };
+    const error = Object.assign(new Error("Rate limit reached"), {
+      status: 429,
+      headers: { "retry-after": "5" }
+    });
     mockGroqClient.chat.completions.create.mockRejectedValueOnce(error);
 
-    const provider = new GroqProvider({ client: mockGroqClient, apiKey: "test-key" });
+    const provider = new GroqProvider({ client: asGroq(mockGroqClient), apiKey: "test-key" });
 
     await expect(provider.chat([{ role: "user", content: "Hi" }])).rejects.toThrow(
       RateLimitError
@@ -109,11 +122,12 @@ describe("GroqProvider Unit Tests", () => {
   });
 
   it("should handle model not found errors and map to ModelNotFoundError", async () => {
-    const error: any = new Error("The model `nonexistent-model` does not exist");
-    error.status = 404;
+    const error = Object.assign(new Error("The model `nonexistent-model` does not exist"), {
+      status: 404
+    });
     mockGroqClient.chat.completions.create.mockRejectedValueOnce(error);
 
-    const provider = new GroqProvider({ client: mockGroqClient, apiKey: "test-key" });
+    const provider = new GroqProvider({ client: asGroq(mockGroqClient), apiKey: "test-key" });
 
     await expect(
       provider.chat([{ role: "user", content: "Hi" }], { model: "nonexistent-model" })
@@ -121,11 +135,10 @@ describe("GroqProvider Unit Tests", () => {
   });
 
   it("should handle network errors and map to NetworkError", async () => {
-    const error: any = new Error("fetch failed");
-    error.code = "ECONNREFUSED";
+    const error = Object.assign(new Error("fetch failed"), { code: "ECONNREFUSED" });
     mockGroqClient.chat.completions.create.mockRejectedValueOnce(error);
 
-    const provider = new GroqProvider({ client: mockGroqClient, apiKey: "test-key" });
+    const provider = new GroqProvider({ client: asGroq(mockGroqClient), apiKey: "test-key" });
 
     await expect(provider.chat([{ role: "user", content: "Hi" }])).rejects.toThrow(
       NetworkError
@@ -137,7 +150,7 @@ describe("GroqProvider Unit Tests", () => {
       text: "Good morning, Master Wayne."
     });
 
-    const provider = new GroqProvider({ client: mockGroqClient, apiKey: "test-key" });
+    const provider = new GroqProvider({ client: asGroq(mockGroqClient), apiKey: "test-key" });
 
     const result = await provider.transcribe({
       file: Buffer.from("fake-audio-bytes"),
@@ -180,7 +193,7 @@ describe("GroqProvider Unit Tests", () => {
       ]
     });
 
-    const provider = new GroqProvider({ client: mockGroqClient, apiKey: "test-key" });
+    const provider = new GroqProvider({ client: asGroq(mockGroqClient), apiKey: "test-key" });
     const response = await provider.chat(
       [{ role: "user", content: "Check disk usage" }],
       {
@@ -223,7 +236,7 @@ describe("GroqProvider Unit Tests", () => {
 
     mockGroqClient.chat.completions.create.mockResolvedValueOnce(mockStream());
 
-    const provider = new GroqProvider({ client: mockGroqClient, apiKey: "test-key" });
+    const provider = new GroqProvider({ client: asGroq(mockGroqClient), apiKey: "test-key" });
     const chunks: string[] = [];
     let isDone = false;
 
@@ -284,8 +297,8 @@ describe("GroqProvider Unit Tests", () => {
 
     mockGroqClient.chat.completions.create.mockResolvedValueOnce(mockToolStream());
 
-    const provider = new GroqProvider({ client: mockGroqClient, apiKey: "test-key" });
-    let finalToolCalls: any[] | undefined = undefined;
+    const provider = new GroqProvider({ client: asGroq(mockGroqClient), apiKey: "test-key" });
+    let finalToolCalls: ToolCall[] | undefined = undefined;
 
     for await (const chunk of provider.streamChat([{ role: "user", content: "List Belgeler" }])) {
       if (chunk.toolCalls) {

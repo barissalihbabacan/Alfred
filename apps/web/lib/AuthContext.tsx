@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     try {
       return await signInWithGoogle();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[Auth] Google Sign-In error:", err);
       setError(getAuthErrorDetails(err));
       return null;
@@ -63,7 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     try {
       await signInWithGoogleRedirect();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[Auth] Direct redirect sign-in error:", err);
       setError(getAuthErrorDetails(err));
     }
@@ -74,7 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await signOutCurrentUser();
       setUser(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(getAuthErrorDetails(err));
     }
   }, []);

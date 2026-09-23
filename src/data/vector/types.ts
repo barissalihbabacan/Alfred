@@ -15,7 +15,9 @@ export interface VectorRecordMetadata {
   embeddingProvider?: string;
   embeddingModel?: string;
   embeddingDimension?: number;
-  [key: string]: any;
+  /** ISO-8601 creation time of the underlying memory record. */
+  createdAt?: string;
+  [key: string]: unknown;
 }
 
 export interface VectorRecord {

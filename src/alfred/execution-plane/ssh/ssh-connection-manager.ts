@@ -12,7 +12,7 @@ import {
 import { SSH2Client } from "./ssh2-client.js";
 import { SSHConfig, resolveSSHHost } from "../../../core/config/ssh.config.js";
 import { RemoteCommandExecutor } from "./remote-command-executor.js";
-import { AllowedSSHCommand } from "./command-registry.js";
+import { AllowedSSHCommand, SSHCommandResult, SSHCommandResultMap } from "./command-registry.js";
 
 export interface SSHConnectionManagerOptions {
   clientFactory?: SSHClientFactory;
@@ -86,11 +86,21 @@ export class SSHConnectionManager {
   /**
    * Executes a strictly whitelisted command on an approved SSH server.
    */
+  public async executeCommand<C extends AllowedSSHCommand>(
+    hostIdentifier: string,
+    command: C,
+    rawArgs?: unknown
+  ): Promise<SSHCommandResultMap[C]>;
   public async executeCommand(
     hostIdentifier: string,
     command: AllowedSSHCommand | string,
     rawArgs?: unknown
-  ): Promise<any> {
+  ): Promise<SSHCommandResult>;
+  public async executeCommand(
+    hostIdentifier: string,
+    command: AllowedSSHCommand | string,
+    rawArgs?: unknown
+  ): Promise<SSHCommandResult> {
     const executor = new RemoteCommandExecutor({
       clientFactory: this.clientFactory,
       config: this.config

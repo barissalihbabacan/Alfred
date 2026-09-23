@@ -109,8 +109,8 @@ describe("SSHPathSandbox Suite", () => {
     });
 
     it("handles null or undefined input safely", () => {
-      expect(SSHPathSandbox.validateSandboxPath(null as any).valid).toBe(false);
-      expect(SSHPathSandbox.validateSandboxPath(undefined as any).valid).toBe(false);
+      expect(SSHPathSandbox.validateSandboxPath(null as unknown as string).valid).toBe(false);
+      expect(SSHPathSandbox.validateSandboxPath(undefined as unknown as string).valid).toBe(false);
     });
   });
 

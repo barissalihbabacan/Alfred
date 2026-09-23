@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
+import type { SSHCommandResultMap } from "../../src/alfred/execution-plane/ssh/command-registry.js";
 import { ToolRegistry } from "../../src/alfred/control-plane/tool-router/tool-registry.js";
 import { ToolRouter } from "../../src/alfred/control-plane/tool-router/tool-router.js";
 import { SSHExecuteTool } from "../../src/ai/tools/ssh/ssh-execute.tool.js";
@@ -44,8 +45,9 @@ describe("SSH Execute Router & Permission Suite", () => {
     expect(result.success).toBe(true);
     expect(result.toolName).toBe("ssh_execute");
     expect(result.toolCallId).toBe("call_exec_001");
-    expect((result.data as any).command).toBe("disk_usage");
-    expect((result.data as any).output).toContain("Filesystem");
+    const data = result.data as SSHCommandResultMap["disk_usage"];
+    expect(data.command).toBe("disk_usage");
+    expect(data.output).toContain("Filesystem");
     expect(mockClient.execCalls[0]).toContain("df -h");
   });
 

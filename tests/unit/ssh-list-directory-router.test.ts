@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
+import type { SSHListDirectoryResult } from "../../src/alfred/execution-plane/ssh/ssh-client.interface.js";
 import { ToolRegistry } from "../../src/alfred/control-plane/tool-router/tool-registry.js";
 import { ToolRouter } from "../../src/alfred/control-plane/tool-router/tool-router.js";
 import { SSHListDirectoryTool } from "../../src/ai/tools/ssh/ssh-list-directory.tool.js";
@@ -41,9 +42,10 @@ describe("SSH List Directory Router & Permission Suite", () => {
     expect(result.success).toBe(true);
     expect(result.toolName).toBe("ssh_list_directory");
     expect(result.toolCallId).toBe("call_dir_001");
-    expect((result.data as any).host).toBe("home-server");
-    expect((result.data as any).totalCount).toBe(4);
-    expect((result.data as any).entries.length).toBe(4);
+    const data = result.data as SSHListDirectoryResult;
+    expect(data.host).toBe("home-server");
+    expect(data.totalCount).toBe(4);
+    expect(data.entries.length).toBe(4);
   });
 
   it("denies execution if userId is absent (SAFE_READ requires active user session)", async () => {

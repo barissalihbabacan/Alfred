@@ -4,6 +4,7 @@ import {
   IPendingEmbeddingStore,
   PendingEmbeddingRecord
 } from "./pending-embedding-store.interface.js";
+import { errorMessage } from "../../core/errors/index.js";
 
 export interface LocalFilePendingStoreOptions {
   filePath?: string;
@@ -39,8 +40,8 @@ export class LocalFilePendingEmbeddingStore implements IPendingEmbeddingStore {
           }
         }
       }
-    } catch (err: any) {
-      console.warn(`[LocalFilePendingStore] Could not read ${this.filePath}:`, err?.message || err);
+    } catch (err: unknown) {
+      console.warn(`[LocalFilePendingStore] Could not read ${this.filePath}:`, errorMessage(err));
     } finally {
       this.isLoaded = true;
     }

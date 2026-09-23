@@ -2,6 +2,8 @@ import { IEmbeddingProvider } from "./types.js";
 import { OllamaEmbeddingProvider } from "./ollama-embedding-provider.js";
 import { GeminiEmbeddingProvider } from "./gemini-embedding-provider.js";
 import { MockEmbeddingProvider } from "./mock-embedding-provider.js";
+import { FallbackEmbeddingProvider } from "./fallback-embedding-provider.js";
+import { GEMINI_EMBEDDING_MODEL } from "./embedding-client.js";
 import { getMemoryConfig } from "../../core/config/index.js";
 
 let cachedProvider: IEmbeddingProvider | null = null;
@@ -25,12 +27,27 @@ export function getEmbeddingProvider(): IEmbeddingProvider {
   const config = getMemoryConfig().embedding;
 
   if (config.provider === "gemini") {
-    const gemini = new GeminiEmbeddingProvider();
-    if (gemini.isConfigured()) {
-      cachedProvider = gemini;
-      return cachedProvider;
+    // Production's path (shared generateEmbedding): Gemini gemini-embedding-001,
+    // then Ollama nomic-embed-text when an Ollama URL is explicitly configured
+    // (EMBEDDING_BASE_URL or OLLAMA_BASE_URL). Each vector records the model
+    // that produced it (embedDetailed). generateEmbedding pins its models, so
+    // a custom EMBEDDING_MODEL keeps the plain Gemini provider (no fallback).
+    const geminiApiKey = (process.env.GEMINI_API_KEY || "").trim();
+    const ollamaUrl = (process.env.EMBEDDING_BASE_URL || process.env.OLLAMA_BASE_URL || "").trim();
+    if (config.model === GEMINI_EMBEDDING_MODEL) {
+      const fallback = new FallbackEmbeddingProvider({ geminiApiKey, ollamaUrl, timeoutMs: config.timeoutMs });
+      if (fallback.isConfigured()) {
+        cachedProvider = fallback;
+        return cachedProvider;
+      }
+    } else {
+      const gemini = new GeminiEmbeddingProvider();
+      if (gemini.isConfigured()) {
+        cachedProvider = gemini;
+        return cachedProvider;
+      }
     }
-    console.warn("[EmbeddingFactory] GEMINI_API_KEY not configured, falling back to mock embedding provider.");
+    console.warn("[EmbeddingFactory] Neither GEMINI_API_KEY nor an Ollama URL is configured, falling back to mock embedding provider.");
   }
 
   if (config.provider === "ollama") {

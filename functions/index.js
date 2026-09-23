@@ -13,6 +13,11 @@ import {
   GET_CURRENT_TIME_TOOL_DEFINITION as TIME_TOOL_DEFINITION,
   getCurrentTimeForCity
 } from "../src/ai/tools/time/current-time.js";
+import {
+  GEMINI_EMBEDDING_MODEL,
+  generateEmbedding,
+  isComparableEmbedding
+} from "../src/ai/embedding/embedding-client.js";
 import { PrivacyFilter } from "../src/alfred/cognitive/memory/privacy-filter.js";
 import { buildAlfredSystemPrompt } from "../src/ai/prompts/alfred-system-prompt.js";
 import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
@@ -83,82 +88,28 @@ function errMessage(err) {
   return String(err?.message || err || "unknown error").slice(0, 300);
 }
 
-// text-embedding-004 14 Ocak 2026'da kapatildi. gemini-embedding-001 varsayilan
-// olarak 3072 boyut dondurur; mevcut sema 768 oldugu icin boyut sabitlenir.
-// 3072 disindaki boyutlar normalize edilmez, ancak karsilastirma kosinus
-// benzerligiyle yapildigi icin bu sonucu degistirmez.
-const GEMINI_EMBEDDING_MODEL = "gemini-embedding-001";
-const OLLAMA_EMBEDDING_MODEL = "nomic-embed-text";
-const EMBEDDING_DIMENSION = 768;
-
-// Farkli modellerin vektorleri ayni uzayda degildir; yalnizca ayni modelle
-// uretilmis kayitlar karsilastirilir.
-function karsilastirilabilir(d, model) {
-  return Array.isArray(d.embedding) && d.embedding.length > 0 && d.embeddingModel === model;
-}
+// Embedding cagrilari (Gemini -> Ollama -> hata) src/ai/embedding/embedding-client.ts
+// icinde; loglama burada kalir. Farkli modellerin vektorleri ayni uzayda
+// olmadigindan yalnizca ayni modelle uretilmis kayitlar karsilastirilir
+// (isComparableEmbedding).
 
 // { values, model } dondurur.
 async function getEmbedding(text, ollamaUrl, geminiKey) {
-  const key = (geminiKey || gizliOku(GEMINI_API_KEY, "GEMINI_API_KEY") || "").trim();
-  if (key) {
-    try {
-      const embedRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_EMBEDDING_MODEL}:embedContent?key=${encodeURIComponent(key)}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: `models/${GEMINI_EMBEDDING_MODEL}`,
-            content: {
-              parts: [{ text: text.trim() }]
-            },
-            outputDimensionality: EMBEDDING_DIMENSION
-          }),
-          signal: AbortSignal.timeout(15000)
-        }
-      );
-      if (embedRes.ok) {
-        const data = await embedRes.json();
-        const values = data?.embedding?.values;
-        if (Array.isArray(values) && values.length > 0) {
-          return { values, model: GEMINI_EMBEDDING_MODEL };
-        }
+  return generateEmbedding(text, {
+    geminiApiKey: geminiKey || gizliOku(GEMINI_API_KEY, "GEMINI_API_KEY") || "",
+    ollamaUrl,
+    onGeminiError: (e) => {
+      if (e.kind === "http") {
+        logger.warn(`[Embedding] Gemini ${e.model} HTTP ${e.status}: ${e.body}`, {
+          event: "embedding_error", model: e.model, http_status: e.status
+        });
       } else {
-        const errText = await embedRes.text().catch(() => "");
-        logger.warn(`[Embedding] Gemini ${GEMINI_EMBEDDING_MODEL} HTTP ${embedRes.status}: ${errText}`, {
-          event: "embedding_error", model: GEMINI_EMBEDDING_MODEL, http_status: embedRes.status
+        logger.warn(`[Embedding] Gemini embedding call failed: ${errMessage(e.error)}`, {
+          event: "embedding_error", model: e.model
         });
       }
-    } catch (gErr) {
-      logger.warn(`[Embedding] Gemini embedding call failed: ${errMessage(gErr)}`, {
-        event: "embedding_error", model: GEMINI_EMBEDDING_MODEL
-      });
     }
-  }
-
-  // Fallback to Ollama if configured
-  if (ollamaUrl && !ollamaUrl.includes("placeholder")) {
-    const embedRes = await fetch(`${ollamaUrl.replace(/\/+$/, "")}/api/embed`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: OLLAMA_EMBEDDING_MODEL,
-        input: text
-      }),
-      signal: AbortSignal.timeout(15000)
-    });
-    if (embedRes.ok) {
-      const data = await embedRes.json();
-      const vector = Array.isArray(data.embeddings?.[0])
-        ? data.embeddings[0]
-        : (Array.isArray(data.embedding) ? data.embedding : null);
-      if (vector && Array.isArray(vector)) {
-        return { values: vector, model: OLLAMA_EMBEDDING_MODEL };
-      }
-    }
-  }
-
-  throw new Error("[Embedding] Neither Gemini nor Ollama could generate embedding (check GEMINI_API_KEY).");
+  });
 }
 
 // `stats` verilirse metrik alanlariyla doldurulur (memory_retrieval olayi icin).
@@ -173,7 +124,7 @@ async function retrieveRelevantMemories(db, query, userId, topK = 5, minScore = 
   let topScore = null;
   for (const doc of memSnap.docs) {
     const d = doc.data();
-    if (karsilastirilabilir(d, query.model)) {
+    if (isComparableEmbedding(d, query.model)) {
       candidateCount++;
       const score = cosineSimilarity(query.values, d.embedding);
       if (topScore === null || score > topScore) topScore = score;
@@ -375,7 +326,7 @@ async function extractAndPersistMemories({
         let bestScore = 0;
         for (const doc of memSnap.docs) {
           const d = doc.data();
-          if (karsilastirilabilir(d, queryEmbedding.model)) {
+          if (isComparableEmbedding(d, queryEmbedding.model)) {
             const score = cosineSimilarity(queryEmbedding.values, d.embedding);
             if (score > bestScore) {
               bestScore = score;
@@ -411,7 +362,7 @@ async function extractAndPersistMemories({
 
       for (const doc of activeSnap.docs) {
         const d = doc.data();
-        if (karsilastirilabilir(d, embedding.model)) {
+        if (isComparableEmbedding(d, embedding.model)) {
           const score = cosineSimilarity(embedding.values, d.embedding);
           if (action === "create" && score >= 0.85) {
             isDuplicate = true;

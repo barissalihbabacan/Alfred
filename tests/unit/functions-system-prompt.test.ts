@@ -19,6 +19,7 @@ import { ContextBuilder } from "../../src/alfred/cognitive/context/context-build
 import { loadCanonicalUserContext } from "../../src/alfred/cognitive/context/user-profile-loader.js";
 import { renderUserProfileBlock } from "../../src/alfred/cognitive/context/user-profile-renderer.js";
 import type { RetrievedMemory } from "../../src/alfred/cognitive/memory/types.js";
+import { GEMINI_EMBEDDING_MODEL } from "../../src/ai/embedding/embedding-client.js";
 
 /**
  * Production's system prompt (functions/index.js -> buildAlfredSystemPrompt).
@@ -124,7 +125,8 @@ describe("3. capability line matches what production runs", () => {
     expect(ALFRED_PERSONA_PROMPT).not.toContain("nomic-embed-text");
     expect(ALFRED_PERSONA_PROMPT).toContain("speech recognition and read-aloud speech synthesis in Barış's browser (Web Speech API)");
     expect(ALFRED_PERSONA_PROMPT).toContain("Long-Term Semantic Memory (Firestore + Gemini embeddings)");
-    expect(functionsSource).toContain('const GEMINI_EMBEDDING_MODEL = "gemini-embedding-001";');
+    expect(GEMINI_EMBEDDING_MODEL).toBe("gemini-embedding-001");
+    expect(functionsSource).toMatch(/generateEmbedding,[\s\S]*from "\.\.\/src\/ai\/embedding\/embedding-client\.js"/);
   });
 
   it("the governor's known pipeline matches the provider answering the turn", () => {

@@ -28,7 +28,7 @@ Firebase Hosting ── /api/** rewrite ──►  Cloud Function 2nd Gen `api` 
 ```
 
 - **One HTTP entry point.** Everything server-side runs in the `api` function. The web app is a static export with no route handlers or SSR.
-- **`functions/index.js` is bundled with `src/`.** esbuild builds it into `functions/lib/index.js` together with the shared `src/` modules it imports: the system prompt and user profile, memory-extraction prompt and candidate validation, `PrivacyFilter`, cosine similarity, conversation titles, and the `get_current_time` tool. The rest of `functions/index.js` (Firestore memory persistence, embedding calls, SSH tool definitions) is still hand-written and separate from its `src/` counterparts.
+- **`functions/index.js` is bundled with `src/`.** esbuild builds it into `functions/lib/index.js` together with the shared `src/` modules it imports: the system prompt and user profile, memory-extraction prompt and candidate validation, `PrivacyFilter`, cosine similarity, conversation titles, the `get_current_time` tool and the embedding calls (`src/ai/embedding/embedding-client.ts`). The rest of `functions/index.js` (Firestore memory persistence, SSH tool definitions) is still hand-written and separate from its `src/` counterparts.
 - **Secrets** (`GROQ_API_KEY`, `GEMINI_API_KEY`) live only in Secret Manager and are bound to the function. The browser never sees or sends a key.
 
 ---
@@ -104,7 +104,7 @@ Alfred rigorously separates storage responsibilities across three distinct tiers
 
 **Embedding Provider (`src/ai/embedding/`)**:
 - **`IEmbeddingProvider` (`types.ts`)**: Minimal contract: `embed(text) → number[]`, `embedBatch(texts) → number[][]`, `isConfigured()`.
-- **`GeminiEmbeddingProvider` (`gemini-embedding-provider.ts`)**: The default. It uses `gemini-embedding-001` with `outputDimensionality` pinned to 768. Production calls the same model directly from `functions/index.js`.
+- **`GeminiEmbeddingProvider` (`gemini-embedding-provider.ts`)**: The default. It uses `gemini-embedding-001` with `outputDimensionality` pinned to 768. Production calls the same model through `generateEmbedding()` in `embedding-client.ts` (Gemini, then Ollama `nomic-embed-text`, then an error), a pure module the functions bundle imports; both build the request with its `buildGeminiEmbedContentRequest()`.
 - **`OllamaEmbeddingProvider` (`ollama-embedding-provider.ts`)**: Optional local alternative via Ollama's `/api/embed` (`nomic-embed-text`). Its configuration is separate from the chat model's.
 - **`MockEmbeddingProvider` (`mock-embedding-provider.ts`)**: Deterministic, dependency-free embeddings using token/n-gram feature hashing for unit tests.
 - **`getEmbeddingProvider()` (`factory.ts`)**: Embedding provider factory, selected by `EMBEDDING_PROVIDER` (default `gemini`).

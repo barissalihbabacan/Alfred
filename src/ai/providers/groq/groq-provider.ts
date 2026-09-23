@@ -1,4 +1,11 @@
-import Groq from "groq-sdk";
+import Groq, { type Uploadable } from "groq-sdk";
+import type {
+  ChatCompletionChunk,
+  ChatCompletionCreateParamsNonStreaming,
+  ChatCompletionCreateParamsStreaming,
+  ChatCompletionMessageParam
+} from "groq-sdk/resources/chat/completions";
+import type { CompletionUsage } from "groq-sdk/resources/completions";
 import {
   AIProvider,
   AIChatStreamProvider,
@@ -14,6 +21,47 @@ import {
 import { MissingApiKeyError } from "../../../core/errors/index.js";
 import { getAIConfig, GroqConfig } from "../../../core/config/index.js";
 import { handleGroqError } from "./groq-error-handler.js";
+
+/**
+ * The message shape Alfred sends to Groq. It is a superset-compatible form of
+ * the SDK's ChatCompletionMessageParam union: `name` is sent for every role
+ * and `tool_calls` / `tool_call_id` only when present.
+ */
+interface GroqRequestMessage {
+  role: "system" | "user" | "assistant" | "tool";
+  content: string;
+  name?: string;
+  tool_calls?: Array<{ id: string; type: "function"; function: { name: string; arguments: string } }>;
+  tool_call_id?: string;
+}
+
+/** Stream chunks may carry usage at the top level (OpenAI-style) or under x_groq. */
+type GroqStreamChunk = ChatCompletionChunk & { usage?: CompletionUsage | null };
+
+/** Maps Alfred's ChatMessage array to the message format Groq expects. */
+function toGroqMessages(messages: ChatMessage[]): ChatCompletionMessageParam[] {
+  return messages.map((m) => {
+    const msg: GroqRequestMessage = {
+      role: m.role as "system" | "user" | "assistant" | "tool",
+      content: m.content,
+      name: m.name
+    };
+    if (m.toolCalls && m.toolCalls.length > 0) {
+      msg.tool_calls = m.toolCalls.map((tc) => ({
+        id: tc.id,
+        type: "function",
+        function: {
+          name: tc.function.name,
+          arguments: tc.function.arguments
+        }
+      }));
+    }
+    if (m.role === "tool" && m.toolCallId) {
+      msg.tool_call_id = m.toolCallId;
+    }
+    return msg as ChatCompletionMessageParam;
+  });
+}
 
 export interface GroqProviderOptions {
   apiKey?: string;
@@ -84,29 +132,9 @@ export class GroqProvider implements AIProvider, AIChatStreamProvider, AISpeechT
     const model = options?.model || this.config.defaultModel;
 
     try {
-      const groqMessages = messages.map((m) => {
-        const msg: any = {
-          role: m.role as "system" | "user" | "assistant" | "tool",
-          content: m.content,
-          name: m.name
-        };
-        if (m.toolCalls && m.toolCalls.length > 0) {
-          msg.tool_calls = m.toolCalls.map((tc) => ({
-            id: tc.id,
-            type: "function",
-            function: {
-              name: tc.function.name,
-              arguments: tc.function.arguments
-            }
-          }));
-        }
-        if (m.role === "tool" && m.toolCallId) {
-          msg.tool_call_id = m.toolCallId;
-        }
-        return msg;
-      });
+      const groqMessages = toGroqMessages(messages);
 
-      const completionParams: any = {
+      const completionParams: ChatCompletionCreateParamsNonStreaming = {
         model,
         messages: groqMessages,
         temperature: options?.temperature ?? this.config.temperature,
@@ -129,7 +157,7 @@ export class GroqProvider implements AIProvider, AIChatStreamProvider, AISpeechT
 
       let toolCalls: ToolCall[] | undefined = undefined;
       if (choice?.message?.tool_calls && choice.message.tool_calls.length > 0) {
-        toolCalls = choice.message.tool_calls.map((tc: any) => ({
+        toolCalls = choice.message.tool_calls.map((tc) => ({
           id: tc.id,
           type: "function" as const,
           function: {
@@ -175,29 +203,9 @@ export class GroqProvider implements AIProvider, AIChatStreamProvider, AISpeechT
     const model = options?.model || this.config.defaultModel;
 
     try {
-      const groqMessages = messages.map((m) => {
-        const msg: any = {
-          role: m.role as "system" | "user" | "assistant" | "tool",
-          content: m.content,
-          name: m.name
-        };
-        if (m.toolCalls && m.toolCalls.length > 0) {
-          msg.tool_calls = m.toolCalls.map((tc) => ({
-            id: tc.id,
-            type: "function",
-            function: {
-              name: tc.function.name,
-              arguments: tc.function.arguments
-            }
-          }));
-        }
-        if (m.role === "tool" && m.toolCallId) {
-          msg.tool_call_id = m.toolCallId;
-        }
-        return msg;
-      });
+      const groqMessages = toGroqMessages(messages);
 
-      const streamParams: any = {
+      const streamParams: ChatCompletionCreateParamsStreaming = {
         model,
         messages: groqMessages,
         temperature: options?.temperature ?? this.config.temperature,
@@ -214,7 +222,7 @@ export class GroqProvider implements AIProvider, AIChatStreamProvider, AISpeechT
         streamParams.tool_choice = options.toolChoice;
       }
 
-      const stream = (await client.chat.completions.create(streamParams)) as unknown as AsyncIterable<any>;
+      const stream: AsyncIterable<GroqStreamChunk> = await client.chat.completions.create(streamParams);
 
       const toolCallsAccumulator: Record<number, { id: string; name: string; arguments: string }> = {};
 
@@ -262,7 +270,7 @@ export class GroqProvider implements AIProvider, AIChatStreamProvider, AISpeechT
           }));
         }
 
-        const chunkUsage = (chunk as any).usage || (chunk as any).x_groq?.usage;
+        const chunkUsage = chunk.usage || chunk.x_groq?.usage;
 
         yield {
           content,
@@ -298,7 +306,8 @@ export class GroqProvider implements AIProvider, AIChatStreamProvider, AISpeechT
 
     try {
       const transcription = await client.audio.transcriptions.create({
-        file: options.file as any,
+        // AudioTranscriptionOptions.file is documented as a File/Blob/Buffer/ReadStream.
+        file: options.file as Uploadable,
         model,
         language: options.language,
         prompt: options.prompt,

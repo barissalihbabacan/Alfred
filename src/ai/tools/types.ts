@@ -15,12 +15,14 @@ export interface ToolParameterProperty {
   default?: unknown;
 }
 
-export interface ToolParameterSchema {
+// A type alias (not an interface) so it is assignable to provider SDK types
+// such as groq-sdk's `FunctionParameters` (`Record<string, unknown>`).
+export type ToolParameterSchema = {
   type: "object";
   properties: Record<string, ToolParameterProperty>;
   required?: string[];
   additionalProperties?: boolean;
-}
+};
 
 /**
  * Standard OpenAI / Ollama compatible function tool definition.

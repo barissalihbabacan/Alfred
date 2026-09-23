@@ -126,7 +126,7 @@ export function normalizeHostId(host: string): string {
   return host
     .trim()
     .toLowerCase()
-    .replace(/[_\.]/g, "-")
+    .replace(/[_.]/g, "-")
     .replace(/\s+/g, " ");
 }
 

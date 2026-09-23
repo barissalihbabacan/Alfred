@@ -5,7 +5,7 @@
  * and guaranteed connection closure.
  */
 
-import { ISSHClient, SSHClientFactory, SSHListDirectoryResult } from "./ssh-client.interface.js";
+import { SSHClientFactory, SSHListDirectoryResult } from "./ssh-client.interface.js";
 import { SSH2Client } from "./ssh2-client.js";
 import { SSHConfig, resolveSSHHost } from "../../../core/config/ssh.config.js";
 import { CommandRegistry, AllowedSSHCommand } from "./command-registry.js";

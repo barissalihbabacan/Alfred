@@ -5,13 +5,12 @@
  */
 
 import {
-  ISSHClient,
   SSHClientFactory,
   SSHConnectionVerificationResult,
   SSHListDirectoryResult
 } from "./ssh-client.interface.js";
 import { SSH2Client } from "./ssh2-client.js";
-import { SSHConfig, getSSHConfig, resolveSSHHost } from "../../../core/config/ssh.config.js";
+import { SSHConfig, resolveSSHHost } from "../../../core/config/ssh.config.js";
 import { RemoteCommandExecutor } from "./remote-command-executor.js";
 import { AllowedSSHCommand } from "./command-registry.js";
 

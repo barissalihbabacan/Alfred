@@ -16,7 +16,7 @@ export class MockTTSProvider implements ITTSProvider {
     return this.configured;
   }
 
-  public async synthesize(text: string, options?: SynthesizeOptions): Promise<AudioData> {
+  public async synthesize(text: string, _options?: SynthesizeOptions): Promise<AudioData> {
     if (!text || text.trim().length === 0) {
       throw new TTSInferenceError(this.id, "Text cannot be empty for synthesis.");
     }

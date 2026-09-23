@@ -45,7 +45,7 @@ export class MockEmbeddingProvider implements IEmbeddingProvider {
     return true;
   }
 
-  public async embed(text: string, options?: EmbeddingOptions): Promise<number[]> {
+  public async embed(text: string, _options?: EmbeddingOptions): Promise<number[]> {
     if (this.shouldFail) {
       throw new Error(this.failureMessage);
     }

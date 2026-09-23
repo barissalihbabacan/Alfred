@@ -162,7 +162,7 @@ class TimezoneResolver {
     return input
       .trim()
       .toLowerCase()
-      .replace(/[,\.]/g, "")
+      .replace(/[,.]/g, "")
       .replace(/\s+/g, " ");
   }
 

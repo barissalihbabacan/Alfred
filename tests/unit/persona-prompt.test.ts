@@ -23,4 +23,15 @@ describe("Alfred Persona System Prompt", () => {
     expect(prompt).toContain("Google Calendar");
     expect(prompt).toContain("Whisper");
   });
+
+  it("should carry production's persona: Turkish replies, long-term memory and the live tool list", () => {
+    const prompt = getAlfredSystemPrompt();
+    expect(prompt).toContain("MULTILINGUAL ADAPTABILITY");
+    expect(prompt).toContain('"Efendim" / "Barış Bey"');
+    expect(prompt).toContain("Long-Term Semantic Memory (Firestore + nomic-embed-text)");
+    for (const tool of ["get_current_time", "ssh_connect", "ssh_list_directory", "ssh_execute"]) {
+      expect(prompt).toContain(tool);
+    }
+    expect(prompt).toContain('invoke the `ssh_connect` tool with host: "home-server"');
+  });
 });

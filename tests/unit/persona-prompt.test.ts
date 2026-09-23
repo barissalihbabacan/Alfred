@@ -30,9 +30,12 @@ describe("Alfred Persona System Prompt", () => {
     expect(prompt).toContain('"Efendim" / "Barış Bey"');
     expect(prompt).toContain("Long-Term Semantic Memory (Firestore + Gemini embeddings)");
     expect(prompt).toContain("SPOKEN DELIVERY & FORMATTING");
-    for (const tool of ["get_current_time", "ssh_connect", "ssh_list_directory", "ssh_execute"]) {
-      expect(prompt).toContain(tool);
+    // Production offers only get_current_time; SSH is not connected, and the
+    // persona says so instead of describing placeholder tools.
+    expect(prompt).toContain("get_current_time");
+    for (const tool of ["ssh_connect", "ssh_list_directory", "ssh_execute"]) {
+      expect(prompt).not.toContain(tool);
     }
-    expect(prompt).toContain('invoke the `ssh_connect` tool with host: "home-server"');
+    expect(prompt).toContain("server access is not connected to you yet");
   });
 });

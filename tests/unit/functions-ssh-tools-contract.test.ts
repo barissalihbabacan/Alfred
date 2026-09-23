@@ -10,7 +10,6 @@ import {
   resolveSshHostArg,
   resolveSshListPathArg
 } from "../../src/ai/tools/ssh/ssh-tool-definitions.js";
-import { isSshToolName, runPlaceholderSshTool } from "../../src/ai/tools/ssh/ssh-placeholder.js";
 import { SSHConnectTool } from "../../src/ai/tools/ssh/ssh-connect.tool.js";
 import { SSHListDirectoryTool } from "../../src/ai/tools/ssh/ssh-list-directory.tool.js";
 import { SSHExecuteTool } from "../../src/ai/tools/ssh/ssh-execute.tool.js";
@@ -240,21 +239,6 @@ function legacyRunTool(fnName: unknown, fnArgs: LegacyArgs): unknown {
 // Inputs
 // ---------------------------------------------------------------------------
 
-const TOOL_NAMES: unknown[] = [
-  "ssh_connect",
-  "ssh_list_directory",
-  "ssh_execute",
-  "SSH_CONNECT",
-  "ssh_connect ",
-  "ssh",
-  "ssh_exec",
-  "unknown_tool",
-  "",
-  undefined,
-  null,
-  5
-];
-
 const HOSTS: unknown[] = [
   undefined,
   null,
@@ -447,13 +431,6 @@ function outcome(run: () => unknown): Outcome {
   }
 }
 
-/** The whole tool branch as functions/index.js runs it now. */
-function sharedRunTool(fnName: unknown, fnArgs: unknown): unknown {
-  return isSshToolName(fnName)
-    ? runPlaceholderSshTool(fnName, fnArgs)
-    : { error: `Tool ${fnName} not recognized.` };
-}
-
 function label(value: unknown): string {
   try {
     return JSON.stringify(value) ?? String(value);
@@ -494,65 +471,6 @@ describe("SSH tool definitions (production contract)", () => {
     expect(CommandRegistry.getAllowedCommands()).toEqual(legacyEnum);
     for (const command of ALLOWED_SSH_COMMANDS) {
       expect(CommandRegistry.get(command)?.name).toBe(command);
-    }
-  });
-
-  it("the tool_call log's command field is decided the same way", () => {
-    // functions/index.js logs `command` only when it is in the definition's enum.
-    const sharedEnum = SSH_EXECUTE_TOOL_DEFINITION.function.parameters.properties.command.enum ?? [];
-    const legacyEnum: readonly unknown[] = LEGACY_SSH_EXECUTE_TOOL_DEFINITION.function.parameters.properties.command.enum;
-    for (const command of COMMANDS) {
-      expect((sharedEnum as unknown[]).includes(command)).toBe(legacyEnum.includes(command));
-    }
-  });
-});
-
-describe("runPlaceholderSshTool (differential against production)", () => {
-  it("returns exactly what the inline code returned, or throws the same error, for every input", () => {
-    let compared = 0;
-    let threw = 0;
-    let denied = 0;
-    for (const fnName of TOOL_NAMES) {
-      const corpus = typeof fnName === "string" && isSshToolName(fnName) ? argCorpus(fnName) : ODD_FN_ARGS;
-      for (const fnArgs of corpus) {
-        const legacy = outcome(() => legacyRunTool(fnName, fnArgs as LegacyArgs));
-        const shared = outcome(() => sharedRunTool(fnName, fnArgs));
-        const where = `${label(fnName)} ${label(fnArgs)}`;
-        expect(shared, where).toEqual(legacy);
-        if (!legacy.threw && !shared.threw) {
-          // What reaches the model and the SSE client.
-          expect(JSON.stringify(shared.value), where).toBe(JSON.stringify(legacy.value));
-          if ((legacy.value as { error?: unknown }).error) denied++;
-        } else {
-          threw++;
-        }
-        compared++;
-      }
-    }
-    expect(compared).toBeGreaterThan(9_000);
-    // The corpus exercises all three outcomes.
-    expect(threw).toBeGreaterThan(0);
-    expect(denied).toBeGreaterThan(0);
-  });
-
-  it("throws production's TypeError for a non-string path (the whole turn fails)", () => {
-    const legacy = outcome(() => legacyRunTool("ssh_list_directory", { host: "home-server", path: 42 } as unknown as LegacyArgs));
-    expect(legacy).toEqual({ threw: true, name: "TypeError", message: "targetPath.includes is not a function" });
-    expect(outcome(() => runPlaceholderSshTool("ssh_list_directory", { host: "home-server", path: 42 }))).toEqual(legacy);
-  });
-
-  it("returns fresh entry objects on every call", () => {
-    const a = runPlaceholderSshTool("ssh_list_directory", {}) as { entries: object[] };
-    const b = runPlaceholderSshTool("ssh_list_directory", {}) as { entries: object[] };
-    expect(a.entries).toEqual(b.entries);
-    expect(a.entries[0]).not.toBe(b.entries[0]);
-    expect(a.entries).toHaveLength(15);
-  });
-
-  it("is undefined for anything that is not an SSH tool", () => {
-    for (const fnName of ["get_current_time", "SSH_CONNECT", "", undefined, 5]) {
-      expect(isSshToolName(fnName)).toBe(false);
-      expect(runPlaceholderSshTool(fnName, {})).toBeUndefined();
     }
   });
 });
@@ -647,32 +565,30 @@ describe("src SSH tools accept and reject like production", () => {
   });
 });
 
-describe("functions/index.js uses the shared SSH tools", () => {
+describe("production offers no SSH tools", () => {
   const source = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
 
-  it("imports the definitions and the placeholder instead of defining them inline", () => {
-    expect(source).toContain('from "../src/ai/tools/ssh/ssh-tool-definitions.js";');
-    expect(source).toContain(
-      'import { isSshToolName, runPlaceholderSshTool } from "../src/ai/tools/ssh/ssh-placeholder.js";'
-    );
-    expect(source).not.toMatch(/const SSH_\w*TOOL_DEFINITION\b/);
-    expect(source).not.toContain("allowedCmds");
-    for (const name of ["ssh_connect", "ssh_list_directory"]) {
-      expect(source).not.toContain(`fnName === "${name}"`);
+  it("does not send SSH tool definitions to the model or run placeholder results", () => {
+    // There is no SSH connection behind these tools in production; they used
+    // to return canned output that Alfred presented as real server state.
+    expect(/let activeTools = \[([^\]]*)\]/.exec(source)?.[1]?.trim()).toBe("TIME_TOOL_DEFINITION");
+    expect(source).not.toContain("ssh-tool-definitions.js");
+    expect(source).not.toContain("ssh-placeholder");
+    expect(source).not.toMatch(/SSH_\w*TOOL_DEFINITION/);
+    for (const name of ["ssh_connect", "ssh_list_directory", "ssh_execute"]) {
+      expect(source).not.toContain(`"${name}"`);
     }
-    // The only remaining ssh_execute check is the tool_call log's (below).
-    expect(source.split('fnName === "ssh_execute"')).toHaveLength(2);
+  });
+
+  it("answers an unexpected SSH tool call with the generic not-recognized error", () => {
     expect(source).toMatch(
-      /\} else if \(isSshToolName\(fnName\)\) \{\n(?:\s*\/\/.*\n)*\s*toolResult = runPlaceholderSshTool\(fnName, fnArgs\);\n\s*\} else \{\n\s*toolResult = \{ error: `Tool \$\{fnName\} not recognized\.` \};/
+      /if \(fnName === "get_current_time"\) \{\n\s*toolResult = getCurrentTimeForCity\(fnArgs\?\.city\);\n\s*\} else \{\n\s*toolResult = \{ error: `Tool \$\{fnName\} not recognized\.` \};/
     );
   });
 
-  it("keeps the tool_call log fields unchanged", () => {
-    expect(source).toContain(
-      'const sshCommand = fnName === "ssh_execute" && SSH_EXECUTE_TOOL_DEFINITION.function.parameters.properties.command.enum.includes(fnArgs?.command)'
-    );
+  it("keeps the tool_call log fields, minus the SSH command", () => {
     expect(source).toMatch(
-      /tool: toolName,\n\s*command: sshCommand,\n\s*provider: activeProvider,\n\s*round: toolTurn,\n\s*outcome: toolOk \? "ok" : "error",\n\s*duration_ms: msSince\(toolStart\)/
+      /tool: toolName,\n\s*provider: activeProvider,\n\s*round: toolTurn,\n\s*outcome: toolOk \? "ok" : "error",\n\s*duration_ms: msSince\(toolStart\)/
     );
   });
 });

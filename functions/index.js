@@ -19,12 +19,6 @@ import {
   isComparableEmbedding
 } from "../src/ai/embedding/embedding-client.js";
 import { PrivacyFilter } from "../src/alfred/cognitive/memory/privacy-filter.js";
-import {
-  SSH_CONNECT_TOOL_DEFINITION as SSH_TOOL_DEFINITION,
-  SSH_LIST_DIRECTORY_TOOL_DEFINITION,
-  SSH_EXECUTE_TOOL_DEFINITION
-} from "../src/ai/tools/ssh/ssh-tool-definitions.js";
-import { isSshToolName, runPlaceholderSshTool } from "../src/ai/tools/ssh/ssh-placeholder.js";
 import { buildAlfredSystemPrompt } from "../src/ai/prompts/alfred-system-prompt.js";
 import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { setGlobalOptions } from "firebase-functions/v2";
@@ -960,12 +954,11 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
 
     try {
       const currentPayload = [...messagesPayload];
-      let activeTools = [
-        TIME_TOOL_DEFINITION,
-        SSH_TOOL_DEFINITION,
-        SSH_LIST_DIRECTORY_TOOL_DEFINITION,
-        SSH_EXECUTE_TOOL_DEFINITION
-      ];
+      // Yalnizca gercekten calisan araclar sunulur. SSH araclarinin arkasinda
+      // bir baglanti yoktu (sabit yer tutucu ciktilar donuyordu); model
+      // uydurma sunucu durumu raporlamasin diye kaldirildilar. Persona da
+      // sunucu erisiminin henuz bagli olmadigini soyluyor.
+      let activeTools = [TIME_TOOL_DEFINITION];
       let toolTurn = 0;
       const MAX_TURNS = 3;
 
@@ -1208,25 +1201,16 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
             let toolResult;
             if (fnName === "get_current_time") {
               toolResult = getCurrentTimeForCity(fnArgs?.city);
-            } else if (isSshToolName(fnName)) {
-              // Yer tutucu: gercek SSH baglantisi yok, sabit sonuclar
-              // (src/ai/tools/ssh/ssh-placeholder.ts).
-              toolResult = runPlaceholderSshTool(fnName, fnArgs);
             } else {
               toolResult = { error: `Tool ${fnName} not recognized.` };
             }
 
-            // Argumanlar loglanmaz; yalnizca arac adi ve (izin listesindeyse)
-            // ssh_execute komut adi.
+            // Argumanlar loglanmaz; yalnizca arac adi.
             const toolOk = !toolResult?.error;
             const toolName = typeof fnName === "string" ? fnName.slice(0, 64) : null;
-            const sshCommand = fnName === "ssh_execute" && SSH_EXECUTE_TOOL_DEFINITION.function.parameters.properties.command.enum.includes(fnArgs?.command)
-              ? fnArgs.command
-              : undefined;
             logEvent(toolOk ? "INFO" : "WARNING", "tool_call",
               `Tool ${toolName} ${toolOk ? "ok" : "error"}`, {
                 tool: toolName,
-                command: sshCommand,
                 provider: activeProvider,
                 round: toolTurn,
                 outcome: toolOk ? "ok" : "error",

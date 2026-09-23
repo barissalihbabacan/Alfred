@@ -1,7 +1,6 @@
 import { ChatMessage } from "../providers/types.js";
 import { MemoryExtractionInput, MemoryExtractionResult, ExtractedMemoryCandidate, MemoryExtractionAction } from "../../alfred/cognitive/memory/extractor/types.js";
 import { MemoryType } from "../../data/firestore/memory.types.js";
-import { PrivacyFilter } from "../../alfred/cognitive/memory/privacy-filter.js";
 
 const VALID_MEMORY_TYPES = new Set<MemoryType>([
   "user_preference",

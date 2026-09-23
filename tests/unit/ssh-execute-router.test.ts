@@ -39,7 +39,7 @@ describe("SSH Execute Router & Permission Suite", () => {
 
     const result = await router.execute(toolCall, {
       userId: "user_baris",
-      userRole: "authenticated"
+      userRole: "owner"
     });
 
     expect(result.success).toBe(true);
@@ -97,7 +97,7 @@ describe("SSH Execute Router & Permission Suite", () => {
 
       const result = await router.execute(toolCall, {
         userId: "user_baris",
-        userRole: "authenticated"
+        userRole: "owner"
       });
 
       expect(result.success).toBe(false);

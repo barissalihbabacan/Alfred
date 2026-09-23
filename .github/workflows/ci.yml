@@ -36,6 +36,10 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      # tests/ and scripts/ are not in tsconfig.json; vitest only strips types.
+      - name: Typecheck Tests & Scripts
+        run: npm run typecheck:tests
+
       - name: Unit Tests
         run: npm run test:unit
 

@@ -1,0 +1,16 @@
+{
+  // Type-checks tests/ and scripts/ (and the src/ and apps/web/lib code they
+  // import). vitest only strips types, so without this nothing checks them.
+  // Bundler resolution + DOM because some tests import apps/web/lib, which is
+  // written for Next.js (extensionless imports, browser fetch types).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+  },
+  "include": ["src/**/*", "tests/**/*", "scripts/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

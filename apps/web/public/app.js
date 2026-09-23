@@ -783,13 +783,21 @@ function toggleToolsMenu(e) {
 }
 
 // Initialization
+// firebase-app.js, yetkili kullanici dogrulaninca bu olayi yayinlar. app.js
+// ondan once yuklendigi icin dinleyici her zaman hazirdir.
+window.addEventListener("alfred:authenticated", () => {
+  refreshConversationsList();
+  if (currentConversationId) {
+    loadConversation(currentConversationId);
+  }
+});
+
 window.addEventListener("DOMContentLoaded", () => {
   // API anahtarlari artik yalnizca sunucuda (Secret Manager) tutuluyor;
   // eski surumlerin tarayiciya kaydettigi kopyalari temizle.
   localStorage.removeItem("alfred_groq_api_key");
   localStorage.removeItem("alfred_gemini_api_key");
   setStatus("ready", "Ready");
-  refreshConversationsList();
 
   // Check active provider from server
   fetch("/api/health")
@@ -802,9 +810,9 @@ window.addEventListener("DOMContentLoaded", () => {
     })
     .catch(() => {});
 
-  if (currentConversationId) {
-    loadConversation(currentConversationId);
-  } else {
+  // Konusma listesi ve son konusma, oturum dogrulaninca yuklenir
+  // ("alfred:authenticated"); API artik token'siz istekleri reddediyor.
+  if (!currentConversationId) {
     showWelcomeScreen();
   }
 

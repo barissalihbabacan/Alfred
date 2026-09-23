@@ -1,4 +1,4 @@
-import { onRequest, onCall } from "firebase-functions/v2/https";
+import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { setGlobalOptions } from "firebase-functions/v2";
 import { defineSecret } from "firebase-functions/params";
 import { initializeApp, getApps } from "firebase-admin/app";
@@ -662,52 +662,58 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
     return;
   }
 
-  // Extract and verify Firebase Auth token if present
-  let authenticatedUid = null;
+  // Buradan sonraki her uc nokta (konusma okuma/silme, sohbet) gecerli bir
+  // Firebase ID token ister. Onceden token opsiyoneldi: basliksiz bir istek
+  // her iki kontrolu de geciyor ve userId varsayilan olarak ALLOWED_UID
+  // oluyordu, yani giris yapmamis herkes konusmalari okuyabiliyordu.
   const authHeader = req.header("Authorization") || req.header("authorization") || "";
-  if (authHeader.startsWith("Bearer ")) {
-    const idToken = authHeader.substring(7).trim();
-    try {
-      const decoded = await getAuth().verifyIdToken(idToken);
-      authenticatedUid = decoded?.uid || null;
-    } catch (err) {
-      console.warn("[Auth] ID token verification failed:", err.message);
-      res.status(401).json({ error: "Unauthorized: Invalid or expired auth token." });
-      return;
-    }
+  if (!authHeader.startsWith("Bearer ")) {
+    res.status(401).json({ error: "Unauthorized: Missing auth token." });
+    return;
   }
 
-  // Reject access if token belongs to an unauthorized UID
-  if (authenticatedUid && authenticatedUid !== ALLOWED_UID) {
-    console.warn(`[Auth] Forbidden: UID ${authenticatedUid} attempted access (allowed: ${ALLOWED_UID})`);
+  let authenticatedUid = null;
+  try {
+    const decoded = await getAuth().verifyIdToken(authHeader.substring(7).trim());
+    authenticatedUid = decoded?.uid || null;
+  } catch (err) {
+    console.warn("[Auth] ID token verification failed:", err.message);
+    res.status(401).json({ error: "Unauthorized: Invalid or expired auth token." });
+    return;
+  }
+
+  if (authenticatedUid !== ALLOWED_UID) {
+    console.warn(`[Auth] Forbidden: UID ${authenticatedUid} attempted access`);
     res.status(403).json({ error: "Forbidden: Unauthorized UID." });
     return;
   }
 
+  // Istemcinin gonderdigi userId'ye guvenilmez; kullanici her zaman token'daki UID'dir.
   const requestedUserId = (req.query?.userId || req.body?.userId || "").toString();
-  if (
-    requestedUserId &&
-    requestedUserId !== ALLOWED_UID &&
-    requestedUserId !== "guest_default" &&
-    process.env.NODE_ENV !== "test" &&
-    !process.env.VITEST
-  ) {
-    console.warn(`[Auth] Forbidden: requested userId ${requestedUserId} does not match ${ALLOWED_UID}`);
+  if (requestedUserId && requestedUserId !== authenticatedUid) {
+    console.warn("[Auth] Forbidden: requested userId does not match the authenticated user");
     res.status(403).json({ error: "Forbidden: Unauthorized UID." });
     return;
   }
+  const userId = authenticatedUid;
+
+  // Baska bir kullaniciya ait konusma yok sayilir. userId alani olmayan eski
+  // kayitlar erisilebilir kalir.
+  const baskasinin = (snap) => {
+    const owner = snap.exists ? snap.data()?.userId : undefined;
+    return Boolean(owner) && owner !== userId;
+  };
 
   // Conversation history restore endpoint: GET /chat or GET /conversation
   if ((path.endsWith("/chat") || path.endsWith("/conversation") || path.endsWith("/conversations")) && req.method === "GET") {
     try {
       const conversationId = (req.query?.conversationId || req.query?.id || "").toString();
-      const userId = (req.query?.userId || authenticatedUid || ALLOWED_UID).toString();
 
       if (conversationId) {
         const convRef = db.collection("conversations").doc(conversationId);
         const convSnap = await convRef.get();
 
-        if (!convSnap.exists) {
+        if (!convSnap.exists || baskasinin(convSnap)) {
           res.status(404).json({ error: "Conversation not found" });
           return;
         }
@@ -779,6 +785,10 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
       }
 
       const convRef = db.collection("conversations").doc(conversationId);
+      if (baskasinin(await convRef.get())) {
+        res.status(404).json({ error: "Conversation not found" });
+        return;
+      }
       const messagesSnap = await convRef.collection("messages").get();
       if (!messagesSnap.empty) {
         const batch = db.batch();
@@ -978,7 +988,7 @@ function getCurrentTimeForCity(city) {
       return;
     }
 
-    const { message, conversationId: requestedConvId, userId = (authenticatedUid || ALLOWED_UID), stream = true } = req.body || {};
+    const { message, conversationId: requestedConvId, stream = true } = req.body || {};
     if (!message || typeof message !== "string") {
       res.status(400).json({ error: "Message is required." });
       return;
@@ -999,6 +1009,10 @@ function getCurrentTimeForCity(city) {
     try {
       if (convId) {
         const cSnap = await db.collection("conversations").doc(convId).get();
+        if (baskasinin(cSnap)) {
+          res.status(404).json({ error: "Conversation not found" });
+          return;
+        }
         if (!cSnap.exists) {
           await db.collection("conversations").doc(convId).set({
             userId,
@@ -1592,6 +1606,9 @@ export const alfredCallable = onCall(
     secrets: [GROQ_API_KEY, GEMINI_API_KEY]
   },
   async (request) => {
+    if (request.auth?.uid !== ALLOWED_UID) {
+      throw new HttpsError("permission-denied", "Unauthorized UID.");
+    }
     return {
       status: "ok",
       appId: request.app?.appId || null,

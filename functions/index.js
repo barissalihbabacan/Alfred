@@ -9,6 +9,10 @@ import {
   validateMemoryCandidate
 } from "../src/ai/prompts/memory-extraction.js";
 import { generateDeterministicTitle } from "../src/data/firestore/conversation-title.js";
+import {
+  GET_CURRENT_TIME_TOOL_DEFINITION as TIME_TOOL_DEFINITION,
+  getCurrentTimeForCity
+} from "../src/ai/tools/time/current-time.js";
 import { PrivacyFilter } from "../src/alfred/cognitive/memory/privacy-filter.js";
 import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { setGlobalOptions } from "firebase-functions/v2";
@@ -815,24 +819,6 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
     }
   }
 
-const TIME_TOOL_DEFINITION = {
-  type: "function",
-  function: {
-    name: "get_current_time",
-    description: "Returns the current local time, date, day of week, and timezone offset for a specified city or location.",
-    parameters: {
-      type: "object",
-      properties: {
-        city: {
-          type: "string",
-          description: "The city or geographic location name to look up (e.g. 'London', 'Tokyo', 'Istanbul', 'New York', 'Paris')."
-        }
-      },
-      required: ["city"]
-    }
-  }
-};
-
 const SSH_TOOL_DEFINITION = {
   type: "function",
   function: {
@@ -905,90 +891,6 @@ const SSH_EXECUTE_TOOL_DEFINITION = {
     }
   }
 };
-
-const CITY_TIMEZONE_ALIASES = {
-  "london": "Europe/London",
-  "manchester": "Europe/London",
-  "birmingham": "Europe/London",
-  "edinburgh": "Europe/London",
-  "istanbul": "Europe/Istanbul",
-  "ankara": "Europe/Istanbul",
-  "izmir": "Europe/Istanbul",
-  "tokyo": "Asia/Tokyo",
-  "kyoto": "Asia/Tokyo",
-  "osaka": "Asia/Tokyo",
-  "new york": "America/New_York",
-  "washington": "America/New_York",
-  "boston": "America/New_York",
-  "san francisco": "America/Los_Angeles",
-  "los angeles": "America/Los_Angeles",
-  "seattle": "America/Los_Angeles",
-  "chicago": "America/Chicago",
-  "paris": "Europe/Paris",
-  "berlin": "Europe/Berlin",
-  "frankfurt": "Europe/Berlin",
-  "rome": "Europe/Rome",
-  "madrid": "Europe/Madrid",
-  "amsterdam": "Europe/Amsterdam",
-  "dubai": "Asia/Dubai",
-  "singapore": "Asia/Singapore",
-  "sydney": "Australia/Sydney",
-  "melbourne": "Australia/Melbourne",
-  "toronto": "America/Toronto",
-  "beijing": "Asia/Shanghai",
-  "shanghai": "Asia/Shanghai",
-  "utc": "UTC",
-  "gmt": "Etc/GMT"
-};
-
-function resolveTimezone(cityOrZone) {
-  if (!cityOrZone || typeof cityOrZone !== "string") return null;
-  const cleaned = cityOrZone.trim().toLowerCase().replace(/[,.]/g, "").replace(/\s+/g, " ");
-
-  let tz = CITY_TIMEZONE_ALIASES[cleaned];
-  if (!tz) {
-    try {
-      const parts = Intl.supportedValuesOf("timeZone");
-      for (const z of parts) {
-        if (z.toLowerCase() === cleaned || z.toLowerCase().endsWith("/" + cleaned.replace(/\s+/g, "_"))) {
-          tz = z;
-          break;
-        }
-      }
-    } catch {}
-  }
-
-  if (tz) {
-    try {
-      new Intl.DateTimeFormat(undefined, { timeZone: tz });
-      return { timezone: tz, matchedCity: cityOrZone.trim() };
-    } catch {}
-  }
-  return null;
-}
-
-function getCurrentTimeForCity(city) {
-  const resolved = resolveTimezone(city);
-  if (!resolved) {
-    return { error: `Unable to identify a valid timezone for city '${city}'.` };
-  }
-  const now = new Date();
-  const tz = resolved.timezone;
-  const time12 = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit", hour12: true }).format(now);
-  const time24 = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false }).format(now);
-  const dateStr = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long", year: "numeric", month: "long", day: "numeric" }).format(now);
-  const offsetParts = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "shortOffset" }).formatToParts(now);
-  const offset = offsetParts.find((p) => p.type === "timeZoneName")?.value || "UTC";
-
-  return {
-    city: resolved.matchedCity,
-    timezone: tz,
-    localTime: time12,
-    time24,
-    date: dateStr,
-    utcOffset: offset
-  };
-}
 
   // Chat endpoint: POST /chat or POST /api/chat
   if (path.endsWith("/chat")) {

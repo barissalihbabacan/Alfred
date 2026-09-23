@@ -133,8 +133,26 @@ describe("Tool Registry & Router Suite", () => {
     });
 
     it("enforces argument schema validation before executing", async () => {
+      registry.register(new MockDestructiveTool());
+      const result = await router.execute(
+        {
+          id: "call_bad_args",
+          type: "function",
+          function: {
+            name: "delete_database",
+            arguments: JSON.stringify({ target: "" })
+          }
+        },
+        { userId: "baris", confirmed: true }
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe("Missing target");
+    });
+
+    it("reports an unusable city with production's get_current_time error", async () => {
       const result = await router.execute({
-        id: "call_bad_args",
+        id: "call_empty_city",
         type: "function",
         function: {
           name: "get_current_time",
@@ -143,7 +161,7 @@ describe("Tool Registry & Router Suite", () => {
       });
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain("city");
+      expect(result.error).toBe("Unable to identify a valid timezone for city ''.");
     });
 
     it("enforces permission checks for elevated operations", async () => {

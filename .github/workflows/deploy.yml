@@ -18,8 +18,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  test:
+    name: Typecheck & Unit Tests
+    uses: ./.github/workflows/ci.yml
+
   deploy:
     name: Deploy to Firebase
+    needs: test
     runs-on: ubuntu-latest
 
     steps:

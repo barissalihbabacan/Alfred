@@ -21,6 +21,7 @@ out/
 .env.test
 .env.production
 !.env.example
+.secret.local
 
 # Firebase credentials and cache
 .firebase/

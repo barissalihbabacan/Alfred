@@ -206,31 +206,23 @@ npx tsx scripts/verify-web-playground.ts
 ### Why Firebase Hosting + Server Runtime?
 - **Static Frontend**: Firebase Hosting is fundamentally a high-speed static CDN. It serves pre-rendered HTML, JavaScript bundles, CSS, and media assets globally with SSL.
 - **Server Runtime Requirement**: Server-side routes handle streaming LLM completions, secure tool dispatch, and Whisper STT processing. Furthermore, Groq API keys must remain strictly confidential on the server.
-- **Deployment Models**:
-  1. **Firebase App Hosting (Gen 2 - Recommended)**:
-     Configured via `apphosting.yaml`. Cloud Build automatically packages the Next.js application into a Cloud Run container with 2 CPU and 2048 MiB RAM, managing secrets and custom domains automatically.
-  2. **Firebase Hosting Classic + Cloud Run Rewrites**:
-     Configured via `firebase.json`:
-     ```json
-     "hosting": {
-       "public": "apps/web/public",
-       "rewrites": [
-         { "source": "/api/**", "run": { "serviceId": "butler-alfred", "region": "europe-west1" } },
-         { "source": "**", "destination": "/index.html" }
-       ]
-     }
-     ```
+- **Deployment Model**: Firebase Hosting serves the vanilla front end in `apps/web/public`. `/api/**` is rewritten to the `api` Cloud Function (`functions/index.js`), and every other path goes to `index.html`:
+  ```json
+  "hosting": {
+    "public": "apps/web/public",
+    "rewrites": [
+      { "source": "/api/**", "function": "api" },
+      { "source": "**", "destination": "/index.html" }
+    ]
+  }
+  ```
+  The Next.js playground in `apps/web/app` is for local development only (`npm run dev:web`) and is not deployed. Firebase App Hosting is not used.
 
 ### Deploying to Firebase
+Merging to `main` deploys automatically through `.github/workflows/deploy.yml`, after typecheck and unit tests pass. To deploy manually:
 ```bash
-# Login to Firebase
-npx -y firebase-tools@latest login
-
-# Set active project
 npx -y firebase-tools@latest use butler-alfred
-
-# Deploy via App Hosting or Hosting
-npx -y firebase-tools@latest deploy --only hosting
+npx -y firebase-tools@latest deploy --only hosting,functions
 ```
 
 ---

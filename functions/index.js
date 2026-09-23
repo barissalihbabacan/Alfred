@@ -10,37 +10,29 @@ setGlobalOptions({ maxInstances: 10, timeoutSeconds: 120, memory: "512MiB" });
 
 // Secret Manager'dan cozulur.
 //
-// ON KOSUL: Secret Manager faturalandirma ister ve butler-alfred projesinde
-// faturalandirma su an KAPALI (11 Eyl 2026'dan beri; api fonksiyonu bu yuzden
-// 503 donuyor). Bu dosya faturalandirma acilip asagidaki secret'lar
-// olusturulana kadar deploy EDILEMEZ:
+// Secret'lar bir kez olusturulur:
 //
 //   firebase functions:secrets:set GROQ_API_KEY
 //   firebase functions:secrets:set GEMINI_API_KEY
 //
+// Emulatorde ayni adlar functions/.secret.local dosyasindan okunur
+// (gitignore'da). Anahtar istemciden (istek basligi) hicbir zaman alinmaz.
+//
 // Secret adlari defineSecret'in kisitlamasi geregi gecerli ortam degiskeni
-// adlari olmali; apphosting.yaml da ayni adi kullanacak sekilde guncellendi,
-// boylece iki deploy yolu tek secret'i paylasir.
+// adlari olmali (tire kullanilamaz).
 const GROQ_API_KEY = defineSecret("GROQ_API_KEY");
 const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
 
 const ALLOWED_UID = process.env.ALLOWED_UID || "test-owner-uid-123456";
 
-// Anahtarin istemci basligindan gelmesine yalnizca emulatorde izin verilir.
-const EMULATOR = Boolean(process.env.FUNCTIONS_EMULATOR);
-
-function gizliOku(secret, envAdi, req, baslik) {
-  const fromSecret = (() => {
-    try {
-      return secret.value() || "";
-    } catch {
-      return "";
-    }
-  })();
-  const deger = fromSecret || process.env[envAdi] || "";
-  if (deger) return deger;
-  if (EMULATOR && req) return String(req.headers?.[baslik] || "");
-  return "";
+function gizliOku(secret, envAdi) {
+  try {
+    const deger = secret.value();
+    if (deger) return deger;
+  } catch {
+    // Secret baglanmamis (ornegin birim testinde): ortam degiskenine dus.
+  }
+  return process.env[envAdi] || "";
 }
 
 if (getApps().length === 0) {
@@ -81,20 +73,36 @@ function cosineSimilarity(a, b) {
   return denominator === 0 ? 0 : dot / denominator;
 }
 
+// text-embedding-004 14 Ocak 2026'da kapatildi. gemini-embedding-001 varsayilan
+// olarak 3072 boyut dondurur; mevcut sema 768 oldugu icin boyut sabitlenir.
+// 3072 disindaki boyutlar normalize edilmez, ancak karsilastirma kosinus
+// benzerligiyle yapildigi icin bu sonucu degistirmez.
+const GEMINI_EMBEDDING_MODEL = "gemini-embedding-001";
+const OLLAMA_EMBEDDING_MODEL = "nomic-embed-text";
+const EMBEDDING_DIMENSION = 768;
+
+// Farkli modellerin vektorleri ayni uzayda degildir; yalnizca ayni modelle
+// uretilmis kayitlar karsilastirilir.
+function karsilastirilabilir(d, model) {
+  return Array.isArray(d.embedding) && d.embedding.length > 0 && d.embeddingModel === model;
+}
+
+// { values, model } dondurur.
 async function getEmbedding(text, ollamaUrl, geminiKey) {
   const key = (geminiKey || gizliOku(GEMINI_API_KEY, "GEMINI_API_KEY") || "").trim();
   if (key) {
     try {
       const embedRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${encodeURIComponent(key)}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_EMBEDDING_MODEL}:embedContent?key=${encodeURIComponent(key)}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            model: "models/text-embedding-004",
+            model: `models/${GEMINI_EMBEDDING_MODEL}`,
             content: {
               parts: [{ text: text.trim() }]
-            }
+            },
+            outputDimensionality: EMBEDDING_DIMENSION
           }),
           signal: AbortSignal.timeout(15000)
         }
@@ -103,11 +111,11 @@ async function getEmbedding(text, ollamaUrl, geminiKey) {
         const data = await embedRes.json();
         const values = data?.embedding?.values;
         if (Array.isArray(values) && values.length > 0) {
-          return values;
+          return { values, model: GEMINI_EMBEDDING_MODEL };
         }
       } else {
         const errText = await embedRes.text().catch(() => "");
-        console.warn(`[Embedding] Gemini text-embedding-004 HTTP ${embedRes.status}: ${errText}`);
+        console.warn(`[Embedding] Gemini ${GEMINI_EMBEDDING_MODEL} HTTP ${embedRes.status}: ${errText}`);
       }
     } catch (gErr) {
       console.warn("[Embedding] Gemini embedding call failed:", gErr?.message || gErr);
@@ -120,7 +128,7 @@ async function getEmbedding(text, ollamaUrl, geminiKey) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "nomic-embed-text",
+        model: OLLAMA_EMBEDDING_MODEL,
         input: text
       }),
       signal: AbortSignal.timeout(15000)
@@ -131,7 +139,7 @@ async function getEmbedding(text, ollamaUrl, geminiKey) {
         ? data.embeddings[0]
         : (Array.isArray(data.embedding) ? data.embedding : null);
       if (vector && Array.isArray(vector)) {
-        return vector;
+        return { values: vector, model: OLLAMA_EMBEDDING_MODEL };
       }
     }
   }
@@ -139,7 +147,7 @@ async function getEmbedding(text, ollamaUrl, geminiKey) {
   throw new Error("[Embedding] Neither Gemini nor Ollama could generate embedding (check GEMINI_API_KEY).");
 }
 
-async function retrieveRelevantMemories(db, queryEmbedding, userId, topK = 5, minScore = 0.35) {
+async function retrieveRelevantMemories(db, query, userId, topK = 5, minScore = 0.35) {
   const memSnap = await db.collection("memory_vectors")
     .where("userId", "==", userId)
     .where("status", "==", "active")
@@ -148,8 +156,8 @@ async function retrieveRelevantMemories(db, queryEmbedding, userId, topK = 5, mi
   const scored = [];
   for (const doc of memSnap.docs) {
     const d = doc.data();
-    if (d.embedding && Array.isArray(d.embedding) && d.embedding.length > 0) {
-      const score = cosineSimilarity(queryEmbedding, d.embedding);
+    if (karsilastirilabilir(d, query.model)) {
+      const score = cosineSimilarity(query.values, d.embedding);
       if (score >= minScore) {
         scored.push({
           memoryId: d.memoryId || doc.id,
@@ -347,8 +355,8 @@ If there is nothing worth remembering, return {"shouldRemember": false, "memorie
         let bestScore = 0;
         for (const doc of memSnap.docs) {
           const d = doc.data();
-          if (d.embedding && Array.isArray(d.embedding)) {
-            const score = cosineSimilarity(queryEmbedding, d.embedding);
+          if (karsilastirilabilir(d, queryEmbedding.model)) {
+            const score = cosineSimilarity(queryEmbedding.values, d.embedding);
             if (score > bestScore) {
               bestScore = score;
               bestMatch = doc;
@@ -381,8 +389,8 @@ If there is nothing worth remembering, return {"shouldRemember": false, "memorie
 
       for (const doc of activeSnap.docs) {
         const d = doc.data();
-        if (d.embedding && Array.isArray(d.embedding)) {
-          const score = cosineSimilarity(embedding, d.embedding);
+        if (karsilastirilabilir(d, embedding.model)) {
+          const score = cosineSimilarity(embedding.values, d.embedding);
           if (action === "create" && score >= 0.85) {
             isDuplicate = true;
             console.log(`[Memory] Suppressed duplicate memory: "${content}" (score: ${score})`);
@@ -398,7 +406,6 @@ If there is nothing worth remembering, return {"shouldRemember": false, "memorie
 
       const memoryId = `mem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       const now = Timestamp.now();
-      const isGemini = Boolean((geminiKey || gizliOku(GEMINI_API_KEY, "GEMINI_API_KEY") || "").trim());
 
       if (action === "supersede" && supersedeTargetDoc) {
         await supersedeTargetDoc.ref.update({
@@ -416,10 +423,10 @@ If there is nothing worth remembering, return {"shouldRemember": false, "memorie
         memoryType: candidate.memoryType || "general",
         sourceConversationId: conversationId,
         sourceMessageIds: sourceMessageIds || [],
-        embeddingProvider: isGemini ? "gemini" : "ollama",
-        embeddingModel: isGemini ? "text-embedding-004" : "nomic-embed-text",
-        embeddingDimension: embedding.length,
-        embedding: embedding,
+        embeddingProvider: embedding.model === GEMINI_EMBEDDING_MODEL ? "gemini" : "ollama",
+        embeddingModel: embedding.model,
+        embeddingDimension: embedding.values.length,
+        embedding: embedding.values,
         vectorStore: "firestore",
         vectorId: `vec_${memoryId}`,
         status: "active",
@@ -604,7 +611,7 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
   // Health endpoint: /health or /api/health
   if (path.endsWith("/health")) {
     const activeProvider = (process.env.ALFRED_LLM_PROVIDER || process.env.AI_PROVIDER || "groq").trim().toLowerCase();
-    const groqKey = gizliOku(GROQ_API_KEY, "GROQ_API_KEY", req, "x-groq-api-key");
+    const groqKey = gizliOku(GROQ_API_KEY, "GROQ_API_KEY");
     const groqConfigured = !!groqKey;
 
     if (activeProvider === "groq") {
@@ -968,9 +975,9 @@ function getCurrentTimeForCity(city) {
 
     const trimmedMessage = message.trim();
     const activeProvider = (process.env.ALFRED_LLM_PROVIDER || process.env.AI_PROVIDER || "groq").trim().toLowerCase();
-    const groqKey = gizliOku(GROQ_API_KEY, "GROQ_API_KEY", req, "x-groq-api-key");
+    const groqKey = gizliOku(GROQ_API_KEY, "GROQ_API_KEY");
     const groqModel = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
-    const geminiKey = gizliOku(GEMINI_API_KEY, "GEMINI_API_KEY", req, "x-gemini-api-key");
+    const geminiKey = gizliOku(GEMINI_API_KEY, "GEMINI_API_KEY");
     const ollamaUrl = process.env.OLLAMA_BASE_URL || "https://ollama.example.invalid";
     const ollamaModel = process.env.OLLAMA_MODEL || "gemma4:12b-mlx";
 

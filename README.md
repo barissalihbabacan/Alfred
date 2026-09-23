@@ -97,7 +97,7 @@ Proje, bağımsız katmanlar ve net sorumluluk sınırları üzerine kuruludur:
 | **Kontrol Düzlemi** | `src/alfred/control-plane/` | Otonom görev planlama, araç yönlendirme (`tool-router`), zamanlayıcı ve izin hiyerarşisi. |
 | **Yürütme Düzlemi** | `src/alfred/execution-plane/` | GitHub, SSH, dosya sistemi, terminal ve harici API adaptörleri. |
 | **Yapay Zeka Katmanı** | `src/ai/` | Sağlayıcı bağımsız `AIProvider` arayüzü, dinamik kayıt defteri (`registry`) ve Groq / Ollama sürücüleri. |
-| **Embedding & Bellek**| `src/ai/embedding/` | Google Gemini `text-embedding-004` modeli ve Firestore vektör entegrasyonu. |
+| **Embedding & Bellek**| `src/ai/embedding/` | Google Gemini `gemini-embedding-001` modeli ve Firestore vektör entegrasyonu. |
 | **Ses Katmanı (STT)** | `src/voice/stt/` | Groq Whisper STT adaptörü, canlı ses işleme ve çift modlu girdi yönlendirmesi. |
 | **Veri Katmanı** | `src/data/` | Cloud Firestore, yerel vektör veri tabanı ve bellek fabrikaları. |
 | **Web & Güvenlik** | `apps/web/` | Modüler Web Arayüzü (`styles.css`, `app.js`, `firebase-app.js`), Firebase Auth (Google Sign-In, tek kullanıcı), App Check (reCAPTCHA Enterprise) ve SSE akışı. |
@@ -180,7 +180,7 @@ Alfred, geçmiş konuşmalardan ve kararlardan ders çıkaran hibrit bir bellek 
         ┌───────────┴───────────┐
         ▼                       ▼
 [Cloud Firestore]     [Google Gemini Cloud]
-  Kalıcı Doküman        text-embedding-004
+  Kalıcı Doküman        gemini-embedding-001
  (Konuşma Geçmişi,       (768 Boyutlu Vektör
   Karar Kütükleri)           Temsilleri)
                                 │
@@ -189,7 +189,7 @@ Alfred, geçmiş konuşmalardan ve kararlardan ders çıkaran hibrit bir bellek 
                     Kosinüs Benzerliği (Top-K)
 ```
 
-- **Vektör Temsilleri**: Google Gemini Cloud `text-embedding-004` modeli ile anlamsal embedding üretimi.
+- **Vektör Temsilleri**: Google Gemini Cloud `gemini-embedding-001` modeli ile anlamsal embedding üretimi.
 - **Kalıcı Depolama**: Konuşma oturumları ve karar kütükleri için Cloud Firestore repository katmanı (`src/data/firestore/`).
 - **Anlamsal Erişim**: Kullanıcı yeni bir talepte bulunduğunda ilgili geçmiş kararlar kosinüs benzerliği ile sorgulanarak bağlam penceresine dahil edilir.
 

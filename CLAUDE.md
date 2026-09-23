@@ -90,30 +90,23 @@ The app is locked to one person. There is no sign-up, no password login and no S
 - **App Check** (reCAPTCHA Enterprise) is still in place: initialised in `apps/web/lib/firebase.ts` and `apps/web/public/firebase-app.js`, verified server-side in `functions/index.js` alongside the Firebase ID token.
 - `tests/unit/uid-whitelist.test.ts` and `tests/unit/auth-error-messages.test.ts` pin this behaviour — they will fail if the UID or the error contract changes.
 
-### Deployment — two configs, know which one you are changing
+### Deployment — Firebase Hosting + Cloud Functions only
 - `firebase.json` — Firestore rules/indexes, the `functions` codebase, and Hosting. Hosting serves `apps/web/public`, rewrites `/api/**` to the `api` function and everything else to `index.html`, with `no-cache` on all paths.
-- `apphosting.yaml` — Firebase **App Hosting** runConfig (0–2 instances, concurrency 10, 2 CPU, 2 GiB) and the production env: `AI_PROVIDER=groq`, `GROQ_MODEL=llama-3.3-70b-versatile`, `GROQ_STT_MODEL=whisper-large-v3-turbo`, and `GROQ_API_KEY` from Secret Manager.
-- **CI auto-deploys on merge to `main`**: `.github/workflows/deploy.yml` runs `firebase deploy --only hosting,functions` on any push to `main` touching `apps/**`, `src/**`, `functions/**`, `firebase.json` or `.firebaserc`. There is no test/typecheck gate in CI, so run them locally before merging. While billing is disabled (below) the functions half of this job will fail.
+- There is no App Hosting (no backend exists; `apphosting.yaml` was removed). The Next.js app in `apps/web/app` is **not deployed anywhere** — it is local-dev only (`npm run dev:web`). Production is the vanilla front end on Hosting plus the `api` / `alfredCallable` functions.
+- **CI**: `.github/workflows/ci.yml` runs `npm ci`, `npm run typecheck` and `npm run test:unit` on every pull request (Node 22, no `.env`). `.github/workflows/deploy.yml` reuses it as a `test` job and only then runs `firebase deploy --only hosting,functions`, on any push to `main` touching `apps/**`, `src/**`, `functions/**`, `firebase.json` or `.firebaserc`. A red typecheck or unit test therefore blocks the deploy.
 
-### Secrets — and why functions cannot be deployed right now
-`functions/index.js` resolves `GROQ_API_KEY` and `GEMINI_API_KEY` through `defineSecret()` (Secret Manager), with a `process.env` fallback. Accepting a key from the `x-groq-api-key` / `x-gemini-api-key` request header is now gated behind `FUNCTIONS_EMULATOR` — production never takes a key from the caller.
+### Secrets — Groq/Gemini keys live only in Secret Manager
+`GROQ_API_KEY` and `GEMINI_API_KEY` are never taken from the caller. There is no request-header path, and the browser neither stores nor sends keys.
+- `functions/index.js` binds both through `defineSecret()`. `gizliOku()` falls back to `process.env` only when the secret isn't bound, e.g. in tests. The emulator reads `functions/.secret.local`, which is gitignored.
+- `src/` and the local Next.js app read `process.env`, filled from `.env`.
 
-`apphosting.yaml` references the same secret names. `defineSecret` requires names that are valid environment variables, so the secrets are `GROQ_API_KEY` / `GEMINI_API_KEY`, not the `groq-api-key` style used previously.
+`defineSecret` requires names that are valid environment variables, so the names are `GROQ_API_KEY` / `GEMINI_API_KEY` (not `groq-api-key`). Both secrets exist in `butler-alfred`. The CI deploy identity is `firebase-adminsdk-fbsvc@butler-alfred.iam.gserviceaccount.com`, and it has **Secret Manager Admin**. Admin, not just accessor, because the deploy grants the runtime service account access to each secret.
 
-**Billing is disabled on the `butler-alfred` project** (since 11 Sep 2026). Two consequences:
-- The deployed `api` function returns 503 on every request — `The request failed because billing is disabled for this project` appears in `firebase functions:log`. This is the current production state, unrelated to any code change.
-- Secret Manager returns HTTP 403, so `firebase deploy --only functions` will fail until billing is enabled and the secrets exist:
-
-```bash
-firebase functions:secrets:set GROQ_API_KEY
-firebase functions:secrets:set GEMINI_API_KEY
-```
-
-The secret wiring is committed ahead of that on purpose; do not "fix" the deploy failure by reverting to plain `process.env`.
+**Do not put `GROQ_API_KEY` / `GEMINI_API_KEY` in `functions/.env`.** The Firebase CLI deploys that file as plain env vars. Cloud Run then rejects the update with `Secret environment variable overlaps non secret environment variable`, which is exactly how the `api` function got stuck after an earlier manual deploy. If that error appears, remove the plain variable from the `api` Cloud Run service (console → Cloud Run → `api` → Edit → Variables & Secrets) and redeploy. Do not "fix" it by reverting to plain `process.env`.
 
 ## Notes for future sessions
 
-- **`.env.example` is committed and contains real-looking secrets**, not placeholders: a `gsk_…` Groq key and an `AIzaSy…` Firebase web API key. Treat both as compromised, never reuse them, and flag them for rotation if asked to touch env/secrets config. (`.env` itself is correctly gitignored.)
+- `.env.example` holds placeholders (`gsk_your_groq_api_key_here`), not real keys. The real Groq key lives in the gitignored `.env` and `functions/.env`. `functions/.env` is loaded by the Firebase CLI as plain function env vars on deploy, so once the `GROQ_API_KEY` secret exists, remove `GROQ_API_KEY` from that file or the deploy will reject the name clash. (The `AIzaSy…` literal in `apps/web/lib/firebase.ts` / `public/firebase-app.js` is the public Firebase web config key, not a secret.)
 - Much of `src/` is still scaffolding. Implemented: `ai/providers`, `ai/embedding`, `ai/prompts`, `ai/tools`, `alfred/cognitive/context`, `alfred/cognitive/memory`, `alfred/control-plane/{tool-router,permission-system}`, `alfred/execution-plane/ssh`, `core/{config,errors}`, `data/{firestore,vector}`, `voice/{stt,tts}`. Still empty `.gitkeep` placeholders: every other `execution-plane` capability (github, gmail, calendar, browser, terminal, files, web-search), `control-plane/{planner,scheduler,event-processor}`, `ai/{agents,middleware}`, all of `alfred/persona/*`, `core/{logging,events,types,permissions}`, `data/{repositories,schemas,graphql}` and all of `integrations/*`. Check before assuming a capability exists.
 - `README.md` and many code comments (notably `functions/index.js`) are in Turkish. The README's auth section and badges, and the `assets/readme/*.svg` art, describe the Google-only flow; keep them in sync if auth changes again.
 - `.agents/skills/` holds a vendored `beautify-github-readme` skill (used for `assets/readme/` art); it is not application code.

@@ -77,7 +77,8 @@ describe("SSH List Directory Router & Permission Suite", () => {
     };
 
     const result = await router.execute(toolCall, {
-      userId: "user_baris"
+      userId: "user_baris",
+      userRole: "owner"
     });
 
     expect(result.success).toBe(false);
@@ -96,7 +97,8 @@ describe("SSH List Directory Router & Permission Suite", () => {
     };
 
     const result = await router.execute(toolCall, {
-      userId: "user_baris"
+      userId: "user_baris",
+      userRole: "owner"
     });
 
     expect(result.success).toBe(false);
@@ -115,7 +117,8 @@ describe("SSH List Directory Router & Permission Suite", () => {
     };
 
     const result = await router.execute(toolCall, {
-      userId: "user_baris"
+      userId: "user_baris",
+      userRole: "owner"
     });
 
     expect(result.success).toBe(false);

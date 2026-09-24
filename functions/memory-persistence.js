@@ -1,25 +1,26 @@
-// Uzun sureli bellek kaliciligi: extractAndPersistMemories (index.js) cikarim
-// modelinin adaylarini buraya verir. Karar mantigi (forget / duplicate /
-// supersede / create, esikler, kayit alanlari) src/ ile ortak:
-// src/alfred/cognitive/memory/memory-write-planner.ts. Burada yalnizca G/C
-// kalir: Firestore okuma/yazma, embedding cagrisi ve loglama. Firebase
-// bagimliliklari (db, logger, Timestamp) parametre olarak gelir; boylece
+// Uzun sureli bellek kaliciligi: extractAndPersistMemories (memory-extraction.js)
+// cikarim modelinin adaylarini buraya verir. Aday dongusu (dogrulama, gizli
+// bilgi filtresi, embedding, aktif bellekleri yeniden okuma, forget /
+// duplicate / supersede / create karari, sayaclar) src/ ile ortak:
+// src/alfred/cognitive/memory/memory-write-loop.ts (+ memory-write-planner.ts);
+// MemoryService de ayni donguyu kullanir. Burada yalnizca depolama katmani
+// kalir: Firestore okuma/yazma ve loglama. Firebase bagimliliklari (db,
+// logger, Timestamp) parametre olarak gelir; boylece
 // tests/unit/memory-write-planner.test.ts bu dosyayi dogrudan calistirip eski
-// satir ici dongunun birebir kopyasiyla karsilastirabilir.
+// kodun birebir kopyalariyla karsilastirabilir.
 //
 // Loglar bellek metnini ICERMEZ (kullanici metni loglanmaz): yalnizca
 // memory_id, memory_type ve content_length. Supersede tek bir Firestore
 // batch'i ile yazilir: eski kaydin "superseded" isaretlenmesi ile yeni kayit
-// birlikte commit edilir, ya ikisi ya hicbiri.
+// birlikte commit edilir, ya ikisi ya hicbiri. (MemoryService bunu yapamaz:
+// depo ve vektor deposu ayri sistemler; bkz. memory-write-loop.ts.)
 import {
   buildMemoryRetractionUpdate,
   buildMemorySupersessionUpdate,
   buildMemoryVectorRecord,
-  generateMemoryId,
-  planMemoryWrite
+  generateMemoryId
 } from "../src/alfred/cognitive/memory/memory-write-planner.js";
-import { validateMemoryCandidate } from "../src/ai/prompts/memory-extraction.js";
-import { PrivacyFilter } from "../src/alfred/cognitive/memory/privacy-filter.js";
+import { runMemoryWriteLoop } from "../src/alfred/cognitive/memory/memory-write-loop.js";
 
 // Aktif bellekler her aday icin yeniden okunur: ayni turda once yazilan,
 // supersede ya da retract edilen kayit sonraki adayin kararina yansir.
@@ -37,7 +38,7 @@ const docData = (doc) => doc.data();
  * Adaylari sirayla isler ve `tally` sayaclarini gunceller.
  *
  * @param {object} p
- * @param {object} p.db Firestore (collection/where/get/doc/set, doc.ref.update)
+ * @param {object} p.db Firestore (collection/where/get/doc/set, doc.ref.update, batch)
  * @param {unknown[]} p.memories cikarim modelinin ham adaylari
  * @param {string} p.userId
  * @param {string} p.conversationId
@@ -60,120 +61,80 @@ export async function persistMemoryCandidates({
   errMessage,
   tally
 }) {
-  for (const candidate of memories) {
-    // Aday dogrulamasi src/ ile ortak (validateMemoryCandidate): nesne olmayan
-    // aday, icerik, uzunluk ve guven esigi; action ve memoryType istemdeki
-    // degerlere normalize edilir. Gecersiz aday atlanir, liste devam eder.
-    const validated = validateMemoryCandidate(candidate);
-    if (!validated) {
-      tally.invalid++;
-      continue;
-    }
-    const content = validated.content;
+  await runMemoryWriteLoop({
+    candidates: memories,
+    tally,
+    ports: {
+      embed,
+      readActive: () => readActiveMemories(db, userId),
+      recordOf: docData,
 
-    // Gizli bilgi filtresi src/ ile ortak (PrivacyFilter); bkz. privacy-filter.ts.
-    if (!PrivacyFilter.check(content).isSafe) {
-      // Aday gizli bilgi iceriyor: icerigi loglamak onu sizdirmak olur.
-      logger.warn("[Memory] Candidate rejected due to sensitive data policy.", {
-        memory_type: validated.memoryType
-      });
-      tally.rejected++;
-      continue;
-    }
+      async retract(target) {
+        await target.ref.update(buildMemoryRetractionUpdate(now()));
+        const retracted = target.data() || {};
+        logger.info(`[Memory] Retracted memory ${target.id}`, {
+          memory_id: target.id,
+          memory_type: retracted.memoryType ?? null,
+          content_length: typeof retracted.content === "string" ? retracted.content.length : 0
+        });
+      },
 
-    const action = validated.action;
-
-    if (action === "forget") {
-      try {
-        const queryEmbedding = await embed(content);
-        const activeDocs = await readActiveMemories(db, userId);
-        const plan = planMemoryWrite({
-          action,
-          content,
-          embedding: queryEmbedding,
-          activeMemories: activeDocs,
-          recordOf: docData
+      async store({ candidate, embedding, supersedeTarget }) {
+        const memoryId = generateMemoryId();
+        const timestamp = now();
+        const newRef = db.collection("memory_vectors").doc(memoryId);
+        const record = buildMemoryVectorRecord({
+          memoryId,
+          userId,
+          content: candidate.content,
+          memoryType: candidate.memoryType,
+          sourceConversationId: conversationId,
+          sourceMessageIds,
+          embedding,
+          supersedesMemoryId: supersedeTarget ? supersedeTarget.id : null,
+          now: timestamp
         });
 
-        if (plan.kind === "retract") {
-          const target = plan.target;
-          await target.ref.update(buildMemoryRetractionUpdate(now()));
-          const retracted = target.data() || {};
-          logger.info(`[Memory] Retracted memory ${target.id}`, {
-            memory_id: target.id,
-            memory_type: retracted.memoryType ?? null,
-            content_length: typeof retracted.content === "string" ? retracted.content.length : 0
-          });
-          tally.retracted++;
+        if (supersedeTarget) {
+          // Tek batch: eski kaydi "superseded" isaretle + yeni kaydi yaz. Commit
+          // basarisiz olursa ikisi de yazilmaz; eski bilgi kaybolmaz.
+          const batch = db.batch();
+          batch.update(supersedeTarget.ref, buildMemorySupersessionUpdate(memoryId, timestamp));
+          batch.set(newRef, record);
+          await batch.commit();
+          logger.info(`[Memory] Superseded memory ${supersedeTarget.id} with ${memoryId}`);
+        } else {
+          await newRef.set(record);
         }
-      } catch (forgetErr) {
-        logger.warn(`[Memory] Retraction failed: ${errMessage(forgetErr)}`);
-        tally.failed++;
+
+        logger.info("[Memory] Stored long-term memory in Firestore", {
+          memory_id: memoryId,
+          memory_type: candidate.memoryType,
+          content_length: candidate.content.length
+        });
       }
-      continue;
-    }
-
-    try {
-      const embedding = await embed(content);
-      const activeDocs = await readActiveMemories(db, userId);
-      const plan = planMemoryWrite({
-        action,
-        content,
-        embedding,
-        activeMemories: activeDocs,
-        recordOf: docData
-      });
-
-      if (plan.kind === "skipDuplicate") {
+    },
+    hooks: {
+      onRejected(candidate) {
+        // Aday gizli bilgi iceriyor: icerigi loglamak onu sizdirmak olur.
+        logger.warn("[Memory] Candidate rejected due to sensitive data policy.", {
+          memory_type: candidate.memoryType
+        });
+      },
+      onDuplicate(candidate, plan) {
         logger.info("[Memory] Suppressed duplicate memory", {
           memory_id: plan.target.id,
-          memory_type: validated.memoryType,
-          content_length: content.length,
+          memory_type: candidate.memoryType,
+          content_length: candidate.content.length,
           match: plan.match,
           score: plan.score
         });
-        tally.duplicate++;
-        continue;
+      },
+      onFailed(candidate, err, stage) {
+        logger.warn(stage === "forget"
+          ? `[Memory] Retraction failed: ${errMessage(err)}`
+          : `[Memory] Failed to save memory candidate: ${errMessage(err)}`);
       }
-
-      const supersedeTargetDoc = plan.kind === "supersede" ? plan.target : null;
-      const memoryId = generateMemoryId();
-      const timestamp = now();
-      const newRef = db.collection("memory_vectors").doc(memoryId);
-      const record = buildMemoryVectorRecord({
-        memoryId,
-        userId,
-        content,
-        memoryType: validated.memoryType,
-        sourceConversationId: conversationId,
-        sourceMessageIds,
-        embedding,
-        supersedesMemoryId: supersedeTargetDoc ? supersedeTargetDoc.id : null,
-        now: timestamp
-      });
-
-      if (supersedeTargetDoc) {
-        // Tek batch: eski kaydi "superseded" isaretle + yeni kaydi yaz. Commit
-        // basarisiz olursa ikisi de yazilmaz; eski bilgi kaybolmaz.
-        const batch = db.batch();
-        batch.update(supersedeTargetDoc.ref, buildMemorySupersessionUpdate(memoryId, timestamp));
-        batch.set(newRef, record);
-        await batch.commit();
-        logger.info(`[Memory] Superseded memory ${supersedeTargetDoc.id} with ${memoryId}`);
-      } else {
-        await newRef.set(record);
-      }
-
-      logger.info("[Memory] Stored long-term memory in Firestore", {
-        memory_id: memoryId,
-        memory_type: validated.memoryType,
-        content_length: content.length
-      });
-      tally.stored++;
-      if (supersedeTargetDoc) tally.superseded++;
-    } catch (saveErr) {
-      logger.warn(`[Memory] Failed to save memory candidate: ${errMessage(saveErr)}`);
-      tally.failed++;
     }
-  }
+  });
 }

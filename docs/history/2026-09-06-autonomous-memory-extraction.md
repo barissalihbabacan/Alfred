@@ -122,8 +122,8 @@ graph TD
 ## 5. Detailed Component Specifications
 
 ### 5.1 MemoryExtractor (`IMemoryExtractor`)
-- **Bounded Context**: Extracts only the current exchange plus up to `MEMORY_EXTRACTION_MAX_MESSAGES` (default 6) previous messages.
-- **Fast-Path Negative Signals**: Explicit user rejection phrases ("don't remember this", "bunu hatırlama", "sakın kaydetme") bypass LLM calls entirely and return `{ shouldRemember: false, candidates: [] }`.
+- **Bounded Context**: Extracts only the current exchange plus up to `MEMORY_EXTRACTION_MAX_MESSAGES` (default 10, production's history window) previous messages.
+- **Fast-Path Negative Signals**: An empty message or an exact rejection phrase ("don't remember this", "do not remember this", "bunu hatırlama", "sakın kaydetme") bypasses the LLM call entirely and returns `{ shouldRemember: false, candidates: [] }`. Production applies the same rule (shared `extraction-pipeline.ts`).
 - **Low Temperature**: Model called with `temperature: 0.1` and strict JSON schema prompt to maximize deterministic classification.
 - **Fail-Open Resilience**: If the AI provider is unconfigured, throws an error, or times out, the extractor logs a warning and returns an empty list.
 

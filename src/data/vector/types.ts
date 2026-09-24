@@ -51,6 +51,11 @@ export interface VectorSearchOptions {
   filter?: {
     memoryType?: string;
     status?: "active" | "superseded" | "retracted";
+    /**
+     * Only records whose metadata.embeddingModel equals this. Vectors from
+     * different models do not share a space and must never be compared.
+     */
+    embeddingModel?: string;
   };
 }
 

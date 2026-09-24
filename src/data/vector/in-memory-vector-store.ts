@@ -78,6 +78,9 @@ export class InMemoryVectorStore implements IVectorStore {
         if (filter.memoryType && record.metadata.memoryType !== filter.memoryType) {
           continue;
         }
+        if (filter.embeddingModel && record.metadata.embeddingModel !== filter.embeddingModel) {
+          continue;
+        }
       }
 
       // 3. Compute cosine similarity score

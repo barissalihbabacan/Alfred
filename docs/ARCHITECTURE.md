@@ -103,11 +103,12 @@ Alfred rigorously separates storage responsibilities across three distinct tiers
 - **`getVectorStore()` (`factory.ts`)**: Vector store factory.
 
 **Embedding Provider (`src/ai/embedding/`)**:
-- **`IEmbeddingProvider` (`types.ts`)**: Minimal contract: `embed(text) → number[]`, `embedBatch(texts) → number[][]`, `isConfigured()`.
+- **`IEmbeddingProvider` (`types.ts`)**: Minimal contract: `embed(text) → number[]`, `embedBatch(texts) → number[][]`, `isConfigured()`. It also has an optional `embedDetailed(text) → { values, model, provider }` for providers whose model can vary per call. Callers use `embedWithModel()`, which falls back to `embed` + the provider's static `model`. `MemoryService` records that real model on every write and compares only same-model vectors on searches and write planning.
+- **`FallbackEmbeddingProvider` (`fallback-embedding-provider.ts`)**: What the factory returns for the default Gemini configuration. It wraps production's `generateEmbedding()`: Gemini first, then Ollama `nomic-embed-text` when `EMBEDDING_BASE_URL` / `OLLAMA_BASE_URL` is set, then an error. It falls back when Gemini returns non-OK, returns no values, throws or times out. `embedDetailed` reports which model answered.
 - **`GeminiEmbeddingProvider` (`gemini-embedding-provider.ts`)**: The default. It uses `gemini-embedding-001` with `outputDimensionality` pinned to 768. Production calls the same model through `generateEmbedding()` in `embedding-client.ts` (Gemini, then Ollama `nomic-embed-text`, then an error), a pure module the functions bundle imports; both build the request with its `buildGeminiEmbedContentRequest()`.
 - **`OllamaEmbeddingProvider` (`ollama-embedding-provider.ts`)**: Optional local alternative via Ollama's `/api/embed` (`nomic-embed-text`). Its configuration is separate from the chat model's.
 - **`MockEmbeddingProvider` (`mock-embedding-provider.ts`)**: Deterministic, dependency-free embeddings using token/n-gram feature hashing for unit tests.
-- **`getEmbeddingProvider()` (`factory.ts`)**: Embedding provider factory, selected by `EMBEDDING_PROVIDER` (default `gemini`).
+- **`getEmbeddingProvider()` (`factory.ts`)**: Embedding provider factory, selected by `EMBEDDING_PROVIDER` (default `gemini`). For `gemini` with the default model it returns `FallbackEmbeddingProvider` when a Gemini key or an Ollama URL is configured. A custom `EMBEDDING_MODEL` gets the plain `GeminiEmbeddingProvider`. When nothing is configured it returns the mock.
 
 #### Memory Data Flow & Autonomous Extraction
 

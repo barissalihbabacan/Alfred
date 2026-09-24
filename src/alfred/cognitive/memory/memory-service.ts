@@ -7,7 +7,8 @@ import {
   getPendingEmbeddingStore,
   cosineSimilarity
 } from "../../../data/vector/index.js";
-import { IEmbeddingProvider } from "../../../ai/embedding/types.js";
+import { DetailedEmbedding, IEmbeddingProvider, embedWithModel } from "../../../ai/embedding/types.js";
+import { isComparableEmbedding } from "../../../ai/embedding/embedding-client.js";
 import { getEmbeddingProvider } from "../../../ai/embedding/factory.js";
 import { MemorySystemConfig, getMemoryConfig } from "../../../core/config/index.js";
 import {
@@ -89,8 +90,10 @@ export class MemoryService {
 
     const startTime = Date.now();
 
-    // 1. Generate Embedding (fail fast before any DB write)
-    const embedding = await this.embeddingProvider.embed(input.content.trim());
+    // 1. Generate Embedding (fail fast before any DB write). embedWithModel
+    // records the model that really produced it (the Gemini -> Ollama
+    // fallback may answer with Ollama).
+    const embedding = await embedWithModel(this.embeddingProvider, input.content.trim());
 
     return this.persistEmbeddedMemory(input, embedding, startTime);
   }
@@ -101,9 +104,15 @@ export class MemoryService {
    */
   private async persistEmbeddedMemory(
     input: CreateMemoryInput,
-    embedding: number[],
+    embedded: DetailedEmbedding,
     startTime: number = Date.now()
   ): Promise<MemoryVectorDocument> {
+    const embedding = embedded.values;
+    // Provider, model and dimension of the vector itself, not of the
+    // configured provider: they decide which vectors it is compared with.
+    const embeddingProvider = embedded.provider;
+    const embeddingModel = embedded.model;
+    const embeddingDimension = embedding.length;
     const memoryId = input.memoryId || generateMemoryId();
     const vectorId = `vec_${memoryId}`;
     const cleanContent = input.content.trim();
@@ -115,9 +124,9 @@ export class MemoryService {
       userId: input.userId,
       content: cleanContent,
       memoryType,
-      embeddingProvider: this.embeddingProvider.id,
-      embeddingModel: this.embeddingProvider.model,
-      embeddingDimension: this.embeddingProvider.dimension,
+      embeddingProvider,
+      embeddingModel,
+      embeddingDimension,
       embedding,
       sourceConversationId: input.sourceConversationId,
       sourceMessageIds: input.sourceMessageIds,
@@ -136,9 +145,9 @@ export class MemoryService {
         memoryType,
         sourceConversationId: input.sourceConversationId,
         sourceMessageIds: input.sourceMessageIds,
-        embeddingProvider: this.embeddingProvider.id,
-        embeddingModel: this.embeddingProvider.model,
-        embeddingDimension: this.embeddingProvider.dimension,
+        embeddingProvider,
+        embeddingModel,
+        embeddingDimension,
         embedding,
         vectorStore: this.vectorStore.storeId,
         vectorId,
@@ -174,9 +183,9 @@ export class MemoryService {
           userId: input.userId,
           sourceConversationId: input.sourceConversationId,
           sourceMessageIds: input.sourceMessageIds,
-          embeddingProvider: this.embeddingProvider.id,
-          embeddingModel: this.embeddingProvider.model,
-          embeddingDimension: this.embeddingProvider.dimension,
+          embeddingProvider,
+          embeddingModel,
+          embeddingDimension,
           createdAt: record.createdAt
         }
       });
@@ -239,17 +248,20 @@ export class MemoryService {
     const minScore = options?.minScore ?? this.config.retrieval.minScore;
 
     const retrievalTask = async (): Promise<RetrievedMemory[]> => {
-      // 1. Embed query
-      const queryEmbedding = await this.embeddingProvider.embed(query.trim());
+      // 1. Embed query (and learn which model answered)
+      const embeddedQuery = await embedWithModel(this.embeddingProvider, query.trim());
+      const queryEmbedding = embeddedQuery.values;
 
-      // 2. Vector search with tenant isolation and active status filter
+      // 2. Vector search with tenant isolation, active status filter and only
+      // vectors from the query's model (different models never compare).
       const searchResults = await this.vectorStore.search(queryEmbedding, {
         userId,
         topK,
         minScore,
         filter: {
           status: "active",
-          memoryType: options?.memoryType
+          memoryType: options?.memoryType,
+          embeddingModel: embeddedQuery.model
         }
       });
 
@@ -273,9 +285,9 @@ export class MemoryService {
       for (const doc of activeRecords) {
         if (doc.status !== "active") continue;
         if (options?.memoryType && doc.memoryType !== options.memoryType) continue;
-        if (!doc.embedding || !Array.isArray(doc.embedding) || doc.embedding.length === 0) continue;
+        if (!isComparableEmbedding(doc, embeddedQuery.model)) continue;
 
-        const sim = cosineSimilarity(queryEmbedding, doc.embedding);
+        const sim = cosineSimilarity(queryEmbedding, doc.embedding as number[]);
         if (sim >= minScore) {
           fallbackResults.push({
             memoryId: doc.memoryId,
@@ -334,9 +346,12 @@ export class MemoryService {
 
     for (const record of activeRecords) {
       try {
-        const embedding = (record.embedding && Array.isArray(record.embedding) && record.embedding.length > 0)
-          ? record.embedding
-          : await this.embeddingProvider.embed(record.content);
+        // Reuse the stored vector under its stored model; otherwise re-embed and
+        // index under the model that actually answered.
+        const embedded: DetailedEmbedding = (record.embedding && Array.isArray(record.embedding) && record.embedding.length > 0)
+          ? { values: record.embedding, model: record.embeddingModel, provider: record.embeddingProvider }
+          : await embedWithModel(this.embeddingProvider, record.content);
+        const embedding = embedded.values;
         const vectorId = record.vectorId || `vec_${record.memoryId}`;
 
         await this.vectorStore.upsert({
@@ -351,9 +366,9 @@ export class MemoryService {
             userId: record.userId,
             sourceConversationId: record.sourceConversationId,
             sourceMessageIds: record.sourceMessageIds,
-            embeddingProvider: this.embeddingProvider.id,
-            embeddingModel: this.embeddingProvider.model,
-            embeddingDimension: this.embeddingProvider.dimension,
+            embeddingProvider: embedded.provider,
+            embeddingModel: embedded.model,
+            embeddingDimension: embedding.length,
             createdAt: record.createdAt
           }
         });
@@ -608,12 +623,12 @@ export class MemoryService {
       // set is re-read per candidate, so earlier writes in this turn count.
       const content = candidate.content.trim();
       try {
-        const embedding = await this.embeddingProvider.embed(content);
+        const embedding = await embedWithModel(this.embeddingProvider, content);
         const activeRecords = await this.memoryRepo.listAllActive(input.userId);
         const plan = planMemoryWrite({
           action: candidate.action,
           content,
-          embedding: { values: embedding, model: this.embeddingProvider.model },
+          embedding: { values: embedding.values, model: embedding.model },
           activeMemories: activeRecords,
           recordOf: (record) => record
         });

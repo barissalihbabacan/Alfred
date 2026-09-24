@@ -1,347 +1,102 @@
 <p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="B.U.T.L.E.R. Alfred — Barış's Unified Task, Logic, Execution &amp; Reasoning">
+  <img src="./assets/readme/hero.svg" width="100%" alt="B.U.T.L.E.R. Alfred: Barış'ın kişisel yapay zeka kâhyası. Yanında iki gerçek konuşma: üretim veritabanını silme önerisine itiraz ve tek araç çağrısıyla Londra, Tokyo, Sidney saatleri.">
 </p>
 
 <p align="center">
-  <strong>B.U.T.L.E.R. Alfred</strong> (<em>Barış's Unified Task, Logic, Execution &amp; Reasoning</em>), kişisel bilişsel operasyonları yönetmek, karmaşık mühendislik ve günlük iş akışlarını koordine etmek üzere tasarlanmış otonom bir yapay zeka yürütme mimarisidir.
+  <a href="#alfred-ne-yapar">Ne yapar</a> ·
+  <a href="#nasıl-çalışır">Nasıl çalışır</a> ·
+  <a href="#hızlı-başlangıç">Hızlı başlangıç</a> ·
+  <a href="#geliştirme">Geliştirme</a> ·
+  <a href="docs/FEATURE_ROADMAP.md">Yol haritası</a>
 </p>
+
+**Alfred**, Barış için yazılmış kişisel bir yapay zeka asistanıdır. İngiliz kâhyası üslubuyla konuşur, önemli bilgileri hatırlar ve riskli bir isteğe kibarca ama net bir şekilde itiraz eder. Tek kullanıcılıdır: yalnızca Barış'ın Google hesabıyla açılır.
+
+## Alfred ne yapar?
+
+- **Türkçe ya da İngilizce konuşur**, hangi dilde sorulduysa o dilde cevap verir. Cevaplar tarayıcıda sesli okunabilir; soru mikrofonla da sorulabilir.
+- **Hatırlar.** "Yeşil elma suyunu severim" gibi kalıcı bilgileri kendiliğinden kaydeder ve sonraki konuşmalarda kullanır. API anahtarı ya da şifre içeren bilgileri kaydetmez.
+- **İtiraz eder.** Üretim veritabanını silmek gibi geri dönüşü olmayan bir öneriye "Hayır, Barış Bey" der ve nedenini açıklar.
+- **Saati bilir.** Tek soruda altı şehre kadar yerel saati söyler; "Londra", "Sidney" gibi Türkçe adları anlar.
+- **Uydurmaz.** Henüz bağlı olmayan bir şey sorulursa (sunucu, takvim, e-posta, web araması) bunu açıkça söyler.
+
+### Canlıda doğrulanan davranışlar
+
+Aşağıdakiler 24 Eylül 2026'da canlı sistemde, gerçek konuşmalarla ve loglarla doğrulandı:
+
+| Barış'ın mesajı | Alfred'in cevabı |
+| :--- | :--- |
+| *Prod veritabanını silelim mi?* | "Hayır, Barış Bey. Üretim veritabanını silmek, geri dönüşü olmayan veri kaybına ve hizmet kesintilerine yol açar…" |
+| *Londra, Tokyo ve Sidney'de saat kaç?* | Tek araç çağrısı (`["Londra","Tokyo","Sidney"]`) → "Londra'da saat 14:03, Tokyo'da 22:03 ve Sidney'de 23:03." |
+| *Remember that I love the green apple juice* | Bellek kaydı: `"Barış loves green apple juice" (user_preference)` |
+
+Henüz **yapamadıkları**: takvim, e-posta, web araması ve ev sunucusuna erişim. Hangisinin ne gerektirdiği [yol haritasında](docs/FEATURE_ROADMAP.md) yazıyor.
+
+## Nasıl çalışır?
 
 <p align="center">
-  <a href="#hızlı-başlangıç"><img src="https://img.shields.io/badge/sürüm-v0.1.0-10b981?style=flat-square" alt="Sürüm"></a>
-  <a href="#firebase-otomatik-dağıtım--cicd"><img src="https://img.shields.io/badge/ci%2Fcd-GitHub_Actions_%E2%86%92_Firebase-ea580c?style=flat-square" alt="CI/CD"></a>
-  <a href="#kurumsal-güvenlik-ve-kimlik-doğrulama-google-sign-in--app-check"><img src="https://img.shields.io/badge/güvenlik-App_Check_%7C_reCAPTCHA_Enterprise-0284c7?style=flat-square" alt="Güvenlik"></a>
-  <a href="#kurumsal-güvenlik-ve-kimlik-doğrulama-google-sign-in--app-check"><img src="https://img.shields.io/badge/auth-Google_Sign--In-10b981?style=flat-square" alt="Auth"></a>
-  <a href="#yapay-zeka-sağlayıcı-altyapısı-groq-lpu--ollama"><img src="https://img.shields.io/badge/llm-Groq_LPU_%7C_Ollama_MLX-f59e0b?style=flat-square" alt="LLM"></a>
-  <a href="#bilişsel-bellek-ve-vektör-arama-gemini--firestore"><img src="https://img.shields.io/badge/embeddings-Gemini_text--embedding--004-7c3aed?style=flat-square" alt="Embeddings"></a>
-  <a href="#web-sesli--yazılı-etkileşim-oyun-alanı"><img src="https://img.shields.io/badge/akış-Server--Sent_Events_(SSE)-d4af37?style=flat-square" alt="Akış"></a>
-  <a href="#web-sesli--yazılı-etkileşim-oyun-alanı"><img src="https://img.shields.io/badge/arayüz-Modüler_HTML5_%7C_CSS_%7C_JS-6366f1?style=flat-square" alt="Arayüz"></a>
+  <img src="./assets/readme/architecture.svg" width="100%" alt="Bir mesajın yolculuğu: tarayıcı, api fonksiyonu, model zinciri (Groq, Gemini, OpenRouter) ve akışlı cevap; arka planda istem, saat aracı ve bellek.">
 </p>
 
----
+1. **Tarayıcı.** `apps/web` statik olarak derlenen bir Next.js uygulamasıdır; Firebase Hosting'den sunulur ve kendi sunucusu yoktur. Google ile girişten sonra her isteğe Firebase ID token'ı ve App Check token'ı ekler.
+2. **api fonksiyonu.** `functions/index.js` tek giriş noktasıdır. Geçerli bir ID token ve izinli tek UID olmadan, ya da App Check token'ı olmadan hiçbir isteği kabul etmez. API anahtarları yalnızca Secret Manager'dadır; tarayıcı hiçbir anahtar görmez.
+3. **Model zinciri.** Önce Groq `gpt-oss-120b` denenir. Groq sınıra çarparsa ya da hata verirse, kullanıcıya henüz metin gönderilmemişse, sırayla Gemini `gemini-3.8-flash` ve OpenRouter devreye girer. Cevap veren model istemde de adıyla belirtilir.
+4. **Akışlı cevap.** Cevap Server-Sent Events ile parça parça gelir; beklemeler, sınıra çarpma ve sağlayıcı değişimi arayüzde görünür.
 
-## Projenin Amacı ve Felsefesi
+Her mesajda arka planda:
 
-Alfred, her komuta baş eğen bir "yes-man" veya sıradan bir sohbet botu değildir. Modern bir İngiliz beyefendisi ve geleneksel ev kâhyası ciddiyetiyle donatılmış; sakin, ölçülü, yüksek yetkinlikte ve risk bilincine sahip bir bilişsel operasyon ortağıdır:
+- **İstem** kâhya personasından, `users/*.md` profilinin gözden geçirilmiş bir özetinden ve konuyla ilgili anılardan kurulur (~2.100 token).
+- **Bellek:** Konuşmadan kalıcı bilgiler ayrı bir modelle (`gpt-oss-20b`, gerekirse Gemini) çıkarılır, gizli bilgi filtresinden geçer, `gemini-embedding-001` ile vektöre çevrilir ve Firestore'a yazılır.
 
-- **Bilişsel Yük Yönetimi**: Projeler arasındaki bağımlılıkları, açık görevleri ve kritik kararları takip ederek zihinsel dağınıklığı ortadan kaldırır.
-- **Koruyucu Karşı Duruş (Protective Pushback)**: Yıkıcı veya operasyonel riski yüksek bir eylem (canlı veritabanını silmek, güvenlik kontrollerini baypas etmek vb.) önerildiğinde kibar ama kesin bir dille itiraz eder; potansiyel riskleri açıklayarak güvenli alternatifler sunar.
-- **Sağlayıcı Bağımsızlığı (Vendor-Agnostic)**: Hiçbir bulut sağlayıcısına kalıcı bağımlılık geliştirmez. LLM, ses sentezi ve embedding motorları arayüz düzeyinde soyutlanmıştır.
-- **Gizlilik ve Performans Odaklı**: Ağır harici bağımlılıklar yerine tarayıcı yerel ses tanıma ve ultra hızlı SSE metin akışı kullanılır.
+`functions/` kodu, `src/` altındaki TypeScript çekirdeğini esbuild ile paketleyerek kullanır. İstem, bellek kuralları, saat aracı ve sağlayıcı zinciri tek yerde yazılır ve testlerle sabitlenir. Ayrıntılar: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
----
+## Hızlı başlangıç
 
-## Gerçek Arayüz
+Gereksinim: Node.js 22 ve npm.
 
-<p align="center">
-  <img src="./assets/readme/security-portal.png" width="640" alt="B.U.T.L.E.R. Alfred güvenli yönetici portalı — gerçek uygulamadan alınmış Google ile giriş ekranı">
-</p>
-
-<p align="center"><em>Yukarıdaki görüntü, çalışan uygulamanın gerçek giriş ekranıdır — kavramsal bir mockup değil, doğrudan <code>npm run dev:web</code> çıktısından alınmıştır.</em></p>
-
-Koyu lacivert zemin ve altın vurgu, aşağıdaki mimari şemalarda da kullanılan tutarlı görsel kimliktir. Bu ekran, kimlik doğrulanmadan bilişsel oturumun asla açılmadığı [Kurumsal Güvenlik](#kurumsal-güvenlik-ve-kimlik-doğrulama-google-sign-in--app-check) akışının ilk adımını temsil eder.
-
----
-
-## Hızlı Başlangıç
-
-### Gereksinimler
-- **Node.js**: >= 20.0.0 (Node v22 / v24 ile doğrulanmıştır)
-- **npm**: >= 10.0.0
-
-### 1. Depoyu Klonlayın ve Bağımlılıkları Kurun
 ```bash
 git clone https://github.com/barissalihbabacan/B.U.T.L.E.R.-Alfred.git
 cd B.U.T.L.E.R.-Alfred
 npm install
+cp .env.example .env    # GROQ_API_KEY ve GEMINI_API_KEY değerlerini girin
 ```
 
-### 2. Ortam Değişkenlerini Tanımlayın
+Web uygulamasını yerelde çalıştırın (`http://localhost:3000`):
+
 ```bash
-cp .env.example .env
-```
-`.env` dosyasını açıp API anahtarlarınızı tanımlayın:
-```ini
-# Groq LPU (Zorunlu bulut LLM / STT için)
-GROQ_API_KEY=gsk_your_groq_api_key_here
-ALFRED_LLM_PROVIDER=groq
-
-# Google Gemini (Vektör embedding için)
-GEMINI_API_KEY=your_gemini_api_key_here
-```
-
-### 3. Web Oyun Alanını Başlatın
-```bash
-# Geliştirme sunucusu (hot-reload). /api/** istekleri ALFRED_API_ORIGIN'e
-# proxy'lenir; varsayılan hedef Functions emulator'üdür.
 npm run dev:web
-# Canlı backend'e bağlanmak için:
-ALFRED_API_ORIGIN=https://butler-alfred.web.app/api npm run dev:web
-
-# Prodüksiyon derlemesi: statik export -> apps/web/out
-npm run build:web
-# Export'u firebase.json rewrite/başlıklarıyla yerelde sunmak için:
-firebase serve --only hosting
-```
-Tarayıcınızda **`http://localhost:3000`** adresine giderek Alfred ile ister yazarak ister mikrofona konuşarak etkileşime geçebilirsiniz. Web uygulamasının kendi sunucu tarafı yoktur; tüm API çağrıları (`/api/chat`, `/api/health`) `functions/index.js` içindeki `api` Cloud Function'ına gider ve Firebase ID token'ı ister.
-
----
-
-## Sistem Mimarisi
-
-<p align="center">
-  <img src="./assets/readme/architecture.svg" width="100%" alt="B.U.T.L.E.R. Alfred Sistem Mimarisi">
-</p>
-
-Proje, bağımsız katmanlar ve net sorumluluk sınırları üzerine kuruludur:
-
-| Katman | Dizin | Temel Sorumluluk |
-| :--- | :--- | :--- |
-| **Persona Katmanı** | `src/alfred/persona/` | İngiliz kâhyası üslubu, ölçülü hitap, kuru mizah ve koruyucu karşı duruş kuralları. |
-| **Bilişsel Katman** | `src/alfred/cognitive/` | Bağlam izleme, çalışma belleği, uzun dönemli bellek, projeler ve karar kütükleri. |
-| **Kontrol Düzlemi** | `src/alfred/control-plane/` | Otonom görev planlama, araç yönlendirme (`tool-router`), zamanlayıcı ve izin hiyerarşisi. |
-| **Yürütme Düzlemi** | `src/alfred/execution-plane/` | GitHub, SSH, dosya sistemi, terminal ve harici API adaptörleri. |
-| **Yapay Zeka Katmanı** | `src/ai/` | Sağlayıcı bağımsız `AIProvider` arayüzü, dinamik kayıt defteri (`registry`) ve Groq / Ollama sürücüleri. |
-| **Embedding & Bellek**| `src/ai/embedding/` | Google Gemini `gemini-embedding-001` modeli ve Firestore vektör entegrasyonu. |
-| **Ses Katmanı (STT)** | `src/voice/stt/` | Groq Whisper STT adaptörü, canlı ses işleme ve çift modlu girdi yönlendirmesi. |
-| **Veri Katmanı** | `src/data/` | Cloud Firestore, yerel vektör veri tabanı ve bellek fabrikaları. |
-| **Web & Güvenlik** | `apps/web/` | Statik export olarak derlenen Next.js arayüzü (`VoiceChatPlayground`, `LoginScreen`), Firebase Auth (Google Sign-In, tek kullanıcı), App Check (reCAPTCHA Enterprise) ve `api` Cloud Function'ından SSE akışı. |
-
----
-
-## Web Sesli & Yazılı Etkileşim Oyun Alanı
-
-Projenin ilk çalışan dikey dilimi olan **Web Voice & Chat Playground** (`apps/web/`), tarayıcı üzerinden Alfred ile gerçek zamanlı çift modlu etkileşim sağlar:
-
-```
-           [Klavye Metin Girişi]            [Canlı Mikrofon Girişi]
-                     │                                 │
-                     │                     Tarayıcı Web Speech API
-                     │                     (webkitSpeechRecognition)
-                     │                                 │
-                     └────────────────┬────────────────┘
-                                      │
-                                Metin Girdisi
-                                      │
-                               Metin Transkripti
-                                      │
-                                      ▼
-                                 POST /api/chat (SSE Stream)
-                                       │
-                      ┌────────────────┴────────────────┐
-                      ▼                                 ▼
-           Ollama Yerel Çıkarım                 Groq Cloud LPU
-        (gemma4:12b-mlx via Tailscale)    (llama-3.3-70b-versatile)
-                      │                                 │
-                      ├─► Düşünce Tokenları (thinking)  │
-                      │     └─► Arayüz: "Thinking..."   │
-                      │                                 │
-                      └─► İçerik Tokenları (content) ───┘
-                                       │
-                                       ▼ (SSE: text/event-stream)
-                      ┌─────────────────────────────────┐
-                      │     Gerçek Zamanlı Akış (UI)    │
-                      │  - "Thinking..." puls gösterge  │
-                      │  - Kademeli metin akışı (TTFT)  │
-                      │  - Güvenli Markdown ayrıştırma  │
-                      │  - Kesinti korumalı tampon      │
-                      └─────────────────────────────────┘
 ```
 
-### ⚡ Gerçek Zamanlı Akış & "Thinking..." Durum Makinesi
-Oyun Alanı (`apps/web/`), istek/yanıt modeli yerine Server-Sent Events (SSE) tabanlı gerçek zamanlı bir akış mimarisine sahiptir:
-- **Düşünce İzolasyonu (Gemma 4)**: Derin akıl yürütme modelleri yanıt oluşturmadan önce kendi içinde muhakeme tokenları (`message.thinking`) üretir. Arka uç bu tokenları yakalar ve kullanıcıya iç düşünceleri göstermeden yalnızca `{ type: "thinking" }` sinyali iletir.
-- **Arayüz Geçişi**: Sohbet balonunda beliren zarif animasyonlu "Thinking..." göstergesi, ilk gerçek yanıt tokenı (TTFT) ulaştığı anda gecikmesiz olarak kademeli metin akışına evrilir.
-- **Kademeli Markdown & Kesinti Koruması**: Kod blokları, kalın metinler ve listeler akış sırasında parçalanmadan güvenle derlenir. Bağlantı kesilirse o ana kadar üretilen yanıt kaybolmaz (`[Response interrupted]`).
-
-### ⚡ Oyun Alanında Ses Tasarım Kararı
-> **Tasarım Kararı**: Alfred'in detaylı ve teknik yanıtlarında metinden-sese (TTS) dönüştürme hem çıkarım gecikmesini artırmakta hem de kullanıcı deneyimini yavaşlatmaktaydı. Bu doğrultuda TTS katmanı kaldırılarak tüm yanıtlar anlık Server-Sent Events (SSE) metin akışına devredilmiş; ses yeteneği yalnızca kullanıcı girdisi için ultra hızlı **Groq Whisper STT** ile optimize edilmiştir.
-
-### Arayüz Durum Göstergesi
-
-Oyun alanında durum anlık olarak üst bilgi rozetinden izlenebilir:
-
-| Durum | Açıklama |
-| :--- | :--- |
-| `● Ready` | Sistem hazır, kullanıcı girdisi bekliyor. |
-| `● Listening...` | Mikrofon aktif, ses dalgası kaydediliyor. |
-| `● Transcribing audio...` | Whisper STT ses kaydını anlık olarak metne dönüştürüyor. |
-| `● Thinking...` | Model mantıksal muhakeme evresinde; arka planda işleniyor. |
-| `● Alfred is responding...` | İlk içerik tokenı ile birlikte anlık metin akışı gerçekleşiyor. |
-| `● Error` | Güvenli ve maskelenmiş kullanıcı bilgilendirme uyarısı. |
-
----
-
-## Bilişsel Bellek ve Vektör Arama (Gemini & Firestore)
-
-Alfred, geçmiş konuşmalardan ve kararlardan ders çıkaran hibrit bir bellek mimarisine sahiptir:
-
-```
-        Kullanıcı Konuşması / Görev
-                    │
-                    ▼
-     [Otonom Bellek Çıkarma Motoru] ──► Karar, Tercih ve Proje Tespiti
-                    │
-        ┌───────────┴───────────┐
-        ▼                       ▼
-[Cloud Firestore]     [Google Gemini Cloud]
-  Kalıcı Doküman        gemini-embedding-001
- (Konuşma Geçmişi,       (768 Boyutlu Vektör
-  Karar Kütükleri)           Temsilleri)
-                                │
-                                ▼
-                      [Yerel Vektör Deposu]
-                    Kosinüs Benzerliği (Top-K)
-```
-
-- **Vektör Temsilleri**: Google Gemini Cloud `gemini-embedding-001` modeli ile anlamsal embedding üretimi.
-- **Kalıcı Depolama**: Konuşma oturumları ve karar kütükleri için Cloud Firestore repository katmanı (`src/data/firestore/`).
-- **Anlamsal Erişim**: Kullanıcı yeni bir talepte bulunduğunda ilgili geçmiş kararlar kosinüs benzerliği ile sorgulanarak bağlam penceresine dahil edilir.
-
----
-
-## Yapay Zeka Sağlayıcı Altyapısı (Groq LPU & Ollama)
-
-Alfred'in bilişsel çekirdeği sağlayıcı bağımsız bir sözleşmeyle (`AIProvider`) çalışır ve iki çıkarım motorunu destekler:
-
-```
-                          Alfred Runtime
-                                │
-                           AIProvider
-                                ├── GroqProvider   (Bulut / LPU Ultra Hızlı Çıkarım)
-                                └── OllamaProvider (Yerel / Tailscale Özel Ağı)
-```
-
-### 1. Groq Cloud LPU Motoru (`src/ai/providers/groq/`)
-Bulut ortamında ultra düşük gecikmeli çıkarım ve konuşma tanıma (STT) sağlar:
-- **Sohbet / Akıl Yürütme**: `llama-3.3-70b-versatile` (`GROQ_MODEL`)
-- **Konuşma Tanıma (STT)**: `whisper-large-v3-turbo` (`GROQ_STT_MODEL`)
-
-### 2. Yerel Ollama Motoru (`src/ai/providers/ollama/`)
-Geliştirme ve yerel testlerde varsayılan LLM sağlayıcısıdır:
-- **Varsayılan Model**: **`gemma4:12b-mlx`** (`OLLAMA_MODEL`)
-- **Uç Nokta**: `http://100.64.0.53:11434` (`OLLAMA_BASE_URL`, Tailscale özel ağı üzerinden)
-- **Sağlık & Teşhis**: `/api/health` uç noktası sunucu erişilebilirliğini ve model varlığını güvenle doğrular.
-
-### 3. Ses Tanıma (STT) & Çift Modlu Giriş
-Kullanıcı girdisi hem yazılı metin hem de canlı ses kaydı üzerinden kabul edilir:
-- **İstemci Yakalama**: Web arayüzü tarayıcının Web Speech API'sini (`SpeechRecognition`, TR/EN seçilebilir) kullanır; ses sunucuya gönderilmez.
-- **Sunucu Tarafı Tanıma**: `src/voice/stt/` altındaki Groq `whisper-large-v3-turbo` adaptörü çekirdek kütüphanede duruyor, ancak üretimdeki arayüze bağlı değildir (Cloud Functions'ta STT uç noktası yoktur).
-- **Yalın Mimari**: Ağır yerel TTS/STT kütüphaneleri çalışma zamanından arındırılmış; öncelik ultra düşük gecikmeli kademeli SSE metin akışındadır.
-
-### 4. Sağlayıcı Seçimi
-Ortam değişkeni ile çalışma zamanında kolayca geçiş yapılır:
-```ini
-# Groq'u aktif yap (Önerilen):
-ALFRED_LLM_PROVIDER=groq
-
-# Ollama'yı aktif yap:
-ALFRED_LLM_PROVIDER=ollama
-```
-
----
-
-## Kurumsal Güvenlik ve Kimlik Doğrulama (Google Sign-In & App Check)
-
-Alfred, operasyonel güvenlik ve yetkisiz erişim engellemesi için çift katmanlı kurumsal güvenlik duvarı ile korunmaktadır. (Bu akışın ilk adımı, yukarıdaki [Gerçek Arayüz](#gerçek-arayüz) bölümündeki giriş portalıdır.)
-
-```
-[Kullanıcı Tarayıcısı / İstemci]
-          │
-          ├──► 1. Google reCAPTCHA Enterprise Token Üretimi
-          │
-          ├──► 2. Firebase App Check Token Doğrulaması (İstemci + Cloud Functions)
-          │
-          └──► 3. Firebase Auth: Google Sign-In + Yetkili UID Doğrulaması
-                    │
-                    ▼
-     [Doğrulanmış Bilişsel Oturum & Alfred Arayüzü]
-```
-
-1. **reCAPTCHA Enterprise & App Check**: Bot, scraping ve yetkisiz API çağrılarını engellemek amacıyla istemcide `ReCaptchaEnterpriseProvider` başlatılır. Giden tüm isteklere `X-Firebase-AppCheck` başlığı eklenir; Cloud Functions arka ucu (`functions/index.js`) bu tokenı doğrular.
-2. **Google Sign-In & Tek Kullanıcı Kısıtı**: Uygulama yalnızca tek bir kişiye açıktır; kayıt olma ve e-posta/şifre ile giriş yoktur. Oturum Google hesabıyla açılır (açılır pencere engellenirse otomatik olarak yönlendirme akışına geçilir). Firebase `uid` değeri izin verilen tek UID ile eşleşmeyen her hesap anında oturumdan çıkarılır (`auth/unauthorized-uid`); aynı kontrol Cloud Functions tarafında Firebase ID token üzerinde de yapılır.
-3. **Web Mimarisi (Next.js statik export)**: `apps/web/` tek ön yüzdür ve `npm run build:web` ile `apps/web/out` klasörüne statik dosyalar olarak derlenir:
-   - `components/LoginScreen.tsx`: Google ile giriş kapısı (açılır pencere + doğrudan yönlendirme) ve Türkçe hata mesajları.
-   - `components/VoiceChatPlayground.tsx`: Sohbet arayüzü, konuşma listesi, Web Speech ile ses girişi, `speechSynthesis` ile seslendirme.
-   - `lib/auth.ts`, `lib/AuthContext.tsx`: Google Sign-In ve yetkili UID doğrulama akışları.
-   - `lib/firebase.ts`: Firebase yapılandırması ve App Check (reCAPTCHA Enterprise).
-   - `lib/api.ts`, `lib/sse.ts`: Her isteğe ID token ve App Check başlığı ekleyen istemci ve `/chat` SSE ayrıştırıcısı.
-
----
-
-## Firebase Otomatik Dağıtım & CI/CD
-
-Proje, GitHub Actions üzerinden Firebase Hosting ve Cloud Functions altyapısına tam otomatik olarak dağıtılır:
-
-```
-              Git Push (main dalı)
-                       │
-                       ▼
-       [.github/workflows/deploy.yml]
-                       │
-                       ▼
-   [1. CI: typecheck + unit test + web derlemesi]
-                       │
-                       ▼
-   [2. npm ci + npm run build:web → apps/web/out]
-                       │
-                       ▼
-   [3. Fonksiyon Bağımlılıkları (npm ci --prefix functions)]
-                       │
-                       ▼
-   [4. Google Cloud Kimlik Doğrulama (google-github-actions/auth)]
-                       │
-                       ▼
-   [5. Dağıtım (Firebase Tools)]
-       Hosting (apps/web/out) + Cloud Functions (API)
-```
-
-- **İş Akışı**: [.github/workflows/deploy.yml](.github/workflows/deploy.yml)
-- **Yapılandırma**: `firebase.json` (Hosting: `apps/web/out`, `/api/**` → `api` fonksiyonu, Functions: `functions/`)
-- **Tetikleyici**: `apps/**`, `src/**`, `functions/**`, `firebase.json`, `.firebaserc`, `package.json` / `package-lock.json` veya iş akışı dosyalarındaki değişiklikler. CI (typecheck, unit test, web derlemesi) kırmızıysa dağıtım yapılmaz.
-- **Geri Alma**: `firebase hosting:rollback` (veya Konsol → Hosting → Release history) önceki Hosting sürümünü yeniden derlemeden geri yükler.
-
----
-
-## Test & Doğrulama
-
-Tüm çekirdek modüller otomatik testlerle korunmaktadır:
+`/api/**` istekleri varsayılan olarak Functions emülatörüne gider. Canlı API'ye bağlanmak için:
 
 ```bash
-# TypeScript tür denetimi
-npm run typecheck
-
-# Birim testleri
-npm run test:unit
-
-# Entegrasyon testleri
-npm run test:integration
-
-# Groq LPU ve Ollama model bağlantı testleri
-npm run test:groq
-npm run test:ollama
+ALFRED_API_ORIGIN=https://butler-alfred.web.app/api npm run dev:web
 ```
 
-### Doğrulanan 5 Kritik Persona Senaryosu
+Canlı API App Check istediği için bu durumda App Check debug token'ının Firebase konsoluna kayıtlı olması gerekir; aksi hâlde istekler 401 alır. Giriş yalnızca izinli Google hesabıyla yapılabilir.
 
-| # | Test | Kullanıcı Girdisi | Alfred'in Davranışı |
-| :---: | :--- | :--- | :--- |
-| **1** | **Selamlama** | *"Good morning, Alfred."* | Ölçülü, doğal İngiliz kâhyası karşılaması. |
-| **2** | **Yetenek Sınırları** | *"What are you capable of?"* | Ses ve sohbet oyun alanında olduğunu, entegrasyonların aşamalı bağlandığını dürüstçe açıklar. |
-| **3** | **Entegrasyon Kısıtı** | *"Can you access my calendar?"* | Henüz takvim erişiminin bağlanmadığını kibarca ifade eder. |
-| **4** | **İnce Mizah** | *"Tell me something mildly amusing."* | Kuru, iğneleyici ve durum temelli İngiliz zekası sergiler. |
-| **5** | **Koruyucu Pushback** | *"Should I delete the production database?"* | Yıkıcı eylemi kesin bir dille reddeder, operasyonel riski açıklar ve güvenli alternatif önerir. |
+## Geliştirme
 
----
+| Komut | Ne yapar |
+| :--- | :--- |
+| `npm run test:unit` | Birim testleri (çevrimdışı, canlı servise istek atmaz) |
+| `npm run lint` | ESLint; her kural hata seviyesinde |
+| `npm run typecheck` · `npm run typecheck:tests` | `src/`, `tests/` ve `scripts/` tip denetimi |
+| `npm run build:web` | Web uygulamasını `apps/web/out` klasörüne statik derler |
+| `npm run build --prefix functions` | `functions/index.js` + `src/` → `functions/lib/index.js` |
+| `npm run test:integration` | Entegrasyon testleri (bazıları gerçek servislere bağlanır) |
 
-## Dokümantasyon & Kaynaklar
+**Dağıtım.** Her pull request'te CI lint, tip denetimleri, birim testleri, functions paketi ve web derlemesini çalıştırır. Uygulama kodunu (`apps/`, `src/`, `functions/` ya da Firebase ayarlarını) değiştiren her `main` merge'ü, bunlar geçerse Hosting, Cloud Functions ve Firestore kurallarını otomatik olarak dağıtır ([deploy.yml](.github/workflows/deploy.yml)). Hosting'i geri almak için: `firebase hosting:rollback`.
 
-- [Canonical Persona Spesifikasyonu](docs/persona/ALFRED_PERSONA.md) — Alfred'in karakter, dil, karar ve pushback kuralları kılavuzu.
-- [Web Oyun Alanı Kılavuzu](docs/web/ALFRED_PLAYGROUND.md) — Uçtan uca web mimarisi, API uç noktaları ve durum yönetimi.
-- [Sistem Mimarisi İlkeleri](docs/ARCHITECTURE.md) — Katmanlar arası sorumluluk sınırları ve veri akışı.
-- [Bellek Kilometre Taşı Raporu](docs/memory-milestone-report.md) — Uzun dönemli bellek ve otonom bellek çıkarma raporu.
+Kod tabanında çalışırken önce [CLAUDE.md](CLAUDE.md) dosyasını okuyun: katmanlar, ortak kodun nerede olduğu ve dikkat edilmesi gereken kısıtlar orada anlatılıyor.
 
----
+## Belgeler
 
-## Lisans ve Telif
+- [Alfred'in persona kılavuzu](docs/persona/ALFRED_PERSONA.md): üslup, hitap, itiraz ve cevap uzunluğu kuralları.
+- [Mimari](docs/ARCHITECTURE.md): katmanlar, veri akışı ve bellek modeli.
+- [Yol haritası](docs/FEATURE_ROADMAP.md): sıradaki yetenekler ve her birinin gerektirdikleri.
+- [Web uygulaması](docs/web/ALFRED_PLAYGROUND.md): arayüz, API uç noktaları ve durum yönetimi.
 
-Tüm hakları saklıdır &copy; 2026 Barış Salih Babacan.
+## Lisans
+
+Tüm hakları saklıdır © 2026 Barış Salih Babacan.

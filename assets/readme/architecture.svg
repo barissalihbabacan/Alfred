@@ -1,128 +1,86 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" role="img" aria-labelledby="arch-title arch-desc">
-  <title id="arch-title">B.U.T.L.E.R. Alfred — Katmanlı Sistem Mimarisi</title>
-  <desc id="arch-desc">Persona, Bilişsel Bellek, Kontrol Düzlemi, Hibrit Yapay Zeka, SSE Gerçek Zamanlı Akış, Google Sign-In Güvenliği ve Firebase Dağıtım mimarisi katmanları.</desc>
-  <defs>
-    <linearGradient id="archBg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#080c16" />
-      <stop offset="50%" stop-color="#0d1424" />
-      <stop offset="100%" stop-color="#0a0f1b" />
-    </linearGradient>
-    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#d4af37" />
-      <stop offset="100%" stop-color="#f5e6a3" />
-    </linearGradient>
-    <linearGradient id="secBannerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#111c2e" />
-      <stop offset="50%" stop-color="#16253b" />
-      <stop offset="100%" stop-color="#111c2e" />
-    </linearGradient>
-  </defs>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640" role="img" aria-labelledby="arch-title arch-desc">
+  <title id="arch-title">Bir mesajın yolculuğu</title>
+  <desc id="arch-desc">Tarayıcıdaki Next.js uygulaması Google girişi ve App Check token'ıyla api Cloud Function'ına istek atar. Fonksiyon kimliği doğrular, istemi kurar, Groq, Gemini ve OpenRouter sırasıyla denenerek cevap SSE ile akıtılır. Arka planda saat aracı çalışır ve kalıcı bilgiler gizli bilgi filtresinden geçip Gemini embedding ile Firestore'a yazılır.</desc>
 
-  <!-- Background Container -->
-  <rect x="0" y="0" width="1200" height="520" rx="20" fill="url(#archBg)" stroke="#1e293b" stroke-width="1.5" />
+  <rect width="1200" height="640" rx="24" fill="#0E1726"/>
 
-  <!-- Section Header -->
-  <g transform="translate(56, 34)">
-    <rect x="0" y="0" width="260" height="26" rx="13" fill="#111c2e" stroke="#233550" stroke-width="1" />
-    <circle cx="14" cy="13" r="4" fill="#d4af37" />
-    <text x="28" y="17" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="700" letter-spacing="1.2">SİSTEM MİMARİSİ • v0.1.0</text>
-    <text x="0" y="58" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="24" font-weight="800">
-      Modüler Katmanlar &amp; Sorumluluk Sınırları
-    </text>
-  </g>
+  <text x="48" y="62" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" letter-spacing="3" fill="#C9A45C">BİR MESAJIN YOLCULUĞU</text>
 
-  <!-- 6 Grid Modules (2 rows of 3) -->
-  <g transform="translate(56, 114)">
-    <!-- ROW 1, COL 1: Persona & Pushback -->
-    <g transform="translate(0, 0)">
-      <rect x="0" y="0" width="348" height="152" rx="10" fill="#101827" stroke="#1e2d42" stroke-width="1" />
-      <rect x="0" y="0" width="348" height="4" rx="2" fill="#d4af37" />
-      <text x="18" y="30" fill="#d4af37" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="700">1. Persona &amp; Koruyucu Duruş</text>
-      <text x="18" y="49" fill="#64748b" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11">src/alfred/persona/</text>
-      <text x="18" y="76" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12.5">
-        <tspan x="18" dy="0">• İngiliz kâhyası nezaketi, sakin ve ölçülü üslup</tspan>
-        <tspan x="18" dy="21">• Koruyucu Karşı Duruş (Protective Pushback)</tspan>
-        <tspan x="18" dy="21">• Yıkıcı ve riskli operasyonlara aktif itiraz</tspan>
-      </text>
+  <!-- üst sıra: istek yolu -->
+  <g id="request-path" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+    <!-- 1 tarayıcı -->
+    <g transform="translate(48 96)">
+      <rect width="252" height="220" rx="16" fill="#16233A" stroke="#26344D"/>
+      <text x="24" y="44" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#C9A45C">01</text>
+      <text x="24" y="82" font-size="24" font-weight="600" fill="#F4EFE3">Tarayıcı</text>
+      <text x="24" y="120" font-size="20" fill="#C8CEDA">Next.js statik uygulama</text>
+      <text x="24" y="150" font-size="20" fill="#C8CEDA">Google ile giriş</text>
+      <text x="24" y="180" font-size="20" fill="#C8CEDA">App Check token'ı</text>
     </g>
-
-    <!-- ROW 1, COL 2: Cognitive & Vector Memory -->
-    <g transform="translate(370, 0)">
-      <rect x="0" y="0" width="348" height="152" rx="10" fill="#101827" stroke="#1e2d42" stroke-width="1" />
-      <rect x="0" y="0" width="348" height="4" rx="2" fill="#3b82f6" />
-      <text x="18" y="30" fill="#60a5fa" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="700">2. Bilişsel &amp; Vektör Bellek</text>
-      <text x="18" y="49" fill="#64748b" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11">src/alfred/cognitive/ &amp; src/data/</text>
-      <text x="18" y="76" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12.5">
-        <tspan x="18" dy="0">• Google Gemini gemini-embedding-001 vektörleri</tspan>
-        <tspan x="18" dy="21">• Cloud Firestore kalıcı konuşma &amp; karar kütüğü</tspan>
-        <tspan x="18" dy="21">• Hibrit bellek: Kosinüs benzerlik arama motoru</tspan>
-      </text>
+    <!-- 2 kapı -->
+    <g transform="translate(332 96)">
+      <rect width="252" height="220" rx="16" fill="#16233A" stroke="#26344D"/>
+      <text x="24" y="44" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#C9A45C">02</text>
+      <text x="24" y="82" font-size="24" font-weight="600" fill="#F4EFE3">api fonksiyonu</text>
+      <text x="24" y="120" font-size="20" fill="#C8CEDA">ID token + tek UID</text>
+      <text x="24" y="150" font-size="20" fill="#C8CEDA">App Check zorunlu</text>
+      <text x="24" y="180" font-size="20" fill="#C8CEDA">Secret Manager</text>
     </g>
-
-    <!-- ROW 1, COL 3: Control & Execution Plane -->
-    <g transform="translate(740, 0)">
-      <rect x="0" y="0" width="348" height="152" rx="10" fill="#101827" stroke="#1e2d42" stroke-width="1" />
-      <rect x="0" y="0" width="348" height="4" rx="2" fill="#8b5cf6" />
-      <text x="18" y="30" fill="#a78bfa" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="700">3. Kontrol &amp; İcra Düzlemi</text>
-      <text x="18" y="49" fill="#64748b" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11">src/alfred/control-plane/ &amp; execution/</text>
-      <text x="18" y="76" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12.5">
-        <tspan x="18" dy="0">• Otonom görev planlayıcı &amp; tool-router</tspan>
-        <tspan x="18" dy="21">• SSH araçları ve güvenli terminal yürütümü</tspan>
-        <tspan x="18" dy="21">• Saat/takvim sorgulama &amp; izin hiyerarşisi</tspan>
-      </text>
+    <!-- 3 model zinciri -->
+    <g transform="translate(616 96)">
+      <rect width="252" height="220" rx="16" fill="#16233A" stroke="#C9A45C" stroke-opacity="0.6"/>
+      <text x="24" y="44" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#C9A45C">03</text>
+      <text x="24" y="82" font-size="24" font-weight="600" fill="#F4EFE3">Model zinciri</text>
+      <text x="24" y="120" font-size="20" fill="#F4EFE3">Groq gpt-oss-120b</text>
+      <text x="24" y="150" font-size="20" fill="#C8CEDA">↓ Gemini 3.8 Flash</text>
+      <text x="24" y="180" font-size="20" fill="#C8CEDA">↓ OpenRouter</text>
     </g>
-
-    <!-- ROW 2, COL 1: Hybrid AI Inference -->
-    <g transform="translate(0, 170)">
-      <rect x="0" y="0" width="348" height="152" rx="10" fill="#101827" stroke="#1e2d42" stroke-width="1" />
-      <rect x="0" y="0" width="348" height="4" rx="2" fill="#fbbf24" />
-      <text x="18" y="30" fill="#fbbf24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="700">4. Hibrit Yapay Zeka Çekirdeği</text>
-      <text x="18" y="49" fill="#64748b" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11">src/ai/providers/ (Groq &amp; Ollama)</text>
-      <text x="18" y="76" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12.5">
-        <tspan x="18" dy="0">• Groq Cloud LPU: Llama-3.3-70B Versatile</tspan>
-        <tspan x="18" dy="21">• Yerel Ollama MLX: Gemma 4 derin muhakeme</tspan>
-        <tspan x="18" dy="21">• Sağlayıcı bağımsız AIProvider &amp; Registry yapısı</tspan>
-      </text>
+    <!-- 4 cevap -->
+    <g transform="translate(900 96)">
+      <rect width="252" height="220" rx="16" fill="#16233A" stroke="#26344D"/>
+      <text x="24" y="44" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#C9A45C">04</text>
+      <text x="24" y="82" font-size="24" font-weight="600" fill="#F4EFE3">Akışlı cevap</text>
+      <text x="24" y="120" font-size="20" fill="#C8CEDA">SSE: thinking · chunk</text>
+      <text x="24" y="150" font-size="20" fill="#C8CEDA">sesli okuma (tarayıcı)</text>
+      <text x="24" y="180" font-size="20" fill="#C8CEDA">Türkçe / İngilizce</text>
     </g>
-
-    <!-- ROW 2, COL 2: SSE Stream & Web Speech -->
-    <g transform="translate(370, 170)">
-      <rect x="0" y="0" width="348" height="152" rx="10" fill="#101827" stroke="#1e2d42" stroke-width="1" />
-      <rect x="0" y="0" width="348" height="4" rx="2" fill="#10b981" />
-      <text x="18" y="30" fill="#34d399" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="700">5. Gerçek Zamanlı Akış &amp; Giriş</text>
-      <text x="18" y="49" fill="#64748b" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11">apps/web/public/ &amp; functions/api/</text>
-      <text x="18" y="76" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12.5">
-        <tspan x="18" dy="0">• Server-Sent Events (SSE) ile anlık metin akışı</tspan>
-        <tspan x="18" dy="21">• Model muhakeme izolasyonu &amp; "Thinking..." göstergesi</tspan>
-        <tspan x="18" dy="21">• Tarayıcı yerel Web Speech API sesli giriş desteği</tspan>
-      </text>
-    </g>
-
-    <!-- ROW 2, COL 3: Security, Web & Firebase CI/CD -->
-    <g transform="translate(740, 170)">
-      <rect x="0" y="0" width="348" height="152" rx="10" fill="#101827" stroke="#1e2d42" stroke-width="1" />
-      <rect x="0" y="0" width="348" height="4" rx="2" fill="#06b6d4" />
-      <text x="18" y="30" fill="#38bdf8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="700">6. Güvenlik, Web &amp; CI/CD</text>
-      <text x="18" y="49" fill="#64748b" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11">apps/web/ • functions/ • .github/</text>
-      <text x="18" y="76" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12.5">
-        <tspan x="18" dy="0">• Firebase Auth (Google Sign-In) + App Check</tspan>
-        <tspan x="18" dy="21">• Modüler Web: styles.css, app.js, firebase-app.js</tspan>
-        <tspan x="18" dy="21">• Cloud Functions (Node 22) + Hosting CI/CD</tspan>
-      </text>
+    <!-- oklar -->
+    <g stroke="#C9A45C" stroke-width="2" fill="none">
+      <path d="M302 206 H328"/><path d="M322 200 L330 206 L322 212"/>
+      <path d="M586 206 H612"/><path d="M606 200 L614 206 L606 212"/>
+      <path d="M870 206 H896"/><path d="M890 200 L898 206 L890 212"/>
     </g>
   </g>
 
-  <!-- Bottom Enterprise Security Ribbon -->
-  <g transform="translate(56, 452)">
-    <rect x="0" y="0" width="1088" height="44" rx="10" fill="url(#secBannerGrad)" stroke="#1e2d42" stroke-width="1" />
-    <circle cx="20" cy="22" r="5" fill="#10b981" />
-    <text x="36" y="26" fill="#f8fafc" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="700">
-      KURUMSAL GÜVENLİK HATTI:
-    </text>
-    <text x="212" y="26" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12">
-      reCAPTCHA Enterprise <tspan fill="#38bdf8">──►</tspan> Google Sign-In <tspan fill="#38bdf8">──►</tspan> App Check Enforcement <tspan fill="#38bdf8">──►</tspan> Zero-Trust Karar &amp; Bellek Kütüğü
-    </text>
-    <rect x="940" y="10" width="134" height="24" rx="12" fill="#10b981" fill-opacity="0.12" stroke="#10b981" stroke-width="1" />
-    <text x="948" y="26" fill="#34d399" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="700">● %100 MODÜLER</text>
+  <!-- alt sıra: arka plan -->
+  <text x="48" y="384" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" letter-spacing="3" fill="#8A94A6">ARKA PLANDA</text>
+  <g id="background-work" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+    <g transform="translate(48 408)">
+      <rect width="348" height="184" rx="16" fill="#131F33" stroke="#26344D"/>
+      <text x="24" y="44" font-size="22" font-weight="600" fill="#F4EFE3">İstem</text>
+      <text x="24" y="82" font-size="20" fill="#C8CEDA">kâhya personası</text>
+      <text x="24" y="112" font-size="20" fill="#C8CEDA">+ profil özeti (users/*.md)</text>
+      <text x="24" y="142" font-size="20" fill="#C8CEDA">+ ilgili anılar · ~2.100 token</text>
+    </g>
+    <g transform="translate(426 408)">
+      <rect width="348" height="184" rx="16" fill="#131F33" stroke="#26344D"/>
+      <text x="24" y="44" font-size="22" font-weight="600" fill="#F4EFE3">Araç</text>
+      <text x="24" y="82" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="19" fill="#C9A45C">get_current_time</text>
+      <text x="24" y="112" font-size="20" fill="#C8CEDA">tek çağrıda 6 şehre kadar</text>
+      <text x="24" y="142" font-size="20" fill="#C8CEDA">Türkçe şehir adları</text>
+    </g>
+    <g transform="translate(804 408)">
+      <rect width="348" height="184" rx="16" fill="#131F33" stroke="#26344D"/>
+      <text x="24" y="44" font-size="22" font-weight="600" fill="#F4EFE3">Bellek</text>
+      <text x="24" y="82" font-size="20" fill="#C8CEDA">gpt-oss-20b ile çıkarım</text>
+      <text x="24" y="112" font-size="20" fill="#C8CEDA">gizli bilgi filtresi</text>
+      <text x="24" y="142" font-size="20" fill="#C8CEDA">Gemini embedding → Firestore</text>
+    </g>
+    <!-- ince bağlantılar: fonksiyondan arka plana -->
+    <g stroke="#26344D" stroke-width="2" fill="none">
+      <path d="M458 318 V352 H330 V404"/>
+      <path d="M742 318 V352 H600 V404"/>
+      <path d="M742 352 H978 V404"/>
+    </g>
   </g>
 </svg>

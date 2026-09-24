@@ -1,128 +1,60 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="440" viewBox="0 0 1200 440" role="img" aria-labelledby="hero-title hero-desc">
-  <title id="hero-title">B.U.T.L.E.R. Alfred — Başlık ve Bilişsel Etkileşim Mimarisi</title>
-  <desc id="hero-desc">B.U.T.L.E.R. Alfred kişisel bilişsel yapay zeka mimarisi, Groq LPU akıl yürütme, Server-Sent Events akış motoru, Gemini vektör bellek, Google Sign-In ve Firebase dağıtımı şeması.</desc>
-  <defs>
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#070b14" />
-      <stop offset="50%" stop-color="#0d1424" />
-      <stop offset="100%" stop-color="#0a0f1b" />
-    </linearGradient>
-    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#141e30" />
-      <stop offset="100%" stop-color="#0f1726" />
-    </linearGradient>
-    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#d4af37" />
-      <stop offset="50%" stop-color="#f5e6a3" />
-      <stop offset="100%" stop-color="#c5a059" />
-    </linearGradient>
-    <linearGradient id="accentBorder" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#c5a059" stop-opacity="0.6" />
-      <stop offset="50%" stop-color="#3b82f6" stop-opacity="0.3" />
-      <stop offset="100%" stop-color="#1e293b" stop-opacity="0.8" />
-    </linearGradient>
-  </defs>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="480" viewBox="0 0 1200 480" role="img" aria-labelledby="hero-title hero-desc">
+  <title id="hero-title">B.U.T.L.E.R. Alfred — Barış'ın kişisel yapay zeka kâhyası</title>
+  <desc id="hero-desc">Solda proje adı ve tanımı; sağda canlı sistemden iki gerçek konuşma: Alfred üretim veritabanını silme önerisine itiraz ediyor ve tek araç çağrısıyla Londra, Tokyo ve Sidney saatlerini veriyor.</desc>
 
-  <!-- Container -->
-  <rect x="0" y="0" width="1200" height="440" rx="20" fill="url(#bgGrad)" stroke="#1e293b" stroke-width="1.5" />
+  <!-- zemin -->
+  <rect width="1200" height="480" rx="24" fill="#0E1726"/>
+  <rect x="56" y="60" width="4" height="360" rx="2" fill="#C9A45C" opacity="0.55"/>
 
-  <!-- Ambient Glows -->
-  <circle cx="1080" cy="90" r="160" fill="#d4af37" fill-opacity="0.035" />
-  <circle cx="120" cy="350" r="140" fill="#3b82f6" fill-opacity="0.03" />
-
-  <!-- LEFT COLUMN: Identity & Core Proposition -->
-  <g transform="translate(56, 40)">
-    <!-- Metadata Pill -->
-    <rect x="0" y="0" width="410" height="30" rx="15" fill="#111c2e" stroke="#233550" stroke-width="1" />
-    <circle cx="16" cy="15" r="5" fill="#10b981" />
-    <text x="32" y="20" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="700" letter-spacing="1.2">BİLİŞSEL OPERASYON ASİSTANI • v0.1.0 • OTONOM</text>
-
-    <!-- Project Title -->
-    <text x="0" y="84" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="50" font-weight="900" letter-spacing="-0.5">
-      B.U.T.L.E.R. <tspan fill="url(#goldGrad)">ALFRED</tspan>
-    </text>
-
-    <!-- Acronym Expansion -->
-    <text x="0" y="118" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="18.5" font-weight="600" letter-spacing="0.2">
-      Barış's Unified Task, Logic, Execution &amp; Reasoning
-    </text>
-
-    <!-- Core Pitch -->
-    <text x="0" y="160" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="400">
-      <tspan x="0" dy="0">Modern bir İngiliz kâhyası disiplininde, sakin, ölçülü ve risk</tspan>
-      <tspan x="0" dy="25">bilincine sahip; yıkıcı komutlara itiraz eden (protective pushback),</tspan>
-      <tspan x="0" dy="25">Google Sign-In &amp; App Check korumalı, anlık SSE akışlı bilişsel yürütme mimarisi.</tspan>
-    </text>
-
-    <!-- Key Capability Badges -->
-    <g transform="translate(0, 258)">
-      <!-- Badge 1: Groq LPU -->
-      <rect x="0" y="0" width="130" height="34" rx="8" fill="#111c2c" stroke="#253852" stroke-width="1" />
-      <text x="12" y="22" fill="#fbbf24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="700">⚡ Groq Llama-3.3</text>
-
-      <!-- Badge 2: SSE Stream -->
-      <rect x="138" y="0" width="132" height="34" rx="8" fill="#111c2c" stroke="#253852" stroke-width="1" />
-      <text x="150" y="22" fill="#d4af37" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="700">📡 SSE Canlı Akış</text>
-
-      <!-- Badge 3: Gemini Embeddings -->
-      <rect x="278" y="0" width="144" height="34" rx="8" fill="#111c2c" stroke="#253852" stroke-width="1" />
-      <text x="290" y="22" fill="#60a5fa" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="700">🧠 Gemini Embedding</text>
-
-      <!-- Badge 4: Google Auth & App Check -->
-      <rect x="430" y="0" width="168" height="34" rx="8" fill="#111c2c" stroke="#253852" stroke-width="1" />
-      <text x="442" y="22" fill="#10b981" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="700">🛡 Google + App Check</text>
+  <!-- başlık bloğu -->
+  <g id="title-block" transform="translate(88 0)">
+    <!-- hizmet zili motifi -->
+    <g transform="translate(0 72)" fill="#C9A45C">
+      <rect x="11" y="0" width="6" height="6" rx="3"/>
+      <path d="M2 21 C2 11 7.5 6 14 6 C20.5 6 26 11 26 21 Z"/>
+      <rect x="0" y="22" width="28" height="3.5" rx="1.75"/>
     </g>
+    <text x="40" y="96" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" letter-spacing="3" fill="#C9A45C">KİŞİSEL YAPAY ZEKA KÂHYASI</text>
 
-    <!-- Bottom Architecture Spec Pill -->
-    <g transform="translate(0, 310)">
-      <text x="2" y="16" fill="#64748b" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="500">
-        <tspan fill="#38bdf8">Modüler Web:</tspan> HTML5 • CSS3 • Vanilla JS <tspan fill="#475569">|</tspan> <tspan fill="#ea580c">Bulut:</tspan> Firebase Hosting CDN &amp; Functions v2
-      </text>
-    </g>
+    <text x="0" y="190" font-family="Georgia, 'Times New Roman', serif" font-size="96" fill="#F4EFE3">Alfred</text>
+    <text x="4" y="234" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" letter-spacing="3" fill="#C9A45C">B.U.T.L.E.R.</text>
+    <text x="4" y="260" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="18" fill="#8A94A6">Barış's Unified Task, Logic, Execution &amp; Reasoning</text>
+
+    <text x="0" y="314" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="24" fill="#F4EFE3">Barış'ın asistanı: konuşur, hatırlar,</text>
+    <text x="0" y="346" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="24" fill="#F4EFE3">tehlikeli bir isteğe kibarca itiraz eder.</text>
+
+    <text x="0" y="400" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#8A94A6">Groq → Gemini → OpenRouter</text>
+    <text x="0" y="426" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#8A94A6">Firebase · tek kullanıcı</text>
   </g>
 
-  <!-- RIGHT COLUMN: Interaction Pipeline Card -->
-  <g transform="translate(680, 40)">
-    <rect x="0" y="0" width="464" height="360" rx="14" fill="url(#cardGrad)" stroke="url(#accentBorder)" stroke-width="1.2" />
+  <!-- gerçek konuşma kartı -->
+  <g id="real-conversation" transform="translate(600 40)">
+    <rect width="552" height="400" rx="18" fill="#16233A" stroke="#26344D"/>
+    <text x="28" y="40" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" letter-spacing="1.5" fill="#8A94A6">GERÇEK KONUŞMA · 24 EYL 2026</text>
 
-    <!-- Card Top Bar -->
-    <rect x="0" y="0" width="464" height="42" rx="14" fill="#172338" />
-    <path d="M 0 42 L 464 42" stroke="#22334d" stroke-width="1" />
-    <circle cx="20" cy="21" r="5" fill="#ef4444" opacity="0.8" />
-    <circle cx="36" cy="21" r="5" fill="#f59e0b" opacity="0.8" />
-    <circle cx="52" cy="21" r="5" fill="#10b981" opacity="0.8" />
-    <text x="74" y="26" fill="#cbd5e1" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="700">CORE COGNITIVE PIPELINE</text>
-    <text x="350" y="26" fill="#c5a059" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="700">İŞ AKIŞI</text>
+    <!-- 1: itiraz -->
+    <g transform="translate(0 62)">
+      <rect x="248" y="0" width="276" height="42" rx="12" fill="#26344D"/>
+      <text x="386" y="28" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="20" fill="#F4EFE3">Prod veritabanını silelim mi?</text>
 
-    <!-- Pipeline Step 1 -->
-    <g transform="translate(20, 56)">
-      <rect x="0" y="0" width="424" height="56" rx="8" fill="#0b121e" stroke="#1c2b42" stroke-width="1" />
-      <text x="16" y="25" fill="#e2e8f0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700">1. Çift Giriş Modu &amp; App Check</text>
-      <text x="16" y="44" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12">Klavye Metni / Web Speech Mikrofon + reCAPTCHA Enterprise</text>
+      <rect x="28" y="56" width="4" height="84" rx="2" fill="#C9A45C"/>
+      <text x="46" y="78" font-family="Georgia, 'Times New Roman', serif" font-size="20" fill="#F4EFE3">Hayır, Barış Bey. Üretim veritabanını</text>
+      <text x="46" y="106" font-family="Georgia, 'Times New Roman', serif" font-size="20" fill="#F4EFE3">silmek geri dönüşü olmayan veri kaybına</text>
+      <text x="46" y="134" font-family="Georgia, 'Times New Roman', serif" font-size="20" fill="#F4EFE3">ve hizmet kesintisine yol açar…</text>
     </g>
 
-    <!-- Pipeline Step 2 -->
-    <g transform="translate(20, 122)">
-      <rect x="0" y="0" width="424" height="64" rx="8" fill="#0b121e" stroke="#c5a059" stroke-width="1" stroke-opacity="0.7" />
-      <text x="16" y="25" fill="#fbbf24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700">2. Akıl Yürütme &amp; Düşünce Akışı</text>
-      <text x="16" y="44" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12">Groq Llama-3.3-70B / Ollama Gemma 4 Derin Muhakeme</text>
-      <text x="16" y="58" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11">• Düşünce İzolasyonu: İç reasoning gizli, UI'da "Thinking..." sinyali</text>
-    </g>
+    <!-- 2: araç çağrısı -->
+    <g transform="translate(0 222)">
+      <rect x="168" y="0" width="356" height="42" rx="12" fill="#26344D"/>
+      <text x="346" y="28" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="20" fill="#F4EFE3">Londra, Tokyo ve Sidney'de saat kaç?</text>
 
-    <!-- Pipeline Step 3 -->
-    <g transform="translate(20, 196)">
-      <rect x="0" y="0" width="424" height="62" rx="8" fill="#0b121e" stroke="#1c2b42" stroke-width="1" />
-      <text x="16" y="25" fill="#60a5fa" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700">3. Bilişsel Bellek &amp; Erişim Güvenliği</text>
-      <text x="16" y="44" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12">Gemini Embedding + Firestore Hibrit Bellek + İki Adımlı Doğrulama</text>
-      <text x="16" y="57" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11">• Karar kütüğü, risk denetimi, SSH &amp; sistem araç yürütümü</text>
-    </g>
+      <rect x="28" y="54" width="496" height="38" rx="8" fill="#0E1726" stroke="#26344D"/>
+      <text x="44" y="79" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17" fill="#C9A45C">get_current_time</text>
+      <text x="218" y="79" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17" fill="#8A94A6">["Londra","Tokyo","Sidney"]</text>
 
-    <!-- Pipeline Step 4 -->
-    <g transform="translate(20, 268)">
-      <rect x="0" y="0" width="424" height="58" rx="8" fill="#0b121e" stroke="#1c2b42" stroke-width="1" />
-      <text x="16" y="25" fill="#34d399" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700">4. Kademeli Metin Akışı (SSE)</text>
-      <text x="16" y="44" fill="#cbd5e1" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12">Server-Sent Events ile anlık, gecikmesiz token iletimi</text>
-      <text x="16" y="55" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11">• Canlı Markdown ayrıştırma, güvenli kod blokları ve tampon koruması</text>
+      <rect x="28" y="104" width="4" height="56" rx="2" fill="#C9A45C"/>
+      <text x="46" y="126" font-family="Georgia, 'Times New Roman', serif" font-size="20" fill="#F4EFE3">Londra'da saat 14:03, Tokyo'da 22:03</text>
+      <text x="46" y="154" font-family="Georgia, 'Times New Roman', serif" font-size="20" fill="#F4EFE3">ve Sidney'de 23:03.</text>
     </g>
   </g>
 </svg>

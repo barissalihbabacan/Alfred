@@ -1,9 +1,10 @@
 /**
- * Memory-extraction model calls for production: Groq first, then Gemini.
+ * Memory-extraction model calls: Groq first, then Gemini, then Ollama. Shared
+ * by production (functions/memory-extraction.js, bundled into
+ * functions/lib/index.js) and src's MemoryExtractor.
  *
- * Pure and dependency-free (bundled into functions/index.js); fetch, keys,
- * models and the error callback come in as parameters. The Ollama step that
- * follows (when both fail) stays in functions/index.js.
+ * Pure and dependency-free; fetch, keys, models, the Ollama URL and the error
+ * callback come in as parameters.
  *
  * Extraction runs after the reply, inside a 10 s budget, and never retries a
  * 429: the answer already went out, so a rate-limited provider just hands the
@@ -20,10 +21,14 @@ import { parseRateLimitInfo, type RateLimitType } from "../groq/rate-limit.js";
 export const DEFAULT_GEMINI_EXTRACTION_MODEL = "gemini-3.1-flash-lite";
 export const DEFAULT_GROQ_EXTRACTION_MODEL = "openai/gpt-oss-20b";
 
-export type ExtractionProviderId = "groq" | "gemini";
+export type ExtractionProviderId = "groq" | "gemini" | "ollama";
 
+/** Ollama's extraction timeout (it runs on Barış's own machine, over Tailscale). */
+export const OLLAMA_EXTRACTION_TIMEOUT_MS = 30_000;
+
+/** An OpenAI-compatible extraction request (Groq or Gemini). */
 export interface ExtractionRequest {
-  provider: ExtractionProviderId;
+  provider: "groq" | "gemini";
   model: string;
   url: string;
   init: { method: "POST"; headers: Record<string, string>; body: string };
@@ -90,6 +95,8 @@ export interface ExtractionProviderError {
   detail: string;
   /** On a 429: the limit and real wait, logged with decision "give_up". */
   rateLimit?: { limitType: RateLimitType; retryAfterMs: number | null };
+  /** Ollama only: the thrown error itself (production logs it with errMessage). */
+  error?: unknown;
 }
 
 export interface ExtractionCallOptions {
@@ -98,6 +105,9 @@ export interface ExtractionCallOptions {
   groqModel?: string;
   geminiKey?: string | null;
   geminiModel?: string;
+  /** Ollama base URL; unset, empty or containing "placeholder" skips Ollama. */
+  ollamaUrl?: string | null;
+  ollamaModel?: string;
   system: string;
   user: string;
   onProviderError?: (error: ExtractionProviderError) => void;
@@ -109,7 +119,7 @@ export interface ExtractionCallResult {
   model: string;
 }
 
-/** The extraction requests to try, in order, for the configured keys. */
+/** The OpenAI-compatible extraction requests (Groq, Gemini) to try, in order, for the configured keys. */
 export function planExtractionRequests(options: Omit<ExtractionCallOptions, "fetch" | "onProviderError">): ExtractionRequest[] {
   const requests: ExtractionRequest[] = [];
   if (isUsableApiKey(options.groqKey)) {
@@ -122,10 +132,46 @@ export function planExtractionRequests(options: Omit<ExtractionCallOptions, "fet
   return requests;
 }
 
+/** Whether the Ollama step runs: a non-empty URL that is not a "placeholder". */
+export function isUsableOllamaUrl(url: string | null | undefined): url is string {
+  return typeof url === "string" && url !== "" && !url.includes("placeholder");
+}
+
 /**
- * Calls Groq, then Gemini, and returns the first non-empty answer, or null
- * when both fail (the caller then tries Ollama). Every failure is reported
- * through `onProviderError`.
+ * Ollama's native /api/chat request, exactly as production sent it inline:
+ * no stream, temperature 0.1, no Authorization header.
+ */
+export function buildOllamaExtractionRequest(baseUrl: string, model: string | undefined, system: string, user: string) {
+  return {
+    url: `${baseUrl.replace(/\/+$/, "")}/api/chat`,
+    init: {
+      method: "POST" as const,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user }
+        ],
+        stream: false,
+        options: { temperature: 0.1 }
+      })
+    },
+    timeoutMs: OLLAMA_EXTRACTION_TIMEOUT_MS
+  };
+}
+
+/**
+ * Calls Groq, then Gemini, then Ollama, and returns the first non-empty
+ * answer, or null when all of them fail.
+ *
+ * Groq and Gemini failures (HTTP errors, empty answers, thrown errors) are
+ * reported through `onProviderError` with the HTTP status or message. The
+ * Ollama step keeps production's former inline behaviour: only a thrown
+ * error (network, timeout, invalid JSON) is reported, with the error itself
+ * in `error`; an HTTP error or an empty answer is silent. Ollama content that
+ * is not a string counts as no answer (the former inline code passed it on,
+ * and extractJsonPayload then threw).
  */
 export async function callMemoryExtractionProviders(options: ExtractionCallOptions): Promise<ExtractionCallResult | null> {
   for (const request of planExtractionRequests(options)) {
@@ -157,6 +203,24 @@ export async function callMemoryExtractionProviders(options: ExtractionCallOptio
     } catch (err) {
       const message = typeof err === "object" && err !== null ? (err as { message?: unknown }).message : err;
       options.onProviderError?.({ provider: request.provider, model: request.model, detail: String(message || "unknown error") });
+    }
+  }
+
+  if (isUsableOllamaUrl(options.ollamaUrl)) {
+    const model = String(options.ollamaModel ?? "");
+    const request = buildOllamaExtractionRequest(options.ollamaUrl, options.ollamaModel, options.system, options.user);
+    try {
+      const res = await options.fetch(request.url, { ...request.init, signal: AbortSignal.timeout(request.timeoutMs) });
+      if (res.ok) {
+        const data = (await res.json()) as { message?: { content?: unknown } } | null;
+        const content = data?.message?.content;
+        if (typeof content === "string" && content) {
+          return { text: content, provider: "ollama", model };
+        }
+      }
+    } catch (err) {
+      const message = typeof err === "object" && err !== null ? (err as { message?: unknown }).message : err;
+      options.onProviderError?.({ provider: "ollama", model, detail: String(message || "unknown error"), error: err });
     }
   }
   return null;

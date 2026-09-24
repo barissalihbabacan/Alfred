@@ -89,13 +89,16 @@ describe("memory extraction: Groq, then Gemini", () => {
     expect(planExtractionRequests({ ...base, groqKey: "gsk_k", geminiKey: "AQ.k", geminiModel: "none" }).map((r) => r.provider)).toEqual(["groq"]);
   });
 
-  it("is wired into functions/index.js before the Ollama step", () => {
+  it("is wired into production through functions/memory-extraction.js, Ollama included", () => {
     const index = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
-    const callAt = index.indexOf("const extraction = await callMemoryExtractionProviders({");
-    const ollamaAt = index.indexOf("// 3. Fallback to Ollama if neither Groq nor Gemini returned text");
-    expect(callAt).toBeGreaterThan(0);
-    expect(ollamaAt).toBeGreaterThan(callAt);
+    const extraction = readFileSync(new URL("../../functions/memory-extraction.js", import.meta.url), "utf8");
+    expect(extraction).toContain("call: (system, user) => callMemoryExtractionProviders({");
+    expect(extraction).toMatch(/ollamaUrl,\s+ollamaModel,\s+system,/);
+    // The Ollama step is no longer inline (index.js keeps /api/chat only for the chat path).
+    expect(extraction).not.toContain("/api/chat");
+    expect(index).not.toContain("extractionResText");
     expect(index).toContain("const GEMINI_EXTRACTION_MODEL = process.env.GEMINI_EXTRACTION_MODEL || DEFAULT_GEMINI_EXTRACTION_MODEL;");
+    expect(index).toContain("geminiExtractionModel: GEMINI_EXTRACTION_MODEL");
   });
 });
 

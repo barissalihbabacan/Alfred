@@ -32,7 +32,7 @@ Firebase Hosting ── /api/** rewrite ──►  Cloud Function 2nd Gen `api` 
 ```
 
 - **One HTTP entry point.** Everything server-side runs in the `api` function. The web app is a static export with no route handlers or SSR.
-- **`functions/index.js` is bundled with `src/`.** esbuild builds it into `functions/lib/index.js` together with the shared `src/` modules it imports: the system prompt and user profile, memory-extraction prompt and candidate validation, `PrivacyFilter`, cosine similarity, conversation titles, the `get_current_time` tool, the embedding calls (`src/ai/embedding/embedding-client.ts`) and the memory write decisions (`src/alfred/cognitive/memory/memory-write-planner.ts`, driven by `functions/memory-persistence.js`). The Firestore/LLM I/O around them is still hand-written in `functions/`.
+- **`functions/index.js` is bundled with `src/`.** esbuild builds it into `functions/lib/index.js` together with the shared `src/` modules it imports: the system prompt and user profile, memory-extraction prompt and candidate validation, `PrivacyFilter`, cosine similarity, conversation titles, the `get_current_time` tool, the embedding calls (`src/ai/embedding/embedding-client.ts`), the memory extraction pipeline and its Groq → Gemini → Ollama calls (`extraction-pipeline.ts`, `extraction-providers.ts`, driven by `functions/memory-extraction.js`) and the memory write loop and decisions (`memory-write-loop.ts`, `memory-write-planner.ts`, driven by `functions/memory-persistence.js`). Only the Firestore storage layer and the logging around them are hand-written in `functions/`.
 - **Secrets** (`GROQ_API_KEY`, `GEMINI_API_KEY`, `CEREBRAS_API_KEY`, `OPENROUTER_API_KEY`) live only in Secret Manager and are bound to the function. The browser never sees or sends a key.
 
 ---
@@ -122,7 +122,11 @@ Conversation Exchange (User Message + Assistant Response)
                                 ↓
         Extraction after the reply is complete (does not delay the reply)
                                 ↓
-        Isolated classification prompt (buildMemoryExtractionSystemPrompt)
+   Short-circuit: empty message or exact "don't remember this" → no model call
+                                ↓
+   Isolated classification prompt over the last 10 messages (planMemoryExtraction)
+                                ↓
+        Groq → Gemini → Ollama (callMemoryExtractionProviders)
                                 ↓
                    Structured Candidate Memories (JSON)
                                 ↓
@@ -139,20 +143,26 @@ Conversation Exchange (User Message + Assistant Response)
 ```
 
 - **Production timing:** The `api` function sends the `done` SSE event first, then awaits extraction inside a 10-second budget before closing the connection. It does not leave extraction running after the response: Cloud Run throttles CPU once a response ends, and that used to lose memories. The web app releases the composer on `done`, so the user never waits for this step.
+- **Shared extraction pipeline:** `runMemoryExtraction` (`src/alfred/cognitive/memory/extractor/extraction-pipeline.ts`) is what production (`functions/memory-extraction.js`) and `MemoryExtractor` both run:
+  - an empty user message, or exactly "don't remember this", "do not remember this", "bunu hatırlama" or "sakın kaydetme" (trimmed, lower-cased), is answered locally with nothing to remember. The prompt demands the same answer for these, so this only saves the call. Production logs it as `outcome: "nothing"` with `skip_reason`;
+  - the prompt sees the last `maxContextMessages` messages (default 10: production's chat history window, so production passes its history unchanged; src used to default to 6);
+  - the model call is `callMemoryExtractionProviders`: Groq `MEMORY_EXTRACTION_MODEL`, then Gemini `GEMINI_EXTRACTION_MODEL`, then Ollama `/api/chat`, with fetch, keys and URLs injected. An Ollama answer whose content is not a string counts as no answer (it used to throw);
+  - the answer is parsed by `parseMemoryExtractionPayload` (`extractJsonPayload` → `JSON.parse` → `getMemoryExtractionCandidates`).
+  - `tests/unit/memory-extraction-pipeline.test.ts` runs 8,000 randomized turns against a verbatim copy of the former production code. Every turn outside the two changes above must be identical: fetches, timeouts, logs, persist calls, result. A second test checks, on 3,000 turns, that `MemoryExtractor` sends the same requests as production and accepts the same candidates.
 - **Shared rules:** The candidate rules are shared between `src/` and production (`src/ai/prompts/memory-extraction.ts`):
   - trimmed content of at least 5 characters;
   - a finite confidence ≥ 0.70 (numeric strings accepted);
   - actions limited to `create` / `supersede` / `forget`, with anything else treated as `create`;
   - `memoryType` limited to the nine prompt types, with anything else stored as `general`;
   - invalid entries skipped without aborting the rest.
-- **Shared write decisions:** `planMemoryWrite` (`src/alfred/cognitive/memory/memory-write-planner.ts`) decides what to do with each valid candidate, for production (`functions/memory-persistence.js`) and `MemoryService` alike. For every candidate the caller embeds the content and re-reads the user's active memories, so a memory written, superseded or retracted earlier in the same turn is (or no longer is) part of the next decision. Only memories whose stored embedding is non-empty and was made by the same model are compared (`isComparableEmbedding`):
+- **Shared write decisions:** `runMemoryWriteLoop` (`src/alfred/cognitive/memory/memory-write-loop.ts`) walks the candidates for production (`functions/memory-persistence.js`) and `MemoryService` alike: validation, `PrivacyFilter`, embedding, a fresh read of the active memories, then `planMemoryWrite` (`src/alfred/cognitive/memory/memory-write-planner.ts`) decides, and the caller's storage ports carry it out. For every candidate the loop embeds the content and re-reads the user's active memories, so a memory written, superseded or retracted earlier in the same turn is (or no longer is) part of the next decision. Only memories whose stored embedding is non-empty and was made by the same model are compared (`isComparableEmbedding`):
   - `forget` retracts the **best** match (highest cosine, the earliest on ties) if it scores ≥ 0.5; otherwise nothing happens;
   - `create` and `supersede` are first skipped as a duplicate when **any** active memory, whatever model embedded it (or with no embedding at all), has exactly the same normalized content (`normalizeMemoryContent`: trimmed, whitespace collapsed, lower-cased). This is what catches a fact re-stated on a Gemini→Ollama fallback turn, whose vectors are not comparable. No cosine threshold is used here;
   - `create` is then skipped as a duplicate as soon as **any** comparable match scores ≥ 0.85;
   - `supersede` then marks the **best** comparable match scoring ≥ 0.5 (highest cosine; on ties the earliest in store order, i.e. Firestore document-id order) as `superseded` (`supersededByMemoryId`) and writes the new memory with `supersedesMemoryId`. There is deliberately no cosine dedup for supersede, because a legitimate update can be semantically very close to the fact it replaces. With no match it is a plain create.
   - Production's record is `buildMemoryVectorRecord` (`vectorStore: "firestore"`, `indexStatus: "indexed"`, one server timestamp for `createdAt` / `updatedAt` / `indexedAt`); the per-candidate outcomes feed the `memory_extraction` event (`stored`, `superseded`, `retracted`, `duplicate`, `rejected`, `invalid`, `failed`). `functions/memory-persistence.js` logs `memory_id`, `memory_type` and `content_length` (plus `match` / `score` for duplicates), never memory text.
-  - `tests/unit/memory-write-planner.test.ts` has explicit tests for each rule. It also runs 8,000 randomized turns against a verbatim copy of the pre-fix inline loop: behaviour must be identical on every turn the fixes don't touch, and every turn must satisfy the fixed invariants.
-- **Write I/O still differs:** production writes the finished record straight to Firestore. On supersede it commits the old record's `superseded` update and the new record in **one batch**, so both land or neither does; previously the old record was marked first and a failed `set` lost the old fact. `MemoryService` writes through `IMemoryRepository` (`indexStatus: "pending"` → `"indexed"`) and indexes into the vector store. These can't share a transaction, so on supersede it writes the new record first and marks the old one afterwards. A failure in between leaves both active, a recoverable duplicate, but never loses the old fact.
+  - `tests/unit/memory-write-planner.test.ts` has explicit tests for each rule. It also runs 8,000 randomized turns against a verbatim copy of the pre-fix inline loop: behaviour must be identical on every turn the fixes don't touch, and every turn must satisfy the fixed invariants. A second 8,000-turn run compares against a verbatim copy of `memory-persistence.js` from before the loop moved to src, with no exclusions. A third checks, on 2,000 turns, that `MemoryService` reaches the same tally, statuses and new records as production and logs no memory text.
+- **Only the storage layer differs, on purpose.** Production keeps the vector inside the Firestore record. It writes the finished record as `indexed`, and on supersede it commits the old record's `superseded` update and the new record in **one batch**, so both land or neither does. `MemoryService` writes through `IMemoryRepository` (`indexStatus: "pending"` → `"indexed"`) and then indexes into a separate vector store, the rebuildable cache. The repository and the vector store can't share a transaction, so on supersede it writes the new record first and marks the old one afterwards. A failure in between leaves both active, a recoverable duplicate, but never loses the old fact. Timing also differs: production's 10 s budget covers extraction and persistence, while `MemoryExtractor`'s timeout covers only the model call.
 
 #### Core Architectural Distinctions & Invariants
 
@@ -202,8 +212,8 @@ Conversation Exchange (User Message + Assistant Response)
   - search: embed query → vector search → score threshold → top-K;
   - rebuild the index from Firestore (`reindexAll()`);
   - retract memories;
-  - `processConversationForMemories()`: extraction, validation, privacy filtering, then the shared `planMemoryWrite` decisions against `memoryRepo.listAllActive()` (the repository, not the vector store), with its own writes and vector indexing.
-- **`MemoryExtractor` (`src/alfred/cognitive/memory/extractor/memory-extractor.ts`)**: Implements `IMemoryExtractor` with an `AIProvider`.
+  - `processConversationForMemories()`: extraction, then production's `runMemoryWriteLoop` against `memoryRepo.listAllActive()` (the repository, not the vector store), with its own writes and vector indexing as storage ports. The result carries production's `tally`.
+- **`MemoryExtractor` (`src/alfred/cognitive/memory/extractor/memory-extractor.ts`)**: Implements `IMemoryExtractor` on the shared extraction pipeline. By default it calls production's Groq → Gemini → Ollama chain with keys from the environment; the `provider` option (an `AIProvider`) or `call` option replaces it.
 - **Conversational Governor**: A behavioural block enforcing:
   - intent-driven response length (1–3 sentences for casual banter, deep analysis for technical diagnosis);
   - restrained dry humour and firm first-principles pushback;

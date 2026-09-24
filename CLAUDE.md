@@ -16,7 +16,8 @@ npm run typecheck:tests    # tsc -p tsconfig.tests.json (tests/ + scripts/, whic
 npm run lint               # eslint . (flat config: eslint.config.js)
 npm test                   # vitest run (all tests)
 npm run test:unit          # vitest run tests/unit
-npm run test:integration   # vitest run tests/integration
+npm run test:integration   # vitest run tests/integration (real services; each suite skips when its prerequisite is missing)
+npm run test:integration:offline   # same with ALFRED_OFFLINE=1: no network, every service-dependent suite skipped (what CI runs)
 npx vitest run tests/unit/memory-service.test.ts   # single test file
 npx vitest run -t "test name substring"             # single test by name
 
@@ -45,7 +46,15 @@ npm run deploy --prefix functions   # firebase deploy --only functions
 
 As of the last check `npm run test:unit` is 831 passing tests across 59 files, `npm run typecheck`, `npm run typecheck:tests` and `npx tsc -p apps/web/tsconfig.json --noEmit` are clean, `npm run build:web` succeeds and `npm run lint` has 0 errors and 0 warnings — keep all of them green (CI runs them all). Every rule in `eslint.config.js` is an error, including `no-explicit-any` (use `unknown` plus narrowing, and `errorMessage()` from `src/core/errors` for caught errors), so any lint finding fails CI. There is no Prettier: formatting is not enforced, so don't mass-reformat files.
 
-`tests/unit/*` run offline against in-memory repositories/stores; `tests/integration/*` and the `test:groq`/`test:ollama` scripts hit real providers and need `.env` populated (copy from `.env.example`).
+`tests/unit/*` run offline against in-memory repositories/stores. `tests/integration/*` and the `test:groq`/`test:ollama` scripts hit real services and need `.env` populated (copy from `.env.example`). Gating lives in `tests/integration/prerequisites.ts`: with `ALFRED_OFFLINE=1` every service-dependent suite is `describe.skipIf`-skipped regardless of credentials; without it each suite skips when its own prerequisite is absent, and the SSH/Ollama tests call the test context's `skip()` (reported as skipped, not passed) when the host is unreachable. Any new integration test that needs a service must be gated on `OFFLINE` too.
+
+| File | Needs | With `ALFRED_OFFLINE=1` (CI) |
+|---|---|---|
+| `groq.integration.test.ts` | `GROQ_API_KEY`, live Groq | skipped |
+| `ollama.integration.test.ts` | Ollama at `OLLAMA_BASE_URL` (default Tailscale MacBook) | skipped |
+| `production-chat-regression.test.ts` | production API; authenticated part also `ALFRED_TEST_ID_TOKEN` or `GOOGLE_APPLICATION_CREDENTIALS` | skipped (CI never hits production) |
+| `ssh-home-server.integration.test.ts` | SSH to home-server over Tailscale + key | skipped |
+| `ssh-list-directory.integration.test.ts` | path-sandbox test: nothing (runs, with a client factory that refuses to connect); the rest: SSH to home-server, symlink test also runs on home-server itself | sandbox test runs, rest skipped |
 
 ## Architecture
 
@@ -123,7 +132,7 @@ The app is locked to one person. There is no sign-up, no password login and no S
 ### Deployment — Firebase Hosting + Cloud Functions only
 - `firebase.json` — Firestore rules/indexes, the `functions` codebase, and Hosting. Hosting serves `apps/web/out` (the Next.js static export — it must be built first), rewrites `/api/**` to the `api` function and everything else to `index.html`. `Cache-Control` is `no-cache` everywhere except the content-hashed `/_next/static/**`, which is cached for a year (the later, more specific header rule wins).
 - There is no App Hosting and no server runtime for the web app (`apphosting.yaml` was removed). Production is the static export on Hosting plus the `api` / `alfredCallable` functions.
-- **CI**: `.github/workflows/ci.yml` runs `npm ci`, `npm run lint`, `npm run typecheck`, `npm run typecheck:tests`, `npm run test:unit`, the functions bundle build/check, the `apps/web` typecheck and `npm run build:web` on every pull request (Node 22, no `.env`). `.github/workflows/deploy.yml` reuses it as a `test` job, then runs `npm ci`, `npm run build:web`, the functions bundle build and `firebase deploy --only hosting,functions,firestore:rules,firestore:indexes`, on any push to `main` touching `apps/**`, `src/**`, `functions/**`, `firebase.json`, `.firebaserc`, `firestore.rules`, `firestore.indexes.json`, `package.json`, `package-lock.json` or either workflow. A lint error, red typecheck, unit test or web build therefore blocks the deploy.
+- **CI**: `.github/workflows/ci.yml` runs `npm ci`, `npm run lint`, `npm run typecheck`, `npm run typecheck:tests`, `npm run test:unit`, `npm run test:integration:offline` (no secrets, no network: only the local checks run, everything needing a service is reported as skipped), the functions bundle build/check, the `apps/web` typecheck and `npm run build:web` on every pull request (Node 22, no `.env`). `.github/workflows/deploy.yml` reuses it as a `test` job, then runs `npm ci`, `npm run build:web`, the functions bundle build and `firebase deploy --only hosting,functions,firestore:rules,firestore:indexes`, on any push to `main` touching `apps/**`, `src/**`, `functions/**`, `firebase.json`, `.firebaserc`, `firestore.rules`, `firestore.indexes.json`, `package.json`, `package-lock.json` or either workflow. A lint error, red typecheck, unit or offline integration test or web build therefore blocks the deploy.
 - **Rollback**: `firebase hosting:rollback` (or Hosting → Release history → Roll back in the console) restores the previous Hosting release without a rebuild.
 
 ### Functions bundle — `functions/` imports `src/` via esbuild

@@ -577,25 +577,30 @@ describe("generateDeterministicTitle (production contract)", () => {
 
 describe("functions/index.js uses the shared modules", () => {
   const index = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
-  // The candidate loop moved to functions/memory-persistence.js (bundled into
-  // the same functions/lib/index.js).
+  // Extraction moved to functions/memory-extraction.js and the candidate loop
+  // to functions/memory-persistence.js (both bundled into the same
+  // functions/lib/index.js); the loop itself is src/'s memory-write-loop.ts.
+  const extraction = readFileSync(new URL("../../functions/memory-extraction.js", import.meta.url), "utf8");
   const persistence = readFileSync(new URL("../../functions/memory-persistence.js", import.meta.url), "utf8");
-  const source = `${index}\n${persistence}`;
+  const loop = readFileSync(new URL("../../src/alfred/cognitive/memory/memory-write-loop.ts", import.meta.url), "utf8");
+  const source = `${index}\n${extraction}\n${persistence}`;
 
   it("imports them instead of carrying copies", () => {
     expect(index).toContain('from "../src/data/firestore/conversation-title.js"');
-    expect(index).toMatch(/buildMemoryExtractionSystemPrompt,[\s\S]*from "\.\.\/src\/ai\/prompts\/memory-extraction\.js"/);
-    expect(persistence).toContain('import { validateMemoryCandidate } from "../src/ai/prompts/memory-extraction.js";');
-    expect(persistence).toContain('import { PrivacyFilter } from "../src/alfred/cognitive/memory/privacy-filter.js";');
+    expect(index).toContain('import { createExtractAndPersistMemories } from "./memory-extraction.js";');
+    expect(extraction).toContain('import { runMemoryExtraction } from "../src/alfred/cognitive/memory/extractor/extraction-pipeline.js";');
+    expect(persistence).toContain('import { runMemoryWriteLoop } from "../src/alfred/cognitive/memory/memory-write-loop.js";');
     expect(source).not.toMatch(/function\s+generateDeterministicTitle\s*\(/);
     expect(source).not.toContain("You are Alfred's autonomous memory extraction subsystem.");
     expect(source).not.toMatch(/confidence \|\| 0\) < 0\.70/);
+    expect(`${extraction}\n${persistence}`).not.toMatch(/validateMemoryCandidate\(|PrivacyFilter\.|extractJsonPayload\(|JSON\.parse\(/);
+    expect(index).not.toMatch(/validateMemoryCandidate\(|PrivacyFilter\.|extractJsonPayload\(|getMemoryExtractionCandidates\(/);
   });
 
-  it("still runs the shared PrivacyFilter on the validated content before acting on it", () => {
-    const validateAt = source.indexOf("validateMemoryCandidate(candidate)");
-    const privacyAt = source.indexOf("PrivacyFilter.check(content)");
-    const actionAt = source.indexOf("const action = validated.action;");
+  it("the shared loop runs PrivacyFilter on the validated content before acting on it", () => {
+    const validateAt = loop.indexOf("validateMemoryCandidate(raw, minConfidence)");
+    const privacyAt = loop.indexOf("PrivacyFilter.check(content)");
+    const actionAt = loop.indexOf('if (candidate.action === "forget")');
     expect(validateAt).toBeGreaterThan(-1);
     expect(privacyAt).toBeGreaterThan(validateAt);
     expect(actionAt).toBeGreaterThan(privacyAt);

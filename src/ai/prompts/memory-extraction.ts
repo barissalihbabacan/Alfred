@@ -241,37 +241,38 @@ export function validateMemoryCandidate(
   };
 }
 
+
+export type MemoryExtractionPayload =
+  | { kind: "invalid_json" }
+  | { kind: "nothing" }
+  | { kind: "candidates"; memories: unknown[] };
+
 /**
- * Parses and validates JSON output from the memory extraction model with
- * production's rules (getMemoryExtractionCandidates + validateMemoryCandidate),
- * so src and production accept the same candidates, in the same order, with
- * the same action, memoryType and confidence.
+ * Production's parse of the extraction model's answer: extractJsonPayload,
+ * JSON.parse, then getMemoryExtractionCandidates (a falsy payload, a falsy
+ * `shouldRemember` or a non-array `memories` is "nothing"). Shared with
+ * functions/memory-extraction.js through extraction-pipeline.ts.
  */
-export function parseMemoryExtractionResponse(
-  rawText: string,
-  minConfidence: number = MEMORY_MIN_CONFIDENCE
-): MemoryExtractionResult {
-  if (!rawText || !rawText.trim()) {
-    return { shouldRemember: false, candidates: [], rawResponse: rawText };
-  }
-
-  const clean = extractJsonPayload(rawText);
-
+export function parseMemoryExtractionPayload(rawText: string): MemoryExtractionPayload {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(clean);
+    parsed = JSON.parse(extractJsonPayload(rawText));
   } catch {
-    console.warn("[MemoryExtraction] Failed to parse LLM extraction JSON:", clean.slice(0, 200));
-    return { shouldRemember: false, candidates: [], rawResponse: rawText };
+    return { kind: "invalid_json" };
   }
-
   const memories = getMemoryExtractionCandidates(parsed);
-  if (!memories) {
-    return { shouldRemember: false, candidates: [], rawResponse: rawText };
-  }
+  return memories ? { kind: "candidates", memories } : { kind: "nothing" };
+}
 
+/**
+ * The raw candidates that pass validateMemoryCandidate, in order, with the
+ * model's `reasoning` kept for debugging.
+ */
+export function toExtractedMemoryCandidates(
+  memories: readonly unknown[],
+  minConfidence: number = MEMORY_MIN_CONFIDENCE
+): ExtractedMemoryCandidate[] {
   const validCandidates: ExtractedMemoryCandidate[] = [];
-
   for (const entry of memories) {
     const validated = validateMemoryCandidate(entry, minConfidence);
     if (!validated) continue;
@@ -282,7 +283,33 @@ export function parseMemoryExtractionResponse(
       reasoning: typeof item.reasoning === "string" ? item.reasoning.trim() : undefined
     });
   }
+  return validCandidates;
+}
 
+/**
+ * Parses and validates JSON output from the memory extraction model with
+ * production's rules (parseMemoryExtractionPayload + validateMemoryCandidate),
+ * so src and production accept the same candidates, in the same order, with
+ * the same action, memoryType and confidence. Never logs the model's output
+ * (it holds what the user said).
+ */
+export function parseMemoryExtractionResponse(
+  rawText: string,
+  minConfidence: number = MEMORY_MIN_CONFIDENCE
+): MemoryExtractionResult {
+  if (!rawText || !rawText.trim()) {
+    return { shouldRemember: false, candidates: [], rawResponse: rawText };
+  }
+
+  const payload = parseMemoryExtractionPayload(rawText);
+  if (payload.kind !== "candidates") {
+    if (payload.kind === "invalid_json") {
+      console.warn(`[MemoryExtraction] Extraction response was not valid JSON (${rawText.length} chars).`);
+    }
+    return { shouldRemember: false, candidates: [], rawResponse: rawText };
+  }
+
+  const validCandidates = toExtractedMemoryCandidates(payload.memories, minConfidence);
   return {
     shouldRemember: validCandidates.length > 0,
     candidates: validCandidates,

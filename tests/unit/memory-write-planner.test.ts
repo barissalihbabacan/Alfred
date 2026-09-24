@@ -24,6 +24,11 @@ import { validateMemoryCandidate } from "../../src/ai/prompts/memory-extraction.
 import { PrivacyFilter } from "../../src/alfred/cognitive/memory/privacy-filter.js";
 import { persistMemoryCandidates } from "../../functions/memory-persistence.js";
 import { legacyPersistMemories } from "./fixtures/legacy-memory-persistence.js";
+import { legacyPersistMemoryCandidatesBatch } from "./fixtures/legacy-memory-persistence-batch.js";
+import { MemoryService } from "../../src/alfred/cognitive/memory/memory-service.js";
+import { InMemoryMemoryRepository } from "../../src/data/firestore/in-memory-memory-repository.js";
+import { InMemoryVectorStore } from "../../src/data/vector/in-memory-vector-store.js";
+import { InMemoryPendingEmbeddingStore } from "../../src/data/vector/in-memory-pending-embedding-store.js";
 
 /**
  * The memory persistence decisions (forget / duplicate / supersede / create)
@@ -458,7 +463,13 @@ function makeScenario(seed: number): Scenario {
   };
 }
 
-type Runner = "legacy" | "shared";
+/**
+ * legacy: the pre-refactor inline loop of functions/index.js;
+ * batch: functions/memory-persistence.js as it was before its loop moved to
+ *   the shared memory-write-loop.ts (fixtures/legacy-memory-persistence-batch.js);
+ * shared: the current production module.
+ */
+type Runner = "legacy" | "batch" | "shared";
 
 /**
  * The log lines fix 5 rewrote (they used to embed memory text) compare by
@@ -513,7 +524,7 @@ async function run(runner: Runner, s: Scenario) {
       }));
     } else {
       tally = createMemoryWriteTally();
-      await persistMemoryCandidates({
+      await (runner === "batch" ? legacyPersistMemoryCandidatesBatch : persistMemoryCandidates)({
         db,
         logger,
         now: () => Timestamp.now(),
@@ -537,6 +548,15 @@ async function run(runner: Runner, s: Scenario) {
       tally,
       summary,
       store: [...db.store.entries()].sort(),
+      timestamps: tsCounter
+    },
+    // Everything, logs verbatim, for the batch-vs-shared comparison.
+    exact: {
+      events,
+      tally,
+      summary,
+      store: [...db.store.entries()].sort(),
+      batches: db.batches,
       timestamps: tsCounter
     },
     events,
@@ -684,6 +704,113 @@ describe("functions/memory-persistence.js vs the pre-refactor inline loop", () =
     for (const [key, count] of Object.entries(affected)) {
       expect(count, key).toBeGreaterThan(20);
     }
+  }, 180_000);
+});
+
+describe("functions/memory-persistence.js on the shared write loop vs its pre-loop version", () => {
+  // The loop moved to src/alfred/cognitive/memory/memory-write-loop.ts (shared
+  // with MemoryService). Production behaviour is meant to be unchanged, so
+  // there is no exclusion: every read, write, batch, embedding call, log line
+  // (verbatim, arguments included), tally, summary and final store content
+  // must be identical on every turn.
+  it("is identical on 8000 random turns (no exclusions)", async () => {
+    const outcomes: Record<string, number> = {};
+    for (let seed = 1; seed <= 8000; seed++) {
+      const s = makeScenario(seed);
+      const before = await run("batch", s);
+      const after = await run("shared", s);
+      expect(after.exact, `seed ${seed}`).toEqual(before.exact);
+      const outcome = String(before.exact.summary.outcome);
+      outcomes[outcome] = (outcomes[outcome] ?? 0) + 1;
+    }
+    if (process.env.PRINT_COVERAGE) console.log({ outcomes });
+    for (const outcome of ["stored", "superseded", "retracted", "duplicate", "failed", "nothing"]) {
+      expect(outcomes[outcome] ?? 0, outcome).toBeGreaterThan(50);
+    }
+  }, 180_000);
+});
+
+describe("MemoryService and production make the same write decisions (shared loop)", () => {
+  // The storage layers differ on purpose (Firestore batch vs repository +
+  // vector store, see memory-write-loop.ts), so this compares decisions and
+  // outcomes, not I/O: the tally, the final status of every existing memory
+  // and the records written (content, type, lineage, embedding model), on
+  // turns without injected failures.
+  function newRecordKey(content: unknown, memoryType: unknown, supersedes: unknown, model: unknown, newIds: string[]) {
+    const lineage = typeof supersedes === "string" && newIds.includes(supersedes) ? `new#${newIds.indexOf(supersedes)}` : supersedes ?? null;
+    return [content, memoryType, lineage, model];
+  }
+
+  it("matches production on 2000 random turns and never logs memory text", async () => {
+    let compared = 0;
+    let logLines = 0;
+    try {
+      for (let seed = 1; seed <= 2000; seed++) {
+        const s0 = makeScenario(seed);
+        const s = { ...s0, failures: NO_FAILURES, docs: s0.docs.filter(([, d]) => d.userId === USER).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)) };
+        if (s.memories.length === 0) continue;
+        const production = await run("shared", s);
+        const initialIds = s.docs.map(([id]) => id);
+        const prodNewIds = [...production.store.keys()].filter((id) => !initialIds.includes(id)).sort();
+
+        const memoryRepo = new InMemoryMemoryRepository();
+        for (const [id, d] of s.docs) {
+          await memoryRepo.createMemoryRecord({
+            memoryId: id, userId: USER, content: String(d.content), memoryType: "general",
+            embeddingProvider: "gemini", embeddingModel: d.embeddingModel as string, embeddingDimension: 0,
+            embedding: d.embedding as number[], vectorStore: "test", status: d.status as "active"
+          });
+        }
+        let clock = 1_750_000_000_000;
+        const idRng = mulberry32(s.seed ^ 0x5555);
+        vi.spyOn(Date, "now").mockImplementation(() => (clock += 7));
+        vi.spyOn(Math, "random").mockImplementation(() => idRng());
+        const service = new MemoryService({
+          memoryRepo,
+          vectorStore: new InMemoryVectorStore(),
+          pendingStore: new InMemoryPendingEmbeddingStore(),
+          embeddingProvider: {
+            id: "table", model: "unused", dimension: 0,
+            embed: async () => { throw new Error("embedDetailed expected"); },
+            embedBatch: async () => [],
+            isConfigured: () => true,
+            embedDetailed: async (text: string) => {
+              const e = s.embeddings.get(text);
+              if (!e) throw new Error("no embedding");
+              return { values: [...e.values], model: e.model, provider: "table" };
+            }
+          },
+          extractor: { extract: async () => ({ shouldRemember: true, candidates: structuredClone(s.memories) as never }) },
+          config: { extraction: { enabled: true, minConfidence: 0.7, maxContextMessages: 10, timeoutMs: 1000 } }
+        });
+        // run() restores all mocks, so the console spies are installed per turn.
+        const consoleSpies = (["log", "warn", "error"] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => {}));
+        const result = await service.processConversationForMemories({ currentMessage: "x", userId: USER, conversationId: "conv_1" });
+        const consoleLines = consoleSpies.flatMap((spy) => spy.mock.calls.map((args) => JSON.stringify(args)));
+        vi.restoreAllMocks();
+
+        const where = `seed ${seed}`;
+        for (const line of consoleLines) {
+          for (const t of STORED_TEXTS) expect(line.includes(t), `${where}: ${line}`).toBe(false);
+        }
+        logLines += consoleLines.length;
+        expect(result.tally, where).toEqual(production.exact.tally);
+        for (const id of initialIds) {
+          expect((await memoryRepo.getMemoryRecordByMemoryId(id))?.status, `${where} ${id}`).toBe(production.store.get(id)!.status);
+        }
+        const srcNew = result.created.map((r) => r.memoryId);
+        expect(result.created.map((r) => newRecordKey(r.content, r.memoryType, r.supersedesMemoryId, r.embeddingModel, srcNew)), where)
+          .toEqual(prodNewIds.map((id) => {
+            const d = production.store.get(id)!;
+            return newRecordKey(d.content, d.memoryType, d.supersedesMemoryId, d.embeddingModel, prodNewIds);
+          }));
+        compared++;
+      }
+    } finally {
+      vi.restoreAllMocks();
+    }
+    expect(compared).toBeGreaterThan(1200);
+    expect(logLines).toBeGreaterThan(1000);
   }, 180_000);
 });
 
@@ -890,19 +1017,24 @@ describe("memory persistence fixes (production module)", () => {
 
 describe("functions wiring", () => {
   const index = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
+  const extraction = readFileSync(new URL("../../functions/memory-extraction.js", import.meta.url), "utf8");
   const persistence = readFileSync(new URL("../../functions/memory-persistence.js", import.meta.url), "utf8");
 
-  it("index.js delegates persistence to memory-persistence.js and the shared tally", () => {
-    expect(index).toContain('from "./memory-persistence.js"');
-    expect(index).toMatch(/createMemoryWriteTally,[\s\S]*summarizeMemoryWriteTally[\s\S]*from "\.\.\/src\/alfred\/cognitive\/memory\/memory-write-planner\.js"/);
-    expect(index).toContain("await persistMemoryCandidates({");
-    expect(index).not.toContain('status: "retracted"');
-    expect(index).not.toContain("score >= 0.85");
+  it("index.js delegates extraction to memory-extraction.js, which persists through memory-persistence.js and the shared tally", () => {
+    expect(index).toContain('from "./memory-extraction.js"');
+    expect(extraction).toContain('from "./memory-persistence.js"');
+    expect(extraction).toMatch(/createMemoryWriteTally,[\s\S]*summarizeMemoryWriteTally[\s\S]*from "\.\.\/src\/alfred\/cognitive\/memory\/memory-write-planner\.js"/);
+    expect(extraction).toContain("await persist({");
+    for (const source of [index, extraction]) {
+      expect(source).not.toContain('status: "retracted"');
+      expect(source).not.toContain("score >= 0.85");
+    }
   });
 
-  it("memory-persistence.js takes its decisions and records from the shared planner", () => {
+  it("memory-persistence.js runs the shared loop and builds records with the shared planner", () => {
     expect(persistence).toContain('from "../src/alfred/cognitive/memory/memory-write-planner.js"');
-    expect(persistence).toContain("planMemoryWrite({");
+    expect(persistence).toContain("await runMemoryWriteLoop({");
+    expect(persistence).not.toContain("planMemoryWrite(");
     expect(persistence).toContain("buildMemoryVectorRecord({");
     expect(persistence).toContain("db.batch()");
     expect(persistence).not.toMatch(/cosineSimilarity|isComparableEmbedding|0\.85|>= 0\.5/);

@@ -350,7 +350,8 @@ describe("production uses the shared rate-limit helpers", () => {
 
   it("logs the limit type on a memory-extraction 429", () => {
     expect(extraction).toContain("rateLimit = { limitType: info.limitType, retryAfterMs: info.retryAfterMs };");
-    expect(index).toContain('...(e.rateLimit ? { limit_type: e.rateLimit.limitType, retry_after_ms: e.rateLimit.retryAfterMs, decision: "give_up" } : {})');
+    const memoryExtraction = readFileSync(new URL("../../functions/memory-extraction.js", import.meta.url), "utf8");
+    expect(memoryExtraction).toContain('...(e.rateLimit ? { limit_type: e.rateLimit.limitType, retry_after_ms: e.rateLimit.retryAfterMs, decision: "give_up" } : {})');
   });
 
   it("maps stream failures through toChatTurnErrorEvent (toChatErrorEvent + fallback note)", () => {

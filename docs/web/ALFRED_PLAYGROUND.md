@@ -115,7 +115,7 @@ npm run build:web
 firebase serve --only hosting
 ```
 
-The default `ALFRED_API_ORIGIN` is `http://127.0.0.1:5001/butler-alfred/us-central1/api` (start it with `firebase emulators:start --only functions`; App Check is not enforced in the emulator). Sign-in needs `localhost` in Firebase Auth → Authorized domains. On `localhost` (or with `?debug_token=true`) the App Check debug token is used, so **against the production API that debug token must be registered in the Firebase console** (App Check → Apps → Manage debug tokens), otherwise every call gets 401.
+The default `ALFRED_API_ORIGIN` is `http://127.0.0.1:5001/butler-alfred/us-central1/api` (start it with `firebase emulators:start --only functions`; App Check is not enforced in the emulator). Sign-in needs `localhost` in Firebase Auth → Authorized domains. On `localhost` / `127.0.0.1` (and in `next dev`) App Check runs in debug mode (`lib/app-check-debug.ts`): it uses `NEXT_PUBLIC_APPCHECK_DEBUG_TOKEN` from `apps/web/.env.local` if set, otherwise the Firebase SDK generates a random per-browser debug token and prints it in the browser console. **Against the production API that token must be registered in the Firebase console** (App Check → Apps → Manage debug tokens), otherwise every call gets 401. The production site never enables debug mode; there is no `?debug_token=true` switch and no debug token in the repository.
 
 Web-only variables (`NEXT_PUBLIC_*`, `ALFRED_API_ORIGIN`) are read by Next.js from `apps/web/`, not from the repository root: copy `apps/web/.env.example` to `apps/web/.env.local` if you need to override them. The committed defaults in `lib/firebase.ts` / `lib/allowed-uid.ts` are what production uses.
 
@@ -147,4 +147,3 @@ npm run build:web
 - **No server-side STT.** The removed Next.js `/api/stt` route (Groq Whisper) was not used by either UI; speech input is browser-only, so it depends on Web Speech support (Chrome/Edge/Safari; not Firefox).
 - **No reCAPTCHA action token.** The vanilla front end also sent an `x-recaptcha-token` header from `grecaptcha.enterprise.execute()`; the `api` function never verified it, so it was dropped. App Check still covers the requests.
 - **Provider is server-controlled.** The settings modal shows the active engine from `/api/health`; the old, disabled Ollama URL field is gone. Which provider actually answered a turn arrives in `start` / `provider_fallback`.
-- **Committed App Check debug token.** `lib/firebase.ts` falls back to a hard-coded debug token when `NEXT_PUBLIC_APPCHECK_DEBUG_TOKEN` is unset. If that token is registered in the Firebase console, anyone with the repository can pass App Check; keep it unregistered, or register only a private token set through `apps/web/.env.local`.

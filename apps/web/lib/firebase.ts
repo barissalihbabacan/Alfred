@@ -5,6 +5,7 @@ import {
   ReCaptchaEnterpriseProvider,
   AppCheck
 } from "firebase/app-check";
+import { resolveAppCheckDebugToken } from "./app-check-debug";
 
 const defaultAuthDomain = "butler-alfred.firebaseapp.com";
 
@@ -31,17 +32,15 @@ let appCheckInstance: AppCheck | null = null;
 type AppCheckDebugGlobal = typeof globalThis & { FIREBASE_APPCHECK_DEBUG_TOKEN?: string | boolean };
 
 if (typeof window !== "undefined") {
-  // localhost'ta ve ?debug_token=true ile App Check debug token'i kullanilir
-  // (eski vanilla on yuzle ayni davranis).
-  if (
-    process.env.NODE_ENV === "development" ||
-    window.location.hostname === "localhost" ||
-    window.location.hostname === "127.0.0.1" ||
-    window.location.search.includes("debug_token=true")
-  ) {
+  // Debug token yalnizca yerel gelistirmede; canli sitede asla (bkz. app-check-debug.ts).
+  const debugToken = resolveAppCheckDebugToken({
+    hostname: window.location.hostname,
+    nodeEnv: process.env.NODE_ENV,
+    envToken: process.env.NEXT_PUBLIC_APPCHECK_DEBUG_TOKEN
+  });
+  if (debugToken !== undefined) {
     // Firebase App Check debug hook'u: SDK bu global'i initializeAppCheck'ten once okur.
-    (self as AppCheckDebugGlobal).FIREBASE_APPCHECK_DEBUG_TOKEN =
-      process.env.NEXT_PUBLIC_APPCHECK_DEBUG_TOKEN || "REDACTED-REVOKED-DEBUG-TOKEN";
+    (self as AppCheckDebugGlobal).FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken;
   }
 
   if (RECAPTCHA_SITE_KEY && RECAPTCHA_SITE_KEY !== "dummy-recaptcha-site-key") {
@@ -60,7 +59,7 @@ export const appCheck = appCheckInstance;
 
 /**
  * `X-Firebase-AppCheck` basligi icin guncel App Check token'i. Token alinamazsa
- * null doner; sunucu ENFORCE_APP_CHECK kapaliyken istegi yine kabul eder.
+ * null doner; App Check zorunlu oldugu icin sunucu o istegi 401 ile reddeder.
  */
 export async function getAppCheckToken(): Promise<string | null> {
   if (!appCheckInstance) return null;

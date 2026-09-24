@@ -7,8 +7,13 @@
  *   chunk        { text }            -- `<think>` izleri icerebilir, gosterimde temizlenir
  *   tool_call    { tool, arguments } veya { toolCalls: [{ id, name, arguments }] }
  *   tool_result  { tool, toolCallId, result }
+ *   rate_limited { provider, waitMs, attempt } -- Groq 429: sunucu `waitMs` bekleyip yeniden deneyecek;
+ *                                    bekleme bitince `thinking` gelir
  *   done         {}                  -- yanit bitti; sunucu bellek kaydi icin baglantiyi bir sure acik tutabilir
- *   error        { error }
+ *   error        { error, code?, retryAfterMs? } -- `code: "rate_limited"`: Groq sinirinda vazgecildi;
+ *                                    `error` kullaniciya gosterilecek kisa mesajdir
+ *
+ * Bilinmeyen `type` degerleri yok sayilir (sunucu yeni olay ekleyebilir).
  */
 export type ChatStreamEvent =
   | { type: "start"; conversationId?: string; provider?: string; model?: string }
@@ -16,10 +21,20 @@ export type ChatStreamEvent =
   | { type: "chunk"; text?: string }
   | { type: "tool_call"; tool?: string; arguments?: unknown; toolCalls?: unknown[] }
   | { type: "tool_result"; tool?: string; toolCallId?: string; result?: unknown }
+  | { type: "rate_limited"; provider?: string; waitMs?: number; attempt?: number }
   | { type: "done" }
-  | { type: "error"; error?: string };
+  | { type: "error"; error?: string; code?: string; retryAfterMs?: number };
 
-const KNOWN_TYPES = new Set(["start", "thinking", "chunk", "tool_call", "tool_result", "done", "error"]);
+const KNOWN_TYPES = new Set([
+  "start",
+  "thinking",
+  "chunk",
+  "tool_call",
+  "tool_result",
+  "rate_limited",
+  "done",
+  "error"
+]);
 
 function parseBlock(block: string): ChatStreamEvent | null {
   // Bir blok birden fazla `data:` satiri icerebilir (SSE spesifikasyonu); bunlar

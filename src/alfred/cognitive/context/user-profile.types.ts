@@ -3,11 +3,12 @@
  *
  * Alfred's canonical user profile is the human-authored Markdown under
  * `users/` (USER_PROFILE.md, PREFERENCES.md, WORKING_STYLE.md). It is kept as
- * the raw file contents and rendered into the system prompt by the pure
- * `renderUserProfileBlock()` (./user-profile-renderer.ts), which both src/
- * (ContextBuilder) and production (functions/index.js, via the embedded copy
- * in ./user-profile.generated.ts) use. Parsing the files into fields is
- * deliberately avoided: every edit to users/*.md reaches the prompt.
+ * the raw file contents. The system prompt carries a hand-written, reviewed
+ * digest of exactly these files (./user-profile.digest.md, which records
+ * their sha256; tests and the functions build fail once a file changes
+ * without the digest being updated), so every edit to users/*.md still has
+ * to reach the prompt before it can be deployed. Sources other than the
+ * committed files are rendered verbatim by `renderUserProfileBlock()`.
  *
  * Designed to cleanly coexist with FirestoreMemoryProvider and
  * VectorSearchProvider without creating competing sources of truth.

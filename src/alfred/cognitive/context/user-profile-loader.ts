@@ -57,9 +57,9 @@ function safeReadFile(filePath: string): string | null {
  * Loads the canonical user profile (users/*.md) from disk for src/ and local
  * use. Strictly READ-ONLY. No mutation, writing, or deletion operations exist.
  *
- * The files are returned as raw text; rendering them into the prompt is the
- * job of the pure renderUserProfileBlock() (./user-profile-renderer.ts),
- * which production also uses. Any file that cannot be read falls back to the
+ * The files are returned as raw text; turning them into the prompt's profile
+ * block is ContextBuilder.formatUserProfileBlock()'s job (the reviewed digest
+ * production also sends, when the files are the committed ones). Any file that cannot be read falls back to the
  * copy embedded at build time (./user-profile.generated.ts), i.e. the
  * committed content of users/*.md, so the profile never silently disappears.
  */

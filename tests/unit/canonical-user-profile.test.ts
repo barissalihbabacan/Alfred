@@ -33,7 +33,8 @@ describe("Canonical User Profile Layer", () => {
     expect(fallbackContext.source).toBe("fallback");
     // Falls back to the copy of users/*.md embedded at build time.
     expect(fallbackContext.sources).toEqual(USER_PROFILE_SOURCES);
-    expect(ContextBuilder.formatUserProfileBlock(fallbackContext)).toContain("Easy → Hard");
+    // Same files as committed, so the prompt gets the reviewed digest.
+    expect(ContextBuilder.formatUserProfileBlock(fallbackContext)).toContain("easy → hard");
   });
 
   it("2b. takes each readable file from disk and only the missing ones from the embedded copy", () => {
@@ -55,9 +56,9 @@ describe("Canonical User Profile Layer", () => {
     const contextualPrompt = getAlfredSystemPrompt();
 
     expect(contextualPrompt).toContain("=== CANONICAL USER PROFILE (GIT AUTHORITATIVE) ===");
-    expect(contextualPrompt).toContain("Name: Barış (Full name: Barış Salih Babacan)");
-    expect(contextualPrompt).toContain("Incremental Development");
-    expect(contextualPrompt).toContain("Pushback & Risk Management Protocols:");
+    expect(contextualPrompt).toContain("- Barış Salih Babacan: Turkish native, fluent professional English.");
+    expect(contextualPrompt).toContain("vertical slices");
+    expect(contextualPrompt).toContain("- Push back on:");
   });
 
   it("4. should keep Alfred canonical persona fully intact alongside the profile", () => {

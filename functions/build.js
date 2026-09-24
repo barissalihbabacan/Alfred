@@ -8,7 +8,11 @@
 // functions/package.json); only first-party code from index.js and src/ is
 // inlined. After bundling, the build fails if:
 //   - the bundle no longer exports `api` and `alfredCallable`,
-//   - it no longer inlines user-profile.generated.ts (users/*.md), or
+//   - it no longer inlines user-profile.generated.ts (users/*.md and the
+//     condensed profile digest the system prompt carries),
+//   - the digest (src/alfred/cognitive/context/user-profile.digest.md) was
+//     written from a different version of users/*.md than the one being
+//     deployed, i.e. nobody has reviewed it against the edit, or
 //   - it imports a package that is not a dependency in functions/package.json
 //     (a src/ module pulling in a root-only dependency would otherwise build
 //     fine here and crash on cold start in production).
@@ -23,7 +27,11 @@ import { readFileSync } from "node:fs";
 import { builtinModules } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { syncUserProfileSourcesModule } from "../scripts/generate-user-profile-sources.mjs";
+import {
+  describeStaleUserProfileDigest,
+  staleUserProfileDigestSources,
+  syncUserProfileSourcesModule
+} from "../scripts/generate-user-profile-sources.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const REQUIRED_EXPORTS = ["api", "alfredCallable"];
@@ -65,6 +73,8 @@ const result = await build({
 });
 
 const problems = [];
+const staleDigest = staleUserProfileDigestSources();
+if (staleDigest.length > 0) problems.push(describeStaleUserProfileDigest(staleDigest));
 const output = result.metafile.outputs[join("lib", "index.js")];
 if (!output) {
   problems.push(`esbuild did not report lib/index.js (got: ${Object.keys(result.metafile.outputs).join(", ")})`);
@@ -72,10 +82,10 @@ if (!output) {
   for (const name of REQUIRED_EXPORTS) {
     if (!output.exports.includes(name)) problems.push(`bundle is missing export "${name}"`);
   }
-  // Production's system prompt renders users/*.md from this embedded module.
+  // Production's system prompt takes the users/*.md digest from this embedded module.
   const profileModule = "../src/alfred/cognitive/context/user-profile.generated.ts";
   if (!Object.keys(output.inputs).includes(profileModule)) {
-    problems.push(`bundle does not include ${profileModule} (users/*.md would not reach the system prompt)`);
+    problems.push(`bundle does not include ${profileModule} (the user profile would not reach the system prompt)`);
   }
   for (const imp of output.imports) {
     if (!imp.external) continue;

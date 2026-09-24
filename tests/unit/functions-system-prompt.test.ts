@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import {
   ALFRED_PERSONA_PROMPT,
   ALFRED_SYSTEM_PROMPT,
@@ -12,12 +13,21 @@ import {
   buildAlfredSystemPrompt,
   describeReasoningRuntime,
   formatRetrievedMemoriesBlock,
+  isCommittedUserProfile,
+  renderSystemPromptUserProfileBlock,
   type PromptMemory
 } from "../../src/ai/prompts/alfred-system-prompt.js";
+import {
+  USER_PROFILE_DIGEST,
+  USER_PROFILE_SOURCES
+} from "../../src/alfred/cognitive/context/user-profile.generated.js";
 import { ALFRED_CANONICAL_SYSTEM_PROMPT, getAlfredSystemPrompt } from "../../src/ai/prompts/alfred-persona.js";
 import { ContextBuilder } from "../../src/alfred/cognitive/context/context-builder.js";
 import { loadCanonicalUserContext } from "../../src/alfred/cognitive/context/user-profile-loader.js";
-import { renderUserProfileBlock } from "../../src/alfred/cognitive/context/user-profile-renderer.js";
+import {
+  renderUserProfileBlock,
+  renderUserProfileDigestBlock
+} from "../../src/alfred/cognitive/context/user-profile-renderer.js";
 import type { RetrievedMemory } from "../../src/alfred/cognitive/memory/types.js";
 import {
   SSH_CONNECT_TOOL_DEFINITION,
@@ -31,8 +41,9 @@ import { GEMINI_EMBEDDING_MODEL } from "../../src/ai/embedding/embedding-client.
  *
  * The fixture is the full prompt production sends for its default runtime
  * (Groq, openai/gpt-oss-120b) with no retrieved memories. It includes the
- * rendered users/*.md, so editing the persona, the governor OR users/*.md
- * changes it. Such a change is a deliberate change to Alfred's live
+ * users/*.md digest (src/alfred/cognitive/context/user-profile.digest.md), so
+ * editing the persona, the governor OR the digest changes it; editing
+ * users/*.md fails the digest's hash check until the digest is updated. Such a change is a deliberate change to Alfred's live
  * behaviour; after reviewing the diff, regenerate the fixture with
  *
  *   npx vitest run tests/unit/functions-system-prompt.test.ts -u
@@ -62,27 +73,51 @@ describe("production system prompt fixture", () => {
   });
 });
 
-describe("1. the user profile comes from users/*.md", () => {
-  it("is users/*.md on disk rendered by the shared renderer", () => {
-    const fromDisk = renderUserProfileBlock({
-      userProfile: readUsersFile("USER_PROFILE.md"),
-      preferences: readUsersFile("PREFERENCES.md"),
-      workingStyle: readUsersFile("WORKING_STYLE.md")
-    });
-    expect(ALFRED_USER_PROFILE_BLOCK).toBe(fromDisk);
-    expect(ALFRED_SYSTEM_PROMPT).toContain(`\n\n${fromDisk}\n\n`);
+describe("1. the user profile is the reviewed digest of users/*.md", () => {
+  const digestFile = readFileSync(
+    new URL("../../src/alfred/cognitive/context/user-profile.digest.md", import.meta.url),
+    "utf8"
+  );
+
+  it("is user-profile.digest.md (without its comment header) inside the profile header and footer", () => {
+    const body = digestFile.split("\n").filter((line) => !line.startsWith("<!--")).join("\n").trim();
+    expect(USER_PROFILE_DIGEST).toBe(body);
+    expect(ALFRED_USER_PROFILE_BLOCK).toBe(renderUserProfileDigestBlock(body));
+    expect(ALFRED_USER_PROFILE_BLOCK.startsWith("=== CANONICAL USER PROFILE (GIT AUTHORITATIVE) ===\n- Barış Salih Babacan")).toBe(true);
+    expect(ALFRED_SYSTEM_PROMPT).toContain(`\n\n${ALFRED_USER_PROFILE_BLOCK}\n\n`);
+    expect(ALFRED_SYSTEM_PROMPT.split("=== CANONICAL USER PROFILE (GIT AUTHORITATIVE) ===")).toHaveLength(2);
+  });
+
+  it("was written from the committed users/*.md (its sha256 lines match the files)", () => {
+    for (const name of ["USER_PROFILE.md", "PREFERENCES.md", "WORKING_STYLE.md"]) {
+      const sha = createHash("sha256").update(readUsersFile(name), "utf8").digest("hex");
+      expect(digestFile, `update user-profile.digest.md for users/${name}`).toContain(`<!-- sha256 ${name} ${sha} -->`);
+    }
   });
 
   it("carries distinctive content from each file", () => {
-    expect(ALFRED_SYSTEM_PROMPT).toContain("Role: Example Role, Example Title"); // USER_PROFILE.md
-    expect(ALFRED_SYSTEM_PROMPT).toContain("Conclusion First (Inverted Pyramid)"); // PREFERENCES.md
-    expect(ALFRED_SYSTEM_PROMPT).toContain("Extend, Don't Compete"); // WORKING_STYLE.md
+    expect(ALFRED_SYSTEM_PROMPT).toContain("Systems architect, senior software engineer and lead developer"); // USER_PROFILE.md
+    expect(ALFRED_SYSTEM_PROMPT).toContain("bypassed HTTPS/TLS"); // PREFERENCES.md
+    expect(ALFRED_SYSTEM_PROMPT).toContain("extend existing abstractions (e.g. `AIProvider`, `getAlfredSystemPrompt()`)"); // WORKING_STYLE.md
   });
 
-  it("the old hand-written summary is gone", () => {
+  it("no longer renders the files verbatim, and the old hand-written summary is gone", () => {
+    const verbatim = renderUserProfileBlock(USER_PROFILE_SOURCES);
+    expect(ALFRED_SYSTEM_PROMPT).not.toContain(verbatim);
+    for (const label of ["USER PROFILE:", "INTERACTION PREFERENCES:", "WORKING STYLE & ENGINEERING PRINCIPLES:"]) {
+      expect(ALFRED_SYSTEM_PROMPT).not.toContain(`\n${label}\n`);
+    }
     expect(ALFRED_SYSTEM_PROMPT).not.toContain("USER IDENTITY:");
     expect(ALFRED_SYSTEM_PROMPT).not.toContain("Core Stacks: Full-stack architecture, TypeScript & Node.js, distributed systems");
-    expect(ALFRED_SYSTEM_PROMPT.split("=== CANONICAL USER PROFILE (GIT AUTHORITATIVE) ===")).toHaveLength(2);
+  });
+
+  it("sources other than the committed files are rendered verbatim, never replaced by the digest", () => {
+    const edited = { ...USER_PROFILE_SOURCES, preferences: `${USER_PROFILE_SOURCES.preferences}\n- **Marker**: zebra-42\n` };
+    expect(isCommittedUserProfile(USER_PROFILE_SOURCES)).toBe(true);
+    expect(isCommittedUserProfile(edited)).toBe(false);
+    expect(renderSystemPromptUserProfileBlock(USER_PROFILE_SOURCES)).toBe(ALFRED_USER_PROFILE_BLOCK);
+    expect(renderSystemPromptUserProfileBlock(edited)).toBe(renderUserProfileBlock(edited));
+    expect(renderSystemPromptUserProfileBlock(edited)).toContain("- Marker: zebra-42");
   });
 
   it("src/ (UserProfileLoader + ContextBuilder) renders the same block and the same prompt", () => {

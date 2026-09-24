@@ -61,9 +61,10 @@ Alfred rigorously separates storage responsibilities across three distinct tiers
 1. **Git / Local Repository (`users/`) — Canonical Authored Truth**:
    - Contains stable, consciously authored, version-controlled baseline knowledge about Barış (`USER_PROFILE.md`), communication preferences (`PREFERENCES.md`), and working style (`WORKING_STYLE.md`).
    - **Runtime Status**: Read-only. Alfred never commits, rewrites, or mutates these files at runtime.
-     - In production, the files are embedded at build time. `npm run generate:user-profile` writes `src/alfred/cognitive/context/user-profile.generated.ts`, and a unit test fails if it drifts from `users/*.md`. The profile block is rendered by the pure `renderUserProfileBlock()`.
-     - Locally, `UserProfileLoader` reads the files from disk, falling back to the embedded copy.
-     - Editing `users/*.md` reaches production on the next deploy.
+     - The system prompt carries a **reviewed digest** of the files, not the files verbatim: `src/alfred/cognitive/context/user-profile.digest.md`, hand-written from them (~620 tokens instead of ~2,000). The digest keeps the facts and rules that change Alfred's answers and leaves out what the persona and governor already say. Its header records the sha256 of each `users/*.md` file it was written from.
+     - In production, the files and the digest are embedded at build time. `npm run generate:user-profile` writes `src/alfred/cognitive/context/user-profile.generated.ts`, and a unit test fails if it drifts from `users/*.md`.
+     - Locally, `UserProfileLoader` reads the files from disk, falling back to the embedded copy. `ContextBuilder` uses the digest when the files are the committed ones. Other sources are rendered verbatim by `renderUserProfileBlock()`.
+     - Editing `users/*.md` blocks the deploy until the digest is updated. The unit tests, `npm run generate:user-profile` and `functions/build.js` all fail while the digest's hashes are stale, and they print the new hash lines. Update the digest text, paste the hashes, and the edit reaches production on the next deploy.
    - **Authority**: Definitive baseline. Trumps vague conversational inferences.
 2. **Firestore (`src/data/firestore/`) — Dynamic Operational State, Conversation History & Memory Source of Truth**:
    - Stores durable conversation records and messages across restarts and sessions:
@@ -181,9 +182,15 @@ Conversation Exchange (User Message + Assistant Response)
 #### Runtime Context Integration
 - **System prompt (`src/ai/prompts/alfred-system-prompt.ts`)**: Production and `src/` both call `buildAlfredSystemPrompt({ runtime, memories })`. It joins, in order:
   - the persona, which states the provider and model answering the turn;
-  - the `users/*.md` profile (`=== CANONICAL USER PROFILE (GIT AUTHORITATIVE) ===`);
+  - the `users/*.md` digest (`=== CANONICAL USER PROFILE (GIT AUTHORITATIVE) ===`);
   - the Conversational Governor, which states the request pipeline for that provider;
   - the retrieved memories block (`=== RETRIEVED LONG-TERM MEMORIES (SEMANTIC CONTEXT) ===`), when there are any.
+
+  **Size.** The whole prompt is re-sent on every model call. A question that uses a tool makes two calls, and Groq's free tier for `openai/gpt-oss-120b` allows 8,000 tokens a minute. The static prompt is about 2,120 tokens (o200k_base): persona ~835, digest ~620, governor ~670. Before the Sep 2026 trim it was about 4,360, so one tool question could exceed the limit on its own.
+
+  `tests/unit/system-prompt-budget.test.ts` enforces a cap of 2,400 tokens static and 2,800 with five retrieved memories, counted with the `gpt-tokenizer` devDependency. It also lists the rules that must survive any trim.
+
+  Each rule appears once, in the persona, the governor or the digest. The second call of a tool round re-sends the same messages plus the tool call and its result, without the tool definitions. There is nothing duplicated to drop: the memories appear only once, inside the system prompt.
 - **`UserProfileLoader` (`src/alfred/cognitive/context/user-profile-loader.ts`)**: Returns the raw profile files, reading from disk with a per-file fallback to the embedded copy.
 - **`ContextBuilder` (`src/alfred/cognitive/context/context-builder.ts`)**: Assembles the same sections for `src/` callers. With the files unchanged and the same runtime, it produces exactly production's prompt. It also provides `buildChatMessages()`, which combines the system prompt, bounded recent history and the current message.
 - **`MemoryService` (`src/alfred/cognitive/memory/memory-service.ts`)**: Orchestrates the `src/` memory pipeline:

@@ -5,9 +5,9 @@ import { RetrievedMemory } from "../memory/types.js";
 import {
   buildConversationalGovernorBlock,
   formatRetrievedMemoriesBlock,
+  renderSystemPromptUserProfileBlock,
   type AlfredRuntime
 } from "../../../ai/prompts/alfred-system-prompt.js";
-import { renderUserProfileBlock } from "./user-profile-renderer.js";
 
 export interface ContextMessage {
   role: "user" | "assistant" | "system";
@@ -45,11 +45,12 @@ export interface BuildChatMessagesOptions extends ContextBuilderOptions {
 export class ContextBuilder {
   /**
    * Renders the canonical user profile (users/*.md) into its prompt block.
-   * Delegates to the pure renderUserProfileBlock(), the same renderer
-   * production uses on the build-time copy of the files.
+   * For the committed files this is the reviewed digest production sends
+   * (user-profile.digest.md); for any other sources the files are rendered
+   * verbatim (renderSystemPromptUserProfileBlock()).
    */
   public static formatUserProfileBlock(ctx: CanonicalUserContext): string {
-    return renderUserProfileBlock(ctx.sources);
+    return renderSystemPromptUserProfileBlock(ctx.sources);
   }
 
   /**

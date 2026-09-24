@@ -1,0 +1,40 @@
+{
+  "displayName": "Alfred: frequent chat provider fallbacks",
+  "documentation": {
+    "subject": "[Alfred] Sağlayıcı yedeğe sık geçiyor",
+    "mimeType": "text/markdown",
+    "content": "10 dakikada 3 veya daha fazla `llm_provider_fallback`. Yanıtlar muhtemelen hâlâ geliyor, ama birincil sağlayıcı (genelde Groq) sorunlu. Log: `jsonPayload.event=\"llm_provider_fallback\"` (`from`, `to`, `reason`, `http_status`, `error`).\n\nRunbook: docs/OPERATIONS.md (Uyarılar ve runbook)."
+  },
+  "userLabels": {
+    "managed_by": "alfred-setup-alerts",
+    "alfred_alert": "provider_fallbacks"
+  },
+  "severity": "WARNING",
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "Alfred: frequent chat provider fallbacks",
+      "conditionThreshold": {
+        "filter": "metric.type=\"logging.googleapis.com/user/alfred_provider_fallbacks\" AND resource.type=\"cloud_run_revision\"",
+        "aggregations": [
+          {
+            "alignmentPeriod": "600s",
+            "perSeriesAligner": "ALIGN_SUM",
+            "crossSeriesReducer": "REDUCE_SUM"
+          }
+        ],
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 2,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "evaluationMissingData": "EVALUATION_MISSING_DATA_INACTIVE"
+      }
+    }
+  ],
+  "alertStrategy": {
+    "autoClose": "1800s"
+  },
+  "enabled": true
+}

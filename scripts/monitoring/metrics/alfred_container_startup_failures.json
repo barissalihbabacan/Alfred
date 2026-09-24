@@ -1,0 +1,20 @@
+{
+  "description": "The api / alfredCallable container failed to start or crashed: Cloud Run system_event audit errors (Ready condition False, e.g. 'container failed to start and listen on the port'), failed startup probes and non-zero container exits.",
+  "filter": "resource.type=\"cloud_run_revision\"\nresource.labels.service_name=(\"api\" OR \"alfredcallable\")\n(\n  (logName:\"cloudaudit.googleapis.com%2Fsystem_event\" AND severity>=ERROR)\n  OR (logName:\"run.googleapis.com%2Fvarlog%2Fsystem\" AND severity>=ERROR)\n  OR textPayload:\"failed to start and listen on the port\"\n  OR (textPayload:\"Container called exit(\" AND NOT textPayload:\"Container called exit(0)\")\n)",
+  "metricDescriptor": {
+    "metricKind": "DELTA",
+    "valueType": "INT64",
+    "unit": "1",
+    "displayName": "alfred_container_startup_failures",
+    "labels": [
+      {
+        "key": "service",
+        "valueType": "STRING",
+        "description": "Cloud Run service (api | alfredcallable)"
+      }
+    ]
+  },
+  "labelExtractors": {
+    "service": "EXTRACT(resource.labels.service_name)"
+  }
+}

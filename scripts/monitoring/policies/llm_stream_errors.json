@@ -1,0 +1,40 @@
+{
+  "displayName": "Alfred: errors inside LLM response streams",
+  "documentation": {
+    "subject": "[Alfred] LLM akışında hata",
+    "mimeType": "text/markdown",
+    "content": "30 dakikada 3 veya daha fazla `llm_stream_error` (sağlayıcı SSE akışının içinde `{\"error\": ...}` döndü). Log: `jsonPayload.event=\"llm_stream_error\"` (`provider`, `model`, `code`, `detail`).\n\nRunbook: docs/OPERATIONS.md (Uyarılar ve runbook)."
+  },
+  "userLabels": {
+    "managed_by": "alfred-setup-alerts",
+    "alfred_alert": "llm_stream_errors"
+  },
+  "severity": "WARNING",
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "Alfred: errors inside LLM response streams",
+      "conditionThreshold": {
+        "filter": "metric.type=\"logging.googleapis.com/user/alfred_llm_stream_errors\" AND resource.type=\"cloud_run_revision\"",
+        "aggregations": [
+          {
+            "alignmentPeriod": "1800s",
+            "perSeriesAligner": "ALIGN_SUM",
+            "crossSeriesReducer": "REDUCE_SUM"
+          }
+        ],
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 2,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "evaluationMissingData": "EVALUATION_MISSING_DATA_INACTIVE"
+      }
+    }
+  ],
+  "alertStrategy": {
+    "autoClose": "1800s"
+  },
+  "enabled": true
+}

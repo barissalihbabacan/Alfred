@@ -1,0 +1,43 @@
+{
+  "displayName": "Alfred: function container failed to start",
+  "documentation": {
+    "subject": "[Alfred] Fonksiyon başlatılamadı / çöktü",
+    "mimeType": "text/markdown",
+    "content": "`api` ya da `alfredcallable` Cloud Run konteyneri başlatılamadı veya sıfırdan farklı kodla çıktı (system_event hatası, başlangıç probu hatası, `Container called exit(N)`).\n\nRunbook: docs/OPERATIONS.md (Uyarılar ve runbook)."
+  },
+  "userLabels": {
+    "managed_by": "alfred-setup-alerts",
+    "alfred_alert": "container_startup_failures"
+  },
+  "severity": "CRITICAL",
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "Alfred: function container failed to start",
+      "conditionThreshold": {
+        "filter": "metric.type=\"logging.googleapis.com/user/alfred_container_startup_failures\" AND resource.type=\"cloud_run_revision\"",
+        "aggregations": [
+          {
+            "alignmentPeriod": "300s",
+            "perSeriesAligner": "ALIGN_SUM",
+            "crossSeriesReducer": "REDUCE_SUM",
+            "groupByFields": [
+              "metric.label.service"
+            ]
+          }
+        ],
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "evaluationMissingData": "EVALUATION_MISSING_DATA_INACTIVE"
+      }
+    }
+  ],
+  "alertStrategy": {
+    "autoClose": "1800s"
+  },
+  "enabled": true
+}

@@ -1,0 +1,20 @@
+{
+  "description": "Background memory extraction runs that failed or timed out (memory_extraction outcome=failed|timeout). Never affects the chat reply, but no long-term memory is written for that turn.",
+  "filter": "resource.type=\"cloud_run_revision\"\njsonPayload.event=\"memory_extraction\"\njsonPayload.outcome=(\"failed\" OR \"timeout\")",
+  "metricDescriptor": {
+    "metricKind": "DELTA",
+    "valueType": "INT64",
+    "unit": "1",
+    "displayName": "alfred_memory_extraction_failures",
+    "labels": [
+      {
+        "key": "outcome",
+        "valueType": "STRING",
+        "description": "failed | timeout"
+      }
+    ]
+  },
+  "labelExtractors": {
+    "outcome": "EXTRACT(jsonPayload.outcome)"
+  }
+}

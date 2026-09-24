@@ -1,0 +1,40 @@
+{
+  "displayName": "Alfred: App Check rejecting requests",
+  "documentation": {
+    "subject": "[Alfred] App Check istekleri reddediyor",
+    "mimeType": "text/markdown",
+    "content": "10 dakikada 5 veya daha fazla eksik/geçersiz App Check jetonu (probe yolları `/`, `/api`, `/health` hariç). Gerçek kullanıcı 401 alıyor olabilir. Log: `jsonPayload.event=\"app_check\"` (`outcome`, `path`, `error`).\n\nRunbook: docs/OPERATIONS.md (Uyarılar ve runbook)."
+  },
+  "userLabels": {
+    "managed_by": "alfred-setup-alerts",
+    "alfred_alert": "app_check_rejections"
+  },
+  "severity": "ERROR",
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "Alfred: App Check rejecting requests",
+      "conditionThreshold": {
+        "filter": "metric.type=\"logging.googleapis.com/user/alfred_app_check_rejections\" AND resource.type=\"cloud_run_revision\"",
+        "aggregations": [
+          {
+            "alignmentPeriod": "600s",
+            "perSeriesAligner": "ALIGN_SUM",
+            "crossSeriesReducer": "REDUCE_SUM"
+          }
+        ],
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 4,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "evaluationMissingData": "EVALUATION_MISSING_DATA_INACTIVE"
+      }
+    }
+  ],
+  "alertStrategy": {
+    "autoClose": "1800s"
+  },
+  "enabled": true
+}

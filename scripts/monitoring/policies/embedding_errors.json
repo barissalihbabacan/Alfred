@@ -1,0 +1,40 @@
+{
+  "displayName": "Alfred: Gemini embedding errors",
+  "documentation": {
+    "subject": "[Alfred] Gemini embedding hataları",
+    "mimeType": "text/markdown",
+    "content": "30 dakikada 3 veya daha fazla `embedding_error`. Uzun süreli hafıza erişimi/yazımı embedding olmadan çalışıyor. Log: `jsonPayload.event=\"embedding_error\"` (`model`, `http_status`).\n\nRunbook: docs/OPERATIONS.md (Uyarılar ve runbook)."
+  },
+  "userLabels": {
+    "managed_by": "alfred-setup-alerts",
+    "alfred_alert": "embedding_errors"
+  },
+  "severity": "WARNING",
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "Alfred: Gemini embedding errors",
+      "conditionThreshold": {
+        "filter": "metric.type=\"logging.googleapis.com/user/alfred_embedding_errors\" AND resource.type=\"cloud_run_revision\"",
+        "aggregations": [
+          {
+            "alignmentPeriod": "1800s",
+            "perSeriesAligner": "ALIGN_SUM",
+            "crossSeriesReducer": "REDUCE_SUM"
+          }
+        ],
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 2,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "evaluationMissingData": "EVALUATION_MISSING_DATA_INACTIVE"
+      }
+    }
+  ],
+  "alertStrategy": {
+    "autoClose": "1800s"
+  },
+  "enabled": true
+}

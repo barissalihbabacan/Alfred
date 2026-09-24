@@ -1,0 +1,40 @@
+{
+  "displayName": "Alfred: rate-limit give-ups",
+  "documentation": {
+    "subject": "[Alfred] Hız sınırı: sunucu beklemeden vazgeçiyor",
+    "mimeType": "text/markdown",
+    "content": "30 dakikada 3 veya daha fazla 429'da sunucu beklemek yerine vazgeçti (`llm_rate_limited` `outcome` = `daily_limit` | `max_attempts` | `budget_exhausted`). Günlük kota (TPD) dolmuş olabilir. Log: `jsonPayload.event=\"llm_rate_limited\"` (`provider`, `limit_type`, `retry_after_ms`, `detail`).\n\nRunbook: docs/OPERATIONS.md (Uyarılar ve runbook)."
+  },
+  "userLabels": {
+    "managed_by": "alfred-setup-alerts",
+    "alfred_alert": "rate_limit_giveups"
+  },
+  "severity": "WARNING",
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "Alfred: rate-limit give-ups",
+      "conditionThreshold": {
+        "filter": "metric.type=\"logging.googleapis.com/user/alfred_rate_limit_giveups\" AND resource.type=\"cloud_run_revision\"",
+        "aggregations": [
+          {
+            "alignmentPeriod": "1800s",
+            "perSeriesAligner": "ALIGN_SUM",
+            "crossSeriesReducer": "REDUCE_SUM"
+          }
+        ],
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 2,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "evaluationMissingData": "EVALUATION_MISSING_DATA_INACTIVE"
+      }
+    }
+  ],
+  "alertStrategy": {
+    "autoClose": "1800s"
+  },
+  "enabled": true
+}

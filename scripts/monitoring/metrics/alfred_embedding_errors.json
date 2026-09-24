@@ -1,0 +1,20 @@
+{
+  "description": "Gemini embedding call failures (embedding_error). Production then falls back to Ollama, which the cloud function normally cannot reach, so memory retrieval or extraction for that turn usually runs without an embedding.",
+  "filter": "resource.type=\"cloud_run_revision\"\njsonPayload.event=\"embedding_error\"",
+  "metricDescriptor": {
+    "metricKind": "DELTA",
+    "valueType": "INT64",
+    "unit": "1",
+    "displayName": "alfred_embedding_errors",
+    "labels": [
+      {
+        "key": "http_status",
+        "valueType": "STRING",
+        "description": "HTTP status from Gemini, empty for network errors/timeouts"
+      }
+    ]
+  },
+  "labelExtractors": {
+    "http_status": "EXTRACT(jsonPayload.http_status)"
+  }
+}

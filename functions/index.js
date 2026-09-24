@@ -355,7 +355,9 @@ export const api = onRequest({
   res.set("Access-Control-Allow-Origin", "*");
   const path = req.path || req.url || "";
 
-  // App Check verification. appCheckStatus ("valid" | "invalid" | "missing")
+  // App Check verification. The "invalid" log carries path/exempt so the
+  // alfred_app_check_rejections alert metric can ignore probes of / and /health.
+  // appCheckStatus ("valid" | "invalid" | "missing")
   // is logged on every llm_request so enforcement can be switched on
   // (ENFORCE_APP_CHECK=true) only once the logs show real traffic is "valid".
   const appCheckToken = req.header("X-Firebase-AppCheck");
@@ -366,7 +368,7 @@ export const api = onRequest({
       appCheckStatus = "valid";
     } catch (err) {
       appCheckStatus = "invalid";
-      logger.warn("[AppCheck] Token verification failed.", { event: "app_check", outcome: "invalid", error: errMessage(err) });
+      logger.warn("[AppCheck] Token verification failed.", { event: "app_check", outcome: "invalid", path, exempt: isAppCheckExempt(path), error: errMessage(err) });
       if (ENFORCE_APP_CHECK && !isAppCheckExempt(path)) {
         res.status(401).json({ error: "Güvenlik doğrulaması (App Check) geçersiz. Sayfayı yenileyip tekrar deneyin.", code: "app_check_invalid" });
         return;

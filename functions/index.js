@@ -15,7 +15,7 @@ import {
 import {
   RATE_LIMIT_MAX_ATTEMPTS,
   RATE_LIMIT_TURN_BUDGET_MS,
-  parseRetryAfterSeconds,
+  parseRateLimitInfo,
   computeRateLimitWait,
   createRateLimitedError,
   isRateLimitedError,
@@ -244,8 +244,18 @@ async function extractAndPersistMemories({
         if (extractionResText) extractorProvider = "groq";
       } else {
         const errTxt = await gRes.text().catch(() => "");
+        // 429: arka plan gorevi beklemez (sohbet cevabi zaten gitti); limit
+        // turu ve gercek sure loglanir, Ollama'ya dusulur.
+        let rateLimitFields = {};
+        if (gRes.status === 429) {
+          let errBodyMessage = "";
+          try { errBodyMessage = JSON.parse(errTxt)?.error?.message || ""; } catch {}
+          const info = parseRateLimitInfo(gRes.headers.get("retry-after"), errBodyMessage);
+          rateLimitFields = { limit_type: info.limitType, retry_after_ms: info.retryAfterMs, decision: "give_up" };
+        }
         logger.warn(`[Memory] Groq extraction HTTP ${gRes.status}: ${errTxt}`, {
-          event: "memory_extraction_provider_error", provider: "groq", model: MEMORY_EXTRACTION_MODEL, http_status: gRes.status
+          event: "memory_extraction_provider_error", provider: "groq", model: MEMORY_EXTRACTION_MODEL, http_status: gRes.status,
+          ...rateLimitFields
         });
       }
     } catch (gErr) {
@@ -859,7 +869,7 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
           app_check: appCheckStatus,
           latency_ms: msSince(llmStart),
           ...(err ? { error: errMessage(err) } : {}),
-          ...(isRateLimitedError(err) ? { error_code: err.code, rate_limit_reason: err.reason } : {})
+          ...(isRateLimitedError(err) ? { error_code: err.code, rate_limit_reason: err.reason, rate_limit_type: err.limitType } : {})
         });
     };
 
@@ -920,20 +930,25 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
               const errText = await groqRes.text().catch(() => "");
               let errBodyMessage = "";
               try { errBodyMessage = JSON.parse(errText)?.error?.message || ""; } catch {}
-              const retryAfterSec = parseRetryAfterSeconds(groqRes.headers.get("retry-after"), errBodyMessage);
+              // Gercek bekleme suresi (kirpilmamis) ve limit turu (TPM/TPD/RPM/RPD).
+              const rateLimitInfo = parseRateLimitInfo(groqRes.headers.get("retry-after"), errBodyMessage);
               // Bekleme butcesi tur basinadir: arac turlari ve tekrar denemeler
-              // toplam RATE_LIMIT_TURN_BUDGET_MS'i asamaz.
+              // toplam RATE_LIMIT_TURN_BUDGET_MS'i asamaz. Sigmayan bekleme veya
+              // gunluk limit: hic uyumadan vazgecilir.
               const decision = computeRateLimitWait({
-                retryAfterSec,
+                info: rateLimitInfo,
                 attempt: attempts,
                 spentMs: llmMetrics.rate_limit_wait_ms
               });
               logger.warn(decision.retry
-                ? `[Groq] Rate limit (429) hit, waiting ${decision.waitMs}ms before retry ${attempts}...`
-                : `[Groq] Rate limit (429) hit, giving up (${decision.reason}) after ${llmMetrics.rate_limit_wait_ms}ms of waiting`, {
+                ? `[Groq] Rate limit (429, ${rateLimitInfo.limitType}) hit, waiting ${decision.waitMs}ms before retry ${attempts}...`
+                : `[Groq] Rate limit (429, ${rateLimitInfo.limitType}) hit, giving up (${decision.reason}) after ${llmMetrics.rate_limit_wait_ms}ms of waiting`, {
                 event: "llm_rate_limited",
                 provider: "groq",
                 model: groqModel,
+                limit_type: rateLimitInfo.limitType,
+                retry_after_ms: rateLimitInfo.retryAfterMs,
+                decision: decision.decision,
                 wait_ms: decision.waitMs,
                 attempt: attempts,
                 round: toolTurn,
@@ -943,7 +958,7 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
                 detail: errBodyMessage.slice(0, 300)
               });
               if (!decision.retry) {
-                throw createRateLimitedError(errBodyMessage || errText, decision.reason, decision.waitMs);
+                throw createRateLimitedError(errBodyMessage || errText, decision.reason, rateLimitInfo);
               }
               llmMetrics.rate_limit_retries++;
               llmMetrics.rate_limit_wait_ms += decision.waitMs;

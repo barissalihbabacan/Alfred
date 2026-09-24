@@ -28,12 +28,16 @@ export class ApiError extends Error {
  */
 export class ChatStreamError extends Error {
   readonly code?: string;
+  /** Groq'un istedigi gercek bekleme (biliniyorsa). */
   readonly retryAfterMs?: number;
-  constructor(message: string, code?: string, retryAfterMs?: number) {
+  /** Hangi limit: tpm | tpd | rpm | rpd | unknown (yalnizca `rate_limited`). */
+  readonly limitType?: string;
+  constructor(message: string, code?: string, retryAfterMs?: number, limitType?: string) {
     super(message);
     this.name = "ChatStreamError";
     this.code = code;
     this.retryAfterMs = retryAfterMs;
+    this.limitType = limitType;
   }
 }
 

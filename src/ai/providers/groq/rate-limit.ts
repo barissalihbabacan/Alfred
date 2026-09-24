@@ -4,71 +4,123 @@
  * Pure and dependency-free: bundled into functions/index.js (see CLAUDE.md
  * "Functions bundle"), so nothing here may import config, dotenv or I/O.
  *
- * Groq's free plan caps `openai/gpt-oss-120b` at 8,000 tokens per minute, and a
- * single chat turn can make several model calls (tool rounds). Each 429 says how
- * long to wait (`retry-after` header, or "try again in 12.3s" in the body).
- * Waiting that long up to 3 times per call, across rounds, once left a turn
- * spinning for 46 s before it failed with the raw provider JSON. These helpers
- * bound the total wait per turn and give the user a short message instead.
+ * Groq's free plan caps `openai/gpt-oss-120b` at 8,000 tokens per minute and
+ * 200,000 tokens per day, and a single chat turn can make several model calls
+ * (tool rounds). Each 429 says which limit was hit ("... on tokens per day
+ * (TPD) ...") and how long to wait (`retry-after` header, or "try again in
+ * 3m19.152s" in the body).
+ *
+ * The flow is: {@link parseRateLimitInfo} reads the real (unclamped) wait and
+ * the limit type, {@link computeRateLimitWait} decides *before* sleeping
+ * whether that wait fits the turn's budget, and {@link toChatErrorEvent} turns
+ * a give-up into a short Turkish message naming the right limit and the real
+ * time. Only the parsing of the 429 body is Groq-specific; the decision and
+ * the message take a provider-neutral {@link RateLimitInfo}, so another
+ * provider can reuse them.
  */
 
 /** Model calls are retried at most this many times in total (first try included). */
 export const RATE_LIMIT_MAX_ATTEMPTS = 3;
 /** Shortest wait before a retry, even if Groq asks for less. */
 export const RATE_LIMIT_MIN_WAIT_MS = 2_500;
-/** Longest single wait before a retry. */
-export const RATE_LIMIT_MAX_WAIT_MS = 15_000;
-/** Total time one chat turn may spend waiting on 429s, across all calls and tool rounds. */
+/**
+ * Total time one chat turn may spend waiting on 429s, across all calls and
+ * tool rounds. A wait that does not fit in what is left is not taken at all.
+ */
 export const RATE_LIMIT_TURN_BUDGET_MS = 25_000;
 /** Assumed wait when Groq gives no hint at all. */
-export const RATE_LIMIT_DEFAULT_WAIT_SEC = 5;
-/** Safety margin added to the body's "try again in Xs" hint (it is rounded down). */
-export const RATE_LIMIT_BODY_HINT_MARGIN_SEC = 0.6;
+export const RATE_LIMIT_DEFAULT_WAIT_MS = 5_000;
+/** Safety margin added to the body's "try again in Xs" hint before sleeping (it is rounded down). */
+export const RATE_LIMIT_BODY_HINT_MARGIN_MS = 600;
 
 /** `code` carried by the SSE `error` event (and the thrown error) for rate-limit failures. */
 export const RATE_LIMITED_ERROR_CODE = "rate_limited" as const;
 
 /**
- * Parses a Groq duration such as `12.3s`, `450ms`, `1m2.5s` or `2m` into seconds.
- * Returns null for anything else.
+ * Which limit a 429 was for: tokens per minute / day, requests per minute / day.
+ * `unknown` when the body names none of them (or another one, e.g. audio seconds).
  */
-export function parseGroqDurationSeconds(text: string): number | null {
-  const match = /^\s*(?:(\d+(?:\.\d+)?)m(?!s))?\s*(?:(\d+(?:\.\d+)?)(ms|s))?\s*$/i.exec(text);
-  if (!match || (match[1] === undefined && match[2] === undefined)) return null;
-  const minutes = match[1] !== undefined ? Number(match[1]) : 0;
-  let seconds = 0;
-  if (match[2] !== undefined) {
-    seconds = Number(match[2]);
-    if (match[3].toLowerCase() === "ms") seconds /= 1000;
-  }
-  const total = minutes * 60 + seconds;
-  return Number.isFinite(total) ? total : null;
+export type RateLimitType = "tpm" | "tpd" | "rpm" | "rpd" | "unknown";
+
+/** What a 429 told us, provider-neutral. */
+export interface RateLimitInfo {
+  limitType: RateLimitType;
+  /** The real wait the provider asked for, unclamped; null when it gave no usable hint. */
+  retryAfterMs: number | null;
+  /** Where `retryAfterMs` came from. */
+  retryAfterSource: "header" | "message" | "none";
 }
 
 /**
- * How long Groq asked us to wait, in seconds.
- *
- * 1. A positive numeric `retry-after` header wins (as before).
- * 2. Otherwise the error body's "try again in <duration>" hint, plus a small margin.
- * 3. Otherwise {@link RATE_LIMIT_DEFAULT_WAIT_SEC}.
+ * Parses a Groq duration such as `12.3s`, `450ms`, `1m2.5s`, `3m19.152s`, `2m`
+ * or `2h5m` into seconds. Units must appear in h, m, s/ms order.
+ * Returns null for anything else.
  */
-export function parseRetryAfterSeconds(
-  retryAfterHeader: string | null | undefined,
-  errorBodyMessage: string | null | undefined
-): number {
-  const header = retryAfterHeader ? parseFloat(retryAfterHeader) : NaN;
-  if (Number.isFinite(header) && header > 0) return header;
-
-  const hint = /try again in\s+((?:\d+(?:\.\d+)?m(?!s))?\s*(?:\d+(?:\.\d+)?(?:ms|s))?)/i.exec(errorBodyMessage || "");
-  const hinted = hint && hint[1].trim() ? parseGroqDurationSeconds(hint[1]) : null;
-  if (hinted !== null && hinted > 0) return hinted + RATE_LIMIT_BODY_HINT_MARGIN_SEC;
-
-  return RATE_LIMIT_DEFAULT_WAIT_SEC;
+export function parseGroqDurationSeconds(text: string): number | null {
+  const match = /^\s*(?:(\d+(?:\.\d+)?)h)?(?:(\d+(?:\.\d+)?)m(?!s))?(?:(\d+(?:\.\d+)?)(ms|s))?\s*$/i.exec(text);
+  if (!match || (match[1] === undefined && match[2] === undefined && match[3] === undefined)) return null;
+  const hours = match[1] !== undefined ? Number(match[1]) : 0;
+  const minutes = match[2] !== undefined ? Number(match[2]) : 0;
+  let seconds = 0;
+  if (match[3] !== undefined) {
+    seconds = Number(match[3]);
+    if (match[4].toLowerCase() === "ms") seconds /= 1000;
+  }
+  const total = hours * 3600 + minutes * 60 + seconds;
+  return Number.isFinite(total) ? total : null;
 }
 
+/** Classifies the limit a 429 body names, e.g. "on tokens per day (TPD)". */
+export function classifyRateLimit(errorBodyMessage: string | null | undefined): RateLimitType {
+  const text = String(errorBodyMessage || "");
+  const code = /\((TPM|TPD|RPM|RPD)\)/i.exec(text);
+  if (code) return code[1].toLowerCase() as RateLimitType;
+  const phrase = /\b(tokens|requests)\s+per\s+(minute|day)\b/i.exec(text);
+  if (phrase) {
+    const kind = phrase[1].toLowerCase() === "tokens" ? "t" : "r";
+    const period = phrase[2].toLowerCase() === "minute" ? "m" : "d";
+    return `${kind}p${period}` as RateLimitType;
+  }
+  return "unknown";
+}
+
+/**
+ * Reads the limit type and the real wait from a 429.
+ *
+ * The wait is, in order: a positive numeric `retry-after` header (seconds), else
+ * the body's "try again in <duration>" hint, else null. It is never clamped.
+ */
+export function parseRateLimitInfo(
+  retryAfterHeader: string | null | undefined,
+  errorBodyMessage: string | null | undefined
+): RateLimitInfo {
+  const limitType = classifyRateLimit(errorBodyMessage);
+
+  const headerText = typeof retryAfterHeader === "string" ? retryAfterHeader.trim() : "";
+  const header = /^\d+(?:\.\d+)?$/.test(headerText) ? Number(headerText) : NaN;
+  if (Number.isFinite(header) && header > 0) {
+    return { limitType, retryAfterMs: Math.round(header * 1000), retryAfterSource: "header" };
+  }
+
+  const hint = /try again in\s+((?:\d+(?:\.\d+)?(?:h|ms|m|s))+)/i.exec(errorBodyMessage || "");
+  const hinted = hint ? parseGroqDurationSeconds(hint[1]) : null;
+  if (hinted !== null && hinted > 0) {
+    return { limitType, retryAfterMs: Math.round(hinted * 1000), retryAfterSource: "message" };
+  }
+
+  return { limitType, retryAfterMs: null, retryAfterSource: "none" };
+}
+
+/** True for limits that reset daily: never worth waiting for inside a chat turn. */
+export function isDailyRateLimit(limitType: RateLimitType): boolean {
+  return limitType === "tpd" || limitType === "rpd";
+}
+
+export type RateLimitGiveUpReason = "daily_limit" | "max_attempts" | "budget_exhausted";
+
 export interface RateLimitWaitInput {
-  /** Wait Groq asked for, in seconds (see {@link parseRetryAfterSeconds}). */
-  retryAfterSec: number;
+  /** What the 429 said (see {@link parseRateLimitInfo}). */
+  info: RateLimitInfo;
   /** 1-based attempt number of the model call that just got the 429. */
   attempt: number;
   /** Milliseconds this turn has already spent waiting on 429s. */
@@ -76,52 +128,83 @@ export interface RateLimitWaitInput {
   maxAttempts?: number;
   budgetMs?: number;
   minWaitMs?: number;
-  maxWaitMs?: number;
 }
 
 export type RateLimitWaitDecision =
-  | { retry: true; waitMs: number }
-  | { retry: false; reason: "max_attempts" | "budget_exhausted"; waitMs: number };
+  | { retry: true; decision: "wait"; waitMs: number }
+  | { retry: false; decision: "give_up"; reason: RateLimitGiveUpReason; waitMs: 0 };
 
 /**
- * Decides whether to retry after a 429 and how long to wait first.
+ * Decides, before sleeping, whether to retry after a 429 and how long to wait.
  *
- * The wait is the requested time clamped to [minWaitMs, maxWaitMs]. The call is
- * given up (no wait at all) when it has used its attempts, or when that wait
- * would take the turn past its budget: waiting less than Groq asked for would
- * only earn another 429, so it is better to fail fast with a clear message.
- * `waitMs` on a give-up is the wait that was not taken (a hint for the user).
+ * Gives up at once (no sleep) on a daily limit, after the last attempt, or when
+ * the real wait (plus a small margin for a body hint, at least `minWaitMs`)
+ * does not fit in what is left of the turn's budget: waiting less than the
+ * provider asked for would only earn another 429. Otherwise waits exactly that.
  */
 export function computeRateLimitWait(input: RateLimitWaitInput): RateLimitWaitDecision {
   const {
-    retryAfterSec,
+    info,
     attempt,
     spentMs,
     maxAttempts = RATE_LIMIT_MAX_ATTEMPTS,
     budgetMs = RATE_LIMIT_TURN_BUDGET_MS,
-    minWaitMs = RATE_LIMIT_MIN_WAIT_MS,
-    maxWaitMs = RATE_LIMIT_MAX_WAIT_MS
+    minWaitMs = RATE_LIMIT_MIN_WAIT_MS
   } = input;
+  const giveUp = (reason: RateLimitGiveUpReason): RateLimitWaitDecision => ({
+    retry: false,
+    decision: "give_up",
+    reason,
+    waitMs: 0
+  });
 
-  const requestedMs = Number.isFinite(retryAfterSec) && retryAfterSec > 0 ? retryAfterSec * 1000 : minWaitMs;
-  const waitMs = Math.round(Math.min(Math.max(requestedMs, minWaitMs), maxWaitMs));
+  if (isDailyRateLimit(info.limitType)) return giveUp("daily_limit");
+  if (attempt >= maxAttempts) return giveUp("max_attempts");
 
-  if (attempt >= maxAttempts) return { retry: false, reason: "max_attempts", waitMs };
+  const real = info.retryAfterMs;
+  const requestedMs =
+    typeof real === "number" && Number.isFinite(real) && real > 0
+      ? real + (info.retryAfterSource === "message" ? RATE_LIMIT_BODY_HINT_MARGIN_MS : 0)
+      : RATE_LIMIT_DEFAULT_WAIT_MS;
+  const waitMs = Math.round(Math.max(requestedMs, minWaitMs));
+
   const spent = Number.isFinite(spentMs) && spentMs > 0 ? spentMs : 0;
-  if (spent + waitMs > budgetMs) return { retry: false, reason: "budget_exhausted", waitMs };
-  return { retry: true, waitMs };
+  if (spent + waitMs > budgetMs) return giveUp("budget_exhausted");
+  return { retry: true, decision: "wait", waitMs };
 }
 
 /**
- * The short, user-facing message for a turn that failed on Groq's rate limit.
- * `retryAfterMs` (optional) adds a rough "try again in ~N s" hint.
+ * A wait in Turkish, rounded for a person: "~12 sn" under a minute, then
+ * "yaklaşık 3 dakika", "yaklaşık 2 saat 5 dakika".
+ */
+export function formatTurkishDuration(ms: number): string {
+  const seconds = Math.max(1, Math.ceil(ms / 1000));
+  if (seconds < 60) return `~${seconds} sn`;
+  const totalMinutes = Math.max(1, Math.round(ms / 60_000));
+  if (totalMinutes < 60) return `yaklaşık ${totalMinutes} dakika`;
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes > 0 ? `yaklaşık ${hours} saat ${minutes} dakika` : `yaklaşık ${hours} saat`;
+}
+
+const LIMIT_LABELS: Record<Exclude<RateLimitType, "unknown">, string> = {
+  tpm: "dakikalık token limiti",
+  tpd: "günlük token limiti",
+  rpm: "dakikalık istek limiti",
+  rpd: "günlük istek limiti"
+};
+
+/**
+ * The short, user-facing message for a turn that failed on Groq's rate limit:
+ * which limit, and roughly when to try again (when known).
  * Never contains provider output: the raw 429 body goes to the logs only.
  */
-export function rateLimitUserMessage(retryAfterMs?: number | null): string {
-  const base = "Groq kullanım sınırına ulaşıldı (dakikalık token limiti).";
+export function rateLimitUserMessage(limitType: RateLimitType = "unknown", retryAfterMs?: number | null): string {
+  const base = limitType !== "unknown" && LIMIT_LABELS[limitType]
+    ? `Groq'un ${LIMIT_LABELS[limitType]} doldu.`
+    : "Groq kullanım sınırına ulaşıldı.";
   if (typeof retryAfterMs === "number" && Number.isFinite(retryAfterMs) && retryAfterMs > 0) {
-    const seconds = Math.max(1, Math.ceil(retryAfterMs / 1000));
-    return `${base} Lütfen ~${seconds} sn sonra tekrar deneyin.`;
+    return `${base} Lütfen ${formatTurkishDuration(retryAfterMs)} sonra tekrar deneyin.`;
   }
   return `${base} Lütfen biraz sonra tekrar deneyin.`;
 }
@@ -131,9 +214,11 @@ export interface RateLimitedError extends Error {
   code: typeof RATE_LIMITED_ERROR_CODE;
   status: 429;
   /** Why the retries stopped. */
-  reason: "max_attempts" | "budget_exhausted";
-  /** Roughly how long until Groq accepts requests again. */
-  retryAfterMs: number;
+  reason: RateLimitGiveUpReason;
+  /** Which limit was hit. */
+  limitType: RateLimitType;
+  /** The real time until the provider accepts requests again; null if unknown. */
+  retryAfterMs: number | null;
 }
 
 /**
@@ -143,15 +228,17 @@ export interface RateLimitedError extends Error {
  */
 export function createRateLimitedError(
   detail: string,
-  reason: RateLimitedError["reason"],
-  retryAfterMs: number
+  reason: RateLimitGiveUpReason,
+  info: Pick<RateLimitInfo, "limitType" | "retryAfterMs">
 ): RateLimitedError {
   const trimmed = String(detail || "").slice(0, 500);
+  const real = info.retryAfterMs;
   return Object.assign(new Error(`Groq API error (429): ${trimmed}`), {
     code: RATE_LIMITED_ERROR_CODE,
     status: 429 as const,
     reason,
-    retryAfterMs: Math.max(0, Math.round(retryAfterMs))
+    limitType: info.limitType,
+    retryAfterMs: typeof real === "number" && Number.isFinite(real) && real > 0 ? Math.round(real) : null
   });
 }
 
@@ -160,21 +247,31 @@ export function isRateLimitedError(err: unknown): err is RateLimitedError {
 }
 
 export type ChatErrorEvent =
-  | { type: "error"; error: string; code: typeof RATE_LIMITED_ERROR_CODE; retryAfterMs: number }
+  | {
+      type: "error";
+      error: string;
+      code: typeof RATE_LIMITED_ERROR_CODE;
+      limitType: RateLimitType;
+      /** Present only when the real wait is known. */
+      retryAfterMs?: number;
+    }
   | { type: "error"; error: string };
 
 /**
  * The SSE `error` event for a failed chat turn. Rate-limit failures get the
- * friendly message plus `code: "rate_limited"` and `retryAfterMs`; every other
- * error keeps its previous shape (`err.message`, or the fallback).
+ * friendly message plus `code: "rate_limited"`, `limitType` and the real
+ * `retryAfterMs` (when known); every other error keeps its previous shape
+ * (`err.message`, or the fallback).
  */
 export function toChatErrorEvent(err: unknown, fallback = "LLM provider temporarily unavailable."): ChatErrorEvent {
   if (isRateLimitedError(err)) {
+    const limitType = err.limitType || "unknown";
     return {
       type: "error",
-      error: rateLimitUserMessage(err.retryAfterMs),
+      error: rateLimitUserMessage(limitType, err.retryAfterMs),
       code: RATE_LIMITED_ERROR_CODE,
-      retryAfterMs: err.retryAfterMs
+      limitType,
+      ...(typeof err.retryAfterMs === "number" ? { retryAfterMs: err.retryAfterMs } : {})
     };
   }
   const message = typeof err === "object" && err !== null ? (err as { message?: unknown }).message : undefined;

@@ -569,7 +569,8 @@ export default function VoiceChatPlayground() {
             updateAssistant({ rateLimitUntil: undefined });
             break;
           case "rate_limited":
-            // Sunucu `waitMs` bekleyip yeniden deneyecek; bekleme bitince "thinking" gelir.
+            // Sunucu gercekten `waitMs` bekleyip yeniden deneyecek (sigmayan beklemede
+            // bu olay gelmez, dogrudan `error` gelir); bekleme bitince "thinking" gelir.
             setState("Thinking");
             updateAssistant({ rateLimitUntil: Date.now() + normalizeRateLimitWaitMs(event.waitMs) });
             break;
@@ -590,7 +591,8 @@ export default function VoiceChatPlayground() {
             throw new ChatStreamError(
               event.error || "Akış sırasında bir hata oluştu.",
               event.code,
-              event.retryAfterMs
+              event.retryAfterMs,
+              event.limitType
             );
           default:
             // Bilinmeyen olaylar (sse.ts zaten eler) yok sayilir.

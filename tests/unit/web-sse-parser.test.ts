@@ -61,8 +61,9 @@ describe("Web SSE parser (functions /chat stream)", () => {
         frame({ type: "thinking" }) +
         frame({
           type: "error",
-          error: "Groq kullanım sınırına ulaşıldı (dakikalık token limiti). Lütfen ~15 sn sonra tekrar deneyin.",
+          error: "Groq'un dakikalık token limiti doldu. Lütfen ~15 sn sonra tekrar deneyin.",
           code: "rate_limited",
+          limitType: "tpm",
           retryAfterMs: 15000
         })
     );
@@ -72,11 +73,24 @@ describe("Web SSE parser (functions /chat stream)", () => {
       { type: "thinking" },
       {
         type: "error",
-        error: "Groq kullanım sınırına ulaşıldı (dakikalık token limiti). Lütfen ~15 sn sonra tekrar deneyin.",
+        error: "Groq'un dakikalık token limiti doldu. Lütfen ~15 sn sonra tekrar deneyin.",
         code: "rate_limited",
+        limitType: "tpm",
         retryAfterMs: 15000
       }
     ]);
+  });
+
+  it("parses a daily-limit give-up that comes without any rate_limited wait", () => {
+    const parser = createSseParser();
+    const error = {
+      type: "error",
+      error: "Groq'un günlük token limiti doldu. Lütfen yaklaşık 3 dakika sonra tekrar deneyin.",
+      code: "rate_limited",
+      limitType: "tpd",
+      retryAfterMs: 199152
+    };
+    expect(parser.push(frame({ type: "thinking" }) + frame(error))).toEqual([{ type: "thinking" }, error]);
   });
 
   it("still ignores unknown event types between known ones", () => {

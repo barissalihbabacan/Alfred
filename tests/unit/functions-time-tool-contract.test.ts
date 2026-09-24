@@ -184,13 +184,19 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("get_current_time tool definition (production contract)", () => {
-  it("is identical to the definition production carried inline", () => {
-    expect(GET_CURRENT_TIME_TOOL_DEFINITION).toEqual(LEGACY_TIME_TOOL_DEFINITION);
-    expect(JSON.stringify(GET_CURRENT_TIME_TOOL_DEFINITION)).toBe(JSON.stringify(LEGACY_TIME_TOOL_DEFINITION));
+  // Sep 2026: the tool takes every city in one call (`cities`), because the
+  // model asked one city per round and ran out of rounds. The legacy `city`
+  // property is kept verbatim so old-style calls still work.
+  it("asks for all cities in one call and keeps the legacy city property", () => {
+    const params = GET_CURRENT_TIME_TOOL_DEFINITION.function.parameters;
+    expect(GET_CURRENT_TIME_TOOL_DEFINITION.function.name).toBe(LEGACY_TIME_TOOL_DEFINITION.function.name);
+    expect(params.required).toEqual(["cities"]);
+    expect(params.properties.cities).toMatchObject({ type: "array", items: { type: "string" }, minItems: 1 });
+    expect(params.properties.city.type).toBe(LEGACY_TIME_TOOL_DEFINITION.function.parameters.properties.city.type);
   });
 
   it("is what GetCurrentTimeTool advertises in src/", () => {
-    expect(JSON.stringify(new GetCurrentTimeTool().getDefinition())).toBe(JSON.stringify(LEGACY_TIME_TOOL_DEFINITION));
+    expect(JSON.stringify(new GetCurrentTimeTool().getDefinition())).toBe(JSON.stringify(GET_CURRENT_TIME_TOOL_DEFINITION));
   });
 
   it("keeps every entry of production's original alias table unchanged", () => {
@@ -325,10 +331,10 @@ describe("functions/index.js uses the shared time tool", () => {
   const source = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
 
   it("imports it instead of carrying a copy", () => {
-    expect(source).toMatch(/GET_CURRENT_TIME_TOOL_DEFINITION as TIME_TOOL_DEFINITION,\s*getCurrentTimeForCity\s*\} from "\.\.\/src\/ai\/tools\/time\/current-time\.js"/);
+    expect(source).toMatch(/GET_CURRENT_TIME_TOOL_DEFINITION as TIME_TOOL_DEFINITION,\s*runGetCurrentTimeTool\s*\} from "\.\.\/src\/ai\/tools\/time\/current-time\.js"/);
     expect(source).not.toMatch(/function\s+(resolveTimezone|getCurrentTimeForCity)\s*\(/);
     expect(source).not.toContain("CITY_TIMEZONE_ALIASES");
     expect(source).not.toMatch(/const\s+TIME_TOOL_DEFINITION\s*=/);
-    expect(source).toContain("toolResult = getCurrentTimeForCity(fnArgs?.city);");
+    expect(source).toContain("toolResult = runGetCurrentTimeTool(fnArgs);");
   });
 });

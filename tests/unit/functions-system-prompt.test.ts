@@ -186,7 +186,7 @@ describe("3. capability line matches what production runs", () => {
   });
 
   it("the tool list is exactly the tools functions/index.js offers the model (get_current_time only)", () => {
-    const active = /let activeTools = \[([^\]]*)\]/.exec(functionsSource)?.[1] ?? "";
+    const active = /(?:let|const) activeTools = \[([^\]]*)\]/.exec(functionsSource)?.[1] ?? "";
     expect(active.split(",").map((s) => s.trim()).filter(Boolean)).toEqual(["TIME_TOOL_DEFINITION"]);
     expect(functionsSource).not.toContain("ssh-tool-definitions.js");
     expect(ALFRED_PERSONA_PROMPT).toContain("and deterministic tool calling (get_current_time).");

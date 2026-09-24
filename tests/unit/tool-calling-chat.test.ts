@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { AIProvider, ChatMessage, ChatCompletionOptions, ChatCompletionResponse, ChatStreamChunk, ToolCall } from "../../src/ai/providers/types.js";
-import type { GetCurrentTimeResult } from "../../src/ai/tools/time/get-current-time.tool.js";
+import type { CurrentTimeResult } from "../../src/ai/tools/time/current-time.js";
 import { getToolRegistry } from "../../src/alfred/control-plane/tool-router/tool-registry.js";
 import { getToolRouter } from "../../src/alfred/control-plane/tool-router/tool-router.js";
 
@@ -143,7 +143,7 @@ describe("Tool Calling End-to-End Orchestration Suite", () => {
       const toolResult = await toolRouter.execute(toolCall, { userId: "baris" });
 
       expect(toolResult.success).toBe(true);
-      expect((toolResult.data as GetCurrentTimeResult).city).toBe("London");
+      expect((toolResult.data as CurrentTimeResult).city).toBe("London");
 
       // Step 3: Append assistant message & tool result message
       messages.push({

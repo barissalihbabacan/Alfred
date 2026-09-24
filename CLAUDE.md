@@ -88,7 +88,7 @@ SSH is the only real capability so far. `src/alfred/execution-plane/ssh/` holds 
 
 Key distinctions to preserve when editing memory code:
 - Conversation history (verbatim) ≠ long-term memory (durable facts/preferences only — chit-chat is discarded).
-- Memory extraction runs on an isolated classification prompt (`src/ai/prompts/memory-extraction.ts`), completely separate from Alfred's conversational persona; assistant text is never attributed to the user.
+- Memory extraction runs on an isolated classification prompt (`src/ai/prompts/memory-extraction.ts`), completely separate from Alfred's conversational persona; assistant text is never attributed to the user. In production it runs on its own Groq model, `MEMORY_EXTRACTION_MODEL` (default `openai/gpt-oss-20b`), not the chat model: Groq free-plan limits are per model (gpt-oss-120b: 8,000 tokens/min), so sharing the chat model made every turn spend the chat budget twice.
 - `PrivacyFilter` (`src/alfred/cognitive/memory/privacy-filter.ts`) rejects candidate memories containing secrets (API keys, passwords, tokens) before persistence.
 - Failure boundaries are intentionally non-cascading: embedding failure → no Firestore record; Firestore failure → no vector created; vector indexing failure → Firestore record kept with `indexStatus: "failed"` (re-indexable); extraction failure never affects the live chat response (it runs as a non-blocking background task).
 

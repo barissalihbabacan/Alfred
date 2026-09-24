@@ -7,10 +7,13 @@
  *   chunk        { text }            -- `<think>` izleri icerebilir, gosterimde temizlenir
  *   tool_call    { tool, arguments } veya { toolCalls: [{ id, name, arguments }] }
  *   tool_result  { tool, toolCallId, result }
- *   rate_limited { provider, waitMs, attempt } -- Groq 429: sunucu `waitMs` bekleyip yeniden deneyecek;
+ *   rate_limited { provider, waitMs, attempt } -- Groq 429: sunucu gercekten `waitMs` bekleyip yeniden
+ *                                    deneyecek (yalnizca bekleme sure butcesine sigiyorsa gonderilir);
  *                                    bekleme bitince `thinking` gelir
  *   done         {}                  -- yanit bitti; sunucu bellek kaydi icin baglantiyi bir sure acik tutabilir
- *   error        { error, code?, retryAfterMs? } -- `code: "rate_limited"`: Groq sinirinda vazgecildi;
+ *   error        { error, code?, retryAfterMs?, limitType? } -- `code: "rate_limited"`: Groq sinirinda
+ *                                    vazgecildi; `limitType` = tpm | tpd | rpm | rpd | unknown,
+ *                                    `retryAfterMs` Groq'un istedigi gercek sure (biliniyorsa);
  *                                    `error` kullaniciya gosterilecek kisa mesajdir
  *
  * Bilinmeyen `type` degerleri yok sayilir (sunucu yeni olay ekleyebilir).
@@ -23,7 +26,7 @@ export type ChatStreamEvent =
   | { type: "tool_result"; tool?: string; toolCallId?: string; result?: unknown }
   | { type: "rate_limited"; provider?: string; waitMs?: number; attempt?: number }
   | { type: "done" }
-  | { type: "error"; error?: string; code?: string; retryAfterMs?: number };
+  | { type: "error"; error?: string; code?: string; retryAfterMs?: number; limitType?: string };
 
 const KNOWN_TYPES = new Set([
   "start",

@@ -34,5 +34,17 @@ describe("ChatStreamError (apps/web/lib/api.ts)", () => {
     expect(err.code).toBe("rate_limited");
     expect(err.retryAfterMs).toBe(15_000);
     expect(new ChatStreamError("x").code).toBeUndefined();
+    expect(err.limitType).toBeUndefined();
+  });
+
+  it("carries the limit type of a daily-limit give-up", () => {
+    const err = new ChatStreamError(
+      "Groq'un günlük token limiti doldu. Lütfen yaklaşık 3 dakika sonra tekrar deneyin.",
+      "rate_limited",
+      199_152,
+      "tpd"
+    );
+    expect(err.retryAfterMs).toBe(199_152);
+    expect(err.limitType).toBe("tpd");
   });
 });

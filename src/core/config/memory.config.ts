@@ -1,5 +1,9 @@
 import dotenv from "dotenv";
 import { DEFAULT_OLLAMA_BASE_URL } from "./ai.config.js";
+import {
+  DEFAULT_EXTRACTION_MAX_MESSAGES as SHARED_EXTRACTION_MAX_MESSAGES,
+  MEMORY_EXTRACTION_BUDGET_MS
+} from "../../alfred/cognitive/memory/extractor/extraction-pipeline.js";
 
 dotenv.config();
 
@@ -27,7 +31,10 @@ export interface MemoryExtractionConfig {
   enabled: boolean;
   minConfidence: number;
   maxContextMessages: number;
+  /** Groq extraction model (MEMORY_EXTRACTION_MODEL); unset = openai/gpt-oss-20b, as in production. */
   model?: string;
+  /** Gemini fallback model (GEMINI_EXTRACTION_MODEL); unset = production's default. */
+  geminiModel?: string;
   timeoutMs: number;
 }
 
@@ -48,8 +55,10 @@ export const DEFAULT_RETRIEVAL_TIMEOUT_MS = 3000;
 
 export const DEFAULT_EXTRACTION_ENABLED = true;
 export const DEFAULT_EXTRACTION_MIN_CONFIDENCE = 0.7;
-export const DEFAULT_EXTRACTION_MAX_MESSAGES = 6;
-export const DEFAULT_EXTRACTION_TIMEOUT_MS = 15000;
+/** Production's bound (the 10 messages it loads for the chat call). */
+export const DEFAULT_EXTRACTION_MAX_MESSAGES = SHARED_EXTRACTION_MAX_MESSAGES;
+/** Production's extraction budget. */
+export const DEFAULT_EXTRACTION_TIMEOUT_MS = MEMORY_EXTRACTION_BUDGET_MS;
 
 export function getMemoryConfig(): MemorySystemConfig {
   const provider = (process.env.EMBEDDING_PROVIDER || DEFAULT_EMBEDDING_PROVIDER).trim().toLowerCase();
@@ -82,6 +91,7 @@ export function getMemoryConfig(): MemorySystemConfig {
   const maxContextMessages = Number.isFinite(rawMaxContext) && rawMaxContext > 0 ? rawMaxContext : DEFAULT_EXTRACTION_MAX_MESSAGES;
 
   const extractionModel = process.env.MEMORY_EXTRACTION_MODEL?.trim() || undefined;
+  const geminiExtractionModel = process.env.GEMINI_EXTRACTION_MODEL?.trim() || undefined;
 
   const rawExtTimeout = process.env.MEMORY_EXTRACTION_TIMEOUT_MS ? parseInt(process.env.MEMORY_EXTRACTION_TIMEOUT_MS, 10) : DEFAULT_EXTRACTION_TIMEOUT_MS;
   const extTimeoutMs = Number.isFinite(rawExtTimeout) && rawExtTimeout > 0 ? rawExtTimeout : DEFAULT_EXTRACTION_TIMEOUT_MS;
@@ -109,6 +119,7 @@ export function getMemoryConfig(): MemorySystemConfig {
       minConfidence,
       maxContextMessages,
       model: extractionModel,
+      geminiModel: geminiExtractionModel,
       timeoutMs: extTimeoutMs
     }
   };

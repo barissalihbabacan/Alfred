@@ -1,4 +1,5 @@
 import { MemoryType, MemoryVectorDocument } from "../../../../data/firestore/memory.types.js";
+import type { MemoryWriteTally } from "../memory-write-planner.js";
 
 export type MemoryExtractionAction = "create" | "forget" | "supersede";
 
@@ -37,4 +38,6 @@ export interface ProcessedExtractionResult {
   retracted: string[];
   skippedDuplicates: string[];
   rejected: Array<{ content: string; reason: string }>;
+  /** Per-candidate outcome counters, the same ones production logs in `memory_extraction`. */
+  tally: MemoryWriteTally;
 }

@@ -94,9 +94,12 @@ describe("src/ modules shared with functions/", () => {
   });
 
   it("functions/index.js imports these from src/ instead of carrying copies", () => {
-    const source = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
-    expect(source).toContain('from "../src/data/vector/cosine-similarity.js"');
-    expect(source).toContain('from "../src/ai/prompts/memory-extraction.js"');
+    const index = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
+    const extraction = readFileSync(new URL("../../functions/memory-extraction.js", import.meta.url), "utf8");
+    const source = `${index}\n${extraction}`;
+    expect(index).toContain('from "../src/data/vector/cosine-similarity.js"');
+    // The prompt builders reach production through the shared extraction pipeline.
+    expect(extraction).toContain('from "../src/alfred/cognitive/memory/extractor/extraction-pipeline.js"');
     expect(source).not.toMatch(/function\s+cosineSimilarity\s*\(/);
     expect(source).not.toContain("=== RECENT CONVERSATION CONTEXT ===");
   });

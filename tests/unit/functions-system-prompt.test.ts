@@ -288,11 +288,12 @@ describe("4. one retrieved-memories block for src/ and production", () => {
 describe("functions/index.js uses the shared builder", () => {
   it("imports buildAlfredSystemPrompt and sends its output with the live runtime and memories", () => {
     expect(functionsSource).toContain('import { buildAlfredSystemPrompt } from "../src/ai/prompts/alfred-system-prompt.js";');
-    expect(functionsSource).toContain('const currentModel = activeProvider === "groq" ? groqModel : ollamaModel;');
+    // Rebuilt per provider: on a fallback the capability line names the provider that answers.
     expect(functionsSource).toMatch(
-      /const systemPromptWithMemories = buildAlfredSystemPrompt\(\{\s*runtime: \{ provider: activeProvider, model: currentModel \},\s*memories: retrievedMemories\s*\}\);/
+      /const buildMessagesFor = \(runtime\) => \[\s*\{\s*role: "system",\s*content: buildAlfredSystemPrompt\(\{\s*runtime: \{ provider: runtime\.id, model: runtime\.model \},\s*memories: retrievedMemories\s*\}\)\s*\},\s*\.\.\.boundedHistory,\s*\{ role: "user", content: trimmedMessage \}\s*\];/
     );
-    expect(functionsSource).toContain('{ role: "system", content: systemPromptWithMemories }');
+    expect(functionsSource).toContain("buildMessages: buildMessagesFor,");
+    expect(functionsSource).toContain("const currentPayload = buildMessagesFor(primary);");
   });
 
   it("carries no prompt text or profile file reads of its own", () => {

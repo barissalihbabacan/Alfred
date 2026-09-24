@@ -12,15 +12,20 @@ import {
   GET_CURRENT_TIME_TOOL_DEFINITION as TIME_TOOL_DEFINITION,
   runGetCurrentTimeTool
 } from "../src/ai/tools/time/current-time.js";
+import { isRateLimitedError } from "../src/ai/providers/groq/rate-limit.js";
+import { resolveChatProviders } from "../src/ai/providers/chat-fallback/chat-providers.js";
 import {
-  RATE_LIMIT_MAX_ATTEMPTS,
-  RATE_LIMIT_TURN_BUDGET_MS,
-  parseRateLimitInfo,
-  computeRateLimitWait,
-  createRateLimitedError,
-  isRateLimitedError,
-  toChatErrorEvent
-} from "../src/ai/providers/groq/rate-limit.js";
+  addUsageToMetrics,
+  createChatTurnMetrics,
+  createChatTurnState,
+  runChatTurnWithFallback
+} from "../src/ai/providers/chat-fallback/chat-turn.js";
+import { toChatTurnErrorEvent } from "../src/ai/providers/chat-fallback/failover.js";
+import {
+  DEFAULT_GEMINI_EXTRACTION_MODEL,
+  DEFAULT_GROQ_EXTRACTION_MODEL,
+  callMemoryExtractionProviders
+} from "../src/ai/providers/chat-fallback/extraction-providers.js";
 import {
   generateEmbedding,
   isComparableEmbedding
@@ -48,6 +53,12 @@ setGlobalOptions({ maxInstances: 10, timeoutSeconds: 120, memory: "512MiB" });
 //
 //   firebase functions:secrets:set GROQ_API_KEY
 //   firebase functions:secrets:set GEMINI_API_KEY
+//   firebase functions:secrets:set CEREBRAS_API_KEY
+//   firebase functions:secrets:set OPENROUTER_API_KEY
+//
+// Cerebras ve OpenRouter yalnizca sohbet yedegidir (Groq kullanilamazsa).
+// Degeri "unset" veya "none" olan anahtar yapilandirilmamis sayilir; o
+// saglayici atlanir (src/ai/providers/chat-fallback/chat-providers.ts).
 //
 // Emulatorde ayni adlar functions/.secret.local dosyasindan okunur
 // (gitignore'da). Anahtar istemciden (istek basligi) hicbir zaman alinmaz.
@@ -56,6 +67,8 @@ setGlobalOptions({ maxInstances: 10, timeoutSeconds: 120, memory: "512MiB" });
 // adlari olmali (tire kullanilamaz).
 const GROQ_API_KEY = defineSecret("GROQ_API_KEY");
 const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
+const CEREBRAS_API_KEY = defineSecret("CEREBRAS_API_KEY");
+const OPENROUTER_API_KEY = defineSecret("OPENROUTER_API_KEY");
 
 const ALLOWED_UID = process.env.ALLOWED_UID || "test-owner-uid-123456";
 
@@ -187,7 +200,16 @@ function withTimeout(promise, ms, label) {
 // token); ayni modeli kullaninca her sohbet turu kotayi iki kez harciyordu.
 // 24 Eyl'de 6 ornekte (tercih, sohbet, saat, gizli anahtar, karar, unut)
 // gpt-oss-20b, 120b ile ayni kararlari verdi. src/ ile ayni ortam degiskeni.
-const MEMORY_EXTRACTION_MODEL = process.env.MEMORY_EXTRACTION_MODEL || "openai/gpt-oss-20b";
+const MEMORY_EXTRACTION_MODEL = process.env.MEMORY_EXTRACTION_MODEL || DEFAULT_GROQ_EXTRACTION_MODEL;
+// Groq basarisiz olursa (or. gunluk limit) cikarim Ollama'dan once Gemini'de
+// kucuk, ucuz bir modelle denenir (token basina ucretli).
+const GEMINI_EXTRACTION_MODEL = process.env.GEMINI_EXTRACTION_MODEL || DEFAULT_GEMINI_EXTRACTION_MODEL;
+
+function extractorModelFor(provider) {
+  if (provider === "groq") return MEMORY_EXTRACTION_MODEL;
+  if (provider === "gemini") return GEMINI_EXTRACTION_MODEL;
+  return undefined;
+}
 
 async function extractAndPersistMemories({
   db,
@@ -218,54 +240,37 @@ async function extractAndPersistMemories({
   const tally = createMemoryWriteTally();
   const summarize = (fallbackOutcome) => summarizeMemoryWriteTally(tally, fallbackOutcome, extractorProvider);
 
-  // 1. Try Groq if key is available
-  if (groqKey) {
-    try {
-      const gRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${groqKey}`
-        },
-        body: JSON.stringify({
-          model: MEMORY_EXTRACTION_MODEL,
-          messages: [
-            { role: "system", content: systemInstructions },
-            { role: "user", content: userPrompt }
-          ],
-          temperature: 0.1,
-          response_format: { type: "json_object" }
-        }),
-        signal: AbortSignal.timeout(20000)
-      });
-      if (gRes.ok) {
-        const gData = await gRes.json();
-        extractionResText = gData.choices?.[0]?.message?.content || "";
-        if (extractionResText) extractorProvider = "groq";
-      } else {
-        const errTxt = await gRes.text().catch(() => "");
-        // 429: arka plan gorevi beklemez (sohbet cevabi zaten gitti); limit
-        // turu ve gercek sure loglanir, Ollama'ya dusulur.
-        let rateLimitFields = {};
-        if (gRes.status === 429) {
-          let errBodyMessage = "";
-          try { errBodyMessage = JSON.parse(errTxt)?.error?.message || ""; } catch {}
-          const info = parseRateLimitInfo(gRes.headers.get("retry-after"), errBodyMessage);
-          rateLimitFields = { limit_type: info.limitType, retry_after_ms: info.retryAfterMs, decision: "give_up" };
-        }
-        logger.warn(`[Memory] Groq extraction HTTP ${gRes.status}: ${errTxt}`, {
-          event: "memory_extraction_provider_error", provider: "groq", model: MEMORY_EXTRACTION_MODEL, http_status: gRes.status,
-          ...rateLimitFields
-        });
-      }
-    } catch (gErr) {
-      logger.warn(`[Memory] Groq extraction error: ${errMessage(gErr)}`, {
-        event: "memory_extraction_provider_error", provider: "groq"
+  // 1. Groq (MEMORY_EXTRACTION_MODEL), 2. Gemini (GEMINI_EXTRACTION_MODEL):
+  // src/ai/providers/chat-fallback/extraction-providers.ts. 429'da beklenmez
+  // (sohbet cevabi zaten gitti); limit turu ve gercek sure loglanir, siradaki
+  // saglayiciya gecilir.
+  const extraction = await callMemoryExtractionProviders({
+    fetch: (url, init) => fetch(url, init),
+    groqKey,
+    groqModel: MEMORY_EXTRACTION_MODEL,
+    geminiKey,
+    geminiModel: GEMINI_EXTRACTION_MODEL,
+    system: systemInstructions,
+    user: userPrompt,
+    onProviderError: (e) => {
+      const label = e.provider === "groq" ? "Groq" : "Gemini";
+      logger.warn(e.httpStatus !== undefined
+        ? `[Memory] ${label} extraction HTTP ${e.httpStatus}: ${String(e.detail).slice(0, 500)}`
+        : `[Memory] ${label} extraction error: ${String(e.detail).slice(0, 300)}`, {
+        event: "memory_extraction_provider_error",
+        provider: e.provider,
+        model: e.model,
+        ...(e.httpStatus !== undefined ? { http_status: e.httpStatus } : {}),
+        ...(e.rateLimit ? { limit_type: e.rateLimit.limitType, retry_after_ms: e.rateLimit.retryAfterMs, decision: "give_up" } : {})
       });
     }
+  });
+  if (extraction) {
+    extractionResText = extraction.text;
+    extractorProvider = extraction.provider;
   }
 
-  // 2. Fallback to Ollama if Groq didn't return text
+  // 3. Fallback to Ollama if neither Groq nor Gemini returned text
   if (!extractionResText && ollamaUrl && !ollamaUrl.includes("placeholder")) {
     try {
       const res = await fetch(`${ollamaUrl.replace(/\/+$/, "")}/api/chat`, {
@@ -334,7 +339,10 @@ async function extractAndPersistMemories({
   return summarize("nothing");
 }
 
-export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KEY] }, async (req, res) => {
+export const api = onRequest({
+  cors: true,
+  secrets: [GROQ_API_KEY, GEMINI_API_KEY, CEREBRAS_API_KEY, OPENROUTER_API_KEY]
+}, async (req, res) => {
   // CORS Preflight
   if (req.method === "OPTIONS") {
     res.set("Access-Control-Allow-Origin", "*");
@@ -712,21 +720,39 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
         });
     }
 
+    // Groq (varsayilan) ve yedekleri OpenAI uyumlu ayni akisla calisir:
+    // Groq -> Gemini -> Cerebras (gpt-oss-120b, sonra qwen) -> OpenRouter
+    // (src/ai/providers/chat-fallback/). Anahtari "unset"/"none"/bos olan
+    // saglayici atlanir. ALFRED_LLM_PROVIDER=ollama ise eski Ollama yolu.
+    const useOllama = activeProvider !== "groq";
+    const { providers: chatProviders, skipped: skippedProviders } = useOllama
+      ? { providers: [], skipped: [] }
+      : resolveChatProviders({
+        groq: groqKey,
+        gemini: geminiKey,
+        cerebras: gizliOku(CEREBRAS_API_KEY, "CEREBRAS_API_KEY"),
+        openrouter: gizliOku(OPENROUTER_API_KEY, "OPENROUTER_API_KEY")
+      }, process.env);
+
     // Persona states the provider/model actually answering this turn; the
     // profile is the reviewed digest of users/*.md embedded at build time
     // (functions/build.js). The prompt is re-sent on every tool round, so it
     // is kept under a token budget (tests/unit/system-prompt-budget.test.ts).
-    const currentModel = activeProvider === "groq" ? groqModel : ollamaModel;
-    const systemPromptWithMemories = buildAlfredSystemPrompt({
-      runtime: { provider: activeProvider, model: currentModel },
-      memories: retrievedMemories
-    });
-
-    const messagesPayload = [
-      { role: "system", content: systemPromptWithMemories },
+    // On a fallback the prompt is rebuilt for the provider that answers.
+    const buildMessagesFor = (runtime) => [
+      {
+        role: "system",
+        content: buildAlfredSystemPrompt({
+          runtime: { provider: runtime.id, model: runtime.model },
+          memories: retrievedMemories
+        })
+      },
       ...boundedHistory,
       { role: "user", content: trimmedMessage }
     ];
+    const primary = useOllama
+      ? { id: activeProvider, model: ollamaModel }
+      : (chatProviders[0] || { id: "groq", model: groqModel });
 
     // Setup SSE headers
     res.writeHead(200, {
@@ -746,10 +772,16 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
       }
     };
 
-    sendEvent({ type: "start", conversationId: convId, provider: activeProvider, model: currentModel });
+    // `start` names the first provider; a switch is announced with
+    // `provider_fallback` (from, to, model, reason).
+    sendEvent({ type: "start", conversationId: convId, provider: primary.id, model: primary.model });
     sendEvent({ type: "thinking" });
 
-    let accumulatedText = "";
+    // accumulatedText: text of the answering round (reset after tool rounds);
+    // streamedToUser: a chunk went out, so no provider switch any more.
+    const turnState = createChatTurnState();
+    turnState.providerId = primary.id;
+    turnState.model = primary.model;
     let isFinalized = false;
 
     const finalizeTurn = async (content) => {
@@ -771,8 +803,8 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
             content,
             sequence: asstSeq,
             status: "completed",
-            provider: activeProvider,
-            model: currentModel,
+            provider: turnState.providerId,
+            model: turnState.model,
             createdAt: asstNow
           });
 
@@ -812,7 +844,7 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
             ...summary,
             outcome,
             count: summary?.count || 0,
-            extractor_model: summary?.extractor_provider === "groq" ? MEMORY_EXTRACTION_MODEL : undefined,
+            extractor_model: extractorModelFor(summary?.extractor_provider),
             duration_ms: msSince(extractionStart)
           });
       } catch (memExtErr) {
@@ -828,34 +860,12 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
     };
 
     // llm_request olayi icin tur boyunca biriken metrikler. Tur basina tek olay
-    // yazilir; birden fazla model cagrisi (arac turlari) toplanir.
+    // yazilir; birden fazla model cagrisi (arac turlari, yedek saglayicilar)
+    // toplanir. provider/model cevabi veren (ya da en son deneyen) saglayicidir;
+    // fallback_from terk edilenler, attempted_providers denenenlerin hepsi.
     const llmStart = performance.now();
-    const llmMetrics = {
-      provider: activeProvider,
-      model: currentModel,
-      llm_calls: 0,
-      tool_rounds: 0,
-      tool_calls: 0,
-      rate_limit_retries: 0,
-      // 429 beklemelerinin tur boyunca toplami (RATE_LIMIT_TURN_BUDGET_MS ile sinirli).
-      rate_limit_wait_ms: 0,
-      time_to_first_token_ms: null,
-      prompt_tokens: null,
-      completion_tokens: null,
-      total_tokens: null,
-      reasoning_tokens: null
-    };
-    const addUsage = (usage) => {
-      if (!usage || typeof usage !== "object") return;
-      for (const [field, value] of [
-        ["prompt_tokens", usage.prompt_tokens],
-        ["completion_tokens", usage.completion_tokens],
-        ["total_tokens", usage.total_tokens],
-        ["reasoning_tokens", usage.completion_tokens_details?.reasoning_tokens]
-      ]) {
-        if (typeof value === "number") llmMetrics[field] = (llmMetrics[field] || 0) + value;
-      }
-    };
+    const llmMetrics = createChatTurnMetrics(primary.id, primary.model);
+    if (skippedProviders.length > 0) llmMetrics.skipped_providers = skippedProviders;
     const markFirstToken = () => {
       if (llmMetrics.time_to_first_token_ms === null) {
         llmMetrics.time_to_first_token_ms = msSince(llmStart);
@@ -863,7 +873,7 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
     };
     const logLlmRequest = (outcome, err) => {
       logEvent(outcome === "ok" ? "INFO" : "ERROR", "llm_request",
-        `LLM request ${outcome} (${activeProvider}/${currentModel}) in ${msSince(llmStart)}ms`, {
+        `LLM request ${outcome} (${llmMetrics.provider}/${llmMetrics.model}) in ${msSince(llmStart)}ms`, {
           ...llmMetrics,
           outcome,
           app_check: appCheckStatus,
@@ -873,207 +883,50 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
         });
     };
 
+    // Yalnizca gercekten calisan araclar sunulur. SSH araclarinin arkasinda
+    // bir baglanti yoktu (sabit yer tutucu ciktilar donuyordu); model
+    // uydurma sunucu durumu raporlamasin diye kaldirildilar. Persona da
+    // sunucu erisiminin henuz bagli olmadigini soyluyor.
+    const activeTools = [TIME_TOOL_DEFINITION];
+    const MAX_TURNS = 3;
+    const runTool = (fnName, fnArgs) => {
+      if (fnName === "get_current_time") {
+        return runGetCurrentTimeTool(fnArgs);
+      }
+      return { error: `Tool ${fnName} not recognized.` };
+    };
+
     try {
-      const currentPayload = [...messagesPayload];
-      // Yalnizca gercekten calisan araclar sunulur. SSH araclarinin arkasinda
-      // bir baglanti yoktu (sabit yer tutucu ciktilar donuyordu); model
-      // uydurma sunucu durumu raporlamasin diye kaldirildilar. Persona da
-      // sunucu erisiminin henuz bagli olmadigini soyluyor.
-      const activeTools = [TIME_TOOL_DEFINITION];
-      let toolTurn = 0;
-      const MAX_TURNS = 3;
+      if (!useOllama) {
+        // Groq ve yedekleri: arac turlari, 429 beklemeleri, akis ici hatalar ve
+        // saglayici degisimi src/ai/providers/chat-fallback/chat-turn.ts icinde.
+        await runChatTurnWithFallback({
+          providers: chatProviders,
+          buildMessages: buildMessagesFor,
+          tools: activeTools,
+          maxTurns: MAX_TURNS,
+          runTool,
+          fetch: (url, init) => fetch(url, init),
+          sendEvent,
+          sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+          logEvent,
+          metrics: llmMetrics,
+          state: turnState,
+          onFirstToken: markFirstToken,
+          onParseError: (provider, pErr) => console.warn(`Failed to parse ${provider} chunk line:`, pErr),
+          timeoutMs: 60000,
+          clock: () => performance.now()
+        });
+      } else {
+        // Ollama path (preserved intact for future re-enablement)
+        const currentPayload = buildMessagesFor(primary);
+        let toolTurn = 0;
 
-      while (toolTurn < MAX_TURNS) {
-        toolTurn++;
-        let passAccumulatedText = "";
-        let passToolCalls = [];
+        while (toolTurn < MAX_TURNS) {
+          toolTurn++;
+          let passAccumulatedText = "";
+          const passToolCalls = [];
 
-        if (activeProvider === "groq") {
-          if (!groqKey) {
-            throw new Error("GROQ_API_KEY is not configured in Cloud Functions environment.");
-          }
-
-          const groqPayload = {
-            model: groqModel,
-            messages: currentPayload,
-            stream: true,
-            temperature: 0.6,
-            max_tokens: 1500
-          };
-          // Araclar son tur haric her turda acik: model sehirleri tek tek
-          // isterse ikinci turda araci yine cagirabilmeli. Onceden ikinci
-          // turda araclar kaldiriliyordu; model yine de cagirinca Groq akisin
-          // icinde "tool_use_failed" donuyor ve cevap bos kaliyordu (24 Eyl).
-          // Son turda arac yok: model cevabi yazmak zorunda.
-          if (activeTools && activeTools.length > 0 && toolTurn < MAX_TURNS) {
-            groqPayload.tools = activeTools;
-          }
-
-          let attempts = 0;
-          let groqRes;
-          llmMetrics.llm_calls++;
-          while (attempts < RATE_LIMIT_MAX_ATTEMPTS) {
-            attempts++;
-            groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${groqKey}`
-              },
-              body: JSON.stringify(groqPayload),
-              signal: AbortSignal.timeout(60000)
-            });
-
-            if (groqRes.status === 429) {
-              // 429 govdesi yalnizca loglara gider; kullaniciya kisa bir mesaj
-              // gosterilir (toChatErrorEvent). Govdede anahtar yoktur.
-              const errText = await groqRes.text().catch(() => "");
-              let errBodyMessage = "";
-              try { errBodyMessage = JSON.parse(errText)?.error?.message || ""; } catch {}
-              // Gercek bekleme suresi (kirpilmamis) ve limit turu (TPM/TPD/RPM/RPD).
-              const rateLimitInfo = parseRateLimitInfo(groqRes.headers.get("retry-after"), errBodyMessage);
-              // Bekleme butcesi tur basinadir: arac turlari ve tekrar denemeler
-              // toplam RATE_LIMIT_TURN_BUDGET_MS'i asamaz. Sigmayan bekleme veya
-              // gunluk limit: hic uyumadan vazgecilir.
-              const decision = computeRateLimitWait({
-                info: rateLimitInfo,
-                attempt: attempts,
-                spentMs: llmMetrics.rate_limit_wait_ms
-              });
-              logger.warn(decision.retry
-                ? `[Groq] Rate limit (429, ${rateLimitInfo.limitType}) hit, waiting ${decision.waitMs}ms before retry ${attempts}...`
-                : `[Groq] Rate limit (429, ${rateLimitInfo.limitType}) hit, giving up (${decision.reason}) after ${llmMetrics.rate_limit_wait_ms}ms of waiting`, {
-                event: "llm_rate_limited",
-                provider: "groq",
-                model: groqModel,
-                limit_type: rateLimitInfo.limitType,
-                retry_after_ms: rateLimitInfo.retryAfterMs,
-                decision: decision.decision,
-                wait_ms: decision.waitMs,
-                attempt: attempts,
-                round: toolTurn,
-                total_wait_ms: llmMetrics.rate_limit_wait_ms,
-                budget_ms: RATE_LIMIT_TURN_BUDGET_MS,
-                outcome: decision.retry ? "retry" : decision.reason,
-                detail: errBodyMessage.slice(0, 300)
-              });
-              if (!decision.retry) {
-                throw createRateLimitedError(errBodyMessage || errText, decision.reason, rateLimitInfo);
-              }
-              llmMetrics.rate_limit_retries++;
-              llmMetrics.rate_limit_wait_ms += decision.waitMs;
-              // Istemci beklemeyi gosterebilsin diye uyumadan once bildirilir;
-              // bekleme bitince "thinking" ile yeniden denendigi soylenir.
-              sendEvent({ type: "rate_limited", provider: "groq", waitMs: decision.waitMs, attempt: attempts });
-              await new Promise((r) => setTimeout(r, decision.waitMs));
-              sendEvent({ type: "thinking" });
-              continue;
-            }
-            break;
-          }
-
-          if (!groqRes.ok) {
-            const errText = await groqRes.text().catch(() => "");
-            throw new Error(`Groq API error (${groqRes.status}): ${errText}`);
-          }
-
-          const reader = groqRes.body.getReader();
-          const decoder = new TextDecoder();
-          let buffer = "";
-          const toolCallsAccumulator = {};
-          // Groq bazi hatalari (or. tool_use_failed) HTTP 200 akisinin icinde
-          // {"error": {...}} olarak gonderir; choices olmadigi icin sessizce
-          // atlaniyordu.
-          let streamError = null;
-
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split("\n");
-            buffer = lines.pop() || "";
-
-            for (const line of lines) {
-              const trimmed = line.trim();
-              if (!trimmed || !trimmed.startsWith("data:")) continue;
-              const dataStr = trimmed.replace(/^data:\s*/, "");
-              if (dataStr === "[DONE]") continue;
-
-              try {
-                const chunk = JSON.parse(dataStr);
-                if (chunk.error) {
-                  streamError = chunk.error;
-                  continue;
-                }
-                // Groq token kullanimini finish_reason'li son chunk'ta verir;
-                // stream_options olmadan da hem `usage` hem `x_groq.usage` gelir
-                // (ikisi ayni degerdir, yalnizca biri sayilir). stream_options
-                // include_usage bilerek eklenmedi: ayni kullanimi choices: [] olan
-                // ek bir chunk'ta tekrar gonderir ve toplam iki kat sayilirdi.
-                // Kullanim, choice kontrolunden once okunur.
-                addUsage(chunk.usage || chunk.x_groq?.usage);
-                const choice = chunk.choices?.[0];
-                if (!choice) continue;
-
-                const delta = choice.delta;
-                if (!delta) continue;
-
-                if (delta.content || delta.tool_calls) markFirstToken();
-
-                if (delta.tool_calls && Array.isArray(delta.tool_calls)) {
-                  for (const tc of delta.tool_calls) {
-                    const idx = typeof tc.index === "number" ? tc.index : 0;
-                    if (!toolCallsAccumulator[idx]) {
-                      toolCallsAccumulator[idx] = {
-                        id: tc.id || `call_groq_${Date.now()}_${idx}`,
-                        name: "",
-                        arguments: ""
-                      };
-                    }
-                    if (tc.id) toolCallsAccumulator[idx].id = tc.id;
-                    if (tc.function?.name) toolCallsAccumulator[idx].name += tc.function.name;
-                    if (tc.function?.arguments) toolCallsAccumulator[idx].arguments += tc.function.arguments;
-                  }
-                }
-
-                if (delta.content) {
-                  passAccumulatedText += delta.content;
-                  if (Object.keys(toolCallsAccumulator).length === 0) {
-                    accumulatedText += delta.content;
-                    sendEvent({ type: "chunk", text: delta.content });
-                  }
-                }
-              } catch (pErr) {
-                console.warn("Failed to parse Groq chunk line:", pErr);
-              }
-            }
-          }
-
-          if (streamError) {
-            logger.warn("[Groq] Error inside the response stream.", {
-              event: "llm_stream_error",
-              provider: "groq",
-              model: groqModel,
-              round: toolTurn,
-              code: String(streamError.code || streamError.type || "unknown").slice(0, 64),
-              detail: String(streamError.message || "").slice(0, 200)
-            });
-            const streamErr = new Error("Alfred yanıtı tamamlayamadı. Lütfen tekrar deneyin.");
-            streamErr.code = "stream_error";
-            throw streamErr;
-          }
-
-          passToolCalls = Object.values(toolCallsAccumulator).map((tc) => ({
-            id: tc.id,
-            type: "function",
-            function: {
-              name: tc.name,
-              arguments: tc.arguments
-            }
-          }));
-        } else {
-          // Ollama path (preserved intact for future re-enablement)
           const requestBody = {
             model: ollamaModel,
             messages: currentPayload,
@@ -1084,6 +937,7 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
           }
 
           llmMetrics.llm_calls++;
+          llmMetrics.attempted_providers = [primary.id];
           const ollamaRes = await fetch(`${ollamaUrl.replace(/\/+$/, "")}/api/chat`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1120,7 +974,7 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
                 if (chunk.done && (typeof chunk.prompt_eval_count === "number" || typeof chunk.eval_count === "number")) {
                   const p = chunk.prompt_eval_count || 0;
                   const c = chunk.eval_count || 0;
-                  addUsage({ prompt_tokens: p, completion_tokens: c, total_tokens: p + c });
+                  addUsageToMetrics(llmMetrics, { prompt_tokens: p, completion_tokens: c, total_tokens: p + c });
                 }
 
                 if (chunk.message?.tool_calls && chunk.message.tool_calls.length > 0) {
@@ -1130,7 +984,8 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
                 if (chunk.message?.content) {
                   passAccumulatedText += chunk.message.content;
                   if (passToolCalls.length === 0) {
-                    accumulatedText += chunk.message.content;
+                    turnState.accumulatedText += chunk.message.content;
+                    turnState.streamedToUser = true;
                     sendEvent({ type: "chunk", text: chunk.message.content });
                   }
                 }
@@ -1139,77 +994,72 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
               }
             }
           }
-        }
 
-        if (passToolCalls.length > 0) {
-          llmMetrics.tool_rounds++;
-          llmMetrics.tool_calls += passToolCalls.length;
-          sendEvent({
-            type: "tool_call",
-            toolCalls: passToolCalls.map((tc) => ({
-              id: tc.id,
-              name: tc.function?.name,
-              arguments: tc.function?.arguments
-            }))
-          });
-
-          currentPayload.push({
-            role: "assistant",
-            content: passAccumulatedText || null,
-            tool_calls: passToolCalls.map((tc) => ({
-              id: tc.id,
-              type: "function",
-              function: {
+          if (passToolCalls.length > 0) {
+            llmMetrics.tool_rounds++;
+            llmMetrics.tool_calls += passToolCalls.length;
+            sendEvent({
+              type: "tool_call",
+              toolCalls: passToolCalls.map((tc) => ({
+                id: tc.id,
                 name: tc.function?.name,
-                arguments: typeof tc.function?.arguments === "string" ? tc.function.arguments : JSON.stringify(tc.function?.arguments || {})
-              }
-            }))
-          });
-
-          for (const tc of passToolCalls) {
-            const fnName = tc.function?.name;
-            let fnArgs = tc.function?.arguments;
-            if (typeof fnArgs === "string") {
-              try { fnArgs = JSON.parse(fnArgs); } catch {}
-            }
-
-            const toolStart = performance.now();
-            let toolResult;
-            if (fnName === "get_current_time") {
-              toolResult = runGetCurrentTimeTool(fnArgs);
-            } else {
-              toolResult = { error: `Tool ${fnName} not recognized.` };
-            }
-
-            // Argumanlar loglanmaz; yalnizca arac adi.
-            const toolOk = !toolResult?.error;
-            const toolName = typeof fnName === "string" ? fnName.slice(0, 64) : null;
-            logEvent(toolOk ? "INFO" : "WARNING", "tool_call",
-              `Tool ${toolName} ${toolOk ? "ok" : "error"}`, {
-                tool: toolName,
-                provider: activeProvider,
-                round: toolTurn,
-                outcome: toolOk ? "ok" : "error",
-                duration_ms: msSince(toolStart)
-              });
-
-            sendEvent({ type: "tool_call", tool: fnName, arguments: fnArgs });
-            sendEvent({ type: "tool_result", tool: fnName, toolCallId: tc.id, result: toolResult });
+                arguments: tc.function?.arguments
+              }))
+            });
 
             currentPayload.push({
-              role: "tool",
-              tool_call_id: tc.id,
-              content: JSON.stringify(toolResult)
+              role: "assistant",
+              content: passAccumulatedText || null,
+              tool_calls: passToolCalls.map((tc) => ({
+                id: tc.id,
+                type: "function",
+                function: {
+                  name: tc.function?.name,
+                  arguments: typeof tc.function?.arguments === "string" ? tc.function.arguments : JSON.stringify(tc.function?.arguments || {})
+                }
+              }))
             });
-          }
 
-          accumulatedText = "";
-        } else {
-          break;
+            for (const tc of passToolCalls) {
+              const fnName = tc.function?.name;
+              let fnArgs = tc.function?.arguments;
+              if (typeof fnArgs === "string") {
+                try { fnArgs = JSON.parse(fnArgs); } catch {}
+              }
+
+              const toolStart = performance.now();
+              const toolResult = runTool(fnName, fnArgs);
+
+              // Argumanlar loglanmaz; yalnizca arac adi.
+              const toolOk = !toolResult?.error;
+              const toolName = typeof fnName === "string" ? fnName.slice(0, 64) : null;
+              logEvent(toolOk ? "INFO" : "WARNING", "tool_call",
+                `Tool ${toolName} ${toolOk ? "ok" : "error"}`, {
+                  tool: toolName,
+                  provider: activeProvider,
+                  round: toolTurn,
+                  outcome: toolOk ? "ok" : "error",
+                  duration_ms: msSince(toolStart)
+                });
+
+              sendEvent({ type: "tool_call", tool: fnName, arguments: fnArgs });
+              sendEvent({ type: "tool_result", tool: fnName, toolCallId: tc.id, result: toolResult });
+
+              currentPayload.push({
+                role: "tool",
+                tool_call_id: tc.id,
+                content: JSON.stringify(toolResult)
+              });
+            }
+
+            turnState.accumulatedText = "";
+          } else {
+            break;
+          }
         }
       }
 
-      const cleanContent = accumulatedText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
+      const cleanContent = turnState.accumulatedText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
       if (!cleanContent) {
         // Bos cevap basari sayilmaz: "(Yanit bos)" yerine anlasilir bir hata.
         const emptyErr = new Error("Alfred boş bir yanıt üretti. Lütfen tekrar deneyin.");
@@ -1222,10 +1072,10 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
       res.end();
     } catch (err) {
       logLlmRequest("error", err);
-      console.error(`Cloud Function ${activeProvider} stream failed:`, err);
+      console.error(`Cloud Function ${llmMetrics.provider} stream failed:`, err);
 
       // Persist interrupted message if partially generated
-      const cleanInterrupted = accumulatedText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
+      const cleanInterrupted = turnState.accumulatedText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
       if (cleanInterrupted) {
         try {
           const asstMsgRef = convRef.collection("messages").doc();
@@ -1235,16 +1085,16 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
             content: cleanInterrupted,
             sequence: userSeq + 1,
             status: "interrupted",
-            provider: activeProvider,
-            model: currentModel,
+            provider: turnState.providerId,
+            model: turnState.model,
             createdAt: asstNow
           });
         } catch {}
       }
 
-      // 429'da ham Groq JSON'u yerine kisa bir mesaj + code: "rate_limited";
-      // diger hatalar eskisi gibi err.message ile gider.
-      sendEvent(toChatErrorEvent(err, "LLM provider temporarily unavailable."));
+      // 429'da ham saglayici JSON'u yerine kisa bir mesaj + code: "rate_limited";
+      // tum yedekler de basarisizsa not eklenir; diger hatalar err.message ile gider.
+      sendEvent(toChatTurnErrorEvent(err, "LLM provider temporarily unavailable."));
       res.end();
     }
     return;

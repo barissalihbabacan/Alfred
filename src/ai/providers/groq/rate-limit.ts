@@ -116,7 +116,12 @@ export function isDailyRateLimit(limitType: RateLimitType): boolean {
   return limitType === "tpd" || limitType === "rpd";
 }
 
-export type RateLimitGiveUpReason = "daily_limit" | "max_attempts" | "budget_exhausted";
+/**
+ * Why a 429 is not waited out. `fallback_preferred`: the caller has another
+ * provider that is a better bet than waiting (set by the chat fallback, never
+ * by {@link computeRateLimitWait}).
+ */
+export type RateLimitGiveUpReason = "daily_limit" | "max_attempts" | "budget_exhausted" | "fallback_preferred";
 
 export interface RateLimitWaitInput {
   /** What the 429 said (see {@link parseRateLimitInfo}). */
@@ -187,6 +192,27 @@ export function formatTurkishDuration(ms: number): string {
   return minutes > 0 ? `yaklaşık ${hours} saat ${minutes} dakika` : `yaklaşık ${hours} saat`;
 }
 
+/**
+ * Turkish genitive suffix for a provider name, with the apostrophe:
+ * Groq'un, Gemini'nin, Cerebras'ın, OpenRouter'ın. Follows the last vowel as
+ * pronounced by Turkish speakers (vowel harmony); a final vowel takes "n".
+ */
+const GENITIVE_OVERRIDES: Record<string, string> = {
+  // Said "ov-pın-ravtır": last spoken vowel ı.
+  openrouter: "'ın"
+};
+
+export function turkishGenitiveSuffix(name: string): string {
+  const lower = name.toLocaleLowerCase("tr-TR");
+  const override = GENITIVE_OVERRIDES[lower];
+  if (override) return override;
+  const vowels = lower.match(/[aeıioöuü]/g);
+  const last = vowels ? vowels[vowels.length - 1] : "e";
+  const harmony: Record<string, string> = { a: "ın", ı: "ın", e: "in", i: "in", o: "un", u: "un", ö: "ün", ü: "ün" };
+  const suffix = harmony[last] ?? "in";
+  return /[aeıioöuü]$/.test(lower) ? `'n${suffix}` : `'${suffix}`;
+}
+
 const LIMIT_LABELS: Record<Exclude<RateLimitType, "unknown">, string> = {
   tpm: "dakikalık token limiti",
   tpd: "günlük token limiti",
@@ -199,10 +225,15 @@ const LIMIT_LABELS: Record<Exclude<RateLimitType, "unknown">, string> = {
  * which limit, and roughly when to try again (when known).
  * Never contains provider output: the raw 429 body goes to the logs only.
  */
-export function rateLimitUserMessage(limitType: RateLimitType = "unknown", retryAfterMs?: number | null): string {
+export function rateLimitUserMessage(
+  limitType: RateLimitType = "unknown",
+  retryAfterMs?: number | null,
+  providerLabel = "Groq"
+): string {
+  const label = providerLabel || "Groq";
   const base = limitType !== "unknown" && LIMIT_LABELS[limitType]
-    ? `Groq'un ${LIMIT_LABELS[limitType]} doldu.`
-    : "Groq kullanım sınırına ulaşıldı.";
+    ? `${label}${turkishGenitiveSuffix(label)} ${LIMIT_LABELS[limitType]} doldu.`
+    : `${label} kullanım sınırına ulaşıldı.`;
   if (typeof retryAfterMs === "number" && Number.isFinite(retryAfterMs) && retryAfterMs > 0) {
     return `${base} Lütfen ${formatTurkishDuration(retryAfterMs)} sonra tekrar deneyin.`;
   }
@@ -219,6 +250,8 @@ export interface RateLimitedError extends Error {
   limitType: RateLimitType;
   /** The real time until the provider accepts requests again; null if unknown. */
   retryAfterMs: number | null;
+  /** Provider name for the user message ("Groq" unless given). */
+  providerLabel?: string;
 }
 
 /**
@@ -229,15 +262,18 @@ export interface RateLimitedError extends Error {
 export function createRateLimitedError(
   detail: string,
   reason: RateLimitGiveUpReason,
-  info: Pick<RateLimitInfo, "limitType" | "retryAfterMs">
+  info: Pick<RateLimitInfo, "limitType" | "retryAfterMs">,
+  providerLabel = "Groq"
 ): RateLimitedError {
   const trimmed = String(detail || "").slice(0, 500);
   const real = info.retryAfterMs;
-  return Object.assign(new Error(`Groq API error (429): ${trimmed}`), {
+  const label = providerLabel || "Groq";
+  return Object.assign(new Error(`${label} API error (429): ${trimmed}`), {
     code: RATE_LIMITED_ERROR_CODE,
     status: 429 as const,
     reason,
     limitType: info.limitType,
+    ...(label !== "Groq" ? { providerLabel: label } : {}),
     retryAfterMs: typeof real === "number" && Number.isFinite(real) && real > 0 ? Math.round(real) : null
   });
 }
@@ -268,7 +304,7 @@ export function toChatErrorEvent(err: unknown, fallback = "LLM provider temporar
     const limitType = err.limitType || "unknown";
     return {
       type: "error",
-      error: rateLimitUserMessage(limitType, err.retryAfterMs),
+      error: rateLimitUserMessage(limitType, err.retryAfterMs, err.providerLabel),
       code: RATE_LIMITED_ERROR_CODE,
       limitType,
       ...(typeof err.retryAfterMs === "number" ? { retryAfterMs: err.retryAfterMs } : {})

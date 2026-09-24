@@ -52,25 +52,33 @@ describe("runGetCurrentTimeTool", () => {
   });
 });
 
-describe("functions/index.js tool rounds", () => {
+// The Groq tool loop moved to src/ai/providers/chat-fallback/chat-turn.ts
+// (shared by every fallback provider; behaviour tested end to end in
+// tests/unit/chat-fallback-turn.test.ts). These pins follow it there.
+describe("production tool rounds", () => {
   const source = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
+  const turn = readFileSync(new URL("../../src/ai/providers/chat-fallback/chat-turn.ts", import.meta.url), "utf8");
+  const stream = readFileSync(new URL("../../src/ai/providers/chat-fallback/openai-stream.ts", import.meta.url), "utf8");
 
   it("keeps tools available on every round except the last", () => {
-    expect(source).toContain("if (activeTools && activeTools.length > 0 && toolTurn < MAX_TURNS) {\n            groqPayload.tools = activeTools;");
+    expect(turn).toContain("const tools = deps.tools.length > 0 && toolTurn < deps.maxTurns ? deps.tools : undefined;");
+    expect(source).toContain("const MAX_TURNS = 3;");
+    expect(source).toContain("if (activeTools && activeTools.length > 0 && toolTurn < MAX_TURNS) {\n            requestBody.tools = activeTools;");
     expect(source).not.toContain("activeTools = undefined;");
   });
 
   it("dispatches get_current_time through the shared multi-city runner", () => {
-    expect(source).toContain("toolResult = runGetCurrentTimeTool(fnArgs);");
+    expect(source).toContain("return runGetCurrentTimeTool(fnArgs);");
+    expect(source).toContain("runTool,");
   });
 
-  it("treats an error object inside the Groq stream as a failed turn", () => {
-    expect(source).toMatch(/const chunk = JSON\.parse\(dataStr\);\n\s*if \(chunk\.error\) \{\n\s*streamError = chunk\.error;/);
-    const block = source.slice(source.indexOf("if (streamError) {"), source.indexOf("throw streamErr;") + 16);
+  it("treats an error object inside the stream as a failed turn", () => {
+    expect(stream).toMatch(/if \(chunk\.error\) \{\n\s*error = /);
+    const block = turn.slice(turn.indexOf("if (result.error) {"), turn.indexOf("throw streamErr;") + 16);
     expect(block.length).toBeGreaterThan(0);
     expect(block.length).toBeLessThan(1200);
-    expect(block).toContain('event: "llm_stream_error"');
-    expect(block).toContain('streamErr.code = "stream_error";');
+    expect(block).toContain('"llm_stream_error"');
+    expect(block).toContain('code: "stream_error"');
   });
 
   it("never reports an empty answer as success", () => {

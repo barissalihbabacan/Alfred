@@ -6,6 +6,7 @@ import { apiFetch, ensureOk, ChatStreamError } from "../lib/api";
 import { createSseParser, stripThinking, ChatStreamEvent } from "../lib/sse";
 import { errorMessage as messageOf, isAbortError } from "../lib/errors";
 import { formatRateLimitStatus, normalizeRateLimitWaitMs } from "../lib/rate-limit";
+import { formatProviderFallbackStatus, providerDisplayName } from "../lib/providers";
 
 export type AssistantState =
   | "Idle"
@@ -23,8 +24,12 @@ interface Message {
   audioUrl?: string;
   timestamp: string;
   isThinking?: boolean;
-  /** Groq 429 beklemesi: sunucunun yeniden deneyecegi an (Date.now() cinsinden). */
+  /** 429 beklemesi: sunucunun yeniden deneyecegi an (Date.now() cinsinden). */
   rateLimitUntil?: number;
+  /** Beklemedeki saglayici (`rate_limited.provider`). */
+  rateLimitProvider?: string;
+  /** Saglayici degisimi durumu, or. "Groq sınıra ulaştı, Gemini'ye geçiliyor…". */
+  providerNotice?: string;
 }
 
 interface ConversationSummary {
@@ -70,13 +75,13 @@ function getSpeechRecognitionCtor(): SpeechRecognitionCtor | undefined {
 }
 
 /** "Düşünüyor..." yerine gosterilen, saniyede bir guncellenen Groq bekleme durumu. */
-function RateLimitNotice({ until }: { until: number }) {
+function RateLimitNotice({ until, provider }: { until: number; provider?: string }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 500);
     return () => clearInterval(timer);
   }, [until]);
-  return <span role="status">{formatRateLimitStatus(until - now)}</span>;
+  return <span role="status">{formatRateLimitStatus(until - now, provider)}</span>;
 }
 
 function escapeHtml(str: string): string {
@@ -275,6 +280,8 @@ export default function VoiceChatPlayground() {
   const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
   const [health, setHealth] = useState<HealthInfo | null>(null);
   const [modelLabel, setModelLabel] = useState(DEFAULT_MODEL_LABEL);
+  // Son turu cevaplayan saglayici (`start` / `provider_fallback`); null: /health'e gore.
+  const [chatProvider, setChatProvider] = useState<string | null>(null);
 
   const toolsBtnRef = useRef<HTMLButtonElement | null>(null);
   const turnSeqRef = useRef(0);
@@ -555,6 +562,7 @@ export default function VoiceChatPlayground() {
         switch (event.type) {
           case "start":
             if (event.model) setModelLabel(event.model);
+            if (event.provider) setChatProvider(event.provider);
             if (event.conversationId) {
               setConversationId(event.conversationId);
               storageSet(CONVERSATION_KEY, event.conversationId);
@@ -572,7 +580,21 @@ export default function VoiceChatPlayground() {
             // Sunucu gercekten `waitMs` bekleyip yeniden deneyecek (sigmayan beklemede
             // bu olay gelmez, dogrudan `error` gelir); bekleme bitince "thinking" gelir.
             setState("Thinking");
-            updateAssistant({ rateLimitUntil: Date.now() + normalizeRateLimitWaitMs(event.waitMs) });
+            updateAssistant({
+              rateLimitUntil: Date.now() + normalizeRateLimitWaitMs(event.waitMs),
+              rateLimitProvider: event.provider,
+              providerNotice: undefined
+            });
+            break;
+          case "provider_fallback":
+            // Sunucu turu bir sonraki saglayicida bastan calistiriyor.
+            if (event.model) setModelLabel(event.model);
+            if (event.to) setChatProvider(event.to);
+            setState("Thinking");
+            updateAssistant({
+              rateLimitUntil: undefined,
+              providerNotice: formatProviderFallbackStatus(event.from, event.to, event.reason)
+            });
             break;
           case "chunk":
             accumulatedText += event.text || "";
@@ -580,11 +602,12 @@ export default function VoiceChatPlayground() {
             updateAssistant({
               text: accumulatedText,
               isThinking: !stripThinking(accumulatedText),
-              rateLimitUntil: undefined
+              rateLimitUntil: undefined,
+              providerNotice: undefined
             });
             break;
           case "done":
-            updateAssistant({ text: accumulatedText || "*(Yanıt boş)*", isThinking: false, rateLimitUntil: undefined });
+            updateAssistant({ text: accumulatedText || "*(Yanıt boş)*", isThinking: false, rateLimitUntil: undefined, providerNotice: undefined });
             finishTurn();
             break;
           case "error":
@@ -641,7 +664,8 @@ export default function VoiceChatPlayground() {
         updateAssistant({
           text: accumulatedText || (rateLimited ? msg : "İletişim sırasında bir hata oluştu."),
           isThinking: false,
-          rateLimitUntil: undefined
+          rateLimitUntil: undefined,
+          providerNotice: undefined
         });
       }
     } finally {
@@ -754,7 +778,9 @@ export default function VoiceChatPlayground() {
       ? { name: "Ollama", detail: modelLabel, active: true }
       : health?.activeProvider === "offline"
         ? { name: "Çevrimdışı", detail: "Groq anahtarı yok, Ollama erişilemiyor", active: false }
-        : { name: "Groq Cloud", detail: modelLabel, active: true };
+        : chatProvider && chatProvider !== "groq"
+          ? { name: providerDisplayName(chatProvider), detail: modelLabel, active: true }
+          : { name: "Groq Cloud", detail: modelLabel, active: true };
 
   return (
     <div style={{
@@ -1331,7 +1357,13 @@ export default function VoiceChatPlayground() {
                         <span className="dot-bounce" style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#c5a059" }} />
                         <span className="dot-bounce" style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#c5a059", animationDelay: "-0.16s" }} />
                         <span className="dot-bounce" style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#c5a059", animationDelay: "-0.32s" }} />
-                        {msg.rateLimitUntil ? <RateLimitNotice until={msg.rateLimitUntil} /> : <span>Düşünüyor...</span>}
+                        {msg.rateLimitUntil ? (
+                          <RateLimitNotice until={msg.rateLimitUntil} provider={msg.rateLimitProvider} />
+                        ) : msg.providerNotice ? (
+                          <span role="status">{msg.providerNotice}</span>
+                        ) : (
+                          <span>Düşünüyor...</span>
+                        )}
                       </div>
                     ) : (
                       <div dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }} />

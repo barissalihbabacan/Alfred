@@ -39,7 +39,10 @@ import type { UserProfileSources } from "../../alfred/cognitive/context/user-pro
 
 /** The model answering this turn, as functions/index.js selected it. */
 export interface AlfredRuntime {
-  /** ALFRED_LLM_PROVIDER, e.g. "groq" or "ollama". */
+  /**
+   * The provider answering: "groq" or "ollama" (ALFRED_LLM_PROVIDER), or a chat
+   * fallback provider ("gemini", "cerebras", "cerebras_secondary", "openrouter").
+   */
   provider: string;
   /** The model id sent to that provider, e.g. "openai/gpt-oss-120b". */
   model: string;
@@ -48,6 +51,17 @@ export interface AlfredRuntime {
 /** Production's defaults (functions/index.js: ALFRED_LLM_PROVIDER, GROQ_MODEL). */
 export const DEFAULT_ALFRED_RUNTIME: AlfredRuntime = { provider: "groq", model: "openai/gpt-oss-120b" };
 
+/**
+ * Display names of the chat fallback providers (src/ai/providers/chat-fallback),
+ * used when the turn is answered by one of them instead of Groq.
+ */
+const FALLBACK_PROVIDER_NAMES: Record<string, string> = {
+  gemini: "Google Gemini",
+  cerebras: "Cerebras",
+  cerebras_secondary: "Cerebras",
+  openrouter: "OpenRouter"
+};
+
 /** Human-readable reasoning backend for the persona's "Operational now" line. */
 export function describeReasoningRuntime(runtime: AlfredRuntime = DEFAULT_ALFRED_RUNTIME): string {
   const provider = (runtime.provider ?? "").trim().toLowerCase();
@@ -55,6 +69,8 @@ export function describeReasoningRuntime(runtime: AlfredRuntime = DEFAULT_ALFRED
   const withModel = (name: string) => (model ? `${name} (${model})` : name);
   if (provider === "groq") return withModel("Groq");
   if (provider === "ollama") return `${withModel("Ollama")} over the private network`;
+  const fallbackName = FALLBACK_PROVIDER_NAMES[provider];
+  if (fallbackName) return `${withModel(fallbackName)}, standing in because Groq is unavailable`;
   return withModel(provider || "an unspecified provider");
 }
 
@@ -156,6 +172,10 @@ export function describeRequestPipeline(runtime: AlfredRuntime = DEFAULT_ALFRED_
   const memory = "Long-term memory: Gemini embeddings with Firestore as the source of truth.";
   if (provider === "ollama") {
     return `${front} → Tailscale Funnel → MacBook Ollama${model ? ` (${model})` : ""} → SSE response. ${memory}`;
+  }
+  const fallbackName = FALLBACK_PROVIDER_NAMES[provider];
+  if (fallbackName) {
+    return `${front} → ${fallbackName} API${model ? ` (${model})` : ""} → SSE response. ${memory} Groq is the primary provider; this turn fell back because Groq was unavailable.`;
   }
   const llm = provider === "groq" || !provider ? "Groq API" : provider;
   return `${front} → ${llm}${model ? ` (${model})` : ""} → SSE response. ${memory} Ollama on the MacBook over Tailscale is an optional alternative provider, not in the default path.`;

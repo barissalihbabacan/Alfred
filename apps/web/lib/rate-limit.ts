@@ -1,5 +1,7 @@
+import { providerDisplayName } from "./providers";
+
 /**
- * Groq hiz siniri (`rate_limited` SSE olayi) icin arayuz yardimcilari.
+ * Hiz siniri (`rate_limited` SSE olayi) icin arayuz yardimcilari.
  * Sunucu tarafindaki butce/mesaj mantigi src/ai/providers/groq/rate-limit.ts
  * icindedir; apps/web src/'den import etmedigi icin burada yalnizca gosterim var.
  */
@@ -13,11 +15,13 @@ export function normalizeRateLimitWaitMs(waitMs: unknown): number {
 /**
  * Bekleme sirasinda "Düşünüyor..." yerine gosterilen durum metni.
  * `remainingMs` > 0 iken geri sayim, bittiginde yeniden deneme mesaji.
+ * `provider`: olaydaki saglayici kimligi (varsayilan Groq).
  */
-export function formatRateLimitStatus(remainingMs: number): string {
+export function formatRateLimitStatus(remainingMs: number, provider?: string): string {
+  const name = providerDisplayName(provider);
   if (!Number.isFinite(remainingMs) || remainingMs <= 0) {
-    return "Groq sınırına ulaşıldı, yeniden deneniyor…";
+    return `${name} sınırına ulaşıldı, yeniden deneniyor…`;
   }
   const seconds = Math.max(1, Math.ceil(remainingMs / 1000));
-  return `Groq sınırına ulaşıldı, ~${seconds} sn bekleniyor…`;
+  return `${name} sınırına ulaşıldı, ~${seconds} sn bekleniyor…`;
 }

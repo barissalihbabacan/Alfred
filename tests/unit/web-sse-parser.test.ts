@@ -53,6 +53,43 @@ describe("Web SSE parser (functions /chat stream)", () => {
     expect(events).toEqual([{ type: "error", error: "LLM provider temporarily unavailable." }]);
   });
 
+  it("parses rate_limited events and the rate-limit error that may follow", () => {
+    const parser = createSseParser();
+    const events = parser.push(
+      frame({ type: "thinking" }) +
+        frame({ type: "rate_limited", provider: "groq", waitMs: 14000, attempt: 1 }) +
+        frame({ type: "thinking" }) +
+        frame({
+          type: "error",
+          error: "Groq kullanım sınırına ulaşıldı (dakikalık token limiti). Lütfen ~15 sn sonra tekrar deneyin.",
+          code: "rate_limited",
+          retryAfterMs: 15000
+        })
+    );
+    expect(events).toEqual([
+      { type: "thinking" },
+      { type: "rate_limited", provider: "groq", waitMs: 14000, attempt: 1 },
+      { type: "thinking" },
+      {
+        type: "error",
+        error: "Groq kullanım sınırına ulaşıldı (dakikalık token limiti). Lütfen ~15 sn sonra tekrar deneyin.",
+        code: "rate_limited",
+        retryAfterMs: 15000
+      }
+    ]);
+  });
+
+  it("still ignores unknown event types between known ones", () => {
+    const parser = createSseParser();
+    const events = parser.push(
+      frame({ type: "rate_limited", waitMs: 3000, attempt: 1 }) +
+        frame({ type: "quota_warning", waitMs: 1 }) +
+        frame({ type: "RATE_LIMITED" }) +
+        frame({ type: "chunk", text: "Saat 14:05, efendim." })
+    );
+    expect(events.map((e) => e.type)).toEqual(["rate_limited", "chunk"]);
+  });
+
   it("handles CRLF framing, comments and a trailing unterminated block", () => {
     const parser = createSseParser();
     const events = parser.push(`: keep-alive\r\n\r\ndata: {"type":"thinking"}\r\n\r\ndata: {"type":"done"}`);

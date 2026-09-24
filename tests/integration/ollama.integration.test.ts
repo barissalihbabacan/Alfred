@@ -2,24 +2,26 @@ import { describe, it, expect } from "vitest";
 import dotenv from "dotenv";
 import { OllamaProvider } from "../../src/ai/providers/ollama/ollama-provider.js";
 import { getAlfredSystemPrompt } from "../../src/ai/prompts/alfred-persona.js";
+import { OFFLINE } from "./prerequisites.js";
 
 dotenv.config();
 
 const baseUrl = process.env.OLLAMA_BASE_URL?.trim() || "http://100.64.0.53:11434";
 const model = process.env.OLLAMA_MODEL?.trim() || "gemma4:12b-mlx";
 
-describe("Ollama API Live Integration Tests", () => {
+// Talks to a real Ollama server (default: the Tailscale MacBook). Never runs with
+// ALFRED_OFFLINE=1; otherwise it is skipped when the server is unreachable.
+describe.skipIf(OFFLINE)("Ollama API Live Integration Tests", () => {
   it(
     "should connect to live Tailscale Ollama server, verify health, and complete chat",
-    async () => {
+    async ({ skip }) => {
       const provider = new OllamaProvider({
         config: { baseUrl, defaultModel: model, timeoutMs: 60000 }
       });
 
       const health = await provider.checkHealth();
       if (!health.reachable) {
-        console.warn(`[Skip] Tailscale Ollama server is not reachable at ${baseUrl}. Skipping live assertion.`);
-        return;
+        skip(`Ollama server is not reachable at ${baseUrl}`);
       }
 
       expect(health.reachable).toBe(true);

@@ -85,8 +85,9 @@ Canlı API App Check istediği için bu durumda App Check debug token'ının Fir
 | `npm run build:web` | Web uygulamasını `apps/web/out` klasörüne statik derler |
 | `npm run build --prefix functions` | `functions/index.js` + `src/` → `functions/lib/index.js` |
 | `npm run test:integration` | Entegrasyon testleri (bazıları gerçek servislere bağlanır) |
+| `npm run test:integration:offline` | Entegrasyon testleri ağsız (`ALFRED_OFFLINE=1`); servis gerektirenler atlanır, CI bunu çalıştırır |
 
-**Dağıtım.** Her pull request'te CI lint, tip denetimleri, birim testleri, functions paketi ve web derlemesini çalıştırır. Uygulama kodunu (`apps/`, `src/`, `functions/` ya da Firebase ayarlarını) değiştiren her `main` merge'ü, bunlar geçerse Hosting, Cloud Functions ve Firestore kurallarını otomatik olarak dağıtır ([deploy.yml](.github/workflows/deploy.yml)). Hosting'i geri almak için: `firebase hosting:rollback`.
+**Dağıtım.** Her pull request'te CI lint, tip denetimleri, birim testleri, ağsız entegrasyon testleri, functions paketi ve web derlemesini çalıştırır. Uygulama kodunu (`apps/`, `src/`, `functions/` ya da Firebase ayarlarını) değiştiren her `main` merge'ü, bunlar geçerse Hosting, Cloud Functions ve Firestore kurallarını otomatik olarak dağıtır ([deploy.yml](.github/workflows/deploy.yml)). Hosting'i geri almak için: `firebase hosting:rollback`.
 
 Kod tabanında çalışırken önce [CLAUDE.md](CLAUDE.md) dosyasını okuyun: katmanlar, ortak kodun nerede olduğu ve dikkat edilmesi gereken kısıtlar orada anlatılıyor.
 

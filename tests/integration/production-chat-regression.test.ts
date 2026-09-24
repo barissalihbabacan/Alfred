@@ -1,5 +1,6 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { ALLOWED_UID } from "../../apps/web/lib/allowed-uid.js";
+import { OFFLINE } from "./prerequisites.js";
 
 // Runs against production (https://butler-alfred.web.app). Every /api endpoint
 // except /health requires a Firebase ID token for ALLOWED_UID, so the chat
@@ -9,7 +10,8 @@ import { ALLOWED_UID } from "../../apps/web/lib/allowed-uid.js";
 //   2. GOOGLE_APPLICATION_CREDENTIALS — a service-account key for butler-alfred;
 //      a custom token is minted for ALLOWED_UID and exchanged for an ID token.
 // Without either, the authenticated tests are skipped (the unauthenticated
-// checks always run).
+// checks still run). With ALFRED_OFFLINE=1 (CI) nothing here runs: CI must
+// never hit production.
 
 const BASE = process.env.ALFRED_PROD_BASE_URL || "https://butler-alfred.web.app";
 // Public Firebase web config key (same value as apps/web/lib/firebase.ts); not a secret.
@@ -45,7 +47,7 @@ async function getIdToken(): Promise<string> {
   return body.idToken;
 }
 
-describe("Production API auth gate (no credentials needed)", () => {
+describe.skipIf(OFFLINE)("Production API auth gate (no credentials needed)", () => {
   it("rejects unauthenticated conversation reads with 401", async () => {
     const res = await fetch(`${BASE}/api/conversations`);
     expect(res.status).toBe(401);
@@ -73,7 +75,7 @@ describe("Production API auth gate (no credentials needed)", () => {
   });
 });
 
-describe.skipIf(!hasCredentials)("Production Chat SSE Regression Tests (authenticated)", () => {
+describe.skipIf(OFFLINE || !hasCredentials)("Production Chat SSE Regression Tests (authenticated)", () => {
   const createdConversations: string[] = [];
 
   afterAll(async () => {

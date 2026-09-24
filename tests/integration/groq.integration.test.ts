@@ -1,16 +1,15 @@
 import { describe, it, expect } from "vitest";
 import dotenv from "dotenv";
 import { GroqProvider } from "../../src/ai/providers/groq/groq-provider.js";
+import { OFFLINE } from "./prerequisites.js";
 
 dotenv.config();
 
+// Calls the real Groq API. Needs GROQ_API_KEY; never runs with ALFRED_OFFLINE=1.
 const apiKey = process.env.GROQ_API_KEY?.trim();
-const runLiveTests = Boolean(apiKey);
 
-describe("Groq API Live Integration Tests", () => {
-  const liveTest = runLiveTests ? it : it.skip;
-
-  liveTest(
+describe.skipIf(OFFLINE || !apiKey)("Groq API Live Integration Tests", () => {
+  it(
     "should successfully communicate with Groq Cloud API and receive confirmation",
     async () => {
       const provider = new GroqProvider({ apiKey });
@@ -33,10 +32,4 @@ describe("Groq API Live Integration Tests", () => {
     },
     30000
   );
-
-  if (!runLiveTests) {
-    it("skips live Groq tests when GROQ_API_KEY is not set", () => {
-      expect(runLiveTests).toBe(false);
-    });
-  }
 });

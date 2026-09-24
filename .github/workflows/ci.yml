@@ -43,6 +43,13 @@ jobs:
       - name: Unit Tests
         run: npm run test:unit
 
+      # tests/integration with ALFRED_OFFLINE=1: only the fully local checks run
+      # (e.g. the SSH path sandbox); every suite that needs Groq, Ollama, the
+      # home-server over SSH or the production API is reported as skipped.
+      # No secrets, no network, no live LLM, never production.
+      - name: Integration Tests (offline)
+        run: npm run test:integration:offline
+
       - name: Install Functions Dependencies
         run: npm ci --prefix functions --no-audit --no-fund
 

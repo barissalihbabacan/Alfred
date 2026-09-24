@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   CHAT_PROVIDER_ORDER,
+  DEFAULT_CHAT_PROVIDER_ORDER,
   DEFAULT_CEREBRAS_MODEL,
   DEFAULT_CEREBRAS_SECONDARY_MODEL,
   DEFAULT_GEMINI_CHAT_MODEL,
@@ -15,6 +16,8 @@ import {
 import { GET_CURRENT_TIME_TOOL_DEFINITION } from "../../src/ai/tools/time/current-time.js";
 
 const KEYS = { groq: "gsk_test", gemini: "AQ.test", cerebras: "csk-test", openrouter: "sk-or-test" };
+/** Every known provider, Cerebras included (not the production default). */
+const FULL_ORDER = { CHAT_FALLBACK_ORDER: CHAT_PROVIDER_ORDER.join(",") };
 
 describe("isUsableApiKey", () => {
   it("accepts a real-looking key", () => {
@@ -69,10 +72,15 @@ describe("provider configuration", () => {
 });
 
 describe("parseChatProviderOrder (CHAT_FALLBACK_ORDER)", () => {
-  it("defaults to the full order", () => {
-    expect(parseChatProviderOrder(undefined)).toEqual([...CHAT_PROVIDER_ORDER]);
-    expect(parseChatProviderOrder(" ")).toEqual([...CHAT_PROVIDER_ORDER]);
-    expect(parseChatProviderOrder("nonsense")).toEqual([...CHAT_PROVIDER_ORDER]);
+  it("defaults to Groq, Gemini, OpenRouter (Cerebras left out: 402 payment_required)", () => {
+    expect(DEFAULT_CHAT_PROVIDER_ORDER).toEqual(["groq", "gemini", "openrouter"]);
+    expect(parseChatProviderOrder(undefined)).toEqual([...DEFAULT_CHAT_PROVIDER_ORDER]);
+    expect(parseChatProviderOrder(" ")).toEqual([...DEFAULT_CHAT_PROVIDER_ORDER]);
+    expect(parseChatProviderOrder("nonsense")).toEqual([...DEFAULT_CHAT_PROVIDER_ORDER]);
+  });
+
+  it("can still list Cerebras explicitly", () => {
+    expect(parseChatProviderOrder(CHAT_PROVIDER_ORDER.join(","))).toEqual([...CHAT_PROVIDER_ORDER]);
   });
 
   it("keeps known ids in the given order, without duplicates", () => {
@@ -82,8 +90,14 @@ describe("parseChatProviderOrder (CHAT_FALLBACK_ORDER)", () => {
 });
 
 describe("resolveChatProviders", () => {
-  it("returns every provider with a usable key, in order, with the key attached", () => {
+  it("uses the default order, without Cerebras, when CHAT_FALLBACK_ORDER is unset", () => {
     const { providers, skipped } = resolveChatProviders(KEYS);
+    expect(providers.map((p) => p.id)).toEqual(["groq", "gemini", "openrouter"]);
+    expect(skipped).toEqual([]);
+  });
+
+  it("returns every provider with a usable key, in order, with the key attached", () => {
+    const { providers, skipped } = resolveChatProviders(KEYS, FULL_ORDER);
     expect(providers.map((p) => [p.id, p.apiKey])).toEqual([
       ["groq", "gsk_test"],
       ["gemini", "AQ.test"],
@@ -95,13 +109,13 @@ describe("resolveChatProviders", () => {
   });
 
   it("skips providers whose secret is empty, 'unset' or 'none'", () => {
-    const { providers, skipped } = resolveChatProviders({ groq: "gsk_test", gemini: "", cerebras: "unset", openrouter: "none" });
+    const { providers, skipped } = resolveChatProviders({ groq: "gsk_test", gemini: "", cerebras: "unset", openrouter: "none" }, FULL_ORDER);
     expect(providers.map((p) => p.id)).toEqual(["groq"]);
     expect(skipped).toEqual(["gemini", "cerebras", "cerebras_secondary", "openrouter"]);
   });
 
   it("skips the second Cerebras step when CEREBRAS_SECONDARY_MODEL=none", () => {
-    const { providers, skipped } = resolveChatProviders(KEYS, { CEREBRAS_SECONDARY_MODEL: "none" });
+    const { providers, skipped } = resolveChatProviders(KEYS, { ...FULL_ORDER, CEREBRAS_SECONDARY_MODEL: "none" });
     expect(providers.map((p) => p.id)).toEqual(["groq", "gemini", "cerebras", "openrouter"]);
     expect(skipped).toEqual(["cerebras_secondary"]);
   });

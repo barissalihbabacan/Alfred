@@ -20,8 +20,9 @@ Firebase Hosting ── /api/** rewrite ──►  Cloud Function 2nd Gen `api` 
                                             ▼
                                         Groq API (openai/gpt-oss-120b)      ◄── default
                                           ↓ unavailable, nothing streamed yet
-                                        Gemini (gemini-3.8-flash) → Cerebras gpt-oss-120b
-                                          → Cerebras qwen-3.8-27b → OpenRouter (openai/gpt-oss-120b)
+                                        Gemini (gemini-3.8-flash) → OpenRouter (openai/gpt-oss-120b)
+                                          (Cerebras gpt-oss-120b / qwen-3.8-27b configured but not in
+                                           the default order: account returns 402 payment_required)
                                         MacBook Ollama over Tailscale        ◄── only if ALFRED_LLM_PROVIDER=ollama
                                             │  tool calls: get_current_time (the only tool offered;
                                             │  server access over SSH is not connected)
@@ -284,7 +285,7 @@ Alfred Cognitive Core
   - An optional local provider running `gemma4:12b-mlx` on the MacBook over the private Tailscale network.
   - Supports native chat completions, NDJSON streaming, parameter mapping and health diagnostics.
   - Only in the request path when `ALFRED_LLM_PROVIDER=ollama`.
-- **Production chat fallback** (`src/ai/providers/chat-fallback/`, bundled into `functions/index.js`): Groq, Gemini (OpenAI-compatible endpoint), Cerebras (gpt-oss-120b, then qwen-3.8-27b) and OpenRouter all speak the OpenAI Chat Completions streaming format, so one request builder, one SSE parser and one tool loop serve them. A turn moves to the next provider only while nothing has been streamed to the user; it then restarts from the user's message with a system prompt that names the new provider. Details and the failover matrix are in `CLAUDE.md` (**Chat provider fallback**). This path does not go through `getAIProvider()`; the `src/` Groq/Ollama providers are unchanged.
+- **Production chat fallback** (`src/ai/providers/chat-fallback/`, bundled into `functions/index.js`): Groq, Gemini (OpenAI-compatible endpoint), Cerebras (gpt-oss-120b, then qwen-3.8-27b; not in the default order `DEFAULT_CHAT_PROVIDER_ORDER` until its billing is set up) and OpenRouter all speak the OpenAI Chat Completions streaming format, so one request builder, one SSE parser and one tool loop serve them. A turn moves to the next provider only while nothing has been streamed to the user; it then restarts from the user's message with a system prompt that names the new provider. Details and the failover matrix are in `CLAUDE.md` (**Chat provider fallback**). This path does not go through `getAIProvider()`; the `src/` Groq/Ollama providers are unchanged.
 - **Vendor Independence & Unified Factory**: Neither Alfred's persona nor its callers import a concrete provider directly; everything goes through `getAIProvider()`. The system prompt states whichever provider and model is actually answering.
 
 ### Real-Time Streaming & "Thinking..." Architecture

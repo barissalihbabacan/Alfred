@@ -7,7 +7,7 @@ import {
   type ChatTurnDeps,
   type LogSeverity
 } from "../../src/ai/providers/chat-fallback/chat-turn.js";
-import { resolveChatProviders, type ChatProviderEnv } from "../../src/ai/providers/chat-fallback/chat-providers.js";
+import { CHAT_PROVIDER_ORDER, resolveChatProviders, type ChatProviderEnv } from "../../src/ai/providers/chat-fallback/chat-providers.js";
 import { FALLBACK_EXHAUSTED_NOTE, toChatTurnErrorEvent } from "../../src/ai/providers/chat-fallback/failover.js";
 import { buildAlfredSystemPrompt } from "../../src/ai/prompts/alfred-system-prompt.js";
 import { GET_CURRENT_TIME_TOOL_DEFINITION, runGetCurrentTimeTool } from "../../src/ai/tools/time/current-time.js";
@@ -42,7 +42,8 @@ interface Call {
 }
 
 function harness(replies: Reply[], options: { keys?: Partial<typeof KEYS>; env?: ChatProviderEnv } = {}) {
-  const { providers } = resolveChatProviders(options.keys ?? KEYS, options.env ?? {});
+  // The Cerebras steps are tested explicitly; production's default order omits them.
+  const { providers } = resolveChatProviders(options.keys ?? KEYS, { CHAT_FALLBACK_ORDER: CHAT_PROVIDER_ORDER.join(","), ...(options.env ?? {}) });
   const calls: Call[] = [];
   const events: Array<Record<string, unknown>> = [];
   const logs: Array<{ severity: LogSeverity; event: string; message: string; fields: Record<string, unknown> }> = [];

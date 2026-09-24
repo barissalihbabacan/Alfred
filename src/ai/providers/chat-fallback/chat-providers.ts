@@ -26,7 +26,7 @@
 
 export type ChatProviderId = "groq" | "gemini" | "cerebras" | "cerebras_secondary" | "openrouter";
 
-/** Fallback order. Groq stays first; the others are only used when it is unavailable. */
+/** Every provider this module knows, in their natural fallback order. */
 export const CHAT_PROVIDER_ORDER: readonly ChatProviderId[] = [
   "groq",
   "gemini",
@@ -34,6 +34,18 @@ export const CHAT_PROVIDER_ORDER: readonly ChatProviderId[] = [
   "cerebras_secondary",
   "openrouter"
 ];
+
+/**
+ * The order production uses when CHAT_FALLBACK_ORDER is unset. Groq stays
+ * first; the others are only used when it is unavailable.
+ *
+ * Cerebras is left out (24 Sep 2026): the account answers every request with
+ * 402 payment_required, so both Cerebras steps only added two failed calls and
+ * two ERROR logs before OpenRouter. Its config, key binding and tests stay, so
+ * putting "cerebras", "cerebras_secondary" back here (before "openrouter")
+ * re-enables it once billing is set up.
+ */
+export const DEFAULT_CHAT_PROVIDER_ORDER: readonly ChatProviderId[] = ["groq", "gemini", "openrouter"];
 
 export const DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b";
 /**
@@ -187,18 +199,19 @@ export function getChatProviderConfig(id: ChatProviderId, env: ChatProviderEnv =
 
 /**
  * Parses CHAT_FALLBACK_ORDER (comma-separated provider ids). Unknown ids and
- * duplicates are dropped. Empty or unset → the default order. `"groq"` alone
+ * duplicates are dropped. Empty or unset → DEFAULT_CHAT_PROVIDER_ORDER. Any
+ * known id (Cerebras included) may be listed explicitly. `"groq"` alone
  * disables fallback.
  */
 export function parseChatProviderOrder(value: string | null | undefined): ChatProviderId[] {
-  if (typeof value !== "string" || !value.trim()) return [...CHAT_PROVIDER_ORDER];
+  if (typeof value !== "string" || !value.trim()) return [...DEFAULT_CHAT_PROVIDER_ORDER];
   const known = new Set<string>(CHAT_PROVIDER_ORDER);
   const out: ChatProviderId[] = [];
   for (const raw of value.split(",")) {
     const id = raw.trim().toLowerCase();
     if (known.has(id) && !out.includes(id as ChatProviderId)) out.push(id as ChatProviderId);
   }
-  return out.length > 0 ? out : [...CHAT_PROVIDER_ORDER];
+  return out.length > 0 ? out : [...DEFAULT_CHAT_PROVIDER_ORDER];
 }
 
 export interface ResolvedChatProvider extends ChatProviderConfig {

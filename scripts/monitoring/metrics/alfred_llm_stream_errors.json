@@ -1,0 +1,26 @@
+{
+  "description": "Error objects inside a provider's SSE response stream (llm_stream_error).",
+  "filter": "resource.type=\"cloud_run_revision\"\njsonPayload.event=\"llm_stream_error\"",
+  "metricDescriptor": {
+    "metricKind": "DELTA",
+    "valueType": "INT64",
+    "unit": "1",
+    "displayName": "alfred_llm_stream_errors",
+    "labels": [
+      {
+        "key": "provider",
+        "valueType": "STRING",
+        "description": "Provider whose stream carried the error"
+      },
+      {
+        "key": "code",
+        "valueType": "STRING",
+        "description": "Provider error code/type"
+      }
+    ]
+  },
+  "labelExtractors": {
+    "provider": "EXTRACT(jsonPayload.provider)",
+    "code": "EXTRACT(jsonPayload.code)"
+  }
+}

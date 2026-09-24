@@ -1,0 +1,32 @@
+{
+  "description": "Switches from one chat provider to the next (llm_provider_fallback). The turn may still succeed on the next provider.",
+  "filter": "resource.type=\"cloud_run_revision\"\njsonPayload.event=\"llm_provider_fallback\"",
+  "metricDescriptor": {
+    "metricKind": "DELTA",
+    "valueType": "INT64",
+    "unit": "1",
+    "displayName": "alfred_provider_fallbacks",
+    "labels": [
+      {
+        "key": "from",
+        "valueType": "STRING",
+        "description": "Provider that failed"
+      },
+      {
+        "key": "to",
+        "valueType": "STRING",
+        "description": "Provider tried next"
+      },
+      {
+        "key": "reason",
+        "valueType": "STRING",
+        "description": "Failover reason (rate_limited, server_error, client_error, network, ...)"
+      }
+    ]
+  },
+  "labelExtractors": {
+    "from": "EXTRACT(jsonPayload.from)",
+    "to": "EXTRACT(jsonPayload.to)",
+    "reason": "EXTRACT(jsonPayload.reason)"
+  }
+}

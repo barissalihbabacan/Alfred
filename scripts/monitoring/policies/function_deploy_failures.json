@@ -1,0 +1,43 @@
+{
+  "displayName": "Alfred: Cloud Functions deploy failed",
+  "documentation": {
+    "subject": "[Alfred] Cloud Functions deploy başarısız",
+    "mimeType": "text/markdown",
+    "content": "Bir Cloud Functions create/update/delete işlemi hata ile bitti (activity audit log). GitHub Actions dışındaki elle `firebase deploy`'ları da yakalar. Log: `resource.type=\"cloud_function\" logName:\"cloudaudit.googleapis.com%2Factivity\" severity>=ERROR`.\n\nRunbook: docs/OPERATIONS.md (Uyarılar ve runbook)."
+  },
+  "userLabels": {
+    "managed_by": "alfred-setup-alerts",
+    "alfred_alert": "function_deploy_failures"
+  },
+  "severity": "ERROR",
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "Alfred: Cloud Functions deploy failed",
+      "conditionThreshold": {
+        "filter": "metric.type=\"logging.googleapis.com/user/alfred_function_deploy_failures\" AND resource.type=\"cloud_function\"",
+        "aggregations": [
+          {
+            "alignmentPeriod": "300s",
+            "perSeriesAligner": "ALIGN_SUM",
+            "crossSeriesReducer": "REDUCE_SUM",
+            "groupByFields": [
+              "metric.label.function"
+            ]
+          }
+        ],
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "evaluationMissingData": "EVALUATION_MISSING_DATA_INACTIVE"
+      }
+    }
+  ],
+  "alertStrategy": {
+    "autoClose": "3600s"
+  },
+  "enabled": true
+}

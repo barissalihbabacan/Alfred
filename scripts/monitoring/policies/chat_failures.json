@@ -1,0 +1,44 @@
+{
+  "displayName": "Alfred: chat turn failed (fallback exhausted)",
+  "documentation": {
+    "subject": "[Alfred] Sohbet yanıtı verilemedi",
+    "mimeType": "text/markdown",
+    "content": "Bir `/chat` turu kullanıcıya hata ile bitti (`llm_request` `outcome=error`). Yedek zincir (Groq -> Gemini -> OpenRouter) tükendi ya da yedeğe geçilemeyen bir hata oldu.\n\nLog sorgusu: `jsonPayload.event=\"llm_request\" jsonPayload.outcome=\"error\"` (alanlar: `provider`, `attempted_providers`, `fallback_from`, `error`, `error_code`, `rate_limit_type`).\n\nRunbook: docs/OPERATIONS.md (Uyarılar ve runbook)."
+  },
+  "userLabels": {
+    "managed_by": "alfred-setup-alerts",
+    "alfred_alert": "chat_failures"
+  },
+  "severity": "CRITICAL",
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "Alfred: chat turn failed (fallback exhausted)",
+      "conditionThreshold": {
+        "filter": "metric.type=\"logging.googleapis.com/user/alfred_chat_failures\" AND resource.type=\"cloud_run_revision\"",
+        "aggregations": [
+          {
+            "alignmentPeriod": "300s",
+            "perSeriesAligner": "ALIGN_SUM",
+            "crossSeriesReducer": "REDUCE_SUM",
+            "groupByFields": [
+              "metric.label.provider",
+              "metric.label.error_code"
+            ]
+          }
+        ],
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "evaluationMissingData": "EVALUATION_MISSING_DATA_INACTIVE"
+      }
+    }
+  ],
+  "alertStrategy": {
+    "autoClose": "1800s"
+  },
+  "enabled": true
+}

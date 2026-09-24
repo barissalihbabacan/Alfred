@@ -1,0 +1,40 @@
+{
+  "displayName": "Alfred: memory extraction failing",
+  "documentation": {
+    "subject": "[Alfred] Hafıza çıkarımı başarısız",
+    "mimeType": "text/markdown",
+    "content": "1 saatte 3 veya daha fazla `memory_extraction` `outcome=failed|timeout`. Sohbet etkilenmez, ama bu turlardan uzun süreli hafıza yazılmıyor. Log: `jsonPayload.event=(\"memory_extraction\" OR \"memory_extraction_provider_error\")`.\n\nRunbook: docs/OPERATIONS.md (Uyarılar ve runbook)."
+  },
+  "userLabels": {
+    "managed_by": "alfred-setup-alerts",
+    "alfred_alert": "memory_extraction_failures"
+  },
+  "severity": "WARNING",
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "Alfred: memory extraction failing",
+      "conditionThreshold": {
+        "filter": "metric.type=\"logging.googleapis.com/user/alfred_memory_extraction_failures\" AND resource.type=\"cloud_run_revision\"",
+        "aggregations": [
+          {
+            "alignmentPeriod": "3600s",
+            "perSeriesAligner": "ALIGN_SUM",
+            "crossSeriesReducer": "REDUCE_SUM"
+          }
+        ],
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 2,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        },
+        "evaluationMissingData": "EVALUATION_MISSING_DATA_INACTIVE"
+      }
+    }
+  ],
+  "alertStrategy": {
+    "autoClose": "3600s"
+  },
+  "enabled": true
+}

@@ -97,6 +97,7 @@ Kod tabanında çalışırken önce [CLAUDE.md](CLAUDE.md) dosyasını okuyun: k
 - [Mimari](docs/ARCHITECTURE.md): katmanlar, veri akışı ve bellek modeli.
 - [Yol haritası](docs/FEATURE_ROADMAP.md): sıradaki yetenekler ve her birinin gerektirdikleri.
 - [Web uygulaması](docs/web/ALFRED_PLAYGROUND.md): arayüz, API uç noktaları ve durum yönetimi.
+- [Operasyon](docs/OPERATIONS.md): üretim uyarıları (Cloud Monitoring), kurulum ve Türkçe runbook.
 
 ## Lisans
 

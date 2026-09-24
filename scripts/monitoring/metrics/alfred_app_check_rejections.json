@@ -1,0 +1,20 @@
+{
+  "description": "Requests whose App Check token was missing or invalid, excluding the exempt probe paths (/, /api, /health). 'missing' is only logged when enforcement rejects the request; 'invalid' is logged for every failed verification and carries exempt=true on probe paths.",
+  "filter": "resource.type=\"cloud_run_revision\"\njsonPayload.event=\"app_check\"\njsonPayload.outcome=(\"missing\" OR \"invalid\")\nNOT jsonPayload.exempt=true",
+  "metricDescriptor": {
+    "metricKind": "DELTA",
+    "valueType": "INT64",
+    "unit": "1",
+    "displayName": "alfred_app_check_rejections",
+    "labels": [
+      {
+        "key": "outcome",
+        "valueType": "STRING",
+        "description": "missing | invalid"
+      }
+    ]
+  },
+  "labelExtractors": {
+    "outcome": "EXTRACT(jsonPayload.outcome)"
+  }
+}

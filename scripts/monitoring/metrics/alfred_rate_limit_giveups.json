@@ -1,0 +1,32 @@
+{
+  "description": "429s where the server gave up instead of waiting (llm_rate_limited with outcome daily_limit, max_attempts or budget_exhausted). outcome=retry is a normal wait; fallback_preferred is a deliberate skip to the next provider.",
+  "filter": "resource.type=\"cloud_run_revision\"\njsonPayload.event=\"llm_rate_limited\"\nNOT jsonPayload.outcome=\"retry\"\nNOT jsonPayload.outcome=\"fallback_preferred\"",
+  "metricDescriptor": {
+    "metricKind": "DELTA",
+    "valueType": "INT64",
+    "unit": "1",
+    "displayName": "alfred_rate_limit_giveups",
+    "labels": [
+      {
+        "key": "provider",
+        "valueType": "STRING",
+        "description": "Rate-limited provider"
+      },
+      {
+        "key": "outcome",
+        "valueType": "STRING",
+        "description": "daily_limit | max_attempts | budget_exhausted"
+      },
+      {
+        "key": "limit_type",
+        "valueType": "STRING",
+        "description": "tpm | tpd | rpm | rpd | unknown"
+      }
+    ]
+  },
+  "labelExtractors": {
+    "provider": "EXTRACT(jsonPayload.provider)",
+    "outcome": "EXTRACT(jsonPayload.outcome)",
+    "limit_type": "EXTRACT(jsonPayload.limit_type)"
+  }
+}

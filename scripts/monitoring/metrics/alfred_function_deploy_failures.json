@@ -1,0 +1,20 @@
+{
+  "description": "Failed Cloud Functions create/update/delete operations (activity audit log, severity ERROR), whether from the GitHub deploy workflow or a manual firebase deploy. Example: 'Secret environment variable overlaps non secret environment variable: GROQ_API_KEY' (23 Sep 2026).",
+  "filter": "resource.type=\"cloud_function\"\nlogName:\"cloudaudit.googleapis.com%2Factivity\"\nprotoPayload.serviceName=\"cloudfunctions.googleapis.com\"\nseverity>=ERROR",
+  "metricDescriptor": {
+    "metricKind": "DELTA",
+    "valueType": "INT64",
+    "unit": "1",
+    "displayName": "alfred_function_deploy_failures",
+    "labels": [
+      {
+        "key": "function",
+        "valueType": "STRING",
+        "description": "Function name (api | alfredCallable)"
+      }
+    ]
+  },
+  "labelExtractors": {
+    "function": "EXTRACT(resource.labels.function_name)"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "description": "Chat turns that failed for the user: llm_request outcome=error, logged once per turn after the provider fallback chain (Groq -> Gemini -> OpenRouter) is exhausted or a non-failover error ends the turn.",
+  "filter": "resource.type=\"cloud_run_revision\"\njsonPayload.event=\"llm_request\"\njsonPayload.outcome=\"error\"",
+  "metricDescriptor": {
+    "metricKind": "DELTA",
+    "valueType": "INT64",
+    "unit": "1",
+    "displayName": "alfred_chat_failures",
+    "labels": [
+      {
+        "key": "provider",
+        "valueType": "STRING",
+        "description": "Provider that failed last (llm_request.provider)"
+      },
+      {
+        "key": "error_code",
+        "valueType": "STRING",
+        "description": "error_code on rate-limit failures (rate_limited), empty otherwise"
+      }
+    ]
+  },
+  "labelExtractors": {
+    "provider": "EXTRACT(jsonPayload.provider)",
+    "error_code": "EXTRACT(jsonPayload.error_code)"
+  }
+}

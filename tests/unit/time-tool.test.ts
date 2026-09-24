@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { GetCurrentTimeTool } from "../../src/ai/tools/time/get-current-time.tool.js";
-import { GET_CURRENT_TIME_TOOL_DEFINITION } from "../../src/ai/tools/time/current-time.js";
+import { GET_CURRENT_TIME_TOOL_DEFINITION, type CurrentTimeResult } from "../../src/ai/tools/time/current-time.js";
 import { resolveTimezone } from "../../src/ai/tools/time/timezone-resolver.js";
 import { PermissionLevel } from "../../src/alfred/control-plane/permission-system/types.js";
 
@@ -59,7 +59,7 @@ describe("GetCurrentTimeTool & TimezoneResolver Suite", () => {
 
       const def = timeTool.getDefinition();
       expect(def).toEqual(GET_CURRENT_TIME_TOOL_DEFINITION);
-      expect(def.function.parameters.required).toEqual(["city"]);
+      expect(def.function.parameters.required).toEqual(["cities"]);
     });
 
     it("passes the city through untouched, as production does", () => {
@@ -72,7 +72,8 @@ describe("GetCurrentTimeTool & TimezoneResolver Suite", () => {
 
   describe("GetCurrentTimeTool Execution", () => {
     it("returns structured time details for London", async () => {
-      const result = await timeTool.execute({ city: "London" });
+      // The legacy { city } form returns a single result, not { results }.
+      const result = (await timeTool.execute({ city: "London" })) as CurrentTimeResult;
       expect(Object.keys(result).sort()).toEqual(["city", "date", "localTime", "time24", "timezone", "utcOffset"]);
       expect(result.city).toBe("London");
       expect(result.timezone).toBe("Europe/London");
@@ -83,7 +84,7 @@ describe("GetCurrentTimeTool & TimezoneResolver Suite", () => {
     });
 
     it("returns structured time details for Tokyo", async () => {
-      const result = await timeTool.execute({ city: "Tokyo" });
+      const result = (await timeTool.execute({ city: "Tokyo" })) as CurrentTimeResult;
       expect(result.city).toBe("Tokyo");
       expect(result.timezone).toBe("Asia/Tokyo");
       expect(result.utcOffset).toBe("GMT+9");

@@ -10,7 +10,7 @@ import {
 import { generateDeterministicTitle } from "../src/data/firestore/conversation-title.js";
 import {
   GET_CURRENT_TIME_TOOL_DEFINITION as TIME_TOOL_DEFINITION,
-  getCurrentTimeForCity
+  runGetCurrentTimeTool
 } from "../src/ai/tools/time/current-time.js";
 import {
   RATE_LIMIT_MAX_ATTEMPTS,
@@ -869,7 +869,7 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
       // bir baglanti yoktu (sabit yer tutucu ciktilar donuyordu); model
       // uydurma sunucu durumu raporlamasin diye kaldirildilar. Persona da
       // sunucu erisiminin henuz bagli olmadigini soyluyor.
-      let activeTools = [TIME_TOOL_DEFINITION];
+      const activeTools = [TIME_TOOL_DEFINITION];
       let toolTurn = 0;
       const MAX_TURNS = 3;
 
@@ -890,7 +890,12 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
             temperature: 0.6,
             max_tokens: 1500
           };
-          if (activeTools && activeTools.length > 0) {
+          // Araclar son tur haric her turda acik: model sehirleri tek tek
+          // isterse ikinci turda araci yine cagirabilmeli. Onceden ikinci
+          // turda araclar kaldiriliyordu; model yine de cagirinca Groq akisin
+          // icinde "tool_use_failed" donuyor ve cevap bos kaliyordu (24 Eyl).
+          // Son turda arac yok: model cevabi yazmak zorunda.
+          if (activeTools && activeTools.length > 0 && toolTurn < MAX_TURNS) {
             groqPayload.tools = activeTools;
           }
 
@@ -961,6 +966,10 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
           const decoder = new TextDecoder();
           let buffer = "";
           const toolCallsAccumulator = {};
+          // Groq bazi hatalari (or. tool_use_failed) HTTP 200 akisinin icinde
+          // {"error": {...}} olarak gonderir; choices olmadigi icin sessizce
+          // atlaniyordu.
+          let streamError = null;
 
           while (true) {
             const { done, value } = await reader.read();
@@ -978,6 +987,10 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
 
               try {
                 const chunk = JSON.parse(dataStr);
+                if (chunk.error) {
+                  streamError = chunk.error;
+                  continue;
+                }
                 // Groq token kullanimini finish_reason'li son chunk'ta verir;
                 // stream_options olmadan da hem `usage` hem `x_groq.usage` gelir
                 // (ikisi ayni degerdir, yalnizca biri sayilir). stream_options
@@ -1022,6 +1035,20 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
             }
           }
 
+          if (streamError) {
+            logger.warn("[Groq] Error inside the response stream.", {
+              event: "llm_stream_error",
+              provider: "groq",
+              model: groqModel,
+              round: toolTurn,
+              code: String(streamError.code || streamError.type || "unknown").slice(0, 64),
+              detail: String(streamError.message || "").slice(0, 200)
+            });
+            const streamErr = new Error("Alfred yanıtı tamamlayamadı. Lütfen tekrar deneyin.");
+            streamErr.code = "stream_error";
+            throw streamErr;
+          }
+
           passToolCalls = Object.values(toolCallsAccumulator).map((tc) => ({
             id: tc.id,
             type: "function",
@@ -1037,7 +1064,7 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
             messages: currentPayload,
             stream: true
           };
-          if (activeTools && activeTools.length > 0) {
+          if (activeTools && activeTools.length > 0 && toolTurn < MAX_TURNS) {
             requestBody.tools = activeTools;
           }
 
@@ -1134,7 +1161,7 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
             const toolStart = performance.now();
             let toolResult;
             if (fnName === "get_current_time") {
-              toolResult = getCurrentTimeForCity(fnArgs?.city);
+              toolResult = runGetCurrentTimeTool(fnArgs);
             } else {
               toolResult = { error: `Tool ${fnName} not recognized.` };
             }
@@ -1162,18 +1189,21 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
           }
 
           accumulatedText = "";
-          activeTools = undefined;
         } else {
           break;
         }
       }
 
+      const cleanContent = accumulatedText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
+      if (!cleanContent) {
+        // Bos cevap basari sayilmaz: "(Yanit bos)" yerine anlasilir bir hata.
+        const emptyErr = new Error("Alfred boş bir yanıt üretti. Lütfen tekrar deneyin.");
+        emptyErr.code = "empty_response";
+        throw emptyErr;
+      }
       logLlmRequest("ok");
       sendEvent({ type: "done" });
-      const cleanContent = accumulatedText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
-      if (cleanContent) {
-        await finalizeTurn(cleanContent);
-      }
+      await finalizeTurn(cleanContent);
       res.end();
     } catch (err) {
       logLlmRequest("error", err);

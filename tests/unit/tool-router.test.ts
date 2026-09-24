@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { ToolRegistry } from "../../src/alfred/control-plane/tool-router/tool-registry.js";
 import { ToolRouter } from "../../src/alfred/control-plane/tool-router/tool-router.js";
-import { GetCurrentTimeTool, GetCurrentTimeResult } from "../../src/ai/tools/time/get-current-time.tool.js";
+import { GetCurrentTimeTool } from "../../src/ai/tools/time/get-current-time.tool.js";
+import type { CurrentTimeResult } from "../../src/ai/tools/time/current-time.js";
 import { ITool, ToolDefinition, ToolParameterSchema, ToolExecutionContext } from "../../src/ai/tools/types.js";
 import { PermissionLevel } from "../../src/alfred/control-plane/permission-system/types.js";
 
@@ -80,7 +81,7 @@ describe("Tool Registry & Router Suite", () => {
       const timeDef = defs.find((d) => d.function.name === "get_current_time");
       expect(timeDef).toBeDefined();
       expect(timeDef?.type).toBe("function");
-      expect(timeDef?.function.parameters.required).toContain("city");
+      expect(timeDef?.function.parameters.required).toContain("cities");
     });
   });
 
@@ -98,7 +99,7 @@ describe("Tool Registry & Router Suite", () => {
       expect(result.success).toBe(true);
       expect(result.toolName).toBe("get_current_time");
       expect(result.toolCallId).toBe("call_123");
-      const data = result.data as GetCurrentTimeResult | undefined;
+      const data = result.data as CurrentTimeResult | undefined;
       expect(data?.city).toBe("London");
       expect(data?.timezone).toBe("Europe/London");
       expect(typeof result.executionTimeMs).toBe("number");
@@ -222,9 +223,9 @@ describe("Tool Registry & Router Suite", () => {
 
       expect(results.length).toBe(2);
       expect(results[0].success).toBe(true);
-      expect((results[0].data as GetCurrentTimeResult | undefined)?.city).toBe("London");
+      expect((results[0].data as CurrentTimeResult | undefined)?.city).toBe("London");
       expect(results[1].success).toBe(true);
-      expect((results[1].data as GetCurrentTimeResult | undefined)?.city).toBe("Tokyo");
+      expect((results[1].data as CurrentTimeResult | undefined)?.city).toBe("Tokyo");
     });
   });
 });

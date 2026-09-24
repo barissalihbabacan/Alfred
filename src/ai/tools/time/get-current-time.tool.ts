@@ -1,5 +1,5 @@
 /**
- * B.U.T.L.E.R. Alfred — Tool: get_current_time(city)
+ * B.U.T.L.E.R. Alfred — Tool: get_current_time(cities | city)
  * Deterministic, side-effect-free tool to retrieve the current local time and timezone for a city.
  *
  * Definition, resolution and formatting come from ./current-time.ts, which
@@ -9,18 +9,21 @@
 import { ITool, ToolDefinition, ToolParameterSchema, ToolExecutionContext } from "../types.js";
 import { PermissionLevel } from "../../../alfred/control-plane/permission-system/types.js";
 import {
+  CurrentTimeMultiResult,
   CurrentTimeResult,
   GET_CURRENT_TIME_TOOL_DEFINITION,
   GET_CURRENT_TIME_TOOL_NAME,
-  getCurrentTimeForCity
+  runGetCurrentTimeTool
 } from "./current-time.js";
 
 export interface GetCurrentTimeArgs {
   /** Passed through untouched, as production does; non-strings fail to resolve. */
   city?: unknown;
+  /** Several cities in one call; production's preferred form. */
+  cities?: unknown;
 }
 
-export type GetCurrentTimeResult = CurrentTimeResult;
+export type GetCurrentTimeResult = CurrentTimeResult | CurrentTimeMultiResult;
 
 export class GetCurrentTimeTool implements ITool<GetCurrentTimeArgs, GetCurrentTimeResult> {
   public readonly name = GET_CURRENT_TIME_TOOL_NAME;
@@ -46,8 +49,8 @@ export class GetCurrentTimeTool implements ITool<GetCurrentTimeArgs, GetCurrentT
    * as-is (not trimmed; the error message quotes it verbatim).
    */
   public validateArgs(args: unknown): { valid: boolean; error?: string; parsedArgs?: GetCurrentTimeArgs } {
-    const city = typeof args === "object" && args !== null ? (args as Record<string, unknown>).city : undefined;
-    return { valid: true, parsedArgs: { city } };
+    const record = typeof args === "object" && args !== null ? (args as Record<string, unknown>) : {};
+    return { valid: true, parsedArgs: { city: record.city, cities: record.cities } };
   }
 
   /**
@@ -58,7 +61,7 @@ export class GetCurrentTimeTool implements ITool<GetCurrentTimeArgs, GetCurrentT
     args: GetCurrentTimeArgs,
     _context?: ToolExecutionContext
   ): Promise<GetCurrentTimeResult> {
-    const result = getCurrentTimeForCity(args.city);
+    const result = runGetCurrentTimeTool(args);
     if ("error" in result) {
       throw new Error(result.error);
     }

@@ -34,7 +34,7 @@ export const GET_CURRENT_TIME_TOOL_DEFINITION: ToolDefinition = {
           items: { type: "string" },
           minItems: 1,
           maxItems: MAX_CITIES_PER_CALL,
-          description: "All city or location names to look up, in one call (e.g. ['Istanbul', 'New York'])."
+          description: "All city or location names to look up, in one call, spelled as the user wrote them (e.g. ['İstanbul', 'New York'] or ['Londra', 'Sidney'])."
         },
         city: {
           type: "string",

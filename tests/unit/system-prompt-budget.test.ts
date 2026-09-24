@@ -59,6 +59,8 @@ const KEPT_RULES: ReadonlyArray<readonly [string, string]> = [
   ["not a chatbot", "You are NOT a corporate consultant or a customer-service chatbot."],
   ["British English", "educated British English (Received Pronunciation register, British spelling"],
   ["Turkish replies", "When Barış addresses you in Turkish (Türkçe), you MUST respond fluently and naturally in Turkish"],
+  ["reply language after tools", "Always answer in the language of his latest message, also after a tool call"],
+  ["Turkish place names and suffixes", "use Turkish place names (Londra, Sidney, Münih) and attach case suffixes by pronunciation"],
   ["forms of address", '"sir" (in English) or "Efendim" / "Barış Bey" (in Turkish) SPARINGLY: at most once per response'],
   ["no slang", "NEVER use colloquial slang"],
   ["no emojis", "NEVER use emojis or chat acronyms"],

@@ -190,7 +190,7 @@ Conversation Exchange (User Message + Assistant Response)
   - the Conversational Governor, which states the request pipeline for that provider;
   - the retrieved memories block (`=== RETRIEVED LONG-TERM MEMORIES (SEMANTIC CONTEXT) ===`), when there are any.
 
-  **Size.** The whole prompt is re-sent on every model call. A question that uses a tool makes two calls, and Groq's free tier for `openai/gpt-oss-120b` allows 8,000 tokens a minute. The static prompt is about 2,120 tokens (o200k_base): persona ~835, digest ~620, governor ~670. Before the Sep 2026 trim it was about 4,360, so one tool question could exceed the limit on its own.
+  **Size.** The whole prompt is re-sent on every model call. A question that uses a tool makes two calls, and Groq's free tier for `openai/gpt-oss-120b` allows 8,000 tokens a minute. The static prompt is about 2,360 tokens (o200k_base): persona ~1,070 (including the Turkish-register rule), digest ~620, governor ~670. Before the Sep 2026 trim it was about 4,360, so one tool question could exceed the limit on its own.
 
   `tests/unit/system-prompt-budget.test.ts` enforces a cap of 2,400 tokens static and 2,800 with five retrieved memories, counted with the `gpt-tokenizer` devDependency. It also lists the rules that must survive any trim.
 

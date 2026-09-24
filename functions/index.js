@@ -681,7 +681,9 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
     }
 
     // Persona states the provider/model actually answering this turn; the
-    // profile comes from users/*.md embedded at build time (functions/build.js).
+    // profile is the reviewed digest of users/*.md embedded at build time
+    // (functions/build.js). The prompt is re-sent on every tool round, so it
+    // is kept under a token budget (tests/unit/system-prompt-budget.test.ts).
     const currentModel = activeProvider === "groq" ? groqModel : ollamaModel;
     const systemPromptWithMemories = buildAlfredSystemPrompt({
       runtime: { provider: activeProvider, model: currentModel },

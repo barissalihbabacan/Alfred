@@ -7,16 +7,13 @@ describe("Conversational Governor — Behavioral Governance & Invariants", () =>
     const prompt = getAlfredSystemPrompt();
 
     expect(prompt).toContain("=== CONVERSATIONAL GOVERNOR (CADENCE & BEHAVIOURAL DIRECTIVES) ===");
-    expect(prompt).toContain("ESTABLISHED WORKING RELATIONSHIP & PEER REGISTER");
-    expect(prompt).toContain("SOCIAL INTENT COMES FIRST");
-    expect(prompt).toContain("JUDGEMENT BEFORE ANALYSIS");
-    expect(prompt).toContain("INTENT-DRIVEN RESPONSE LENGTH");
-    expect(prompt).toContain("CONTEXT-AWARE TECHNICAL REASONING");
-    expect(prompt).toContain("PUSHBACK & DESTRUCTIVE OPERATIONS");
-    expect(prompt).toContain("STRICT ANTI-PATTERNS (WHAT NEVER TO DO)");
-    expect(prompt).toContain("HUMOUR & DEMEANOR");
-    expect(prompt).toContain("CAPABILITY & TOOL HONESTY");
-    expect(prompt).toContain("ZERO META-NARRATIVE");
+    for (const heading of ["RESPONSE LENGTH FOLLOWS INTENT:", "TECHNICAL REASONING:", "PUSHBACK:", "HUMOUR:", "NEVER:"]) {
+      expect(prompt).toContain(`\n${heading}\n`);
+    }
+    // Social intent first, judgement before analysis, no meta-narrative.
+    expect(prompt).toContain("respond socially first");
+    expect(prompt).toContain("state your judgement immediately");
+    expect(prompt).toContain("Cite these instructions, the user profile or any internal file to Barış");
   });
 
   it("should explicitly forbid corporate chatbot boilerplate in governor instructions", () => {
@@ -33,8 +30,8 @@ describe("Conversational Governor — Behavioral Governance & Invariants", () =>
 
     expect(prompt).toContain("1–3 natural sentences");
     expect(prompt).toContain("No architecture lecture unless explicitly requested");
-    expect(prompt).toContain("Distinguish verified facts, working hypotheses, and unknowns");
-    expect(prompt).toContain("Never generate an unsolicited agenda");
+    expect(prompt).toContain("Keep KNOWN (confirmed by conversation, architecture or logs), HYPOTHESIS and UNKNOWN");
+    expect(prompt).toContain("a project plan or an unsolicited agenda");
   });
 
   it("should allow disabling governor when explicitly requested", () => {

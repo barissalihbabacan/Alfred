@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  describeStaleUserProfileDigest,
+  renderUserProfileSourcesModule,
+  staleUserProfileDigestSources
+} from "../../scripts/generate-user-profile-sources.mjs";
 import {
   renderUserProfileBlock,
   renderUserProfileMarkdown,
@@ -19,6 +26,35 @@ describe("user-profile.generated.ts (users/*.md embedded for the functions bundl
     expect(USER_PROFILE_SOURCES.userProfile).toBe(readUsersFile("USER_PROFILE.md"));
     expect(USER_PROFILE_SOURCES.preferences).toBe(readUsersFile("PREFERENCES.md"));
     expect(USER_PROFILE_SOURCES.workingStyle).toBe(readUsersFile("WORKING_STYLE.md"));
+  });
+
+  it("embeds the current digest, and the digest's hashes match users/*.md", () => {
+    expect(staleUserProfileDigestSources()).toEqual([]);
+    expect(renderUserProfileSourcesModule()).toBe(
+      readFileSync(new URL("../../src/alfred/cognitive/context/user-profile.generated.ts", import.meta.url), "utf8")
+    );
+  });
+
+  it("an edit to any users/*.md file makes the digest stale until it is updated", () => {
+    const root = mkdtempSync(join(tmpdir(), "alfred-digest-"));
+    try {
+      const context = join("src", "alfred", "cognitive", "context");
+      mkdirSync(join(root, "users"));
+      mkdirSync(join(root, context), { recursive: true });
+      for (const name of ["USER_PROFILE.md", "PREFERENCES.md", "WORKING_STYLE.md"]) {
+        writeFileSync(join(root, "users", name), readUsersFile(name));
+      }
+      const digest = readFileSync(new URL(`../../${context}/user-profile.digest.md`, import.meta.url), "utf8");
+      writeFileSync(join(root, context, "user-profile.digest.md"), digest);
+      expect(staleUserProfileDigestSources(root)).toEqual([]);
+
+      writeFileSync(join(root, "users", "WORKING_STYLE.md"), `${readUsersFile("WORKING_STYLE.md")}\n- New rule\n`);
+      const stale = staleUserProfileDigestSources(root);
+      expect(stale.map((s) => s.file)).toEqual(["WORKING_STYLE.md"]);
+      expect(describeStaleUserProfileDigest(stale)).toContain(`<!-- sha256 WORKING_STYLE.md ${stale[0]!.actual} -->`);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("the renderer and the generated module are pure (safe to bundle: no file or env access)", () => {

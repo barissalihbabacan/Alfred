@@ -1,12 +1,14 @@
 /**
  * Canonical user profile renderer — B.U.T.L.E.R. Alfred
  *
- * Turns the contents of users/USER_PROFILE.md, PREFERENCES.md and
- * WORKING_STYLE.md into the "CANONICAL USER PROFILE" block of Alfred's system
- * prompt. It is the ONE renderer for that block: src/'s ContextBuilder feeds
- * it the files UserProfileLoader read from disk, and production
- * (src/ai/prompts/alfred-system-prompt.ts -> functions/index.js) feeds it the
- * copy embedded at build time in ./user-profile.generated.ts.
+ * Renders the "CANONICAL USER PROFILE" block of Alfred's system prompt.
+ *
+ * For the committed users/*.md (production, and src/ whenever the files on
+ * disk match the embedded copy) the block is the hand-written digest in
+ * ./user-profile.digest.md, via renderUserProfileDigestBlock(): the verbatim
+ * files cost ~2,000 tokens a turn, mostly repeating the persona. For any other
+ * sources (e.g. a test fixture) renderUserProfileBlock() renders the files
+ * themselves.
  *
  * Pure: strings in, string out. No imports, no file access, so it is safe to
  * bundle into the Cloud Functions.
@@ -77,8 +79,19 @@ export function renderUserProfileMarkdown(markdown: string): string {
 }
 
 /**
- * Renders the canonical user profile block from the three users/*.md files.
- * A file that renders to nothing is left out.
+ * The profile block the system prompt carries for the committed users/*.md:
+ * the hand-written digest (user-profile.digest.md, embedded as
+ * USER_PROFILE_DIGEST) inside the same header and footer.
+ */
+export function renderUserProfileDigestBlock(digest: string): string {
+  return [USER_PROFILE_BLOCK_HEADER, digest.trim(), USER_PROFILE_BLOCK_FOOTER].join("\n");
+}
+
+/**
+ * Renders the canonical user profile block from the three users/*.md files,
+ * verbatim. The system prompt uses the digest instead whenever the sources
+ * are the committed ones (see ContextBuilder.formatUserProfileBlock); this
+ * rendering covers any other sources. A file that renders to nothing is left out.
  */
 export function renderUserProfileBlock(sources: UserProfileSources): string {
   const sections = SECTIONS

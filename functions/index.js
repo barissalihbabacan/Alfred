@@ -167,12 +167,18 @@ function withTimeout(promise, ms, label) {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
+// Bellek cikarimi sohbet modelinden ayri, kucuk bir modelde calisir. Groq'un
+// ucretsiz plani sinirlari model basina uygular (gpt-oss-120b: dakikada 8.000
+// token); ayni modeli kullaninca her sohbet turu kotayi iki kez harciyordu.
+// 24 Eyl'de 6 ornekte (tercih, sohbet, saat, gizli anahtar, karar, unut)
+// gpt-oss-20b, 120b ile ayni kararlari verdi. src/ ile ayni ortam degiskeni.
+const MEMORY_EXTRACTION_MODEL = process.env.MEMORY_EXTRACTION_MODEL || "openai/gpt-oss-20b";
+
 async function extractAndPersistMemories({
   db,
   ollamaUrl,
   ollamaModel,
   groqKey,
-  groqModel,
   geminiKey,
   userMessage,
   assistantResponse,
@@ -207,7 +213,7 @@ async function extractAndPersistMemories({
           "Authorization": `Bearer ${groqKey}`
         },
         body: JSON.stringify({
-          model: groqModel || "openai/gpt-oss-120b",
+          model: MEMORY_EXTRACTION_MODEL,
           messages: [
             { role: "system", content: systemInstructions },
             { role: "user", content: userPrompt }
@@ -224,7 +230,7 @@ async function extractAndPersistMemories({
       } else {
         const errTxt = await gRes.text().catch(() => "");
         logger.warn(`[Memory] Groq extraction HTTP ${gRes.status}: ${errTxt}`, {
-          event: "memory_extraction_provider_error", provider: "groq", http_status: gRes.status
+          event: "memory_extraction_provider_error", provider: "groq", model: MEMORY_EXTRACTION_MODEL, http_status: gRes.status
         });
       }
     } catch (gErr) {
@@ -764,7 +770,6 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
           ollamaUrl,
           ollamaModel,
           groqKey,
-          groqModel,
           geminiKey,
           userMessage: trimmedMessage,
           assistantResponse: content,
@@ -779,6 +784,7 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
             ...summary,
             outcome,
             count: summary?.count || 0,
+            extractor_model: summary?.extractor_provider === "groq" ? MEMORY_EXTRACTION_MODEL : undefined,
             duration_ms: msSince(extractionStart)
           });
       } catch (memExtErr) {

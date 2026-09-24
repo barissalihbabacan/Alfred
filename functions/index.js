@@ -13,6 +13,15 @@ import {
   getCurrentTimeForCity
 } from "../src/ai/tools/time/current-time.js";
 import {
+  RATE_LIMIT_MAX_ATTEMPTS,
+  RATE_LIMIT_TURN_BUDGET_MS,
+  parseRetryAfterSeconds,
+  computeRateLimitWait,
+  createRateLimitedError,
+  isRateLimitedError,
+  toChatErrorEvent
+} from "../src/ai/providers/groq/rate-limit.js";
+import {
   generateEmbedding,
   isComparableEmbedding
 } from "../src/ai/embedding/embedding-client.js";
@@ -167,12 +176,18 @@ function withTimeout(promise, ms, label) {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
+// Bellek cikarimi sohbet modelinden ayri, kucuk bir modelde calisir. Groq'un
+// ucretsiz plani sinirlari model basina uygular (gpt-oss-120b: dakikada 8.000
+// token); ayni modeli kullaninca her sohbet turu kotayi iki kez harciyordu.
+// 24 Eyl'de 6 ornekte (tercih, sohbet, saat, gizli anahtar, karar, unut)
+// gpt-oss-20b, 120b ile ayni kararlari verdi. src/ ile ayni ortam degiskeni.
+const MEMORY_EXTRACTION_MODEL = process.env.MEMORY_EXTRACTION_MODEL || "openai/gpt-oss-20b";
+
 async function extractAndPersistMemories({
   db,
   ollamaUrl,
   ollamaModel,
   groqKey,
-  groqModel,
   geminiKey,
   userMessage,
   assistantResponse,
@@ -207,7 +222,7 @@ async function extractAndPersistMemories({
           "Authorization": `Bearer ${groqKey}`
         },
         body: JSON.stringify({
-          model: groqModel || "openai/gpt-oss-120b",
+          model: MEMORY_EXTRACTION_MODEL,
           messages: [
             { role: "system", content: systemInstructions },
             { role: "user", content: userPrompt }
@@ -224,7 +239,7 @@ async function extractAndPersistMemories({
       } else {
         const errTxt = await gRes.text().catch(() => "");
         logger.warn(`[Memory] Groq extraction HTTP ${gRes.status}: ${errTxt}`, {
-          event: "memory_extraction_provider_error", provider: "groq", http_status: gRes.status
+          event: "memory_extraction_provider_error", provider: "groq", model: MEMORY_EXTRACTION_MODEL, http_status: gRes.status
         });
       }
     } catch (gErr) {
@@ -766,7 +781,6 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
           ollamaUrl,
           ollamaModel,
           groqKey,
-          groqModel,
           geminiKey,
           userMessage: trimmedMessage,
           assistantResponse: content,
@@ -781,6 +795,7 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
             ...summary,
             outcome,
             count: summary?.count || 0,
+            extractor_model: summary?.extractor_provider === "groq" ? MEMORY_EXTRACTION_MODEL : undefined,
             duration_ms: msSince(extractionStart)
           });
       } catch (memExtErr) {
@@ -805,6 +820,8 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
       tool_rounds: 0,
       tool_calls: 0,
       rate_limit_retries: 0,
+      // 429 beklemelerinin tur boyunca toplami (RATE_LIMIT_TURN_BUDGET_MS ile sinirli).
+      rate_limit_wait_ms: 0,
       time_to_first_token_ms: null,
       prompt_tokens: null,
       completion_tokens: null,
@@ -834,7 +851,8 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
           outcome,
           app_check: appCheckStatus,
           latency_ms: msSince(llmStart),
-          ...(err ? { error: errMessage(err) } : {})
+          ...(err ? { error: errMessage(err) } : {}),
+          ...(isRateLimitedError(err) ? { error_code: err.code, rate_limit_reason: err.reason } : {})
         });
     };
 
@@ -872,7 +890,7 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
           let attempts = 0;
           let groqRes;
           llmMetrics.llm_calls++;
-          while (attempts < 3) {
+          while (attempts < RATE_LIMIT_MAX_ATTEMPTS) {
             attempts++;
             groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
               method: "POST",
@@ -884,21 +902,44 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
               signal: AbortSignal.timeout(60000)
             });
 
-            if (groqRes.status === 429 && attempts < 3) {
-              const retryHeader = groqRes.headers.get("retry-after");
-              let waitSec = retryHeader ? parseFloat(retryHeader) : 0;
-              if (!waitSec || Number.isNaN(waitSec)) {
-                const errJson = await groqRes.clone().json().catch(() => ({}));
-                const msg = errJson?.error?.message || "";
-                const match = msg.match(/try again in ([0-9.]+)s/i);
-                waitSec = match ? parseFloat(match[1]) + 0.6 : 5.0;
-              }
-              const waitMs = Math.min(Math.max(waitSec * 1000, 2500), 15000);
-              llmMetrics.rate_limit_retries++;
-              logger.warn(`[Groq] Rate limit (429) hit, waiting ${Math.round(waitMs)}ms before retry ${attempts}...`, {
-                event: "llm_rate_limited", provider: "groq", model: groqModel, wait_ms: Math.round(waitMs), attempt: attempts
+            if (groqRes.status === 429) {
+              // 429 govdesi yalnizca loglara gider; kullaniciya kisa bir mesaj
+              // gosterilir (toChatErrorEvent). Govdede anahtar yoktur.
+              const errText = await groqRes.text().catch(() => "");
+              let errBodyMessage = "";
+              try { errBodyMessage = JSON.parse(errText)?.error?.message || ""; } catch {}
+              const retryAfterSec = parseRetryAfterSeconds(groqRes.headers.get("retry-after"), errBodyMessage);
+              // Bekleme butcesi tur basinadir: arac turlari ve tekrar denemeler
+              // toplam RATE_LIMIT_TURN_BUDGET_MS'i asamaz.
+              const decision = computeRateLimitWait({
+                retryAfterSec,
+                attempt: attempts,
+                spentMs: llmMetrics.rate_limit_wait_ms
               });
-              await new Promise((r) => setTimeout(r, waitMs));
+              logger.warn(decision.retry
+                ? `[Groq] Rate limit (429) hit, waiting ${decision.waitMs}ms before retry ${attempts}...`
+                : `[Groq] Rate limit (429) hit, giving up (${decision.reason}) after ${llmMetrics.rate_limit_wait_ms}ms of waiting`, {
+                event: "llm_rate_limited",
+                provider: "groq",
+                model: groqModel,
+                wait_ms: decision.waitMs,
+                attempt: attempts,
+                round: toolTurn,
+                total_wait_ms: llmMetrics.rate_limit_wait_ms,
+                budget_ms: RATE_LIMIT_TURN_BUDGET_MS,
+                outcome: decision.retry ? "retry" : decision.reason,
+                detail: errBodyMessage.slice(0, 300)
+              });
+              if (!decision.retry) {
+                throw createRateLimitedError(errBodyMessage || errText, decision.reason, decision.waitMs);
+              }
+              llmMetrics.rate_limit_retries++;
+              llmMetrics.rate_limit_wait_ms += decision.waitMs;
+              // Istemci beklemeyi gosterebilsin diye uyumadan once bildirilir;
+              // bekleme bitince "thinking" ile yeniden denendigi soylenir.
+              sendEvent({ type: "rate_limited", provider: "groq", waitMs: decision.waitMs, attempt: attempts });
+              await new Promise((r) => setTimeout(r, decision.waitMs));
+              sendEvent({ type: "thinking" });
               continue;
             }
             break;
@@ -1149,10 +1190,9 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
         } catch {}
       }
 
-      sendEvent({
-        type: "error",
-        error: err?.message || "LLM provider temporarily unavailable."
-      });
+      // 429'da ham Groq JSON'u yerine kisa bir mesaj + code: "rate_limited";
+      // diger hatalar eskisi gibi err.message ile gider.
+      sendEvent(toChatErrorEvent(err, "LLM provider temporarily unavailable."));
       res.end();
     }
     return;

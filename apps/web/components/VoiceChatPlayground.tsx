@@ -2,9 +2,10 @@
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useAuth } from "../lib/AuthContext";
-import { apiFetch, ensureOk } from "../lib/api";
+import { apiFetch, ensureOk, ChatStreamError } from "../lib/api";
 import { createSseParser, stripThinking, ChatStreamEvent } from "../lib/sse";
 import { errorMessage as messageOf, isAbortError } from "../lib/errors";
+import { formatRateLimitStatus, normalizeRateLimitWaitMs } from "../lib/rate-limit";
 
 export type AssistantState =
   | "Idle"
@@ -22,6 +23,8 @@ interface Message {
   audioUrl?: string;
   timestamp: string;
   isThinking?: boolean;
+  /** Groq 429 beklemesi: sunucunun yeniden deneyecegi an (Date.now() cinsinden). */
+  rateLimitUntil?: number;
 }
 
 interface ConversationSummary {
@@ -64,6 +67,16 @@ function getSpeechRecognitionCtor(): SpeechRecognitionCtor | undefined {
     webkitSpeechRecognition?: SpeechRecognitionCtor;
   };
   return w.SpeechRecognition || w.webkitSpeechRecognition;
+}
+
+/** "Düşünüyor..." yerine gosterilen, saniyede bir guncellenen Groq bekleme durumu. */
+function RateLimitNotice({ until }: { until: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(timer);
+  }, [until]);
+  return <span role="status">{formatRateLimitStatus(until - now)}</span>;
 }
 
 function escapeHtml(str: string): string {
@@ -553,18 +566,35 @@ export default function VoiceChatPlayground() {
           case "tool_call":
           case "tool_result":
             setState("Thinking");
+            updateAssistant({ rateLimitUntil: undefined });
+            break;
+          case "rate_limited":
+            // Sunucu `waitMs` bekleyip yeniden deneyecek; bekleme bitince "thinking" gelir.
+            setState("Thinking");
+            updateAssistant({ rateLimitUntil: Date.now() + normalizeRateLimitWaitMs(event.waitMs) });
             break;
           case "chunk":
             accumulatedText += event.text || "";
             setState("Streaming");
-            updateAssistant({ text: accumulatedText, isThinking: !stripThinking(accumulatedText) });
+            updateAssistant({
+              text: accumulatedText,
+              isThinking: !stripThinking(accumulatedText),
+              rateLimitUntil: undefined
+            });
             break;
           case "done":
-            updateAssistant({ text: accumulatedText || "*(Yanıt boş)*", isThinking: false });
+            updateAssistant({ text: accumulatedText || "*(Yanıt boş)*", isThinking: false, rateLimitUntil: undefined });
             finishTurn();
             break;
           case "error":
-            throw new Error(event.error || "Akış sırasında bir hata oluştu.");
+            throw new ChatStreamError(
+              event.error || "Akış sırasında bir hata oluştu.",
+              event.code,
+              event.retryAfterMs
+            );
+          default:
+            // Bilinmeyen olaylar (sse.ts zaten eler) yok sayilir.
+            break;
         }
       };
 
@@ -594,7 +624,8 @@ export default function VoiceChatPlayground() {
             text: accumulatedText
               ? accumulatedText + "\n\n*(Yanıt Barış tarafından durduruldu)*"
               : "*Yanıt durduruldu.*",
-            isThinking: false
+            isThinking: false,
+            rateLimitUntil: undefined
           });
         }
       } else if (!wasFinished) {
@@ -603,9 +634,12 @@ export default function VoiceChatPlayground() {
           setState("Error");
           setErrorMessage(msg);
         }
+        // Groq sinirinda sunucunun kisa mesaji balonda da gosterilir.
+        const rateLimited = err instanceof ChatStreamError && err.code === "rate_limited";
         updateAssistant({
-          text: accumulatedText || "İletişim sırasında bir hata oluştu.",
-          isThinking: false
+          text: accumulatedText || (rateLimited ? msg : "İletişim sırasında bir hata oluştu."),
+          isThinking: false,
+          rateLimitUntil: undefined
         });
       }
     } finally {
@@ -1295,7 +1329,7 @@ export default function VoiceChatPlayground() {
                         <span className="dot-bounce" style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#c5a059" }} />
                         <span className="dot-bounce" style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#c5a059", animationDelay: "-0.16s" }} />
                         <span className="dot-bounce" style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#c5a059", animationDelay: "-0.32s" }} />
-                        <span>Düşünüyor...</span>
+                        {msg.rateLimitUntil ? <RateLimitNotice until={msg.rateLimitUntil} /> : <span>Düşünüyor...</span>}
                       </div>
                     ) : (
                       <div dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }} />

@@ -21,6 +21,22 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * `/chat` akisindaki bir `error` olayi. `code` sunucunun verdigi makine kodudur
+ * (`"rate_limited"`: Groq sinirinda vazgecildi); `message` kullaniciya
+ * gosterilecek kisa metindir, ham saglayici cevabi degildir.
+ */
+export class ChatStreamError extends Error {
+  readonly code?: string;
+  readonly retryAfterMs?: number;
+  constructor(message: string, code?: string, retryAfterMs?: number) {
+    super(message);
+    this.name = "ChatStreamError";
+    this.code = code;
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
 export interface ApiDeps {
   getUser: () => User | null;
   getAppCheckToken: () => Promise<string | null>;

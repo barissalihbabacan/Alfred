@@ -59,10 +59,16 @@ const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
 
 const ALLOWED_UID = process.env.ALLOWED_UID || "test-owner-uid-123456";
 
-// App Check zorunlulugu. Kapaliyken token yine dogrulanir ve durumu
-// llm_request loguna yazilir (app_check); loglar gercek trafigin "valid"
-// oldugunu gosterince ENFORCE_APP_CHECK=true ile acilir.
-const ENFORCE_APP_CHECK = process.env.ENFORCE_APP_CHECK === "true";
+// App Check zorunlulugu varsayilan olarak ACIK (24 Eyl: canli trafigin tamami
+// "valid" idi). Emulatorde kapali; gerekirse ENFORCE_APP_CHECK=false ile
+// kapatilabilir. Durum her llm_request loguna yazilmaya devam eder (app_check).
+const ENFORCE_APP_CHECK =
+  process.env.ENFORCE_APP_CHECK !== "false" && !process.env.FUNCTIONS_EMULATOR;
+
+// Izleme icin token'siz erisilebilen yollar: saglik kontrolu ve kok.
+function isAppCheckExempt(path) {
+  return path.endsWith("/health") || path === "/" || path === "" || path === "/api" || path === "/api/";
+}
 
 function gizliOku(secret, envAdi) {
   try {
@@ -343,13 +349,14 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
     } catch (err) {
       appCheckStatus = "invalid";
       logger.warn("[AppCheck] Token verification failed.", { event: "app_check", outcome: "invalid", error: errMessage(err) });
-      if (ENFORCE_APP_CHECK) {
-        res.status(401).json({ error: "Unauthorized: Invalid App Check token." });
+      if (ENFORCE_APP_CHECK && !isAppCheckExempt(path)) {
+        res.status(401).json({ error: "Güvenlik doğrulaması (App Check) geçersiz. Sayfayı yenileyip tekrar deneyin.", code: "app_check_invalid" });
         return;
       }
     }
-  } else if (ENFORCE_APP_CHECK && !path.endsWith("/health")) {
-    res.status(401).json({ error: "Unauthorized: Missing App Check token." });
+  } else if (ENFORCE_APP_CHECK && !isAppCheckExempt(path)) {
+    logger.warn("[AppCheck] Missing token.", { event: "app_check", outcome: "missing", path });
+    res.status(401).json({ error: "Güvenlik doğrulaması (App Check) eksik. Sayfayı yenileyin; sorun sürerse reklam engelleyicinin reCAPTCHA'yı engellemediğinden emin olun.", code: "app_check_missing" });
     return;
   }
 
@@ -1201,7 +1208,7 @@ export const api = onRequest({ cors: true, secrets: [GROQ_API_KEY, GEMINI_API_KE
   res.status(404).json({ error: "Not found", path });
 });
 
-// Optional App Check callable function
+// App Check callable function (App Check zorunlulugu api ile ayni)
 export const alfredCallable = onCall(
   {
     enforceAppCheck: ENFORCE_APP_CHECK,

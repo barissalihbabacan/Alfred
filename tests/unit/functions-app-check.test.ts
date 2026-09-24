@@ -1,14 +1,16 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 
-// App Check is verified on every api request. Enforcement is opt-in
-// (ENFORCE_APP_CHECK=true) and should only be switched on once the
-// llm_request logs show real traffic carries a valid token.
+// App Check is verified on every api request and enforced by default
+// (switched on 24 Sep 2026 after production traffic logged "valid").
+// It is off in the emulator and can be disabled with ENFORCE_APP_CHECK=false.
 const source = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
 
 describe("functions/index.js App Check handling", () => {
-  it("reads enforcement from one constant, off unless ENFORCE_APP_CHECK=true", () => {
-    expect(source).toContain('const ENFORCE_APP_CHECK = process.env.ENFORCE_APP_CHECK === "true";');
+  it("reads enforcement from one constant: on unless ENFORCE_APP_CHECK=false or in the emulator", () => {
+    expect(source).toContain(
+      'const ENFORCE_APP_CHECK =\n  process.env.ENFORCE_APP_CHECK !== "false" && !process.env.FUNCTIONS_EMULATOR;'
+    );
     expect(source.match(/process\.env\.ENFORCE_APP_CHECK/g)).toHaveLength(1);
     expect(source).toContain("enforceAppCheck: ENFORCE_APP_CHECK,");
   });
@@ -23,8 +25,19 @@ describe("functions/index.js App Check handling", () => {
     expect(source).toMatch(/"llm_request",[\s\S]{0,200}\.\.\.llmMetrics,\n\s*outcome,\n\s*app_check: appCheckStatus,/);
   });
 
-  it("rejects missing or invalid tokens only when enforcement is on", () => {
-    expect(source).toMatch(/appCheckStatus = "invalid";[\s\S]{0,200}if \(ENFORCE_APP_CHECK\) \{\n\s*res\.status\(401\)\.json\(\{ error: "Unauthorized: Invalid App Check token\." \}\);/);
-    expect(source).toContain('} else if (ENFORCE_APP_CHECK && !path.endsWith("/health")) {');
+  it("rejects missing or invalid tokens when enforced, except the exempt paths", () => {
+    expect(source).toMatch(
+      /appCheckStatus = "invalid";[\s\S]{0,200}if \(ENFORCE_APP_CHECK && !isAppCheckExempt\(path\)\) \{\n\s*res\.status\(401\)\.json\(\{ error: "[^"]+", code: "app_check_invalid" \}\);/
+    );
+    expect(source).toMatch(
+      /\} else if \(ENFORCE_APP_CHECK && !isAppCheckExempt\(path\)\) \{[\s\S]{0,200}res\.status\(401\)\.json\(\{ error: "[^"]+", code: "app_check_missing" \}\);/
+    );
+  });
+
+  it("exempts only /health and the root", () => {
+    const fn = source.slice(source.indexOf("function isAppCheckExempt"), source.indexOf("}", source.indexOf("function isAppCheckExempt")) + 1);
+    const isAppCheckExempt = new Function(`${fn}; return isAppCheckExempt;`)() as (p: string) => boolean;
+    for (const p of ["/health", "/api/health", "/", "", "/api", "/api/"]) expect(isAppCheckExempt(p), p).toBe(true);
+    for (const p of ["/chat", "/api/chat", "/conversations", "/api/conversation"]) expect(isAppCheckExempt(p), p).toBe(false);
   });
 });

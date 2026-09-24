@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { SSHCommandResultMap } from "../../src/alfred/execution-plane/ssh/command-registry.js";
 import type { SSHListDirectoryResult } from "../../src/alfred/execution-plane/ssh/ssh-client.interface.js";
 import { errorMessage } from "../../src/core/errors/index.js";
+import { OFFLINE, isUnreachableError } from "./prerequisites.js";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -11,11 +12,45 @@ import { ToolRouter } from "../../src/alfred/control-plane/tool-router/tool-rout
 import { ToolRegistry } from "../../src/alfred/control-plane/tool-router/tool-registry.js";
 import { ToolCall } from "../../src/ai/tools/types.js";
 
-describe("SSH List Directory Integration Suite (Real Home Server)", () => {
+// Argument validation runs before any connection is opened, so the path
+// sandbox is checked offline too. With ALFRED_OFFLINE=1 the client factory
+// refuses to connect, so a sandbox regression fails loudly instead of
+// reaching out to the network.
+describe("SSH List Directory path sandbox (runs offline)", () => {
+  const manager = OFFLINE
+    ? new SSHConnectionManager({
+        clientFactory: () => {
+          throw new Error("ALFRED_OFFLINE=1: SSH connections are disabled");
+        }
+      })
+    : new SSHConnectionManager();
+  const tool = new SSHListDirectoryTool(manager);
+
+  it("strictly rejects path traversal attempts before connecting", async () => {
+    const invalidPaths = [
+      "/etc",
+      "../",
+      "../../",
+      "/home/baris",
+      "Belgeler/../.ssh",
+      "Belgeler/../../etc"
+    ];
+
+    for (const badPath of invalidPaths) {
+      await expect(
+        tool.execute({ host: "home-server", path: badPath })
+      ).rejects.toThrow(/outside the permitted|Path traversal/i);
+    }
+  }, 15000);
+});
+
+// Real SSH to home-server over Tailscale. Never runs with ALFRED_OFFLINE=1;
+// otherwise a test is skipped when the host is unreachable.
+describe.skipIf(OFFLINE)("SSH List Directory Integration Suite (Real Home Server)", () => {
   const manager = new SSHConnectionManager();
   const tool = new SSHListDirectoryTool(manager);
 
-  it("lists real Belgeler directory on home-server via SSH exec (no SFTP)", async () => {
+  it("lists real Belgeler directory on home-server via SSH exec (no SFTP)", async ({ skip }) => {
     try {
       const result = await tool.execute({
         host: "home-server",
@@ -44,15 +79,14 @@ describe("SSH List Directory Integration Suite (Real Home Server)", () => {
         }
       }
     } catch (err: unknown) {
-      if (/timed out|unreachable|refused/i.test(errorMessage(err))) {
-        console.warn("[Integration Note] Home server offline or unreachable:", errorMessage(err));
-        return;
+      if (isUnreachableError(err)) {
+        skip(`home-server unreachable: ${errorMessage(err)}`);
       }
       throw err;
     }
   }, 15000);
 
-  it("lists real nested subdirectory Belgeler/B.U.T.L.E.R. Alfred", async () => {
+  it("lists real nested subdirectory Belgeler/B.U.T.L.E.R. Alfred", async ({ skip }) => {
     try {
       const result = await tool.execute({
         host: "home-server",
@@ -68,48 +102,35 @@ describe("SSH List Directory Integration Suite (Real Home Server)", () => {
       );
       expect(hasPackageJson).toBe(true);
     } catch (err: unknown) {
-      if (/timed out|unreachable|refused/i.test(errorMessage(err))) {
-        console.warn("[Integration Note] Home server offline or unreachable:", errorMessage(err));
-        return;
+      if (isUnreachableError(err)) {
+        skip(`home-server unreachable: ${errorMessage(err)}`);
       }
       throw err;
     }
   }, 15000);
 
-  it("strictly rejects path traversal attempts against real server", async () => {
-    const invalidPaths = [
-      "/etc",
-      "../",
-      "../../",
-      "/home/baris",
-      "Belgeler/../.ssh",
-      "Belgeler/../../etc"
-    ];
-
-    for (const badPath of invalidPaths) {
-      await expect(
-        tool.execute({ host: "home-server", path: badPath })
-      ).rejects.toThrow(/outside the permitted|Path traversal/i);
-    }
-  }, 15000);
-
-  it("strictly rejects symlinks pointing outside the sandbox on real server", async () => {
+  // Creates the symlink locally, so it assumes the tests run on home-server itself.
+  it("strictly rejects symlinks pointing outside the sandbox on real server", async ({ skip }) => {
     const testLinkPath = path.join(os.homedir(), "Belgeler", ".temp_symlink_breakout_test");
     try {
       // Create temporary symlink to /etc
       try {
         fs.symlinkSync("/etc", testLinkPath);
-      } catch {
-        // If symlink cannot be created, skip test safely
-        return;
+      } catch (err: unknown) {
+        skip(`cannot create ${testLinkPath}: ${errorMessage(err)}`);
       }
 
-      await expect(
-        tool.execute({
-          host: "home-server",
-          path: "Belgeler/.temp_symlink_breakout_test"
-        })
-      ).rejects.toThrow(/Access denied|outside the permitted/i);
+      const rejection = await tool
+        .execute({ host: "home-server", path: "Belgeler/.temp_symlink_breakout_test" })
+        .then(
+          () => undefined,
+          (err: unknown) => err
+        );
+      if (isUnreachableError(rejection)) {
+        skip(`home-server unreachable: ${errorMessage(rejection)}`);
+      }
+      expect(rejection).toBeInstanceOf(Error);
+      expect(errorMessage(rejection)).toMatch(/Access denied|outside the permitted/i);
     } finally {
       try {
         if (fs.existsSync(testLinkPath)) {
@@ -121,7 +142,8 @@ describe("SSH List Directory Integration Suite (Real Home Server)", () => {
     }
   }, 15000);
 
-  it("executes end-to-end tool dispatch through ToolRegistry and ToolRouter", async () => {
+  // ToolRouter never throws: a connection failure comes back as success: false.
+  it("executes end-to-end tool dispatch through ToolRegistry and ToolRouter", async ({ skip }) => {
     const registry = new ToolRegistry();
     const router = new ToolRouter({ registry });
 
@@ -134,56 +156,45 @@ describe("SSH List Directory Integration Suite (Real Home Server)", () => {
       }
     };
 
-    try {
-      const toolResult = await router.execute(toolCall, {
-        userId: "user_baris",
-        userRole: "admin"
-      });
-
-      expect(toolResult.success).toBe(true);
-      expect(toolResult.toolName).toBe("ssh_list_directory");
-      const data = toolResult.data as SSHListDirectoryResult;
-      expect(data.host).toBe("home-server");
-      expect(data.totalCount).toBeGreaterThan(0);
-    } catch (err: unknown) {
-      if (/timed out|unreachable|refused/i.test(errorMessage(err))) {
-        console.warn("[Integration Note] Home server offline or unreachable:", errorMessage(err));
-        return;
-      }
-      throw err;
+    const toolResult = await router.execute(toolCall, {
+      userId: "user_baris",
+      userRole: "admin"
+    });
+    if (!toolResult.success && isUnreachableError(toolResult.error)) {
+      skip(`home-server unreachable: ${toolResult.error}`);
     }
+
+    expect(toolResult.success).toBe(true);
+    expect(toolResult.toolName).toBe("ssh_list_directory");
+    const data = toolResult.data as SSHListDirectoryResult;
+    expect(data.host).toBe("home-server");
+    expect(data.totalCount).toBeGreaterThan(0);
   }, 15000);
 
-  it("executes whitelisted ssh_execute commands (disk_usage, identity) on real server", async () => {
+  it("executes whitelisted ssh_execute commands (disk_usage, identity) on real server", async ({ skip }) => {
     const registry = new ToolRegistry();
     const router = new ToolRouter({ registry });
 
-    try {
-      const execCall: ToolCall = {
-        id: "call_e2e_exec_01",
-        type: "function",
-        function: {
-          name: "ssh_execute",
-          arguments: JSON.stringify({ host: "home-server", command: "disk_usage" })
-        }
-      };
-
-      const result = await router.execute(execCall, {
-        userId: "user_baris",
-        userRole: "admin"
-      });
-
-      expect(result.success).toBe(true);
-      const data = result.data as SSHCommandResultMap["disk_usage"];
-      expect(data.command).toBe("disk_usage");
-      expect(data.output).toContain("Filesystem");
-    } catch (err: unknown) {
-      if (/timed out|unreachable|refused/i.test(errorMessage(err))) {
-        console.warn("[Integration Note] Home server offline or unreachable:", errorMessage(err));
-        return;
+    const execCall: ToolCall = {
+      id: "call_e2e_exec_01",
+      type: "function",
+      function: {
+        name: "ssh_execute",
+        arguments: JSON.stringify({ host: "home-server", command: "disk_usage" })
       }
-      throw err;
+    };
+
+    const result = await router.execute(execCall, {
+      userId: "user_baris",
+      userRole: "admin"
+    });
+    if (!result.success && isUnreachableError(result.error)) {
+      skip(`home-server unreachable: ${result.error}`);
     }
+
+    expect(result.success).toBe(true);
+    const data = result.data as SSHCommandResultMap["disk_usage"];
+    expect(data.command).toBe("disk_usage");
+    expect(data.output).toContain("Filesystem");
   }, 15000);
 });
-

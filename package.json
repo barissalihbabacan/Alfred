@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
+    "test:integration:offline": "ALFRED_OFFLINE=1 vitest run tests/integration",
     "test:groq": "tsx scripts/test-groq.ts",
     "test:ollama": "tsx scripts/test-ollama.ts",
     "memory:reindex": "tsx scripts/reindex-memories.ts",

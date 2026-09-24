@@ -43,7 +43,7 @@ describe("SSH Home Server Integration Suite", () => {
     try {
       const toolResult = await router.execute(toolCall, {
         userId: "user_baris",
-        userRole: "admin"
+        userRole: "owner"
       });
 
       expect(toolResult.success).toBe(true);

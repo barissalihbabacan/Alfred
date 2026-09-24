@@ -335,6 +335,6 @@ describe("functions/index.js uses the shared time tool", () => {
     expect(source).not.toMatch(/function\s+(resolveTimezone|getCurrentTimeForCity)\s*\(/);
     expect(source).not.toContain("CITY_TIMEZONE_ALIASES");
     expect(source).not.toMatch(/const\s+TIME_TOOL_DEFINITION\s*=/);
-    expect(source).toContain("toolResult = runGetCurrentTimeTool(fnArgs);");
+    expect(source).toContain("return runGetCurrentTimeTool(fnArgs);");
   });
 });

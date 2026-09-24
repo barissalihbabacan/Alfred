@@ -582,7 +582,7 @@ describe("production offers no SSH tools", () => {
 
   it("answers an unexpected SSH tool call with the generic not-recognized error", () => {
     expect(source).toMatch(
-      /if \(fnName === "get_current_time"\) \{\n\s*toolResult = runGetCurrentTimeTool\(fnArgs\);\n\s*\} else \{\n\s*toolResult = \{ error: `Tool \$\{fnName\} not recognized\.` \};/
+      /const runTool = \(fnName, fnArgs\) => \{\n\s*if \(fnName === "get_current_time"\) \{\n\s*return runGetCurrentTimeTool\(fnArgs\);\n\s*\}\n\s*return \{ error: `Tool \$\{fnName\} not recognized\.` \};/
     );
   });
 

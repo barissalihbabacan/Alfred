@@ -19,6 +19,9 @@ Firebase Hosting ── /api/** rewrite ──►  Cloud Function 2nd Gen `api` 
                                             │  builds the system prompt (shared src/ module)
                                             ▼
                                         Groq API (openai/gpt-oss-120b)      ◄── default
+                                          ↓ unavailable, nothing streamed yet
+                                        Gemini (gemini-3.8-flash) → Cerebras gpt-oss-120b
+                                          → Cerebras qwen-3.8-27b → OpenRouter (openai/gpt-oss-120b)
                                         MacBook Ollama over Tailscale        ◄── only if ALFRED_LLM_PROVIDER=ollama
                                             │  tool calls: get_current_time (the only tool offered;
                                             │  server access over SSH is not connected)
@@ -29,7 +32,7 @@ Firebase Hosting ── /api/** rewrite ──►  Cloud Function 2nd Gen `api` 
 
 - **One HTTP entry point.** Everything server-side runs in the `api` function. The web app is a static export with no route handlers or SSR.
 - **`functions/index.js` is bundled with `src/`.** esbuild builds it into `functions/lib/index.js` together with the shared `src/` modules it imports: the system prompt and user profile, memory-extraction prompt and candidate validation, `PrivacyFilter`, cosine similarity, conversation titles, the `get_current_time` tool, the embedding calls (`src/ai/embedding/embedding-client.ts`) and the memory write decisions (`src/alfred/cognitive/memory/memory-write-planner.ts`, driven by `functions/memory-persistence.js`). The Firestore/LLM I/O around them is still hand-written in `functions/`.
-- **Secrets** (`GROQ_API_KEY`, `GEMINI_API_KEY`) live only in Secret Manager and are bound to the function. The browser never sees or sends a key.
+- **Secrets** (`GROQ_API_KEY`, `GEMINI_API_KEY`, `CEREBRAS_API_KEY`, `OPENROUTER_API_KEY`) live only in Secret Manager and are bound to the function. The browser never sees or sends a key.
 
 ---
 
@@ -281,6 +284,7 @@ Alfred Cognitive Core
   - An optional local provider running `gemma4:12b-mlx` on the MacBook over the private Tailscale network.
   - Supports native chat completions, NDJSON streaming, parameter mapping and health diagnostics.
   - Only in the request path when `ALFRED_LLM_PROVIDER=ollama`.
+- **Production chat fallback** (`src/ai/providers/chat-fallback/`, bundled into `functions/index.js`): Groq, Gemini (OpenAI-compatible endpoint), Cerebras (gpt-oss-120b, then qwen-3.8-27b) and OpenRouter all speak the OpenAI Chat Completions streaming format, so one request builder, one SSE parser and one tool loop serve them. A turn moves to the next provider only while nothing has been streamed to the user; it then restarts from the user's message with a system prompt that names the new provider. Details and the failover matrix are in `CLAUDE.md` (**Chat provider fallback**). This path does not go through `getAIProvider()`; the `src/` Groq/Ollama providers are unchanged.
 - **Vendor Independence & Unified Factory**: Neither Alfred's persona nor its callers import a concrete provider directly; everything goes through `getAIProvider()`. The system prompt states whichever provider and model is actually answering.
 
 ### Real-Time Streaming & "Thinking..." Architecture
@@ -298,6 +302,8 @@ start (conversationId, provider, model)
 thinking            ← shown as a subtle "Thinking..." state; no reasoning content is exposed
 chunk (text)*       ← progressive rendering; <think> traces are stripped client-side
 tool_call / tool_result (per tool round)
+rate_limited (provider, waitMs) ← only when the server really waits on a 429
+provider_fallback (from, to, model, reason) ← before the turn restarts on the next provider
 done                ← composer released here
 error (error)       ← surfaced to the user, never swallowed
 ```
@@ -372,4 +378,4 @@ The `src/integrations/` directory is reserved for external-service clients, auth
   - a conversation owned by another user → 404.
 
   App Check (reCAPTCHA Enterprise) tokens are attached to requests and verified when present.
-- **Structured logs.** The `api` function emits JSON events to Cloud Logging: `llm_request`, `tool_call`, `memory_retrieval` and `memory_extraction`. They cover tokens, latency, time to first token, scores and outcomes, and never include API keys, ID tokens or user message text. Query them with `jsonPayload.event="llm_request"`.
+- **Structured logs.** The `api` function emits JSON events to Cloud Logging: `llm_request` (with `fallback_from` / `attempted_providers`), `llm_provider_fallback`, `llm_rate_limited`, `tool_call`, `memory_retrieval` and `memory_extraction`. They cover tokens, latency, time to first token, scores and outcomes, and never include API keys, ID tokens or user message text. Query them with `jsonPayload.event="llm_request"`.

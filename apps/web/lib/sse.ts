@@ -10,8 +10,12 @@
  *   rate_limited { provider, waitMs, attempt } -- Groq 429: sunucu gercekten `waitMs` bekleyip yeniden
  *                                    deneyecek (yalnizca bekleme sure butcesine sigiyorsa gonderilir);
  *                                    bekleme bitince `thinking` gelir
+ *   provider_fallback { from, to, model, reason } -- `from` kullanilamadi (reason: rate_limited |
+ *                                    server_error | network_error | timeout | stream_error | client_error);
+ *                                    tur `to` saglayicisinda (`model`) bastan calisir; yalnizca henuz
+ *                                    `chunk` gonderilmemisken gelir
  *   done         {}                  -- yanit bitti; sunucu bellek kaydi icin baglantiyi bir sure acik tutabilir
- *   error        { error, code?, retryAfterMs?, limitType? } -- `code: "rate_limited"`: Groq sinirinda
+ *   error        { error, code?, retryAfterMs?, limitType?, attemptedProviders? } -- `code: "rate_limited"`: Groq sinirinda
  *                                    vazgecildi; `limitType` = tpm | tpd | rpm | rpd | unknown,
  *                                    `retryAfterMs` Groq'un istedigi gercek sure (biliniyorsa);
  *                                    `error` kullaniciya gosterilecek kisa mesajdir
@@ -25,8 +29,9 @@ export type ChatStreamEvent =
   | { type: "tool_call"; tool?: string; arguments?: unknown; toolCalls?: unknown[] }
   | { type: "tool_result"; tool?: string; toolCallId?: string; result?: unknown }
   | { type: "rate_limited"; provider?: string; waitMs?: number; attempt?: number }
+  | { type: "provider_fallback"; from?: string; to?: string; model?: string; reason?: string }
   | { type: "done" }
-  | { type: "error"; error?: string; code?: string; retryAfterMs?: number; limitType?: string };
+  | { type: "error"; error?: string; code?: string; retryAfterMs?: number; limitType?: string; attemptedProviders?: string[] };
 
 const KNOWN_TYPES = new Set([
   "start",
@@ -35,6 +40,7 @@ const KNOWN_TYPES = new Set([
   "tool_call",
   "tool_result",
   "rate_limited",
+  "provider_fallback",
   "done",
   "error"
 ]);

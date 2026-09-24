@@ -117,6 +117,28 @@ describe("Web SSE parser (functions /chat stream)", () => {
     expect(events).toEqual([{ type: "done" }]);
   });
 
+  it("parses provider_fallback (and the note on a final error after every provider failed)", () => {
+    const parser = createSseParser();
+    const events = parser.push(
+      frame({ type: "start", conversationId: "c1", provider: "groq", model: "openai/gpt-oss-120b" }) +
+        frame({ type: "provider_fallback", from: "groq", to: "gemini", model: "gemini-3.8-flash", reason: "rate_limited" }) +
+        frame({ type: "chunk", text: "Buyurun." }) +
+        frame({ type: "done" })
+    );
+    expect(events.map((e) => e.type)).toEqual(["start", "provider_fallback", "chunk", "done"]);
+    expect(events[1]).toEqual({ type: "provider_fallback", from: "groq", to: "gemini", model: "gemini-3.8-flash", reason: "rate_limited" });
+
+    const failed = createSseParser().push(frame({
+      type: "error",
+      error: "Groq'un günlük token limiti doldu. Lütfen yaklaşık 3 dakika sonra tekrar deneyin. Yedek sağlayıcılar da yanıt veremedi.",
+      code: "rate_limited",
+      limitType: "tpd",
+      retryAfterMs: 199152,
+      attemptedProviders: ["groq", "gemini"]
+    }));
+    expect(failed[0]).toMatchObject({ type: "error", code: "rate_limited", attemptedProviders: ["groq", "gemini"] });
+  });
+
   it("strips closed and unclosed <think> traces", () => {
     expect(stripThinking("<think>plan</think>Answer")).toBe("Answer");
     expect(stripThinking("<think>still reasoning")).toBe("");

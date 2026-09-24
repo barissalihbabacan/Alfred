@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { formatRateLimitStatus, normalizeRateLimitWaitMs } from "../../apps/web/lib/rate-limit.js";
+import { formatProviderFallbackStatus, providerDisplayName } from "../../apps/web/lib/providers.js";
 import { ChatStreamError } from "../../apps/web/lib/api.js";
 
 describe("Web rate-limit status (apps/web/lib/rate-limit.ts)", () => {
@@ -46,5 +47,29 @@ describe("ChatStreamError (apps/web/lib/api.ts)", () => {
     );
     expect(err.retryAfterMs).toBe(199_152);
     expect(err.limitType).toBe("tpd");
+  });
+});
+
+describe("Provider fallback status (apps/web/lib/providers.ts)", () => {
+  it("names the provider that is being waited on", () => {
+    expect(formatRateLimitStatus(15_000, "gemini")).toBe("Gemini sınırına ulaşıldı, ~15 sn bekleniyor…");
+    expect(formatRateLimitStatus(0, "openrouter")).toBe("OpenRouter sınırına ulaşıldı, yeniden deneniyor…");
+    expect(formatRateLimitStatus(15_000, undefined)).toBe("Groq sınırına ulaşıldı, ~15 sn bekleniyor…");
+  });
+
+  it("describes a switch in Turkish, with the right suffix", () => {
+    expect(formatProviderFallbackStatus("groq", "gemini", "rate_limited")).toBe("Groq sınıra ulaştı, Gemini'ye geçiliyor…");
+    expect(formatProviderFallbackStatus("gemini", "cerebras", "server_error")).toBe("Gemini hata verdi, Cerebras'a geçiliyor…");
+    expect(formatProviderFallbackStatus("cerebras_secondary", "openrouter", "network_error")).toBe("Cerebras yanıt vermedi, OpenRouter'a geçiliyor…");
+    expect(formatProviderFallbackStatus("openrouter", "groq", "timeout")).toBe("OpenRouter yanıt vermedi, Groq'a geçiliyor…");
+    expect(formatProviderFallbackStatus("cerebras", "cerebras_secondary", "rate_limited")).toBe("Cerebras sınıra ulaştı, başka bir Cerebras modeli deneniyor…");
+    expect(formatProviderFallbackStatus("groq", "gemini", "client_error")).toBe("Groq isteği reddetti, Gemini'ye geçiliyor…");
+    expect(formatProviderFallbackStatus("groq", "gemini", "mystery")).toBe("Groq kullanılamıyor, Gemini'ye geçiliyor…");
+  });
+
+  it("maps provider ids to display names", () => {
+    expect(["groq", "gemini", "cerebras", "cerebras_secondary", "openrouter", "ollama", "", undefined, "Mistral"].map(providerDisplayName)).toEqual([
+      "Groq", "Gemini", "Cerebras", "Cerebras", "OpenRouter", "Ollama", "Groq", "Groq", "Mistral"
+    ]);
   });
 });

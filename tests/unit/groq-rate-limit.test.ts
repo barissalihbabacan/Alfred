@@ -310,42 +310,51 @@ describe("Groq rate-limit helpers", () => {
   });
 });
 
-describe("functions/index.js uses the shared rate-limit helpers", () => {
-  const source = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
+// Since the multi-provider fallback, the chat 429 loop lives in
+// src/ai/providers/chat-fallback/chat-turn.ts (bundled; behaviour pinned by
+// tests/unit/chat-fallback-turn.test.ts) and the extraction calls in
+// extraction-providers.ts. These pins follow the code there.
+describe("production uses the shared rate-limit helpers", () => {
+  const index = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
+  const turn = readFileSync(new URL("../../src/ai/providers/chat-fallback/chat-turn.ts", import.meta.url), "utf8");
+  const extraction = readFileSync(new URL("../../src/ai/providers/chat-fallback/extraction-providers.ts", import.meta.url), "utf8");
 
   it("imports them from src/ via the bundle", () => {
-    expect(source).toContain('from "../src/ai/providers/groq/rate-limit.js";');
+    expect(index).toContain('from "../src/ai/providers/groq/rate-limit.js";');
+    expect(index).toContain('from "../src/ai/providers/chat-fallback/chat-turn.js";');
+    expect(turn).toContain('} from "../groq/rate-limit.js";');
   });
 
   it("parses the real wait and limit type, and decides before sleeping", () => {
-    expect(source).toContain('const rateLimitInfo = parseRateLimitInfo(groqRes.headers.get("retry-after"), errBodyMessage);');
-    expect(source).toMatch(/computeRateLimitWait\(\{\n\s*info: rateLimitInfo,/);
+    expect(turn).toContain('const rateLimitInfo = parseRateLimitInfo(res.headers.get("retry-after"), detail);');
+    expect(turn).toMatch(/computeRateLimitWait\(\{\n\s*info: rateLimitInfo,/);
   });
 
   it("announces the wait before sleeping and says it resumed afterwards", () => {
-    expect(source).toMatch(
-      /sendEvent\(\{ type: "rate_limited", provider: "groq", waitMs: decision\.waitMs, attempt: attempts \}\);\n\s*await new Promise\(\(r\) => setTimeout\(r, decision\.waitMs\)\);\n\s*sendEvent\(\{ type: "thinking" \}\);/
+    expect(turn).toMatch(
+      /deps\.sendEvent\(\{ type: "rate_limited", provider: provider\.id, waitMs: decision\.waitMs, attempt: attempts \}\);\n\s*await deps\.sleep\(decision\.waitMs\);\n\s*deps\.sendEvent\(\{ type: "thinking" \}\);/
     );
   });
 
   it("charges every wait to the per-turn budget and gives up with the real wait and limit", () => {
-    expect(source).toContain("spentMs: llmMetrics.rate_limit_wait_ms");
-    expect(source).toContain("llmMetrics.rate_limit_wait_ms += decision.waitMs;");
-    expect(source).toMatch(/if \(!decision\.retry\) \{\n\s*throw createRateLimitedError\(errBodyMessage \|\| errText, decision\.reason, rateLimitInfo\);/);
+    expect(turn).toContain("spentMs: metrics.rate_limit_wait_ms");
+    expect(turn).toContain("metrics.rate_limit_wait_ms += decision.waitMs;");
+    expect(turn).toMatch(/if \(!decision\.retry\) \{\n\s*throw createRateLimitedError\(detail \|\| errText, decision\.reason, rateLimitInfo, provider\.label\);/);
   });
 
   it("logs the limit type, real wait and decision", () => {
-    expect(source).toMatch(
-      /event: "llm_rate_limited",[\s\S]{0,200}limit_type: rateLimitInfo\.limitType,\n\s*retry_after_ms: rateLimitInfo\.retryAfterMs,\n\s*decision: decision\.decision,/
+    expect(turn).toMatch(
+      /"llm_rate_limited",[\s\S]{0,600}limit_type: rateLimitInfo\.limitType,\n\s*retry_after_ms: rateLimitInfo\.retryAfterMs,\n\s*decision: decision\.decision,/
     );
   });
 
   it("logs the limit type on a memory-extraction 429", () => {
-    expect(source).toContain('rateLimitFields = { limit_type: info.limitType, retry_after_ms: info.retryAfterMs, decision: "give_up" };');
+    expect(extraction).toContain("rateLimit = { limitType: info.limitType, retryAfterMs: info.retryAfterMs };");
+    expect(index).toContain('...(e.rateLimit ? { limit_type: e.rateLimit.limitType, retry_after_ms: e.rateLimit.retryAfterMs, decision: "give_up" } : {})');
   });
 
-  it("maps stream failures through toChatErrorEvent", () => {
-    expect(source).toContain('sendEvent(toChatErrorEvent(err, "LLM provider temporarily unavailable."));');
-    expect(source).not.toMatch(/error: err\?\.message \|\| "LLM provider temporarily unavailable\."/);
+  it("maps stream failures through toChatTurnErrorEvent (toChatErrorEvent + fallback note)", () => {
+    expect(index).toContain('sendEvent(toChatTurnErrorEvent(err, "LLM provider temporarily unavailable."));');
+    expect(index).not.toMatch(/error: err\?\.message \|\| "LLM provider temporarily unavailable\."/);
   });
 });

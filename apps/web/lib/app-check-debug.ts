@@ -12,16 +12,23 @@
  *   otherwise `true`, which makes the Firebase SDK generate a random,
  *   per-browser debug token and print it to the console, to be registered
  *   once in the Firebase console (App Check -> Manage debug tokens).
+ * - Not on an insecure origin (e.g. `next dev` opened from a phone as
+ *   http://192.168.x.x:3000): the SDK generates its token with
+ *   crypto.randomUUID(), which browsers only provide in secure contexts, so
+ *   debug mode there crashed the page ("crypto.randomUUID is not a function").
  */
 export interface AppCheckDebugInput {
   hostname: string;
   nodeEnv: string | undefined;
   envToken: string | undefined;
+  /** window.isSecureContext; omitted = secure. */
+  secureContext?: boolean;
 }
 
 export function resolveAppCheckDebugToken(input: AppCheckDebugInput): string | true | undefined {
   const local = input.hostname === "localhost" || input.hostname === "127.0.0.1";
   if (!local && input.nodeEnv !== "development") return undefined;
+  if (input.secureContext === false) return undefined;
   const token = input.envToken?.trim();
   return token ? token : true;
 }

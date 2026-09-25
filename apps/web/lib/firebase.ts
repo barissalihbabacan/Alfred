@@ -36,7 +36,8 @@ if (typeof window !== "undefined") {
   const debugToken = resolveAppCheckDebugToken({
     hostname: window.location.hostname,
     nodeEnv: process.env.NODE_ENV,
-    envToken: process.env.NEXT_PUBLIC_APPCHECK_DEBUG_TOKEN
+    envToken: process.env.NEXT_PUBLIC_APPCHECK_DEBUG_TOKEN,
+    secureContext: window.isSecureContext
   });
   if (debugToken !== undefined) {
     // Firebase App Check debug hook'u: SDK bu global'i initializeAppCheck'ten once okur.

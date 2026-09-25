@@ -27,6 +27,12 @@ describe("resolveAppCheckDebugToken", () => {
   it("enables debug mode under next dev on any host", () => {
     expect(resolveAppCheckDebugToken({ hostname: "192.168.1.5", nodeEnv: "development", envToken: undefined })).toBe(true);
   });
+
+  it("skips debug mode on an insecure origin (no crypto.randomUUID there)", () => {
+    expect(resolveAppCheckDebugToken({ hostname: "192.168.1.5", nodeEnv: "development", envToken: undefined, secureContext: false })).toBeUndefined();
+    expect(resolveAppCheckDebugToken({ hostname: "100.108.234.65", nodeEnv: "development", envToken: "t", secureContext: false })).toBeUndefined();
+    expect(resolveAppCheckDebugToken({ hostname: "localhost", nodeEnv: "development", envToken: undefined, secureContext: true })).toBe(true);
+  });
 });
 
 describe("apps/web/lib/firebase.ts", () => {

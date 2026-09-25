@@ -28,7 +28,7 @@ scripts/monitoring/
 | Alfred: Gemini embedding errors | WARNING | ≥ 3 `embedding_error` in 30 min | `alfred_embedding_errors` |
 | Alfred: memory extraction failing | WARNING | ≥ 3 `memory_extraction` with `outcome` `failed` / `timeout` in 1 h | `alfred_memory_extraction_failures` |
 
-All policies use a sliding window (`ALIGN_SUM` over the window, `COMPARISON_GT`), treat missing data as "condition not met" (`EVALUATION_MISSING_DATA_INACTIVE`, so an incident closes as soon as the errors stop), and auto-close after 30 min (deploy failures and memory extraction: 1 h). Each email carries a short Turkish summary and the log query to start from (the `documentation` block of the policy).
+All policies use a sliding window (`ALIGN_SUM` over the window, `COMPARISON_GT`), fire on the first matching window (`duration: "0s"`), and auto-close after 30 min (deploy failures and memory extraction: 1 h). They set no `evaluationMissingData`: Cloud Monitoring rejects it on a zero-duration condition, so an incident stays open until the errors are gone for the auto-close period. Each email carries a short Turkish summary and the log query to start from (the `documentation` block of the policy).
 
 ### What the metrics count
 

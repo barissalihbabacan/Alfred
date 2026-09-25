@@ -33,8 +33,7 @@ export default function LoginScreen() {
   const busy = isSubmitting || isRedirecting;
 
   return (
-    <div style={{
-      minHeight: "100vh",
+    <div className="alfred-screen" style={{
       display: "flex",
       alignItems: "center",
       justifyContent: "center",

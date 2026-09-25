@@ -213,6 +213,8 @@ function renderMarkdown(text: string): string {
 
 const DEFAULT_MODEL_LABEL = "openai/gpt-oss-120b";
 const CONVERSATION_KEY = "alfred_conversation_id";
+// Must match the phone breakpoint in app/globals.css.
+const MOBILE_QUERY = "(max-width: 768px)";
 // Eski surumlerin tarayiciya yazdigi anahtarlar. API anahtarlari artik yalnizca
 // sunucuda (Secret Manager) tutuluyor; Ollama URL alani da artik yok.
 const LEGACY_STORAGE_KEYS = ["alfred_groq_api_key", "alfred_gemini_api_key", "alfred_ollama_url"];
@@ -332,6 +334,15 @@ export default function VoiceChatPlayground() {
       setConversationsLoading(false);
     }
   }, [currentUserId]);
+
+  // Phones: the sidebar is a drawer over the chat, so it starts closed and
+  // closes again once a conversation is picked (see globals.css).
+  useEffect(() => {
+    if (window.matchMedia(MOBILE_QUERY).matches) setSidebarOpen(false);
+  }, []);
+  const closeSidebarOnMobile = useCallback(() => {
+    if (window.matchMedia(MOBILE_QUERY).matches) setSidebarOpen(false);
+  }, []);
 
   const handleNewConversation = useCallback(() => {
     cancelActiveTurn();
@@ -783,10 +794,8 @@ export default function VoiceChatPlayground() {
           : { name: "Groq Cloud", detail: modelLabel, active: true };
 
   return (
-    <div style={{
+    <div className="alfred-shell" style={{
       display: "flex",
-      height: "100vh",
-      width: "100vw",
       backgroundColor: "#212121",
       color: "#ececec",
       fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
@@ -872,19 +881,15 @@ export default function VoiceChatPlayground() {
       `}</style>
 
       {/* Sidebar */}
-      <aside style={{
-        width: sidebarOpen ? "260px" : "0px",
-        minWidth: sidebarOpen ? "260px" : "0px",
-        height: "100%",
+      {sidebarOpen && (
+        <div className="alfred-sidebar-backdrop" onClick={() => setSidebarOpen(false)} aria-hidden="true" />
+      )}
+      <aside className={sidebarOpen ? "alfred-sidebar is-open" : "alfred-sidebar"} style={{
         backgroundColor: "#171717",
-        borderRight: sidebarOpen ? "1px solid rgba(255, 255, 255, 0.08)" : "none",
         display: "flex",
         flexDirection: "column",
-        transition: "width 0.35s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease",
-        opacity: sidebarOpen ? 1 : 0,
         overflow: "hidden",
         whiteSpace: "nowrap",
-        zIndex: 40,
         flexShrink: 0
       }}>
         {/* Sidebar Header */}
@@ -942,7 +947,10 @@ export default function VoiceChatPlayground() {
           {/* Primary Action Button */}
           <div style={{ padding: "10px 12px 6px" }}>
             <button
-              onClick={handleNewConversation}
+              onClick={() => {
+                handleNewConversation();
+                closeSidebarOnMobile();
+              }}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -967,7 +975,7 @@ export default function VoiceChatPlayground() {
                 </svg>
                 <span>Yeni Sohbet</span>
               </div>
-              <span style={{
+              <span className="kbd-hint" style={{
                 fontSize: "10px",
                 color: "#737373",
                 backgroundColor: "rgba(255, 255, 255, 0.06)",
@@ -1015,7 +1023,10 @@ export default function VoiceChatPlayground() {
               <div
                 key={conv.id}
                 className="conv-item-wrap"
-                onClick={() => loadConversation(conv.id)}
+                onClick={() => {
+                  loadConversation(conv.id);
+                  closeSidebarOnMobile();
+                }}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -1131,18 +1142,19 @@ export default function VoiceChatPlayground() {
       </aside>
 
       {/* Main Chat Area */}
-      <main style={{ flex: 1, height: "100%", display: "flex", flexDirection: "column", position: "relative", backgroundColor: "#212121" }}>
+      <main style={{ flex: 1, minWidth: 0, height: "100%", display: "flex", flexDirection: "column", position: "relative", backgroundColor: "#212121" }}>
         {/* Top Bar */}
-        <header style={{
+        <header className="alfred-header" style={{
           height: "52px",
           minHeight: "52px",
+          boxSizing: "content-box",
           padding: "0 16px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           borderBottom: "1px solid rgba(255, 255, 255, 0.08)"
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div className="alfred-header-group" style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0 }}>
             <button
               id="sidebarToggleBtn"
               onClick={() => setSidebarOpen((prev) => !prev)}
@@ -1166,13 +1178,13 @@ export default function VoiceChatPlayground() {
               </svg>
             </button>
             <div
-              style={{ display: "flex", alignItems: "center", padding: "6px 10px", fontWeight: 600, fontSize: "14px", color: "#ececec", userSelect: "none" }}
+              style={{ display: "flex", alignItems: "center", padding: "6px 10px", fontWeight: 600, fontSize: "14px", color: "#ececec", userSelect: "none", minWidth: 0 }}
             >
-              <span>{modelLabel}</span>
+              <span className="alfred-model-label">{modelLabel}</span>
             </div>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <div className="alfred-header-group" style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
             <button
               onClick={handleSignOut}
               title="Güvenli Çıkış Yap"
@@ -1194,7 +1206,7 @@ export default function VoiceChatPlayground() {
                 <polyline points="16 17 21 12 16 7" />
                 <line x1="21" y1="12" x2="9" y2="12" />
               </svg>
-              <span>Çıkış</span>
+              <span className="hide-on-mobile">Çıkış</span>
             </button>
 
             <select
@@ -1236,14 +1248,14 @@ export default function VoiceChatPlayground() {
                   state === "Error" ? "#ef4444" : "#10b981",
                 animation: state !== "Idle" ? "pulse 1.2s infinite" : "none"
               }} />
-              <span>{state === "Idle" ? "Ready" : state}</span>
+              <span className="hide-on-mobile">{state === "Idle" ? "Ready" : state}</span>
             </div>
           </div>
         </header>
 
         {/* Scrollable Message List */}
         <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
-          <div style={{ maxWidth: "48rem", width: "100%", margin: "0 auto", padding: "24px 20px 140px", display: "flex", flexDirection: "column", gap: "24px" }}>
+          <div className="alfred-thread" style={{ maxWidth: "48rem", width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: "24px" }}>
             {/* Message Skeleton Loading */}
             {messagesLoading ? (
               <div style={{ display: "flex", flexDirection: "column", gap: "24px", padding: "16px 0" }}>
@@ -1454,13 +1466,12 @@ export default function VoiceChatPlayground() {
         </div>
 
         {/* Floating Bottom Input Dock */}
-        <div style={{
+        <div className="alfred-dock" style={{
           position: "absolute",
           bottom: 0,
           left: 0,
           right: 0,
           background: "linear-gradient(180deg, rgba(33, 33, 33, 0) 0%, rgba(33, 33, 33, 0.95) 25%, #212121 100%)",
-          padding: "16px 20px 20px",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
@@ -1529,16 +1540,17 @@ export default function VoiceChatPlayground() {
               onKeyDown={handleKeyDown}
               rows={1}
               placeholder="Alfred'e mesaj yazın..."
+              className="alfred-composer"
               style={{
                 flex: 1,
                 background: "transparent",
                 border: "none",
                 outline: "none",
                 color: "#ececec",
-                fontSize: "15px",
                 lineHeight: "1.5",
                 fontFamily: "inherit",
                 resize: "none",
+                minWidth: 0,
                 maxHeight: "160px",
                 minHeight: "24px",
                 padding: "6px 0"
@@ -1624,7 +1636,7 @@ export default function VoiceChatPlayground() {
             )}
           </div>
 
-          <p style={{ fontSize: "11px", color: "#737373", marginTop: "8px", textAlign: "center", pointerEvents: "auto" }}>
+          <p className="hide-on-mobile" style={{ fontSize: "11px", color: "#737373", marginTop: "8px", textAlign: "center", pointerEvents: "auto" }}>
             B.U.T.L.E.R. Alfred — Barış's Unified Task, Logic, Execution &amp; Reasoning
           </p>
         </div>
@@ -1636,10 +1648,7 @@ export default function VoiceChatPlayground() {
           onClick={() => setShowSettingsModal(false)}
           style={{
             position: "fixed",
-            top: 0,
-            left: 0,
-            width: "100vw",
-            height: "100vh",
+            inset: 0,
             background: "rgba(0, 0, 0, 0.75)",
             backdropFilter: "blur(6px)",
             display: "flex",

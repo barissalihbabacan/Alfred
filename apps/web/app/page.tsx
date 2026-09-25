@@ -12,8 +12,8 @@ function AuthenticatedApp() {
   if (loading) {
     return (
       <div
+        className="alfred-screen"
         style={{
-          minHeight: "100vh",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",

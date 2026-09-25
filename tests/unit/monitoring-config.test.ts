@@ -30,6 +30,8 @@ type Policy = {
       filter: string;
       comparison: string;
       thresholdValue: number;
+      duration: string;
+      evaluationMissingData?: string;
       aggregations: { alignmentPeriod: string; perSeriesAligner: string }[];
     };
   }[];
@@ -135,6 +137,10 @@ describe("monitoring definitions (scripts/monitoring)", () => {
       for (const c of p.conditions) {
         expect(c.conditionThreshold.comparison, key).toBe("COMPARISON_GT");
         expect(c.conditionThreshold.aggregations[0].perSeriesAligner, key).toBe("ALIGN_SUM");
+        // Cloud Monitoring rejects evaluationMissingData on a zero-duration condition (INVALID_ARGUMENT).
+        if (c.conditionThreshold.duration === "0s") {
+          expect(c.conditionThreshold.evaluationMissingData, key).toBeUndefined();
+        }
       }
     }
     expect(new Set([...policies.values()].map((p) => p.displayName)).size).toBe(policies.size);

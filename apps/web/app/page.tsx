@@ -11,50 +11,16 @@ function AuthenticatedApp() {
   // Initial authentication check state with Butler theme
   if (loading) {
     return (
-      <div
-        className="alfred-screen"
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: "var(--bg-primary)",
-          gap: "20px"
-        }}
-      >
-        <div
-          style={{
-            width: "56px",
-            height: "56px",
-            borderRadius: "50%",
-            border: "3px solid var(--border-subtle)",
-            borderTopColor: "var(--accent-gold)",
-            animation: "alfredSpin 1s cubic-bezier(0.68, -0.55, 0.27, 1.55) infinite"
-          }}
-        />
-        <div style={{ textAlign: "center" }}>
-          <div
-            style={{
-              fontSize: "15px",
-              fontWeight: 600,
-              color: "var(--accent-gold-light)",
-              letterSpacing: "0.06em",
-              marginBottom: "4px"
-            }}
-          >
+      <div className="min-h-screen-safe flex flex-col items-center justify-center gap-5 bg-butler-bg leading-[normal]">
+        <div className="h-14 w-14 animate-spin-bounce rounded-full border-[3px] border-butler-border border-t-gold" />
+        <div className="text-center">
+          <div className="mb-1 text-[15px] font-semibold tracking-[0.06em] text-gold-light">
             B.U.T.L.E.R. Alfred
           </div>
-          <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+          <div className="text-[12px] text-butler-text-muted">
             Güvenlik Protokolü Doğrulanıyor...
           </div>
         </div>
-        <style jsx global>{`
-          @keyframes alfredSpin {
-            to {
-              transform: rotate(360deg);
-            }
-          }
-        `}</style>
       </div>
     );
   }

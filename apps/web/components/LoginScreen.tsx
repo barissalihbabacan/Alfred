@@ -7,6 +7,9 @@ export default function LoginScreen() {
   const { signInGoogle, signInGoogleRedirect, error, clearError } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
+  // Google butonunun hover kalkisi; eski onMouseEnter/Leave mantigi aynen
+  // (gonderim surerken giris/cikis yok sayilir).
+  const [isLifted, setIsLifted] = useState(false);
 
   const handleGoogleSignIn = async () => {
     if (isSubmitting) return;
@@ -33,68 +36,17 @@ export default function LoginScreen() {
   const busy = isSubmitting || isRedirecting;
 
   return (
-    <div className="alfred-screen" style={{
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: "var(--bg-primary)",
-      backgroundImage: `
-        radial-gradient(circle at 50% 25%, rgba(197, 160, 89, 0.12) 0%, transparent 60%),
-        radial-gradient(circle at 80% 80%, rgba(30, 41, 61, 0.25) 0%, transparent 50%)
-      `,
-      padding: "24px 16px",
-      position: "relative",
-      overflow: "hidden"
-    }}>
+    <div className="min-h-screen-safe relative flex items-center justify-center overflow-hidden bg-butler-bg bg-[radial-gradient(circle_at_50%_25%,rgba(197,160,89,0.12)_0%,transparent_60%),radial-gradient(circle_at_80%_80%,rgba(30,41,61,0.25)_0%,transparent_50%)] px-4 py-6 leading-[normal]">
       {/* Decorative background grid lines */}
-      <div style={{
-        position: "absolute",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundImage: `
-          linear-gradient(rgba(39, 53, 79, 0.12) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(39, 53, 79, 0.12) 1px, transparent 1px)
-        `,
-        backgroundSize: "48px 48px",
-        pointerEvents: "none"
-      }} />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(39,53,79,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(39,53,79,0.12)_1px,transparent_1px)] bg-[length:48px_48px]" />
 
       {/* Main Login Card */}
-      <div style={{
-        position: "relative",
-        zIndex: 1,
-        width: "100%",
-        maxWidth: "460px",
-        backgroundColor: "rgba(18, 24, 36, 0.85)",
-        backdropFilter: "blur(16px)",
-        WebkitBackdropFilter: "blur(16px)",
-        border: "1px solid rgba(197, 160, 89, 0.28)",
-        borderRadius: "16px",
-        boxShadow: "0 24px 64px rgba(0, 0, 0, 0.6), 0 0 32px rgba(197, 160, 89, 0.08)",
-        padding: "40px 32px",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        textAlign: "center"
-      }}>
+      <div className="relative z-[1] flex w-full max-w-[460px] flex-col items-center rounded-2xl border border-gold/[0.28] bg-[rgba(18,24,36,0.85)] px-8 py-10 text-center shadow-[0_24px_64px_rgba(0,0,0,0.6),0_0_32px_rgba(197,160,89,0.08)] backdrop-blur-[16px]">
         
         {/* Butler Crest / Emblem */}
-        <div style={{
-          width: "72px",
-          height: "72px",
-          borderRadius: "50%",
-          backgroundColor: "rgba(197, 160, 89, 0.1)",
-          border: "1.5px solid var(--accent-gold)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          marginBottom: "20px",
-          boxShadow: "0 0 20px rgba(197, 160, 89, 0.25)"
-        }}>
+        <div className="mb-5 flex h-[72px] w-[72px] items-center justify-center rounded-full border-[1.5px] border-gold bg-gold/10 shadow-[0_0_20px_rgba(197,160,89,0.25)]">
           {/* Stylized Butler / Crown Icon */}
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent-gold)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" className="stroke-gold" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 2L2 7l10 5 10-5-10-5z" />
             <path d="M2 17l10 5 10-5" />
             <path d="M2 12l10 5 10-5" />
@@ -102,40 +54,15 @@ export default function LoginScreen() {
         </div>
 
         {/* Security Badge */}
-        <div style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "6px",
-          padding: "4px 12px",
-          borderRadius: "20px",
-          backgroundColor: "rgba(197, 160, 89, 0.12)",
-          border: "1px solid rgba(197, 160, 89, 0.3)",
-          color: "var(--accent-gold-light)",
-          fontSize: "11px",
-          fontWeight: 600,
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
-          marginBottom: "14px"
-        }}>
-          <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "var(--accent-gold)", display: "inline-block" }} />
+        <div className="mb-3.5 inline-flex items-center gap-1.5 rounded-[20px] border border-gold/30 bg-gold/[0.12] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-gold-light">
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-gold" />
           Güvenli Yönetici Portalı
         </div>
 
-        <h1 style={{
-          fontSize: "26px",
-          fontWeight: 700,
-          color: "var(--text-primary)",
-          letterSpacing: "-0.02em",
-          marginBottom: "8px"
-        }}>
+        <h1 className="mb-2 text-[26px] font-bold tracking-[-0.02em] text-butler-text">
           B.U.T.L.E.R. Alfred
         </h1>
-        <p style={{
-          fontSize: "13px",
-          color: "var(--text-secondary)",
-          lineHeight: "1.5",
-          marginBottom: "28px"
-        }}>
+        <p className="mb-7 text-[13px] leading-[1.5] text-butler-text-secondary">
           Kişisel yapay zeka asistanınıza ve sesli etkileşim sistemine erişmek için lütfen kimliğinizi doğrulayın.
         </p>
 
@@ -143,22 +70,10 @@ export default function LoginScreen() {
         {error && (
           <div
             role="alert"
-            style={{
-              width: "100%",
-              marginBottom: "24px",
-              padding: "14px 16px",
-              backgroundColor: "rgba(239, 68, 68, 0.1)",
-              border: "1px solid rgba(239, 68, 68, 0.35)",
-              borderRadius: "10px",
-              textAlign: "left",
-              display: "flex",
-              alignItems: "flex-start",
-              gap: "12px",
-              animation: "fadeIn 0.2s ease-out"
-            }}
+            className="mb-6 flex w-full animate-fade-in items-start gap-3 rounded-[10px] border border-danger/[0.35] bg-danger/10 px-4 py-3.5 text-left"
           >
             {/* Warning / Error Icon */}
-            <div style={{ flexShrink: 0, marginTop: "2px" }}>
+            <div className="mt-0.5 shrink-0">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10" />
                 <line x1="12" y1="8" x2="12" y2="12" />
@@ -166,37 +81,19 @@ export default function LoginScreen() {
               </svg>
             </div>
 
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{
-                color: "#fca5a5",
-                fontWeight: 600,
-                fontSize: "13px",
-                marginBottom: "3px"
-              }}>
+            <div className="min-w-0 flex-1">
+              <div className="mb-[3px] text-[13px] font-semibold text-red-300">
                 {error.title}
               </div>
-              <div style={{
-                color: "#e2e8f0",
-                fontSize: "12px",
-                lineHeight: "1.45"
-              }}>
+              <div className="text-[12px] leading-[1.45] text-slate-200">
                 {error.message}
               </div>
               {error.code === "auth/operation-not-allowed" && (
-                <div style={{
-                  marginTop: "10px",
-                  padding: "10px 12px",
-                  backgroundColor: "rgba(0, 0, 0, 0.35)",
-                  border: "1px solid rgba(197, 160, 89, 0.3)",
-                  borderRadius: "8px",
-                  fontSize: "11px",
-                  lineHeight: "1.5",
-                  color: "#e2e8f0"
-                }}>
-                  <div style={{ fontWeight: 600, color: "var(--accent-gold-light)", marginBottom: "4px" }}>
+                <div className="mt-2.5 rounded-lg border border-gold/30 bg-black/[0.35] px-3 py-2.5 text-[11px] leading-[1.5] text-slate-200">
+                  <div className="mb-1 font-semibold text-gold-light">
                     ⚙️ Çözüm Adımları (1 Dakika):
                   </div>
-                  <ol style={{ paddingLeft: "18px", margin: 0, color: "#cbd5e1" }}>
+                  <ol className="m-0 list-decimal pl-[18px] text-slate-300">
                     <li><strong>Firebase Console &gt; Authentication &gt; Sign-in method</strong> sekmesini açın.</li>
                     <li><strong>Google</strong> seçeneğine tıklayıp <strong>Enable (Etkinleştir)</strong> yapın.</li>
                     <li>Proje destek e-postasını seçip <strong>Save (Kaydet)</strong> butonuna tıklayın.</li>
@@ -205,16 +102,7 @@ export default function LoginScreen() {
                     href="https://console.firebase.google.com/project/butler-alfred/authentication/providers"
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "4px",
-                      marginTop: "8px",
-                      color: "var(--accent-gold)",
-                      textDecoration: "underline",
-                      fontWeight: 600,
-                      fontSize: "11px"
-                    }}
+                    className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-gold underline"
                   >
                     <span>Firebase Console Sağlayıcılar Sayfasına Git</span>
                     <span>↗</span>
@@ -222,26 +110,12 @@ export default function LoginScreen() {
                 </div>
               )}
               {error.serverDetails && (
-                <div style={{
-                  marginTop: "8px",
-                  fontSize: "11px",
-                  color: "#cbd5e1",
-                  fontFamily: "monospace",
-                  wordBreak: "break-all",
-                  background: "rgba(0, 0, 0, 0.4)",
-                  padding: "6px 8px",
-                  borderRadius: "6px"
-                }}>
+                <div className="mt-2 break-all rounded-md bg-black/40 px-2 py-1.5 font-[monospace] text-[11px] text-slate-300">
                   Sunucu Yanıtı: {error.serverDetails}
                 </div>
               )}
               {error.code && error.code !== "unknown_error" && (
-                <div style={{
-                  marginTop: "6px",
-                  fontSize: "10px",
-                  color: "#94a3b8",
-                  fontFamily: "monospace"
-                }}>
+                <div className="mt-1.5 font-[monospace] text-[10px] text-slate-400">
                   Hata Kodu: {error.code}
                 </div>
               )}
@@ -250,17 +124,7 @@ export default function LoginScreen() {
             <button
               onClick={clearError}
               aria-label="Kapat"
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "#94a3b8",
-                cursor: "pointer",
-                padding: "2px",
-                lineHeight: 1,
-                fontSize: "14px"
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "#ffffff")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "#94a3b8")}
+              className="cursor-pointer border-none bg-transparent p-0.5 text-[14px] leading-none text-slate-400 hover:text-white"
             >
               ✕
             </button>
@@ -271,47 +135,19 @@ export default function LoginScreen() {
         <button
           onClick={handleGoogleSignIn}
           disabled={busy}
-          style={{
-            width: "100%",
-            padding: "14px 20px",
-            backgroundColor: "#ffffff",
-            color: "#1f2937",
-            border: "none",
-            borderRadius: "10px",
-            fontSize: "15px",
-            fontWeight: 600,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "12px",
-            boxShadow: "0 4px 14px rgba(0, 0, 0, 0.35)",
-            transition: "all 0.2s ease",
-            opacity: busy ? 0.75 : 1,
-            cursor: busy ? "not-allowed" : "pointer"
+          className={`flex w-full items-center justify-center gap-3 rounded-[10px] border-none bg-white px-5 py-3.5 text-[15px] font-semibold text-gray-800 transition-all duration-200 ease-[ease] ${
+            isLifted ? "-translate-y-px shadow-[0_6px_20px_rgba(197,160,89,0.35)]" : "shadow-[0_4px_14px_rgba(0,0,0,0.35)]"
+          } ${busy ? "cursor-not-allowed opacity-75" : "cursor-pointer opacity-100"}`}
+          onMouseEnter={() => {
+            if (!isSubmitting) setIsLifted(true);
           }}
-          onMouseEnter={(e) => {
-            if (!isSubmitting) {
-              e.currentTarget.style.transform = "translateY(-1px)";
-              e.currentTarget.style.boxShadow = "0 6px 20px rgba(197, 160, 89, 0.35)";
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (!isSubmitting) {
-              e.currentTarget.style.transform = "none";
-              e.currentTarget.style.boxShadow = "0 4px 14px rgba(0, 0, 0, 0.35)";
-            }
+          onMouseLeave={() => {
+            if (!isSubmitting) setIsLifted(false);
           }}
         >
           {busy ? (
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#374151" }}>
-              <div style={{
-                width: "18px",
-                height: "18px",
-                border: "2px solid #9ca3af",
-                borderTopColor: "var(--accent-gold)",
-                borderRadius: "50%",
-                animation: "spin 0.8s linear infinite"
-              }} />
+            <div className="flex items-center gap-2 text-gray-700">
+              <div className="h-[18px] w-[18px] animate-spin-fast rounded-full border-2 border-gray-400 border-t-gold" />
               <span>{isRedirecting ? "Google'a Yönlendiriliyor..." : "Giriş Yapılıyor..."}</span>
             </div>
           ) : (
@@ -345,32 +181,15 @@ export default function LoginScreen() {
           onClick={handleRedirectSignIn}
           disabled={busy}
           title="Safari veya tarayıcı engeli varsa doğrudan sayfayı yönlendirerek giriş yapın"
-          style={{
-            marginTop: "14px",
-            background: "transparent",
-            border: "none",
-            color: "var(--text-secondary)",
-            fontSize: "12px",
-            lineHeight: 1.45,
-            textDecoration: "underline",
-            textUnderlineOffset: "3px",
-            opacity: busy ? 0.5 : 1,
-            cursor: busy ? "not-allowed" : "pointer"
-          }}
+          className={`mt-3.5 border-none bg-transparent px-1.5 py-px text-[12px] leading-[1.45] text-butler-text-secondary underline underline-offset-[3px] ${
+            busy ? "cursor-not-allowed opacity-50" : "cursor-pointer opacity-100"
+          }`}
         >
           Safari veya açılır pencere engeli yaşıyorsanız: <strong>Doğrudan Yönlendirme ile Giriş</strong>
         </button>
 
         {/* Security / Privacy Assurance */}
-        <div style={{
-          marginTop: "28px",
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          color: "var(--text-muted)",
-          fontSize: "11px",
-          lineHeight: 1.4
-        }}>
+        <div className="mt-7 flex items-center gap-2 text-[11px] leading-[1.4] text-butler-text-muted">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
             <path d="M7 11V7a5 5 0 0 1 10 0v4" />
@@ -379,16 +198,6 @@ export default function LoginScreen() {
         </div>
 
       </div>
-
-      <style jsx global>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(-4px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
     </div>
   );
 }

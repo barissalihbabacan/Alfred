@@ -1,176 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Styling lives in Tailwind classes on the components (theme: tailwind.config.ts).
+ * This file keeps only what utilities can't express: the CSS variables the
+ * login/loading screens use through the `butler-*` colours, page-level base
+ * rules, and the classes of the HTML that renderMarkdown() generates.
+ */
+
 :root {
   --bg-primary: #0a0d14;
   --bg-secondary: #121824;
   --bg-card: #182030;
   --bg-card-hover: #1e293d;
   --border-subtle: #27354f;
-  --border-accent: #c5a059;
   --text-primary: #f0f4fc;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
-  --accent-gold: #c5a059;
-  --accent-gold-light: #e6c887;
-  --accent-gold-glow: rgba(197, 160, 89, 0.2);
-  --danger: #ef4444;
-  --success: #10b981;
-  --status-listening: #ef4444;
-  --status-transcribing: #f59e0b;
-  --status-thinking: #3b82f6;
-  --status-speaking: #10b981;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-body {
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  min-height: 100vh;
-  min-height: 100dvh;
-  display: flex;
-  flex-direction: column;
-}
-
-/*
- * Viewport units. Plain 100vh on mobile browsers is the height with the
- * address bar hidden, so a 100vh layout is taller than the visible screen and
- * its bottom (the composer) slides under the browser chrome. dvh follows the
- * visible viewport; the vh line before it is the fallback for older browsers.
- * vw includes the scrollbar on desktop, so full-width containers use 100%.
- */
-.alfred-screen {
-  min-height: 100vh;
-  min-height: 100dvh;
-}
-
-.alfred-shell {
-  height: 100vh;
-  height: 100dvh;
-  width: 100%;
-}
-
-/* Chat layout: desktop defaults, overridden for phones below. */
-.alfred-sidebar {
-  width: 0;
-  min-width: 0;
-  height: 100%;
-  opacity: 0;
-  z-index: 40;
-  transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
-}
-.alfred-sidebar.is-open {
-  width: 260px;
-  min-width: 260px;
-  opacity: 1;
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
-}
-.alfred-sidebar-backdrop {
-  display: none;
-}
-.alfred-model-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
-.alfred-thread {
-  padding: 24px 20px 140px;
-}
-.alfred-dock {
-  padding: 16px 20px calc(20px + env(safe-area-inset-bottom, 0px));
-}
-.alfred-composer {
-  font-size: 15px;
-}
-
-/* Touch screens have no hover: keep hover-only controls visible, drop the ⌘K hint. */
-@media (hover: none) {
-  .conv-item-del-btn {
-    opacity: 0.7 !important;
+@layer base {
+  body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    /* dvh follows the visible viewport on mobile; the vh line is the fallback. */
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
   }
-  .kbd-hint {
-    display: none;
+
+  button {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--bg-primary);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-subtle);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #c5a059;
   }
 }
 
-@media (max-width: 768px) {
-  /* The sidebar becomes a drawer over the chat instead of squeezing it. */
-  .alfred-sidebar,
-  .alfred-sidebar.is-open {
-    position: fixed;
-    top: 0;
-    left: 0;
+@layer components {
+  /* Code blocks and inline code in renderMarkdown() output (VoiceChatPlayground). */
+  .code-container {
+    @apply my-3.5 overflow-hidden rounded-lg border border-white/10 bg-chat-code;
+  }
+  .code-header {
+    @apply flex items-center justify-between bg-chat-code-header px-3.5 py-1.5 font-[monospace] text-[11px] uppercase text-chat-subtle;
+  }
+  .copy-code-btn {
+    @apply border-none bg-transparent text-[11px] text-chat-muted hover:text-white;
+  }
+  .code-content {
+    @apply overflow-x-auto p-3.5 font-[monospace] text-[13px] leading-normal text-[#e6edf3];
+  }
+  .inline-code {
+    @apply rounded bg-white/10 px-1.5 py-0.5 font-[monospace] text-[13px] text-[#f6d899];
+  }
+}
+
+@layer utilities {
+  /* 100dvh with a 100vh fallback (Tailwind's h-dvh has no fallback for older browsers). */
+  .h-screen-safe {
     height: 100vh;
     height: 100dvh;
-    width: min(85vw, 300px);
-    min-width: 0;
-    opacity: 1;
-    z-index: 60;
-    border-right: 1px solid rgba(255, 255, 255, 0.08);
-    transform: translateX(-100%);
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    padding-top: env(safe-area-inset-top, 0px);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
-  .alfred-sidebar.is-open {
-    transform: translateX(0);
-    box-shadow: 12px 0 32px rgba(0, 0, 0, 0.45);
+  .min-h-screen-safe {
+    min-height: 100vh;
+    min-height: 100dvh;
   }
-  .alfred-sidebar-backdrop {
-    display: block;
-    position: fixed;
-    inset: 0;
-    z-index: 55;
-    background: rgba(0, 0, 0, 0.55);
-  }
-  .alfred-header {
-    padding: 0 8px 0 4px !important;
-    padding-top: env(safe-area-inset-top, 0px) !important;
-  }
-  .alfred-header-group {
-    gap: 6px !important;
-  }
-  .hide-on-mobile,
-  .kbd-hint {
-    display: none !important;
-  }
-  .alfred-thread {
-    padding: 16px 14px 120px;
-  }
-  .alfred-dock {
-    padding: 10px 10px calc(10px + env(safe-area-inset-bottom, 0px));
-  }
-  /* 16px or more stops iOS Safari from zooming in when the composer is focused. */
-  .alfred-composer {
-    font-size: 16px;
-  }
-}
-
-button {
-  font-family: inherit;
-  cursor: pointer;
-}
-
-input, textarea {
-  font-family: inherit;
-}
-
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: var(--bg-primary);
-}
-::-webkit-scrollbar-thumb {
-  background: var(--border-subtle);
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--accent-gold);
 }

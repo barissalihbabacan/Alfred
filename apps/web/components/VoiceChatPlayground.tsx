@@ -891,7 +891,7 @@ export default function VoiceChatPlayground() {
 
         {/* Scrollable Message List */}
         <div className="flex flex-1 flex-col overflow-y-auto">
-          <div className="mx-auto my-0 flex w-full max-w-3xl flex-col gap-6 px-5 pb-[140px] pt-6 mobile:px-3.5 mobile:pb-[120px] mobile:pt-4">
+          <div className="my-0 flex w-full flex-col gap-6 px-5 pb-[140px] pt-6 mobile:px-3.5 mobile:pb-[120px] mobile:pt-4">
             {/* Message Skeleton Loading */}
             {messagesLoading ? (
               <div className="flex flex-col gap-6 px-0 py-4">
@@ -1039,7 +1039,7 @@ export default function VoiceChatPlayground() {
 
         {/* Floating Bottom Input Dock */}
         <div className="pointer-events-none absolute bottom-0 left-0 right-0 flex flex-col items-center bg-[linear-gradient(180deg,rgba(33,33,33,0)_0%,rgba(33,33,33,0.95)_25%,#212121_100%)] px-5 pb-[calc(20px+env(safe-area-inset-bottom,0px))] pt-4 mobile:px-2.5 mobile:pb-[calc(10px+env(safe-area-inset-bottom,0px))] mobile:pt-2.5">
-          <div className="pointer-events-auto flex w-full max-w-3xl items-end gap-2.5 rounded-[26px] border border-white/12 bg-chat-surface py-2.5 pl-4 pr-3.5 shadow-[0_10px_30px_rgba(0,0,0,0.4)]">
+          <div className="pointer-events-auto flex w-full items-end gap-2.5 rounded-[26px] border border-white/12 bg-chat-surface py-2.5 pl-4 pr-3.5 shadow-[0_10px_30px_rgba(0,0,0,0.4)]">
             <button
               ref={toolsBtnRef}
               onClick={(e) => {

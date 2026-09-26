@@ -8,6 +8,7 @@ import {
 } from "../src/ai/tools/time/current-time.js";
 import { isRateLimitedError } from "../src/ai/providers/groq/rate-limit.js";
 import { resolveChatProviders } from "../src/ai/providers/chat-fallback/chat-providers.js";
+import { buildHealthStatus } from "../src/ai/providers/chat-fallback/health-status.js";
 import {
   addUsageToMetrics,
   createChatTurnMetrics,
@@ -259,46 +260,39 @@ export const api = onRequest({
     return;
   }
 
-  // Health endpoint: /health or /api/health
+  // Health endpoint: /health or /api/health. Resolves the chat providers the
+  // same way /chat does (src/ai/providers/chat-fallback/health-status.ts), so
+  // the engine the UI shows is the one the next turn would start on.
   if (path.endsWith("/health")) {
-    const activeProvider = (process.env.ALFRED_LLM_PROVIDER || process.env.AI_PROVIDER || "groq").trim().toLowerCase();
-    const groqKey = gizliOku(GROQ_API_KEY, "GROQ_API_KEY");
-    const groqConfigured = !!groqKey;
+    const llmProvider = (process.env.ALFRED_LLM_PROVIDER || process.env.AI_PROVIDER || "groq").trim().toLowerCase();
+    const keys = {
+      groq: gizliOku(GROQ_API_KEY, "GROQ_API_KEY"),
+      gemini: gizliOku(GEMINI_API_KEY, "GEMINI_API_KEY"),
+      cerebras: gizliOku(CEREBRAS_API_KEY, "CEREBRAS_API_KEY"),
+      openrouter: gizliOku(OPENROUTER_API_KEY, "OPENROUTER_API_KEY")
+    };
 
-    if (activeProvider === "groq") {
-      res.status(200).json({
-        status: "ok",
-        activeProvider: "groq",
-        providerStatus: {
-          groqConfigured,
-          ollamaReachable: false,
-          modelReady: groqConfigured
-        }
-      });
-      return;
-    }
-
-    const ollamaUrl = process.env.OLLAMA_BASE_URL || "https://ollama.example.invalid";
-    let ollamaHealthy;
-
-    try {
-      const resp = await fetch(`${ollamaUrl.replace(/\/+$/, "")}/api/tags`, {
-        signal: AbortSignal.timeout(4000)
-      });
-      ollamaHealthy = resp.ok;
-    } catch {
-      ollamaHealthy = false;
-    }
-
-    res.status(200).json({
-      status: "ok",
-      activeProvider: ollamaHealthy ? "ollama" : (groqConfigured ? "groq" : "offline"),
-      providerStatus: {
-        ollamaReachable: ollamaHealthy,
-        groqConfigured,
-        modelReady: ollamaHealthy
+    // Only the Ollama path probes Ollama; it has no fallback.
+    let ollamaReachable = false;
+    if (llmProvider !== "groq") {
+      const ollamaUrl = process.env.OLLAMA_BASE_URL || "https://ollama.example.invalid";
+      try {
+        const resp = await fetch(`${ollamaUrl.replace(/\/+$/, "")}/api/tags`, {
+          signal: AbortSignal.timeout(4000)
+        });
+        ollamaReachable = resp.ok;
+      } catch {
+        ollamaReachable = false;
       }
-    });
+    }
+
+    res.status(200).json(buildHealthStatus({
+      llmProvider,
+      keys,
+      env: process.env,
+      ollamaReachable,
+      ollamaModel: process.env.OLLAMA_MODEL || "gemma4:12b-mlx"
+    }));
     return;
   }
 

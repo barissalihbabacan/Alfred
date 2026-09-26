@@ -48,7 +48,7 @@ npm run deploy --prefix functions   # firebase deploy --only functions
 ./scripts/monitoring/teardown-alerts.sh --project butler-alfred [--apply] [--delete-channels]
 ```
 
-As of the last check `npm run test:unit` is 844 passing tests across 60 files, `npm run typecheck`, `npm run typecheck:tests` and `npx tsc -p apps/web/tsconfig.json --noEmit` are clean, `npm run build:web` succeeds and `npm run lint` has 0 errors and 0 warnings — keep all of them green (CI runs them all). Every rule in `eslint.config.js` is an error, including `no-explicit-any` (use `unknown` plus narrowing, and `errorMessage()` from `src/core/errors` for caught errors), so any lint finding fails CI. There is no Prettier: formatting is not enforced, so don't mass-reformat files.
+As of the last check `npm run test:unit` is 851 passing tests across 61 files, `npm run typecheck`, `npm run typecheck:tests` and `npx tsc -p apps/web/tsconfig.json --noEmit` are clean, `npm run build:web` succeeds and `npm run lint` has 0 errors and 0 warnings — keep all of them green (CI runs them all). Every rule in `eslint.config.js` is an error, including `no-explicit-any` (use `unknown` plus narrowing, and `errorMessage()` from `src/core/errors` for caught errors), so any lint finding fails CI. There is no Prettier: formatting is not enforced, so don't mass-reformat files.
 
 `tests/unit/*` run offline against in-memory repositories/stores. `tests/integration/*` and the `test:groq`/`test:ollama` scripts hit real services and need `.env` populated (copy from `.env.example`). Gating lives in `tests/integration/prerequisites.ts`: with `ALFRED_OFFLINE=1` every service-dependent suite is `describe.skipIf`-skipped regardless of credentials; without it each suite skips when its own prerequisite is absent, and the SSH/Ollama tests call the test context's `skip()` (reported as skipped, not passed) when the host is unreachable. Any new integration test that needs a service must be gated on `OFFLINE` too.
 
@@ -82,6 +82,7 @@ Planned capabilities and the pattern for adding a tool to production are in `doc
 
 ### Front end — one Next.js app, built as a static export
 - `apps/web/` is the only front end: Next.js 16 (App Router, React 19, Turbopack for dev and build). `output: "export"`: **no server runtime** (no route handlers, SSR or middleware); anything needing a server goes in `functions/index.js`. It has its own `tsconfig.json` and **does not import from `src/`**.
+- `apps/web/next-env.d.ts` is generated and gitignored: `next dev` and `next build` rewrite it with different contents. The web typecheck in CI runs before the build, so it passes without the file; code that needs its types (e.g. image imports) would need the build first.
 - `components/VoiceChatPlayground.tsx` is the chat UI, `components/LoginScreen.tsx` the auth gate; `app/page.tsx` mounts the chat only after Firebase restores an allowed session.
 - All backend calls go through `lib/api.ts` (`apiFetch`, adds the ID token and App Check headers); the `/chat` SSE stream is parsed by `lib/sse.ts`. Don't call `fetch("/api/...")` directly.
 - `npm run dev:web` proxies `/api/**` to `ALFRED_API_ORIGIN` (default the Functions emulator; `https://butler-alfred.web.app/api` for production, which needs the App Check debug token registered or requests get 401).
@@ -118,7 +119,7 @@ Preserve when editing memory code:
 
 ### Deployment
 - Firebase Hosting serves `apps/web/out` (build it first), rewrites `/api/**` to `api` and everything else to `index.html`. No App Hosting, no server runtime.
-- `.github/workflows/ci.yml` runs every check listed under **Commands** plus the functions bundle build/check on each PR (Node 22, no `.env`). `deploy.yml` reuses it, then builds and runs `firebase deploy --only hosting,functions,firestore:rules,firestore:indexes` on pushes to `main`, so any red check blocks the deploy.
+- `.github/workflows/ci.yml` runs every check listed under **Commands** plus the functions bundle build/check on each PR (Node 22, no `.env`; `.nvmrc` pins the same major for `nvm use` locally). `deploy.yml` reuses it, then builds and runs `firebase deploy --only hosting,functions,firestore:rules,firestore:indexes` on pushes to `main`, so any red check blocks the deploy.
 - Rollback: `firebase hosting:rollback`.
 
 ### Functions bundle — `functions/` imports `src/` via esbuild
@@ -127,7 +128,7 @@ Preserve when editing memory code:
 - npm packages are not bundled: a `src/` module needing a new package means adding it to `functions/package.json` (`build.js` fails otherwise).
 - Only bundle pure modules: nothing may read files at import time or pull in `src/core/config` (it imports `dotenv`). That's why the profile reaches the bundle through the committed `user-profile.generated.ts`.
 - `"gcp-build": ""` in `functions/package.json` is deliberate (Cloud Build has no `../src`). Don't remove it.
-- **Anything changed in a shared module ships to production.** Shared today: the system prompt and user-profile digest, the memory-extraction prompt/validation/pipeline and its provider calls, `PrivacyFilter`, the memory write planner and loop, cosine similarity, conversation titles, the `get_current_time` tool and timezone resolver, the embedding client, the Groq rate-limit policy and the chat fallback. The full list with exact semantics is in `docs/PRODUCTION_INTERNALS.md`. Many are pinned by differential tests against verbatim copies of the former production code in `tests/unit/fixtures/` (`legacy-*.js`); **do not edit those fixtures**.
+- **Anything changed in a shared module ships to production.** Shared today: the system prompt and user-profile digest, the memory-extraction prompt/validation/pipeline and its provider calls, `PrivacyFilter`, the memory write planner and loop, cosine similarity, conversation titles, the `get_current_time` tool and timezone resolver, the embedding client, the Groq rate-limit policy, the chat fallback and the `/health` answer (`health-status.ts`, which resolves providers exactly like `/chat`). The full list with exact semantics is in `docs/PRODUCTION_INTERNALS.md`. Many are pinned by differential tests against verbatim copies of the former production code in `tests/unit/fixtures/` (`legacy-*.js`); **do not edit those fixtures**.
 - The one intended difference is storage: production keeps the vector inside the Firestore record and commits a supersede in one batch; `MemoryService` writes the repository and a separate vector store, new record first, so a failure leaves a duplicate rather than a lost fact.
 
 ### Secrets — LLM keys live only in Secret Manager

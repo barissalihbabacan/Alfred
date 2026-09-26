@@ -39,7 +39,7 @@ Groq openai/gpt-oss-120b → Gemini gemini-3.8-flash → OpenRouter  (fallback c
 Firestore (conversations, memory_vectors)
 ```
 
-Speech input uses the browser Web Speech API (`SpeechRecognition`, TR/EN selectable in the top bar); replies are not read aloud (the "Seslendir" button and `speechSynthesis` were removed on 27 Sep 2026). No audio is sent to the server.
+Speech input uses the browser Web Speech API (`SpeechRecognition`, Turkish `tr-TR`; the TR/EN picker was removed on 27 Sep 2026); replies are not read aloud (the "Seslendir" button and `speechSynthesis` were removed on 27 Sep 2026). No audio is sent to the server.
 
 ### Key files
 

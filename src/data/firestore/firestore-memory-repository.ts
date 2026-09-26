@@ -258,6 +258,22 @@ export class FirestoreMemoryRepository implements IMemoryRepository {
     return snap.docs.map((d) => this.toMemoryDoc(d.id, d.data()));
   }
 
+  public async listAllInactive(userId?: string): Promise<MemoryVectorDocument[]> {
+    // One equality query per status: the same index shape as listAllActive.
+    const results: MemoryVectorDocument[] = [];
+    for (const status of ["superseded", "retracted"] as const) {
+      let query: FirebaseFirestore.Query = this.db
+        .collection(this.collectionName)
+        .where("status", "==", status);
+      if (userId) {
+        query = query.where("userId", "==", userId);
+      }
+      const snap = await query.get();
+      results.push(...snap.docs.map((d) => this.toMemoryDoc(d.id, d.data())));
+    }
+    return results;
+  }
+
   public async deleteMemoryRecord(id: string): Promise<void> {
     await this.db.collection(this.collectionName).doc(id).delete();
   }

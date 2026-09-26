@@ -163,6 +163,20 @@ export class InMemoryMemoryRepository implements IMemoryRepository {
     return results;
   }
 
+  public async listAllInactive(userId?: string): Promise<MemoryVectorDocument[]> {
+    if (this.shouldFail) {
+      throw new Error(this.failureMessage);
+    }
+
+    const results: MemoryVectorDocument[] = [];
+    for (const doc of this.records.values()) {
+      if (doc.status === "active") continue;
+      if (userId && doc.userId !== userId) continue;
+      results.push({ ...doc });
+    }
+    return results;
+  }
+
   public async deleteMemoryRecord(id: string): Promise<void> {
     if (this.shouldFail) {
       throw new Error(this.failureMessage);

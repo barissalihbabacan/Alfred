@@ -9,7 +9,7 @@
 
 ## 1. Summary
 
-`apps/web/` is the only front end for Alfred. It is a Next.js 14 App Router app built with `output: "export"`: `npm run build:web` writes plain static files to `apps/web/out`, and Firebase Hosting serves that directory. There is no server runtime for the web app — no route handlers, no SSR, no middleware. Every backend operation goes to the `api` Cloud Function in `functions/index.js` through the Hosting rewrite `/api/** → api`.
+`apps/web/` is the only front end for Alfred. It is a Next.js 16 App Router app (React 19, built with Turbopack) built with `output: "export"`: `npm run build:web` writes plain static files to `apps/web/out`, and Firebase Hosting serves that directory. There is no server runtime for the web app — no route handlers, no SSR, no middleware. Every backend operation goes to the `api` Cloud Function in `functions/index.js` through the Hosting rewrite `/api/** → api`.
 
 It replaced the earlier vanilla-JS front end (`apps/web/public/index.html`, `app.js`, `firebase-app.js`, `styles.css`), which has been removed.
 

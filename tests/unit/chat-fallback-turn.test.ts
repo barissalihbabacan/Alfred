@@ -23,7 +23,8 @@ import {
   groqText,
   groqToolCall,
   openRouterMidStreamError,
-  openRouterText
+  openRouterText,
+  sse
 } from "./fixtures/chat-provider-streams.js";
 
 // The whole production turn (functions/index.js -> runChatTurnWithFallback)
@@ -195,6 +196,37 @@ describe("runChatTurnWithFallback", () => {
     expect(h.types()).toEqual(["chunk"]);
     expect(h.state.accumulatedText).toBe("Efendim, ");
     expect(h.metrics.attempted_providers).toEqual(["groq"]);
+  });
+
+  it("a tool call on the last round (no tools offered) fails over instead of ending with an empty answer", async () => {
+    // Gemini keeps calling tools; on round 3 it was offered none.
+    const h = harness(
+      [{ body: geminiToolCalls() }, { body: geminiToolCalls() }, { body: geminiToolCalls() }, { body: openRouterText("Tokyo'da 20:43.") }],
+      { keys: { gemini: KEYS.gemini, openrouter: KEYS.openrouter } }
+    );
+    await h.run();
+    expect(h.calls.map((c) => "tools" in c.body)).toEqual([true, true, false, true]);
+    // The last-round calls are not run: two rounds of tool results only.
+    expect(h.metrics).toMatchObject({ tool_rounds: 2 });
+    expect(h.logs.find((l) => l.event === "llm_stream_error")?.fields).toMatchObject({ provider: "gemini", round: 3, code: "tool_call_without_tools" });
+    expect(h.events.find((e) => e.type === "provider_fallback")).toMatchObject({ from: "gemini", to: "openrouter" });
+    expect(h.state.accumulatedText).toBe("Tokyo'da 20:43.");
+  });
+
+  it("keeps last-round text as the answer when the model adds a tool call after it", async () => {
+    const textThenCall = sse(
+      { choices: [{ index: 0, delta: { role: "assistant", content: "Tokyo'da 20:43." } }] },
+      { choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: "c9", type: "function", function: { name: "get_current_time", arguments: "{}" } }] }, finish_reason: "tool_calls" }] }
+    );
+    const h = harness(
+      [{ body: geminiToolCalls() }, { body: geminiToolCalls() }, { body: textThenCall }],
+      { keys: { gemini: KEYS.gemini, openrouter: KEYS.openrouter } }
+    );
+    await h.run();
+    expect(h.calls).toHaveLength(3);
+    expect(h.state.accumulatedText).toBe("Tokyo'da 20:43.");
+    expect(h.types()).not.toContain("provider_fallback");
+    expect(h.metrics).toMatchObject({ tool_rounds: 2 });
   });
 
   it("restarts from the user's message on the next provider (no cross-provider tool history)", async () => {

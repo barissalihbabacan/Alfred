@@ -263,6 +263,7 @@ async function runOnProvider(deps: ChatTurnDeps, provider: ResolvedChatProvider,
     const tools = deps.tools.length > 0 && toolTurn < deps.maxTurns ? deps.tools : undefined;
     const body = JSON.stringify(buildChatRequestBody(provider, { messages: payload, tools }));
     const res = await postWithRateLimit(deps, provider, body, toolTurn, hasNextProvider);
+    const textBeforeRound = state.accumulatedText.length;
 
     const parser = createOpenAIStreamParser({
       provider: provider.id,
@@ -311,6 +312,24 @@ async function runOnProvider(deps: ChatTurnDeps, provider: ResolvedChatProvider,
 
     const toolCalls = result.toolCalls;
     if (toolCalls.length === 0) return;
+
+    if (!tools) {
+      // Tool calls on the round that offered no tools. Groq refuses them in
+      // the stream (tool_use_failed -> stream_error above); Gemini and
+      // OpenRouter send them, and running them would end the turn with no
+      // text ("empty_response", which never fails over). Text this round
+      // already streamed is the answer; otherwise it is a stream error, so
+      // the next provider is tried while nothing has reached the user.
+      if (state.accumulatedText.length > textBeforeRound) return;
+      deps.logEvent("WARNING", "llm_stream_error", `[${provider.label}] Tool call on the last round, where no tools were offered.`, {
+        provider: provider.id,
+        model: provider.model,
+        round: toolTurn,
+        code: "tool_call_without_tools",
+        detail: ""
+      });
+      throw Object.assign(new Error("Alfred yanıtı tamamlayamadı. Lütfen tekrar deneyin."), { code: "stream_error" });
+    }
 
     metrics.tool_rounds++;
     metrics.tool_calls += toolCalls.length;

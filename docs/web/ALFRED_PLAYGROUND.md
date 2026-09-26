@@ -39,7 +39,7 @@ Groq openai/gpt-oss-120b → Gemini gemini-3.8-flash → OpenRouter  (fallback c
 Firestore (conversations, memory_vectors)
 ```
 
-Speech input uses the browser Web Speech API (`SpeechRecognition`, TR/EN selectable in the top bar); speech output uses `window.speechSynthesis` via the "Seslendir" button on each Alfred message. No audio is sent to the server.
+Speech input uses the browser Web Speech API (`SpeechRecognition`, TR/EN selectable in the top bar); replies are not read aloud (the "Seslendir" button and `speechSynthesis` were removed on 27 Sep 2026). No audio is sent to the server.
 
 ### Key files
 
@@ -92,7 +92,6 @@ Errors before the stream starts (400/401/403/404/500) come back as JSON `{ error
 | **Listening** | Red pulsing dot | Web Speech recognition is active. |
 | **Thinking** | Blue pulsing dot | Request sent / model reasoning / tool running. |
 | **Streaming** | Gold pulsing dot | Response text is arriving. |
-| **Speaking** | Green pulsing dot | `speechSynthesis` is reading a message aloud. |
 | **Error** | Red dot | Error banner shown; cleared on the next message. |
 
 Keyboard: `Enter` sends, `Shift+Enter` inserts a newline, `Cmd/Ctrl+K` starts a new conversation.

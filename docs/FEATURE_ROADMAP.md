@@ -76,7 +76,7 @@ This page lists the candidate features, what each one needs from Barış, and a 
 - **Value:** Medium. A consistent British butler voice instead of the browser/OS voice.
 - **Effort:** Small to medium.
 - **Needs from Barış:** a provider (ElevenLabs, OpenAI TTS, or Google Cloud TTS with an en-GB Neural2/Studio voice) and a key. It is paid per character.
-- **Shape:** a new `POST /api/tts` in `functions/index.js` returning audio. The web app plays it instead of `speechSynthesis`, with a fallback. `src/voice/tts` already has the `ITTSProvider` abstraction.
+- **Shape:** a new `POST /api/tts` in `functions/index.js` returning audio, played by the web app. (The browser `speechSynthesis` playback was removed on 27 Sep 2026 because Barış does not need read-aloud for now; the persona prompt would also need its formatting rule revisited for spoken replies.) `src/voice/tts` already has the `ITTSProvider` abstraction.
 - **Risk:** Low; the main consideration is cost.
 
 ### 7. Multi-step planning (planner, phase 2)

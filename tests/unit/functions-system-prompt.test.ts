@@ -129,22 +129,21 @@ describe("1. the user profile is the reviewed digest of users/*.md", () => {
   });
 });
 
-describe("2. speech formatting", () => {
-  it("the persona tells Alfred his replies are spoken and to avoid markdown unless asked", () => {
-    expect(ALFRED_PERSONA_PROMPT).toContain("SPOKEN DELIVERY & FORMATTING:");
-    expect(ALFRED_PERSONA_PROMPT).toContain("Your replies are read aloud by the browser's speech synthesis.");
-    expect(ALFRED_PERSONA_PROMPT).toContain(
-      "no markdown tables, code fences, headings, asterisks, or bulleted and numbered lists"
-    );
-    expect(ALFRED_PERSONA_PROMPT).toContain("Use natural punctuation (commas, full stops, em-dashes) to create pauses");
-    expect(ALFRED_PERSONA_PROMPT).toContain("Use code blocks or markdown only when Barış explicitly asks for them (e.g. a code review");
+describe("2. formatting", () => {
+  it("the persona allows the markdown the chat renders, and nothing else", () => {
+    expect(ALFRED_PERSONA_PROMPT).toContain("FORMATTING:");
+    expect(ALFRED_PERSONA_PROMPT).toContain("Your replies appear in Barış's chat window, which renders markdown:");
+    expect(ALFRED_PERSONA_PROMPT).toContain("It does not render headings, tables or links, so never use them.");
+    expect(ALFRED_PERSONA_PROMPT).toContain("- Conversation stays prose. Use a short list only for several parallel items or steps,");
+    // Replies are no longer read aloud (the browser's speech synthesis was removed).
+    expect(ALFRED_PERSONA_PROMPT).not.toMatch(/read aloud|speech synthesis/i);
   });
 
   it("matches the canonical rule in docs/persona/ALFRED_PERSONA.md", () => {
     const doc = readFileSync(new URL("../../docs/persona/ALFRED_PERSONA.md", import.meta.url), "utf8");
-    expect(doc).toContain("**Speech-Ready Formatting**: Alfred's replies are read aloud by the browser's speech synthesis.");
-    expect(doc).toContain("no markdown tables, code fences, headings, asterisks, or bulleted and numbered lists");
-    expect(doc).toContain("Code blocks and markdown appear only when Barış explicitly asks for them");
+    expect(doc).toContain("**Chat Formatting**: Alfred's replies appear in Barış's chat window, which renders markdown");
+    expect(doc).toContain("It does not render headings, tables or links, so he never uses them.");
+    expect(doc).toContain("Conversation stays prose: a short list only for several parallel items or steps");
   });
 });
 
@@ -163,7 +162,7 @@ describe("3. capability line matches what production runs", () => {
     expect(ALFRED_PERSONA_PROMPT).not.toContain("gemma4");
     expect(ALFRED_PERSONA_PROMPT).not.toContain("Whisper");
     expect(ALFRED_PERSONA_PROMPT).not.toContain("nomic-embed-text");
-    expect(ALFRED_PERSONA_PROMPT).toContain("speech recognition and read-aloud speech synthesis in Barış's browser (Web Speech API)");
+    expect(ALFRED_PERSONA_PROMPT).toContain("speech recognition for dictated messages in Barış's browser (Web Speech API)");
     expect(ALFRED_PERSONA_PROMPT).toContain("Long-Term Semantic Memory (Firestore + Gemini embeddings)");
     expect(GEMINI_EMBEDDING_MODEL).toBe("gemini-embedding-001");
     expect(functionsSource).toMatch(/generateEmbedding,[\s\S]*from "\.\.\/src\/ai\/embedding\/embedding-client\.js"/);

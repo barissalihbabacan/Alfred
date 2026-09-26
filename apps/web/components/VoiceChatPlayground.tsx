@@ -7,6 +7,7 @@ import { createSseParser, stripThinking, ChatStreamEvent } from "../lib/sse";
 import { errorMessage as messageOf, isAbortError } from "../lib/errors";
 import { formatRateLimitStatus, normalizeRateLimitWaitMs } from "../lib/rate-limit";
 import { formatProviderFallbackStatus, providerDisplayName } from "../lib/providers";
+import { renderMarkdown } from "../lib/markdown";
 
 export type AssistantState =
   | "Idle"
@@ -84,15 +85,6 @@ function RateLimitNotice({ until, provider }: { until: number; provider?: string
   return <span role="status">{formatRateLimitStatus(until - now, provider)}</span>;
 }
 
-function escapeHtml(str: string): string {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 function fallbackCopy(text: string) {
   const ta = document.createElement("textarea");
   ta.value = text;
@@ -109,106 +101,6 @@ function fallbackCopy(text: string) {
     console.warn("Fallback copy failed:", e);
   }
   document.body.removeChild(ta);
-}
-
-function renderMarkdown(text: string): string {
-  if (!text) return "";
-
-  // Completely remove <think>...</think> or unclosed <think>... from display
-  const cleanText = text.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
-  if (!cleanText) {
-    return "";
-  }
-
-  let html = escapeHtml(cleanText);
-
-  // Multi-line code blocks: ```lang ... ```
-  const codeBlocks: string[] = [];
-  html = html.replace(/```(?:([a-zA-Z0-9_-]+)\n)?([\s\S]*?)```/g, (_m, lang, code) => {
-    const idx = codeBlocks.length;
-    const cleanCode = code.replace(/^\n+|\n+$/g, "");
-    const language = lang || "code";
-    codeBlocks.push(`
-      <div class="code-container">
-        <div class="code-header">
-          <span>${language}</span>
-          <button class="copy-code-btn" onclick="navigator.clipboard.writeText(decodeURIComponent('${encodeURIComponent(cleanCode)}')).then(()=>this.innerHTML='<span style=\\'color:#10b981;\\'>Kopyalandı</span>')"><svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' style='display:inline-block;margin-right:4px;'><rect x='9' y='9' width='13' height='13' rx='2' ry='2'/><path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/></svg>Kopyala</button>
-        </div>
-        <pre class="code-content"><code>${cleanCode}</code></pre>
-      </div>
-    `);
-    return `§§CODEBLOCK${idx}§§`;
-  });
-
-  // Inline code: `code`
-  const inlineCodes: string[] = [];
-  html = html.replace(/`([^`\n]+)`/g, (_m, c) => {
-    const idx = inlineCodes.length;
-    inlineCodes.push(`<code class="inline-code">${c}</code>`);
-    return `§§INLINECODE${idx}§§`;
-  });
-
-  // Bold + Italic: ***text***
-  html = html.replace(/\*\*\*([^*]+?)\*\*\*/g, "<strong><em>$1</em></strong>");
-  // Bold: **text**
-  html = html.replace(/\*\*([^*]+?)\*\*/g, "<strong>$1</strong>");
-  // Italic: *text*
-  html = html.replace(/\*([^*]+?)\*/g, "<em>$1</em>");
-  // Strikethrough: ~~text~~
-  html = html.replace(/~~([^~]+?)~~/g, "<del>$1</del>");
-
-  // Paragraphs & Lists
-  html = html.split("\n\n").map(para => {
-    const trimmed = para.trim();
-    if (!trimmed) return "";
-    if (trimmed.startsWith("§§CODEBLOCK")) return trimmed;
-
-    // Check if paragraph is an unordered list
-    if (/^[-*]\s+/m.test(trimmed)) {
-      const lines = trimmed.split("\n");
-      let listHtml = "";
-      let inUl = false;
-      for (const line of lines) {
-        const m = line.match(/^[-*]\s+(.*)$/);
-        if (m) {
-          if (!inUl) { listHtml += "<ul>"; inUl = true; }
-          listHtml += `<li>${m[1]}</li>`;
-        } else {
-          if (inUl) { listHtml += "</ul>"; inUl = false; }
-          if (line.trim()) listHtml += `<p>${line.trim()}</p>`;
-        }
-      }
-      if (inUl) listHtml += "</ul>";
-      return listHtml;
-    }
-
-    // Check if paragraph is an ordered list
-    if (/^\d+\.\s+/m.test(trimmed)) {
-      const lines = trimmed.split("\n");
-      let listHtml = "";
-      let inOl = false;
-      for (const line of lines) {
-        const m = line.match(/^\d+\.\s+(.*)$/);
-        if (m) {
-          if (!inOl) { listHtml += "<ol>"; inOl = true; }
-          listHtml += `<li>${m[1]}</li>`;
-        } else {
-          if (inOl) { listHtml += "</ol>"; inOl = false; }
-          if (line.trim()) listHtml += `<p>${line.trim()}</p>`;
-        }
-      }
-      if (inOl) listHtml += "</ol>";
-      return listHtml;
-    }
-
-    return `<p>${trimmed.replace(/\n/g, "<br/>")}</p>`;
-  }).join("");
-
-  // Restore protected code blocks & inline codes
-  html = html.replace(/§§INLINECODE(\d+)§§/g, (_m, idx) => inlineCodes[Number(idx)]);
-  html = html.replace(/§§CODEBLOCK(\d+)§§/g, (_m, idx) => codeBlocks[Number(idx)]);
-
-  return html;
 }
 
 const DEFAULT_MODEL_LABEL = "openai/gpt-oss-120b";
@@ -353,8 +245,14 @@ export default function VoiceChatPlayground() {
     if (window.matchMedia(MOBILE_QUERY).matches) setSidebarOpen(false);
   }, []);
 
+  // Bumped on every conversation switch; a load whose number is no longer the
+  // latest applies nothing (the user moved on while it was in flight).
+  const loadSeqRef = useRef(0);
+
   const handleNewConversation = useCallback(() => {
     cancelActiveTurn();
+    loadSeqRef.current++;
+    setMessagesLoading(false);
     setConversationId(null);
     storageSet(CONVERSATION_KEY, null);
     setMessages([]);
@@ -364,12 +262,15 @@ export default function VoiceChatPlayground() {
 
   const loadConversation = useCallback(async (id: string) => {
     cancelActiveTurn();
+    const seq = ++loadSeqRef.current;
+    const isLatest = () => seq === loadSeqRef.current;
     setErrorMessage(null);
     setConversationId(id);
     storageSet(CONVERSATION_KEY, id);
     setMessagesLoading(true);
     try {
       const res = await apiFetch(`/chat?conversationId=${encodeURIComponent(id)}`);
+      if (!isLatest()) return;
       if (res.status === 404) {
         // Silinmis (veya baska kullaniciya ait) sohbet: kayitli kimligi birak.
         setConversationId(null);
@@ -379,6 +280,7 @@ export default function VoiceChatPlayground() {
       }
       if (res.ok) {
         const data = await res.json();
+        if (!isLatest()) return;
         if (data.success && Array.isArray(data.messages)) {
           const loaded: Message[] = (data.messages as StoredMessageDto[])
             .filter(
@@ -397,7 +299,7 @@ export default function VoiceChatPlayground() {
     } catch (err) {
       console.warn("Failed to load conversation:", err);
     } finally {
-      setMessagesLoading(false);
+      if (isLatest()) setMessagesLoading(false);
     }
   }, [cancelActiveTurn]);
 
@@ -510,7 +412,8 @@ export default function VoiceChatPlayground() {
 
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend ?? inputText).trim();
-    if (!text || state === "Thinking" || state === "Streaming" || state === "Transcribing") {
+    // While a conversation loads, its messages would replace this turn's.
+    if (!text || messagesLoading || state === "Thinking" || state === "Streaming" || state === "Transcribing") {
       return;
     }
 

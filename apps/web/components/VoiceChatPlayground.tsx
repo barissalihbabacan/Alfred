@@ -15,7 +15,6 @@ export type AssistantState =
   | "Transcribing"
   | "Thinking"
   | "Streaming"
-  | "Speaking"
   | "Error";
 
 interface Message {
@@ -142,14 +141,6 @@ function formatTime(value?: string | number | Date): string {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-/** Seslendirme icin `<think>` izlerini ve markdown isaretlerini temizler. */
-function toSpeakableText(text: string): string {
-  return stripThinking(text)
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/[*_`~#>]/g, "")
-    .trim();
-}
-
 interface HealthInfo {
   activeProvider: string;
 }
@@ -176,7 +167,6 @@ export default function VoiceChatPlayground() {
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [sttLang, setSttLang] = useState("tr-TR");
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
@@ -345,16 +335,13 @@ export default function VoiceChatPlayground() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [handleNewConversation]);
 
-  // Stop recognition / speech when the component unmounts (e.g. sign-out).
+  // Stop recognition when the component unmounts (e.g. sign-out).
   useEffect(() => {
     return () => {
       try {
         recognitionRef.current?.stop();
       } catch {
         // ignore
-      }
-      if (typeof window !== "undefined" && window.speechSynthesis) {
-        window.speechSynthesis.cancel();
       }
       const turn = activeTurnRef.current;
       if (turn && !turn.finished) turn.controller.abort();
@@ -664,31 +651,6 @@ export default function VoiceChatPlayground() {
     rec.start();
   };
 
-  const toggleSpeak = (msg: Message) => {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    if (speakingId === msg.id) {
-      setSpeakingId(null);
-      setState((s) => (s === "Speaking" ? "Idle" : s));
-      return;
-    }
-    const text = toSpeakableText(msg.text);
-    if (!text) return;
-    const utterance = new SpeechSynthesisUtterance(text);
-    const isTurkish = /[çğıöşüÇĞİÖŞÜ]/i.test(text);
-    utterance.lang = isTurkish ? "tr-TR" : "en-GB";
-    utterance.rate = 1.0;
-    const reset = () => {
-      setSpeakingId((curr) => (curr === msg.id ? null : curr));
-      setState((s) => (s === "Speaking" ? "Idle" : s));
-    };
-    utterance.onend = reset;
-    utterance.onerror = reset;
-    setSpeakingId(msg.id);
-    setState((s) => (s === "Idle" || s === "Error" ? "Speaking" : s));
-    window.speechSynthesis.speak(utterance);
-  };
-
   const handleSignOut = async () => {
     setShowAccountModal(false);
     cancelActiveTurn();
@@ -919,7 +881,6 @@ export default function VoiceChatPlayground() {
                 state === "Listening" ? "bg-danger" :
                 state === "Thinking" ? "bg-status-thinking" :
                 state === "Streaming" ? "bg-gold" :
-                state === "Speaking" ? "bg-success" :
                 state === "Error" ? "bg-danger" : "bg-success",
                 state !== "Idle" && "animate-alfred-pulse"
               )} />
@@ -1054,20 +1015,6 @@ export default function VoiceChatPlayground() {
                             <span>Kopyala</span>
                           </span>
                         )}
-                      </button>
-                      <button
-                        onClick={() => toggleSpeak(msg)}
-                        className={cx(
-                          "inline-flex cursor-pointer items-center gap-1 border-none bg-transparent px-1.5 py-0.5 text-[12px]",
-                          speakingId === msg.id ? "text-success" : "text-chat-subtle"
-                        )}
-                        title={speakingId === msg.id ? "Seslendirmeyi Durdur" : "Seslendir"}
-                      >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
-                        </svg>
-                        <span>{speakingId === msg.id ? "Durdur" : "Seslendir"}</span>
                       </button>
                     </div>
                   )}

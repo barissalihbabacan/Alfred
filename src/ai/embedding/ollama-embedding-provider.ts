@@ -79,7 +79,7 @@ export class OllamaEmbeddingProvider implements IEmbeddingProvider {
         }
       } catch (err: unknown) {
         if (isAbortError(err)) {
-          throw new Error(`[OllamaEmbeddingProvider] Embedding generation timed out after ${timeoutMs}ms.`);
+          throw new Error(`[OllamaEmbeddingProvider] Embedding generation timed out after ${timeoutMs}ms.`, { cause: err });
         }
         // Fall back to /api/embeddings for legacy Ollama or single queries
       }
@@ -117,7 +117,7 @@ export class OllamaEmbeddingProvider implements IEmbeddingProvider {
       return results;
     } catch (err: unknown) {
       if (isAbortError(err)) {
-        throw new Error(`[OllamaEmbeddingProvider] Embedding generation timed out after ${timeoutMs}ms.`);
+        throw new Error(`[OllamaEmbeddingProvider] Embedding generation timed out after ${timeoutMs}ms.`, { cause: err });
       }
       throw err;
     } finally {

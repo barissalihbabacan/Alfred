@@ -36,10 +36,10 @@ export class LSParser {
         continue;
       }
 
-      let permissions = "";
-      let sizeStr = "";
-      let dateStr = "";
-      let rawName = "";
+      let permissions: string;
+      let sizeStr: string;
+      let dateStr: string;
+      let rawName: string;
 
       const fullMatch = trimmed.match(FULL_TIME_REGEX);
       if (fullMatch) {

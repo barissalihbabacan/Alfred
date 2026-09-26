@@ -279,7 +279,7 @@ export const api = onRequest({
     }
 
     const ollamaUrl = process.env.OLLAMA_BASE_URL || "https://ollama.example.invalid";
-    let ollamaHealthy = false;
+    let ollamaHealthy;
 
     try {
       const resp = await fetch(`${ollamaUrl.replace(/\/+$/, "")}/api/tags`, {
@@ -312,7 +312,7 @@ export const api = onRequest({
     return;
   }
 
-  let authenticatedUid = null;
+  let authenticatedUid;
   try {
     const decoded = await getAuth().verifyIdToken(authHeader.substring(7).trim());
     authenticatedUid = decoded?.uid || null;

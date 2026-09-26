@@ -74,7 +74,7 @@ export class GeminiEmbeddingProvider implements IEmbeddingProvider {
       return values;
     } catch (err: unknown) {
       if (isAbortError(err)) {
-        throw new Error(`[GeminiEmbeddingProvider] Embedding generation timed out after ${timeoutMs}ms.`);
+        throw new Error(`[GeminiEmbeddingProvider] Embedding generation timed out after ${timeoutMs}ms.`, { cause: err });
       }
       throw err;
     } finally {
@@ -134,7 +134,7 @@ export class GeminiEmbeddingProvider implements IEmbeddingProvider {
       });
     } catch (err: unknown) {
       if (isAbortError(err)) {
-        throw new Error(`[GeminiEmbeddingProvider] Batch embedding generation timed out after ${timeoutMs}ms.`);
+        throw new Error(`[GeminiEmbeddingProvider] Batch embedding generation timed out after ${timeoutMs}ms.`, { cause: err });
       }
       throw err;
     } finally {

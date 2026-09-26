@@ -53,7 +53,7 @@ export function renderMarkdown(text: string): string {
     codeBlocks.push(`
       <div class="code-container">
         <div class="code-header">
-          <span>${language}</span>
+          <span lang="en">${language}</span>
           <button class="copy-code-btn" onclick="navigator.clipboard.writeText(decodeURIComponent('${copyPayload(cleanCode)}')).then(()=>this.innerHTML='<span style=\\'color:#10b981;\\'>Kopyalandı</span>')"><svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' style='display:inline-block;margin-right:4px;'><rect x='9' y='9' width='13' height='13' rx='2' ry='2'/><path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/></svg>Kopyala</button>
         </div>
         <pre class="code-content"><code>${cleanCode}</code></pre>

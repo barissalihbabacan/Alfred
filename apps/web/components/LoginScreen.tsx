@@ -38,10 +38,10 @@ export default function LoginScreen() {
   return (
     <div className="min-h-screen-safe relative flex items-center justify-center overflow-hidden bg-butler-bg bg-[radial-gradient(circle_at_50%_25%,rgba(197,160,89,0.12)_0%,transparent_60%),radial-gradient(circle_at_80%_80%,rgba(30,41,61,0.25)_0%,transparent_50%)] px-4 py-6 leading-[normal]">
       {/* Decorative background grid lines */}
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(39,53,79,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(39,53,79,0.12)_1px,transparent_1px)] bg-[length:48px_48px]" />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(39,53,79,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(39,53,79,0.12)_1px,transparent_1px)] bg-size-[48px_48px]" />
 
       {/* Main Login Card */}
-      <div className="relative z-[1] flex w-full max-w-[460px] flex-col items-center rounded-2xl border border-gold/[0.28] bg-[rgba(18,24,36,0.85)] px-8 py-10 text-center shadow-[0_24px_64px_rgba(0,0,0,0.6),0_0_32px_rgba(197,160,89,0.08)] backdrop-blur-[16px]">
+      <div className="relative z-1 flex w-full max-w-[460px] flex-col items-center rounded-2xl border border-gold/[0.28] bg-[rgba(18,24,36,0.85)] px-8 py-10 text-center shadow-[0_24px_64px_rgba(0,0,0,0.6),0_0_32px_rgba(197,160,89,0.08)] backdrop-blur-lg">
         
         {/* Butler Crest / Emblem */}
         <div className="mb-5 flex h-[72px] w-[72px] items-center justify-center rounded-full border-[1.5px] border-gold bg-gold/10 shadow-[0_0_20px_rgba(197,160,89,0.25)]">
@@ -54,7 +54,7 @@ export default function LoginScreen() {
         </div>
 
         {/* Security Badge */}
-        <div className="mb-3.5 inline-flex items-center gap-1.5 rounded-[20px] border border-gold/30 bg-gold/[0.12] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-gold-light">
+        <div className="mb-3.5 inline-flex items-center gap-1.5 rounded-[20px] border border-gold/30 bg-gold/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-gold-light">
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-gold" />
           Güvenli Yönetici Portalı
         </div>
@@ -62,7 +62,7 @@ export default function LoginScreen() {
         <h1 className="mb-2 text-[26px] font-bold tracking-[-0.02em] text-butler-text">
           B.U.T.L.E.R. Alfred
         </h1>
-        <p className="mb-7 text-[13px] leading-[1.5] text-butler-text-secondary">
+        <p className="mb-7 text-[13px] leading-normal text-butler-text-secondary">
           Kişisel yapay zeka asistanınıza ve sesli etkileşim sistemine erişmek için lütfen kimliğinizi doğrulayın.
         </p>
 
@@ -70,7 +70,7 @@ export default function LoginScreen() {
         {error && (
           <div
             role="alert"
-            className="mb-6 flex w-full animate-fade-in items-start gap-3 rounded-[10px] border border-danger/[0.35] bg-danger/10 px-4 py-3.5 text-left"
+            className="mb-6 flex w-full animate-fade-in items-start gap-3 rounded-[10px] border border-danger/35 bg-danger/10 px-4 py-3.5 text-left"
           >
             {/* Warning / Error Icon */}
             <div className="mt-0.5 shrink-0">
@@ -89,7 +89,7 @@ export default function LoginScreen() {
                 {error.message}
               </div>
               {error.code === "auth/operation-not-allowed" && (
-                <div className="mt-2.5 rounded-lg border border-gold/30 bg-black/[0.35] px-3 py-2.5 text-[11px] leading-[1.5] text-slate-200">
+                <div className="mt-2.5 rounded-lg border border-gold/30 bg-black/35 px-3 py-2.5 text-[11px] leading-normal text-slate-200">
                   <div className="mb-1 font-semibold text-gold-light">
                     ⚙️ Çözüm Adımları (1 Dakika):
                   </div>

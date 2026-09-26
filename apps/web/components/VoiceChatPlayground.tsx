@@ -213,7 +213,7 @@ function renderMarkdown(text: string): string {
 
 const DEFAULT_MODEL_LABEL = "openai/gpt-oss-120b";
 const CONVERSATION_KEY = "alfred_conversation_id";
-// Must match the `mobile` screen in apps/web/tailwind.config.ts.
+// Must match the `mobile` custom variant in apps/web/app/globals.css.
 const MOBILE_QUERY = "(max-width: 768px)";
 // Eski surumlerin tarayiciya yazdigi anahtarlar. API anahtarlari artik yalnizca
 // sunucuda (Secret Manager) tutuluyor; Ollama URL alani da artik yok.
@@ -226,7 +226,7 @@ function cx(...classes: Array<string | false | null | undefined>): string {
 
 /** Loading placeholder: a light band sweeping across a dim bar. */
 const SHIMMER =
-  "animate-shimmer bg-[length:200%_100%] bg-[linear-gradient(90deg,rgba(255,255,255,0.04)_25%,rgba(255,255,255,0.1)_50%,rgba(255,255,255,0.04)_75%)]";
+  "animate-shimmer bg-size-[200%_100%] bg-[linear-gradient(90deg,rgba(255,255,255,0.04)_25%,rgba(255,255,255,0.1)_50%,rgba(255,255,255,0.04)_75%)]";
 
 function storageGet(key: string): string | null {
   try {
@@ -806,23 +806,23 @@ export default function VoiceChatPlayground() {
     <div className="flex h-screen-safe w-full overflow-hidden bg-chat-bg font-sans leading-[normal] text-chat-text">
       {/* Sidebar */}
       {sidebarOpen && (
-        <div className="hidden mobile:fixed mobile:inset-0 mobile:z-[55] mobile:block mobile:bg-black/55" onClick={() => setSidebarOpen(false)} aria-hidden="true" />
+        <div className="hidden mobile:fixed mobile:inset-0 mobile:z-55 mobile:block mobile:bg-black/55" onClick={() => setSidebarOpen(false)} aria-hidden="true" />
       )}
       <aside className={cx(
         "z-40 flex h-full shrink-0 flex-col overflow-hidden whitespace-nowrap bg-chat-sidebar",
         "[transition:width_0.35s_cubic-bezier(0.4,0,0.2,1),min-width_0.35s_cubic-bezier(0.4,0,0.2,1),opacity_0.3s_ease]",
         // Phones: a drawer over the chat instead of squeezing it.
-        "mobile:fixed mobile:left-0 mobile:top-0 mobile:z-[60] mobile:h-screen-safe mobile:w-[min(85vw,300px)] mobile:min-w-0 mobile:border-r mobile:border-white/[0.08] mobile:pb-[env(safe-area-inset-bottom,0px)] mobile:pt-[env(safe-area-inset-top,0px)] mobile:opacity-100 mobile:[transition:transform_0.3s_cubic-bezier(0.4,0,0.2,1)]",
+        "mobile:fixed mobile:left-0 mobile:top-0 mobile:z-60 mobile:h-screen-safe mobile:w-[min(85vw,300px)] mobile:min-w-0 mobile:border-r mobile:border-white/8 mobile:pb-[env(safe-area-inset-bottom,0px)] mobile:pt-[env(safe-area-inset-top,0px)] mobile:opacity-100 mobile:[transition:transform_0.3s_cubic-bezier(0.4,0,0.2,1)]",
         sidebarOpen
-          ? "w-[260px] min-w-[260px] border-r border-white/[0.08] opacity-100 mobile:translate-x-0 mobile:shadow-[12px_0_32px_rgba(0,0,0,0.45)]"
+          ? "w-[260px] min-w-[260px] border-r border-white/8 opacity-100 mobile:translate-x-0 mobile:shadow-[12px_0_32px_rgba(0,0,0,0.45)]"
           : "w-0 min-w-0 opacity-0 mobile:-translate-x-full"
       )}>
         {/* Sidebar Header */}
         <div className="flex shrink-0 flex-col">
           {/* Top Horizon Bar (52px, matches main top-bar) */}
-          <div className="flex h-[52px] min-h-[52px] items-center justify-between border-b border-white/[0.08] bg-chat-sidebar px-3.5">
+          <div className="flex h-[52px] min-h-[52px] items-center justify-between border-b border-white/8 bg-chat-sidebar px-3.5">
             <div className="flex w-full flex-1 select-none items-center gap-2.5">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] border border-gold/[0.35] bg-[linear-gradient(135deg,rgba(197,160,89,0.18)_0%,rgba(140,109,50,0.08)_100%)] text-gold shadow-[0_2px_8px_rgba(0,0,0,0.25)]">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] border border-gold/35 bg-[linear-gradient(135deg,rgba(197,160,89,0.18)_0%,rgba(140,109,50,0.08)_100%)] text-gold shadow-[0_2px_8px_rgba(0,0,0,0.25)]">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M3 18h18" />
                   <path d="M6 18V8a1.5 1.5 0 0 1 1.5-1.5h9A1.5 1.5 0 0 1 18 8v10" />
@@ -832,7 +832,7 @@ export default function VoiceChatPlayground() {
               <div className="flex min-w-0 flex-1 flex-col gap-px">
                 <div className="flex items-center gap-1.5">
                   <span className="text-[13px] font-bold tracking-[0.06em] text-chat-text">B.U.T.L.E.R.</span>
-                  <span className="rounded-full border border-gold/[0.35] bg-gold/15 px-[5px] py-px text-[9px] font-bold tracking-[0.04em] text-gold">ALFRED</span>
+                  <span className="rounded-full border border-gold/35 bg-gold/15 px-[5px] py-px text-[9px] font-bold tracking-[0.04em] text-gold">ALFRED</span>
                 </div>
                 <span className="text-[10px] font-medium tracking-[0.02em] text-chat-faint">Executive Intelligence</span>
               </div>
@@ -846,7 +846,7 @@ export default function VoiceChatPlayground() {
                 handleNewConversation();
                 closeSidebarOnMobile();
               }}
-              className="flex h-[38px] w-full cursor-pointer items-center justify-between rounded-[10px] border border-white/10 bg-white/[0.04] px-3 text-[13px] font-medium text-chat-text [transition:all_0.15s_ease]"
+              className="flex h-[38px] w-full cursor-pointer items-center justify-between rounded-[10px] border border-white/10 bg-white/4 px-3 text-[13px] font-medium text-chat-text [transition:all_0.15s_ease]"
             >
               <div className="flex items-center gap-2 text-chat-text">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c5a059" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -856,14 +856,14 @@ export default function VoiceChatPlayground() {
                 <span>Yeni Sohbet</span>
               </div>
               {/* No ⌘K hint on phones or touch screens. */}
-              <span className="rounded border border-white/10 bg-white/[0.06] px-[5px] py-0.5 text-[10px] font-semibold text-chat-faint mobile:hidden touch:hidden">⌘K</span>
+              <span className="rounded-sm border border-white/10 bg-white/6 px-[5px] py-0.5 text-[10px] font-semibold text-chat-faint mobile:hidden touch:hidden">⌘K</span>
             </button>
           </div>
         </div>
 
         {/* Conversations List */}
         <div className="flex flex-1 flex-col gap-1 overflow-y-auto px-2.5 py-2">
-          <div className="px-2 pb-1 pt-2.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-chat-faint">
+          <div className="px-2 pb-1 pt-2.5 text-[11px] font-semibold uppercase tracking-wider text-chat-faint">
             Geçmiş Sohbetler
           </div>
 
@@ -875,7 +875,7 @@ export default function VoiceChatPlayground() {
                   className="box-border flex h-9 items-center gap-2 rounded-lg px-2.5 py-2"
                 >
                   <div className={cx(SHIMMER, "h-3.5 w-3.5 shrink-0 rounded-[3px]")} />
-                  <div className={cx(SHIMMER, "h-3 rounded")} style={{ width: `${w}%` }} />
+                  <div className={cx(SHIMMER, "h-3 rounded-sm")} style={{ width: `${w}%` }} />
                 </div>
               ))}
             </>
@@ -907,7 +907,7 @@ export default function VoiceChatPlayground() {
                 {/* Hidden until the row is hovered; touch screens have no hover, so it stays visible there. */}
                 <button
                   onClick={(e) => handleDeleteConversation(e, conv.id)}
-                  className="ml-1.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-chat-subtle opacity-0 [transition:all_0.15s_ease] hover:!bg-danger/15 hover:!text-danger hover:!opacity-100 group-hover:opacity-70 touch:opacity-70"
+                  className="ml-1.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-chat-subtle opacity-0 [transition:all_0.15s_ease] hover:bg-danger/15! hover:text-danger! hover:opacity-100! group-hover:opacity-70 touch:opacity-70"
                   title="Sohbeti Sil"
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -924,7 +924,7 @@ export default function VoiceChatPlayground() {
         </div>
 
         {/* Sidebar Footer */}
-        <div className="flex items-center justify-between border-t border-white/[0.08] bg-chat-sidebar px-3.5 py-3">
+        <div className="flex items-center justify-between border-t border-white/8 bg-chat-sidebar px-3.5 py-3">
           <button
             onClick={() => setShowAccountModal(true)}
             title="Hesap Bilgileri"
@@ -963,7 +963,7 @@ export default function VoiceChatPlayground() {
       {/* Main Chat Area */}
       <main className="relative flex h-full min-w-0 flex-1 flex-col bg-chat-bg">
         {/* Top Bar */}
-        <header className="box-content flex h-[52px] min-h-[52px] items-center justify-between border-b border-white/[0.08] px-4 mobile:pl-1 mobile:pr-2 mobile:pt-[env(safe-area-inset-top,0px)]">
+        <header className="box-content flex h-[52px] min-h-[52px] items-center justify-between border-b border-white/8 px-4 mobile:pl-1 mobile:pr-2 mobile:pt-[env(safe-area-inset-top,0px)]">
           <div className="flex min-w-0 items-center gap-3 mobile:gap-1.5">
             <button
               id="sidebarToggleBtn"
@@ -1006,7 +1006,7 @@ export default function VoiceChatPlayground() {
               <option value="en-GB">EN</option>
             </select>
 
-            <div className="flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[12px] text-chat-muted">
+            <div className="flex items-center gap-1.5 rounded-full border border-white/8 bg-white/4 px-2.5 py-1 text-[12px] text-chat-muted">
               <span className={cx(
                 "h-[7px] w-[7px] rounded-full",
                 state === "Listening" ? "bg-danger" :
@@ -1033,9 +1033,9 @@ export default function VoiceChatPlayground() {
                 <div className="flex w-full gap-[14px]">
                   <div className={cx(SHIMMER, "h-8 w-8 shrink-0 rounded-full")} />
                   <div className="flex max-w-[550px] flex-1 flex-col gap-2.5">
-                    <div className={cx(SHIMMER, "h-3.5 w-[85%] rounded")} />
-                    <div className={cx(SHIMMER, "h-3.5 w-[70%] rounded")} />
-                    <div className={cx(SHIMMER, "h-3.5 w-[45%] rounded")} />
+                    <div className={cx(SHIMMER, "h-3.5 w-[85%] rounded-sm")} />
+                    <div className={cx(SHIMMER, "h-3.5 w-[70%] rounded-sm")} />
+                    <div className={cx(SHIMMER, "h-3.5 w-[45%] rounded-sm")} />
                   </div>
                 </div>
               </div>
@@ -1185,7 +1185,7 @@ export default function VoiceChatPlayground() {
 
         {/* Floating Bottom Input Dock */}
         <div className="pointer-events-none absolute bottom-0 left-0 right-0 flex flex-col items-center bg-[linear-gradient(180deg,rgba(33,33,33,0)_0%,rgba(33,33,33,0.95)_25%,#212121_100%)] px-5 pb-[calc(20px+env(safe-area-inset-bottom,0px))] pt-4 mobile:px-2.5 mobile:pb-[calc(10px+env(safe-area-inset-bottom,0px))] mobile:pt-2.5">
-          <div className="pointer-events-auto flex w-full max-w-3xl items-end gap-2.5 rounded-[26px] border border-white/[0.12] bg-chat-surface py-2.5 pl-4 pr-3.5 shadow-[0_10px_30px_rgba(0,0,0,0.4)]">
+          <div className="pointer-events-auto flex w-full max-w-3xl items-end gap-2.5 rounded-[26px] border border-white/12 bg-chat-surface py-2.5 pl-4 pr-3.5 shadow-[0_10px_30px_rgba(0,0,0,0.4)]">
             <button
               ref={toolsBtnRef}
               onClick={(e) => {
@@ -1225,7 +1225,7 @@ export default function VoiceChatPlayground() {
               onKeyDown={handleKeyDown}
               rows={1}
               placeholder="Alfred'e mesaj yazın..."
-              className="max-h-[160px] min-h-[24px] min-w-0 flex-1 resize-none border-none bg-transparent px-0 py-1.5 text-[15px] leading-normal text-chat-text outline-none placeholder:text-[#757575] mobile:text-[16px]"
+              className="max-h-[160px] min-h-[24px] min-w-0 flex-1 resize-none border-none bg-transparent px-0 py-1.5 text-[15px] leading-normal text-chat-text outline-hidden placeholder:text-[#757575] mobile:text-[16px]"
             />
 
             <button
@@ -1282,7 +1282,7 @@ export default function VoiceChatPlayground() {
       {showSettingsModal && (
         <div
           onClick={() => setShowSettingsModal(false)}
-          className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/75 p-4 backdrop-blur-[6px]"
+          className="fixed inset-0 z-1000 flex items-center justify-center bg-black/75 p-4 backdrop-blur-[6px]"
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -1358,14 +1358,14 @@ export default function VoiceChatPlayground() {
       {showAccountModal && (
         <div
           onClick={() => setShowAccountModal(false)}
-          className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/75 p-4 backdrop-blur-[6px]"
+          className="fixed inset-0 z-1000 flex items-center justify-center bg-black/75 p-4 backdrop-blur-[6px]"
         >
           <div
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-[420px] rounded-2xl border border-white/10 bg-chat-modal p-6 shadow-[0_20px_50px_rgba(0,0,0,0.6)]"
           >
             <h3 className="mb-3.5 text-[16px] font-semibold">Hesap Bilgileri</h3>
-            <div className="mb-[18px] flex items-center justify-between gap-3 rounded-[10px] border border-white/[0.08] bg-white/[0.03] p-3.5">
+            <div className="mb-[18px] flex items-center justify-between gap-3 rounded-[10px] border border-white/8 bg-white/3 p-3.5">
               <span className="text-[13px] text-chat-muted">Aktif Kullanıcı:</span>
               <strong className="overflow-hidden text-ellipsis text-[13px]">{user?.email || "-"}</strong>
             </div>
@@ -1378,7 +1378,7 @@ export default function VoiceChatPlayground() {
               </button>
               <button
                 onClick={() => setShowAccountModal(false)}
-                className="cursor-pointer rounded-lg border border-white/[0.12] bg-transparent px-3.5 py-2 text-[13px] text-chat-text"
+                className="cursor-pointer rounded-lg border border-white/12 bg-transparent px-3.5 py-2 text-[13px] text-chat-text"
               >
                 Kapat
               </button>

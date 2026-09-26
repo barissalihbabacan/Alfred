@@ -46,6 +46,10 @@ describe("renderMarkdown (apps/web/lib/markdown.ts)", () => {
     expect(renderMarkdown("*bir\niki*")).toBe("<p>*bir<br/>iki*</p>");
   });
 
+  it("marks the code language label as English, so CSS upper-casing gives JAVASCRIPT, not JAVASCRİPT", () => {
+    expect(renderMarkdown("```javascript\nx\n```")).toContain('<span lang="en">javascript</span>');
+  });
+
   it("escapes HTML in ordinary text", () => {
     expect(renderMarkdown("<script>alert(1)</script>")).toBe("<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>");
   });

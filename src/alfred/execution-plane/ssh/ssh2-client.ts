@@ -12,6 +12,30 @@ import { ISSHClient, SSHExecResult } from "./ssh-client.interface.js";
 import { SSHHostConfig } from "../../../core/config/ssh.config.js";
 import { errorMessage } from "../../../core/errors/index.js";
 
+/** Exit code reported when the remote side sent no exit status (signal, dropped channel). */
+export const NO_EXIT_STATUS_CODE = 255;
+
+/**
+ * The result of a finished exec channel. Output is decoded once from the
+ * collected bytes, so a UTF-8 character split across two SSH packets ("ş" in
+ * "Şirket") stays intact. ssh2 closes with `(null, "SIGKILL")` for a killed
+ * command and with no code at all when the channel dropped: neither is a
+ * success, so both report NO_EXIT_STATUS_CODE and say why in stderr.
+ */
+export function toExecResult(
+  stdoutChunks: Buffer[],
+  stderrChunks: Buffer[],
+  code: number | null | undefined,
+  signal?: string | null
+): SSHExecResult {
+  const stdout = Buffer.concat(stdoutChunks).toString("utf8");
+  let stderr = Buffer.concat(stderrChunks).toString("utf8");
+  if (typeof code === "number") return { stdout, stderr, exitCode: code };
+  const why = signal ? `terminated by signal ${signal}` : "closed without an exit status";
+  stderr += `${stderr && !stderr.endsWith("\n") ? "\n" : ""}[ssh] Remote command ${why}.`;
+  return { stdout, stderr, exitCode: NO_EXIT_STATUS_CODE };
+}
+
 export class SSH2Client implements ISSHClient {
   private client: SSH2LibClient | null = null;
   private connected = false;
@@ -170,26 +194,22 @@ export class SSH2Client implements ISSHClient {
           return;
         }
 
-        let stdout = "";
-        let stderr = "";
+        const stdoutChunks: Buffer[] = [];
+        const stderrChunks: Buffer[] = [];
 
         stream.on("data", (data: Buffer | string) => {
-          stdout += data.toString();
+          stdoutChunks.push(Buffer.from(data));
         });
 
         stream.stderr.on("data", (data: Buffer | string) => {
-          stderr += data.toString();
+          stderrChunks.push(Buffer.from(data));
         });
 
-        stream.on("close", (code: number | null) => {
+        stream.on("close", (code: number | null | undefined, signal?: string | null) => {
           if (!settled) {
             settled = true;
             clearTimeout(timer);
-            resolve({
-              stdout,
-              stderr,
-              exitCode: typeof code === "number" ? code : 0
-            });
+            resolve(toExecResult(stdoutChunks, stderrChunks, code, signal));
           }
         });
 

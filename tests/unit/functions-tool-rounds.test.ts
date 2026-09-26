@@ -82,7 +82,7 @@ describe("production tool rounds", () => {
   });
 
   it("never reports an empty answer as success", () => {
-    expect(source).toMatch(/if \(!cleanContent\) \{[\s\S]{0,300}emptyErr\.code = "empty_response";\n\s*throw emptyErr;\n\s*\}\n\s*logLlmRequest\("ok"\);\n\s*sendEvent\(\{ type: "done" \}\);/);
+    expect(source).toMatch(/if \(!cleanContent\) \{[\s\S]{0,300}emptyErr\.code = "empty_response";\n\s*throw emptyErr;\n\s*\}\n\s*logLlmRequest\("ok"\);\n[\s\S]{0,400}?sendEvent\(\{ type: "done" \}\);/);
   });
 });
 

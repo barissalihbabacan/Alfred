@@ -560,17 +560,34 @@ describe("generateDeterministicTitle (production contract)", () => {
     expect(generateDeterministicTitle("one two three four five six seven")).toBe("One two three four five six");
     expect(generateDeterministicTitle("a".repeat(41))).toBe("a".repeat(37).replace(/^a/, "A") + "...");
     expect(generateDeterministicTitle("ışık yakında")).toBe("Işık yakında");
+    // The two deliberate changes from production's copy:
+    expect(generateDeterministicTitle("istanbul'a uçuş planı yap")).toBe("İstanbul'a uçuş planı yap");
+    expect(generateDeterministicTitle("is it raining in London today")).toBe("Is it raining in London today");
+    expect(generateDeterministicTitle("a".repeat(36) + "🎉 party")).toBe("A" + "a".repeat(35) + "...");
   });
 
-  it("matches production's copy on fixed and random inputs", () => {
-    for (const s of samples) expect(generateDeterministicTitle(s), JSON.stringify(s)).toBe(legacyGenerateDeterministicTitle(s));
+  // Production's copy, plus the two fixes: no lone surrogate before "..." and
+  // "İ" for a leading "i" in Turkish text. Identical on every other input.
+  const LONE_HIGH_SURROGATE_BEFORE_DOTS = /[\uD800-\uDBFF]\.\.\.$/;
+  function expectedTitle(s: string): string {
+    let title = legacyGenerateDeterministicTitle(s);
+    if (LONE_HIGH_SURROGATE_BEFORE_DOTS.test(title)) title = title.replace(LONE_HIGH_SURROGATE_BEFORE_DOTS, "...");
+    const clean = s.replace(/^[\s#*>`"']+|[\s*>`"']+$/g, "");
+    if (/[çğışöüÇĞİŞÖÜ]/.test(clean) && clean.startsWith("i")) title = "İ" + title.slice(1);
+    return title;
+  }
+
+  it("matches production's copy on fixed and random inputs, apart from the two fixes", () => {
+    for (const s of samples) expect(generateDeterministicTitle(s), JSON.stringify(s)).toBe(expectedTitle(s));
     const r = rng(42);
     const alphabet = ["a", "B", "ç", "İ", "ı", " ", "  ", "\n", "\t", "#", "*", ">", "`", "\"", "'", "-", ".", "?", "🎉", "word", "longerword"];
     for (let i = 0; i < 3000; i++) {
       let s = "";
       const len = Math.floor(r() * 40);
       for (let j = 0; j < len; j++) s += pick(r, alphabet);
-      expect(generateDeterministicTitle(s), JSON.stringify(s)).toBe(legacyGenerateDeterministicTitle(s));
+      const title = generateDeterministicTitle(s);
+      expect(title, JSON.stringify(s)).toBe(expectedTitle(s));
+      expect(title, JSON.stringify(s)).not.toMatch(LONE_HIGH_SURROGATE_BEFORE_DOTS);
     }
   });
 });

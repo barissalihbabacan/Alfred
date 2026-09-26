@@ -2,7 +2,7 @@
 
 This document defines the core architecture principles, directory boundaries, and separation of concerns for B.U.T.L.E.R. Alfred, and describes how the system actually runs in production today. Where a directory exists but is still an empty placeholder, it is marked **(planned)**.
 
-Operational detail (commands, CI, secrets handling, which modules are shared with production) lives in `CLAUDE.md`; this document is about structure and invariants.
+Operational detail lives in `CLAUDE.md` (commands, CI, the rules) and `docs/PRODUCTION_INTERNALS.md` (the full production behaviour, secrets handling, and which modules are shared with production); this document is about structure and invariants.
 
 ---
 
@@ -295,7 +295,7 @@ Alfred Cognitive Core
   - An optional local provider running `gemma4:12b-mlx` on the MacBook over the private Tailscale network.
   - Supports native chat completions, NDJSON streaming, parameter mapping and health diagnostics.
   - Only in the request path when `ALFRED_LLM_PROVIDER=ollama`.
-- **Production chat fallback** (`src/ai/providers/chat-fallback/`, bundled into `functions/index.js`): Groq, Gemini (OpenAI-compatible endpoint), Cerebras (gpt-oss-120b, then qwen-3.8-27b; not in the default order `DEFAULT_CHAT_PROVIDER_ORDER` until its billing is set up) and OpenRouter all speak the OpenAI Chat Completions streaming format, so one request builder, one SSE parser and one tool loop serve them. A turn moves to the next provider only while nothing has been streamed to the user; it then restarts from the user's message with a system prompt that names the new provider. Details and the failover matrix are in `CLAUDE.md` (**Chat provider fallback**). This path does not go through `getAIProvider()`; the `src/` Groq/Ollama providers are unchanged.
+- **Production chat fallback** (`src/ai/providers/chat-fallback/`, bundled into `functions/index.js`): Groq, Gemini (OpenAI-compatible endpoint), Cerebras (gpt-oss-120b, then qwen-3.8-27b; not in the default order `DEFAULT_CHAT_PROVIDER_ORDER` until its billing is set up) and OpenRouter all speak the OpenAI Chat Completions streaming format, so one request builder, one SSE parser and one tool loop serve them. A turn moves to the next provider only while nothing has been streamed to the user; it then restarts from the user's message with a system prompt that names the new provider. Details and the failover matrix are in `docs/PRODUCTION_INTERNALS.md` (**Chat provider fallback**). This path does not go through `getAIProvider()`; the `src/` Groq/Ollama providers are unchanged.
 - **Vendor Independence & Unified Factory**: Neither Alfred's persona nor its callers import a concrete provider directly; everything goes through `getAIProvider()`. The system prompt states whichever provider and model is actually answering.
 
 ### Real-Time Streaming & "Thinking..." Architecture

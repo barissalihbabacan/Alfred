@@ -5,6 +5,7 @@ import {
   buildGroqExtractionRequest,
   callMemoryExtractionProviders,
   planExtractionRequests,
+  providerErrorDetail,
   type ExtractionProviderError
 } from "../../src/ai/providers/chat-fallback/extraction-providers.js";
 import {
@@ -69,6 +70,29 @@ describe("memory extraction: Groq, then Gemini", () => {
     expect(errors).toEqual([
       expect.objectContaining({ provider: "groq", httpStatus: 429, rateLimit: { limitType: "tpd", retryAfterMs: 199_152 } })
     ]);
+  });
+
+  it("reports only error.code and error.message of a JSON error body, never the model's output", async () => {
+    // Groq's answer when the json_object output fails validation: the rejected
+    // generation (here: facts about the user) comes back in failed_generation.
+    const failed = {
+      error: {
+        message: "Failed to generate JSON. Please adjust your prompt. See 'failed_generation' for more details.",
+        type: "invalid_request_error",
+        code: "json_validate_failed",
+        failed_generation: "{\"memories\":[{\"content\":\"Barış lives at Bağdat Caddesi 12\"}]}"
+      }
+    };
+    const errors: ExtractionProviderError[] = [];
+    const m = mockFetch([{ status: 400, body: JSON.stringify(failed) }, { body: completion(EXTRACTED) }]);
+    await callMemoryExtractionProviders({ ...base, fetch: m.fetch, groqKey: "gsk_k", geminiKey: "AQ.k", onProviderError: (e) => errors.push(e) });
+    expect(errors).toEqual([expect.objectContaining({ provider: "groq", httpStatus: 400 })]);
+    expect(errors[0].detail).toBe(`json_validate_failed: ${failed.error.message}`);
+    expect(JSON.stringify(errors)).not.toContain("Bağdat");
+
+    expect(providerErrorDetail(JSON.stringify([{ error: { code: 429, message: "Resource exhausted" } }]))).toBe("429: Resource exhausted");
+    expect(providerErrorDetail(JSON.stringify({ unexpected: "shape" }))).toBe("unrecognised error body");
+    expect(providerErrorDetail("<html>502 Bad Gateway</html>")).toBe("<html>502 Bad Gateway</html>");
   });
 
   it("falls back on a thrown error or an empty answer too, and returns null when both fail (Ollama is next)", async () => {

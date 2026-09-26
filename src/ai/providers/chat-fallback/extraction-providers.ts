@@ -91,7 +91,10 @@ export interface ExtractionProviderError {
   model: string;
   /** HTTP status, or undefined for a thrown fetch/JSON error. */
   httpStatus?: number;
-  /** Response body (HTTP errors) or the error message; the caller truncates/logs it. */
+  /**
+   * The provider's error message (HTTP errors: see providerErrorDetail, never
+   * the raw body) or the thrown error's message; the caller truncates/logs it.
+   */
   detail: string;
   /** On a 429: the limit and real wait, logged with decision "give_up". */
   rateLimit?: { limitType: RateLimitType; retryAfterMs: number | null };
@@ -173,6 +176,29 @@ export function buildOllamaExtractionRequest(baseUrl: string, model: string | un
  * is not a string counts as no answer (the former inline code passed it on,
  * and extractJsonPayload then threw).
  */
+/**
+ * What of an HTTP error body may be logged. For a JSON body only
+ * `error.message` and `error.code`: other fields can carry the model's output,
+ * e.g. Groq's 400 json_validate_failed returns `failed_generation`, which here
+ * is the extracted memory candidates, i.e. facts about the user. A non-JSON
+ * body (a plain-text or HTML error page) is passed on as it is; the caller
+ * truncates it.
+ */
+export function providerErrorDetail(errText: string): string {
+  try {
+    const parsed: unknown = JSON.parse(errText);
+    // Gemini's OpenAI endpoint may wrap the error in an array.
+    const obj = Array.isArray(parsed) ? parsed[0] : parsed;
+    const error = (obj as { error?: { message?: unknown; code?: unknown } } | null)?.error;
+    const message = typeof error?.message === "string" ? error.message : "";
+    const code = typeof error?.code === "string" || typeof error?.code === "number" ? String(error.code) : "";
+    const detail = [code, message].filter(Boolean).join(": ");
+    return detail || "unrecognised error body";
+  } catch {
+    return errText;
+  }
+}
+
 export async function callMemoryExtractionProviders(options: ExtractionCallOptions): Promise<ExtractionCallResult | null> {
   for (const request of planExtractionRequests(options)) {
     try {
@@ -199,7 +225,7 @@ export async function callMemoryExtractionProviders(options: ExtractionCallOptio
         const info = parseRateLimitInfo(res.headers.get("retry-after"), bodyMessage);
         rateLimit = { limitType: info.limitType, retryAfterMs: info.retryAfterMs };
       }
-      options.onProviderError?.({ provider: request.provider, model: request.model, httpStatus: res.status, detail: errText, rateLimit });
+      options.onProviderError?.({ provider: request.provider, model: request.model, httpStatus: res.status, detail: providerErrorDetail(errText), rateLimit });
     } catch (err) {
       const message = typeof err === "object" && err !== null ? (err as { message?: unknown }).message : err;
       options.onProviderError?.({ provider: request.provider, model: request.model, detail: String(message || "unknown error") });

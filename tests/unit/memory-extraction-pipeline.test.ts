@@ -28,6 +28,7 @@ import { createExtractAndPersistMemories } from "../../functions/memory-extracti
 import { createLegacyExtractAndPersist } from "./fixtures/legacy-extract-and-persist.js";
 import type { MemoryWriteTally } from "../../src/alfred/cognitive/memory/memory-write-planner.js";
 import { GROQ_TPD_429 } from "./fixtures/chat-provider-streams.js";
+import { providerErrorDetail } from "../../src/ai/providers/chat-fallback/extraction-providers.js";
 
 /**
  * Memory extraction *calling* is shared by production
@@ -263,7 +264,22 @@ async function run(runner: Runner, s: Scenario) {
   return { fetches, timeouts, logs, persistCalls, embeds, result, error };
 }
 
-type ChangeReason = "A-short-circuit" | "B-ollama-non-string";
+type ChangeReason = "A-short-circuit" | "B-ollama-non-string" | "C-json-error-detail";
+
+/**
+ * Change C: a JSON HTTP error body is logged as its `error.code: error.message`
+ * only (providerErrorDetail), so fields such as Groq's `failed_generation`
+ * (the model's output about the user) never reach the logs. Applies that to
+ * the former code's log lines; everything else in them stays as it was.
+ */
+function withSanitizedErrorBodies(logs: unknown[][]): unknown[][] {
+  return logs.map((entry) => {
+    const [level, message, ...rest] = entry;
+    const m = typeof message === "string" ? /^(\[Memory\] \S+ extraction HTTP \d+: )([\s\S]*)$/.exec(message) : null;
+    if (!m) return entry;
+    return [level, m[1] + providerErrorDetail(m[2]).slice(0, 500), ...rest];
+  });
+}
 
 function intendedChange(s: Scenario, legacy: Awaited<ReturnType<typeof run>>): ChangeReason | null {
   if (!s.userMessage.trim() || isExplicitNoRememberMessage(s.userMessage)) return "A-short-circuit";
@@ -273,8 +289,8 @@ function intendedChange(s: Scenario, legacy: Awaited<ReturnType<typeof run>>): C
 }
 
 describe("functions/memory-extraction.js vs the former inline extraction (differential)", () => {
-  it("is identical on every turn outside changes A and B, and A/B behave as intended (8000 random turns)", async () => {
-    const changed: Record<ChangeReason, number> = { "A-short-circuit": 0, "B-ollama-non-string": 0 };
+  it("is identical on every turn outside changes A, B and C, and A/B/C behave as intended (8000 random turns)", async () => {
+    const changed: Record<ChangeReason, number> = { "A-short-circuit": 0, "B-ollama-non-string": 0, "C-json-error-detail": 0 };
     const outcomes: Record<string, number> = {};
     const providers: Record<string, number> = {};
     let identical = 0;
@@ -305,8 +321,15 @@ describe("functions/memory-extraction.js vs the former inline extraction (differ
         expect(legacy.error, where).toMatch(/is not a function/);
         expect(shared.error, where).toBeNull();
         expect(shared.fetches, where).toEqual(legacy.fetches);
-        expect(shared.logs, where).toEqual(legacy.logs);
+        expect(shared.logs, where).toEqual(withSanitizedErrorBodies(legacy.logs));
         expect(shared.result, where).toMatchObject({ outcome: "failed", extractor_provider: null });
+        continue;
+      }
+
+      const sanitizedLogs = withSanitizedErrorBodies(legacy.logs);
+      if (JSON.stringify(sanitizedLogs) !== JSON.stringify(legacy.logs)) {
+        changed["C-json-error-detail"]++;
+        expect(shared, where).toEqual({ ...legacy, logs: sanitizedLogs });
         continue;
       }
 

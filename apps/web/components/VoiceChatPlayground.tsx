@@ -421,7 +421,8 @@ export default function VoiceChatPlayground() {
       .then((data) => {
         if (cancelled || !data?.activeProvider) return;
         setHealth({ activeProvider: data.activeProvider });
-        if (data.activeProvider === "groq") setModelLabel(DEFAULT_MODEL_LABEL);
+        if (typeof data.model === "string" && data.model) setModelLabel(data.model);
+        else if (data.activeProvider === "groq") setModelLabel(DEFAULT_MODEL_LABEL);
         else if (data.activeProvider === "ollama") setModelLabel("gemma4:12b-mlx");
       })
       .catch(() => {});
@@ -793,13 +794,16 @@ export default function VoiceChatPlayground() {
 
   const isBusy = state === "Thinking" || state === "Streaming";
   const displayName = user?.displayName || user?.email?.split("@")[0] || "Yönetici";
+  // The provider of the last turn wins; before the first turn, the one /health
+  // says the next turn starts on (a fallback provider when Groq has no key).
+  const engineProvider = chatProvider ?? health?.activeProvider ?? null;
   const engineText =
     health?.activeProvider === "ollama"
       ? { name: "Ollama", detail: modelLabel, active: true }
-      : health?.activeProvider === "offline"
-        ? { name: "Çevrimdışı", detail: "Groq anahtarı yok, Ollama erişilemiyor", active: false }
-        : chatProvider && chatProvider !== "groq"
-          ? { name: providerDisplayName(chatProvider), detail: modelLabel, active: true }
+      : health?.activeProvider === "offline" && !chatProvider
+        ? { name: "Çevrimdışı", detail: "Kullanılabilir yapay zeka sağlayıcısı yok", active: false }
+        : engineProvider && engineProvider !== "groq"
+          ? { name: providerDisplayName(engineProvider), detail: modelLabel, active: true }
           : { name: "Groq Cloud", detail: modelLabel, active: true };
 
   return (

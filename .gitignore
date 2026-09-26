@@ -11,6 +11,8 @@ dist/
 build/
 out/
 .next/
+# Rewritten by `next dev` and `next build` (different contents each), so not tracked.
+apps/web/next-env.d.ts
 *.tsbuildinfo
 # Cloud Functions bundle (functions/build.js), built in CI and on predeploy
 functions/lib/

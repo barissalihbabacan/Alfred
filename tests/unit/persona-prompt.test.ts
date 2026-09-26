@@ -29,7 +29,7 @@ describe("Alfred Persona System Prompt", () => {
     expect(prompt).toContain("MULTILINGUAL ADAPTABILITY");
     expect(prompt).toContain('"Efendim" / "Barış Bey"');
     expect(prompt).toContain("Long-Term Semantic Memory (Firestore + Gemini embeddings)");
-    expect(prompt).toContain("SPOKEN DELIVERY & FORMATTING");
+    expect(prompt).toContain("FORMATTING:");
     // Production offers only get_current_time; SSH is not connected, and the
     // persona says so instead of describing placeholder tools.
     expect(prompt).toContain("get_current_time");

@@ -219,7 +219,7 @@ Conversation Exchange (User Message + Assistant Response)
   - restrained dry humour and firm first-principles pushback;
   - reasoning strictly from the known pipeline;
   - no corporate or customer-service boilerplate.
-- **Spoken delivery**: Replies are read aloud by the browser. The persona therefore forbids markdown in ordinary dialogue (tables, code fences, headings, bullet or numbered lists) unless Barış asks for it (see `docs/persona/ALFRED_PERSONA.md`, Section 7, "Speech-Ready Formatting").
+- **Chat formatting**: Replies are rendered as markdown in the chat (not read aloud). The persona allows only what `apps/web/lib/markdown.ts` renders (bold, italic, inline code, code blocks, bulleted and numbered lists), keeps conversation as prose, and forbids headings, tables and links (see `docs/persona/ALFRED_PERSONA.md`, Section 7, "Chat Formatting").
 
 ---
 
@@ -358,7 +358,7 @@ Alfred Persona / Output Channel
 Mock / Local (Testing)          ElevenLabs (Planned)    OpenAI (Planned)   Azure (Planned)
 ```
 
-- **Production voice:** The browser reads replies aloud with `speechSynthesis`, so there is no server-side TTS runtime. The local Kokoro/ONNX engine was removed.
+- **Production voice:** Voice input only (browser `SpeechRecognition`). Replies are not read aloud: the browser `speechSynthesis` playback was removed on 27 Sep 2026, and there is no server-side TTS runtime (the local Kokoro/ONNX engine was removed earlier).
 - **Pluggable:** `ITTSProvider` allows a cloud TTS service to be added later without touching the persona.
 
 ---

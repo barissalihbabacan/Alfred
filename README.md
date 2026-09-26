@@ -14,7 +14,7 @@
 
 ## Alfred ne yapar?
 
-- **Türkçe ya da İngilizce konuşur**, hangi dilde sorulduysa o dilde cevap verir. Cevaplar tarayıcıda sesli okunabilir; soru mikrofonla da sorulabilir.
+- **Türkçe ya da İngilizce konuşur**, hangi dilde sorulduysa o dilde cevap verir. Soru mikrofonla da sorulabilir.
 - **Hatırlar.** "Yeşil elma suyunu severim" gibi kalıcı bilgileri kendiliğinden kaydeder ve sonraki konuşmalarda kullanır. API anahtarı ya da şifre içeren bilgileri kaydetmez.
 - **İtiraz eder.** Üretim veritabanını silmek gibi geri dönüşü olmayan bir öneriye "Hayır, Barış Bey" der ve nedenini açıklar.
 - **Saati bilir.** Tek soruda altı şehre kadar yerel saati söyler; "Londra", "Sidney" gibi Türkçe adları anlar.

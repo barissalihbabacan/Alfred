@@ -21,14 +21,20 @@ export interface PrivacyCheckResult {
 // and containing a digit or symbol. Used where there is no explicit ":" / "=".
 const CREDENTIAL_LIKE = String.raw`(?=\S*[0-9!@#$%^&*_+=?<>~])\S{4,}`;
 
+// "şifre" / "parola" plus an optional possessive suffix, matching the
+// upper-case Turkish forms too (ŞİFREM, ŞİFRESİ, PAROLASI).
+const TR_PASSWORD_WORD = String.raw`(?:ş[iİ]fre|parola)(?:m|s[iİ]|s[ıI]|m[iİ]z|n[iİ]z)?`;
+
 export const SENSITIVE_PATTERNS: ReadonlyArray<{ name: string; pattern: RegExp }> = [
   {
     name: "Private Key Header",
     pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----/i
   },
   {
+    // Not preceded by a letter or digit, so hyphenated names such as
+    // "disk-usage-monitor-service" or "risk-assessment-framework" are not keys.
     name: "OpenAI / Anthropic style API Key",
-    pattern: /sk-[a-zA-Z0-9_-]{20,}/i
+    pattern: /(?<![A-Za-z0-9])sk-[a-zA-Z0-9_-]{20,}/i
   },
   {
     name: "Groq API Key",
@@ -75,10 +81,11 @@ export const SENSITIVE_PATTERNS: ReadonlyArray<{ name: string; pattern: RegExp }
   {
     // Turkish: "şifrem: hunter22", "parolam hunter22", "şifresi şu: abc123".
     // "şifremi unuttum" and other ordinary sentences stay allowed.
+    // JavaScript case folding is not Turkish-aware (İ does not match i, I does
+    // not match ı), so the dotted/dotless pairs are spelled out: "ŞİFREM: x".
     name: "Turkish Password Statement",
     pattern: new RegExp(
-      String.raw`(?:şifre|parola)(?:m|si|sı|miz|niz)?\s*(?::|=|\s+(?:şu|şöyle)\s*:?)\s*\S+|(?:şifre|parola)(?:m|si|sı|miz|niz)?\s+` +
-        CREDENTIAL_LIKE,
+      String.raw`${TR_PASSWORD_WORD}\s*(?::|=|\s+(?:şu|şöyle)\s*:?)\s*\S+|${TR_PASSWORD_WORD}\s+` + CREDENTIAL_LIKE,
       "iu"
     )
   }

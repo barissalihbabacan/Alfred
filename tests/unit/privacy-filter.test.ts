@@ -83,6 +83,40 @@ describe("PrivacyFilter (unified)", () => {
     }
   });
 
+  // Deliberately NOT in BENIGN: both former filters rejected these (their
+  // sk- pattern had no boundary), which dropped durable facts about projects.
+  it("allows hyphenated names that merely contain \"sk-\"", () => {
+    for (const text of [
+      "Barış's repo is called disk-usage-monitor-service",
+      "Barış works on the risk-assessment-framework project",
+      "He maintains the butler-task-manager-frontend-app",
+      "The desk-reservation-system-backend-api is his side project"
+    ]) {
+      expect(PrivacyFilter.check(text).isSafe, text).toBe(true);
+    }
+  });
+
+  it("still rejects sk- keys after a space, quote, colon or equals sign", () => {
+    for (const text of [
+      "key sk-proj-abcdefghijklmnopqrstuvwxyz123456",
+      'OPENAI_API_KEY="sk-abcdefghijklmnopqrstuvwx"',
+      "anthropic:sk-ant-api03-abcdefghijklmnopqrst",
+      "OPENAI_KEY=sk-abcdefghijklmnopqrstuvwxyz",
+      "sk-abcdefghijklmnopqrstuvwxyz at the start"
+    ]) {
+      expect(PrivacyFilter.check(text).isSafe, text).toBe(false);
+    }
+  });
+
+  it("rejects upper-case Turkish password statements (İ / I are not case-folded by JS)", () => {
+    for (const text of ["ŞİFREM: abc123", "ŞİFRESİ şu: hunter22", "PAROLAM = x", "ŞİFREMİZ: abc123", "Şİfrem hunter22"]) {
+      expect(PrivacyFilter.check(text).isSafe, text).toBe(false);
+    }
+    for (const text of ["ŞİFREMİ UNUTTUM", "Şifremi unuttum, sıfırlamam lazım"]) {
+      expect(PrivacyFilter.check(text).isSafe, text).toBe(true);
+    }
+  });
+
   it("treats empty or non-string input as safe", () => {
     expect(PrivacyFilter.check("").isSafe).toBe(true);
     expect(PrivacyFilter.check(undefined as unknown as string).isSafe).toBe(true);

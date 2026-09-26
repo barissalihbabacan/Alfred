@@ -30,7 +30,7 @@
   "license": "UNLICENSED",
   "devDependencies": {
     "@eslint/js": "^9.39.5",
-    "@types/node": "^26.4.1",
+    "@types/node": "^26.6.3",
     "@types/ssh2": "^1.15.6",
     "autoprefixer": "^10.6.1",
     "eslint": "^9.39.5",
@@ -40,16 +40,16 @@
     "gpt-tokenizer": "^4.0.0",
     "postcss": "^8.5.28",
     "tailwindcss": "^3.4.19",
-    "tsx": "^4.23.13",
+    "tsx": "^4.23.15",
     "typescript": "^5.4.0",
     "typescript-eslint": "^8.70.1",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.2"
   },
   "dependencies": {
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "dotenv": "^17.4.2",
-    "firebase": "^12.18.0",
+    "firebase": "^12.19.0",
     "groq-sdk": "^1.6.0",
     "next": "^16.3.6",
     "react": "^19.3.0",

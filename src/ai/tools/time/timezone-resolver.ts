@@ -167,20 +167,79 @@ export const CITY_TIMEZONE_ALIASES: Readonly<Record<string, string>> = {
 };
 
 /**
- * Trailing country names dropped when the full input does not resolve
- * ("Istanbul Turkey", "Paris France"). Normalized form.
+ * The IANA zones of each country the resolver understands after a city name.
+ * A city matched after dropping the country must be in one of these zones:
+ * "London, Canada" would otherwise resolve to Europe/London and "Perth, UK" to
+ * Australia/Perth. A "/"-terminated entry is a prefix.
  */
-const TRAILING_COUNTRIES = [
-  "turkiye", "turkey", "tr",
-  "united kingdom", "uk", "england", "scotland", "great britain", "ingiltere",
-  "united states", "usa", "us", "america", "abd",
-  "germany", "almanya", "deutschland",
-  "france", "fransa",
-  "italy", "italya", "spain", "ispanya", "netherlands", "hollanda",
-  "japan", "japonya", "china", "cin", "india", "hindistan",
-  "canada", "kanada", "australia", "avustralya", "brazil", "brezilya",
-  "russia", "rusya", "switzerland", "isvicre", "uae", "bae"
-];
+const COUNTRY_ZONES: Record<string, readonly string[]> = {
+  tr: ["Europe/Istanbul", "Asia/Istanbul"],
+  gb: ["Europe/London", "Europe/Belfast"],
+  us: [
+    "America/New_York", "America/Detroit", "America/Kentucky/", "America/Indiana/", "America/Chicago",
+    "America/Menominee", "America/North_Dakota/", "America/Denver", "America/Boise", "America/Phoenix",
+    "America/Los_Angeles", "America/Anchorage", "America/Juneau", "America/Sitka", "America/Metlakatla",
+    "America/Yakutat", "America/Nome", "America/Adak", "Pacific/Honolulu", "America/Louisville",
+    "America/Indianapolis", "America/Fort_Wayne", "America/Knox_IN"
+  ],
+  de: ["Europe/Berlin", "Europe/Busingen"],
+  fr: ["Europe/Paris"],
+  it: ["Europe/Rome"],
+  es: ["Europe/Madrid", "Africa/Ceuta", "Atlantic/Canary"],
+  nl: ["Europe/Amsterdam"],
+  jp: ["Asia/Tokyo"],
+  cn: ["Asia/Shanghai", "Asia/Urumqi", "Asia/Chongqing", "Asia/Chungking", "Asia/Harbin"],
+  in: ["Asia/Kolkata", "Asia/Calcutta"],
+  ca: [
+    "America/St_Johns", "America/Halifax", "America/Glace_Bay", "America/Moncton", "America/Goose_Bay",
+    "America/Toronto", "America/Montreal", "America/Nipigon", "America/Thunder_Bay", "America/Iqaluit",
+    "America/Pangnirtung", "America/Winnipeg", "America/Rainy_River", "America/Rankin_Inlet",
+    "America/Resolute", "America/Regina", "America/Swift_Current", "America/Edmonton",
+    "America/Cambridge_Bay", "America/Yellowknife", "America/Inuvik", "America/Vancouver",
+    "America/Dawson_Creek", "America/Fort_Nelson", "America/Whitehorse", "America/Dawson",
+    "America/Creston", "America/Atikokan", "America/Coral_Harbour", "America/Blanc-Sablon"
+  ],
+  au: ["Australia/"],
+  br: [
+    "America/Sao_Paulo", "America/Noronha", "America/Belem", "America/Fortaleza", "America/Recife",
+    "America/Araguaina", "America/Maceio", "America/Bahia", "America/Campo_Grande", "America/Cuiaba",
+    "America/Santarem", "America/Porto_Velho", "America/Boa_Vista", "America/Manaus",
+    "America/Eirunepe", "America/Rio_Branco"
+  ],
+  ru: [
+    "Europe/Kaliningrad", "Europe/Moscow", "Europe/Kirov", "Europe/Volgograd", "Europe/Astrakhan",
+    "Europe/Saratov", "Europe/Ulyanovsk", "Europe/Samara", "Asia/Yekaterinburg", "Asia/Omsk",
+    "Asia/Novosibirsk", "Asia/Barnaul", "Asia/Tomsk", "Asia/Novokuznetsk", "Asia/Krasnoyarsk",
+    "Asia/Irkutsk", "Asia/Chita", "Asia/Yakutsk", "Asia/Khandyga", "Asia/Vladivostok", "Asia/Ust-Nera",
+    "Asia/Magadan", "Asia/Sakhalin", "Asia/Srednekolymsk", "Asia/Kamchatka", "Asia/Anadyr"
+  ],
+  ch: ["Europe/Zurich"],
+  ae: ["Asia/Dubai"]
+};
+
+/**
+ * Trailing country names dropped when the full input does not resolve
+ * ("Istanbul Turkey", "Paris France"), normalized, with their COUNTRY_ZONES key.
+ */
+const TRAILING_COUNTRY_CODES: Record<string, string> = {
+  "turkiye": "tr", "turkey": "tr", "tr": "tr",
+  "united kingdom": "gb", "uk": "gb", "england": "gb", "scotland": "gb", "great britain": "gb", "ingiltere": "gb",
+  "united states": "us", "usa": "us", "us": "us", "america": "us", "abd": "us",
+  "germany": "de", "almanya": "de", "deutschland": "de",
+  "france": "fr", "fransa": "fr",
+  "italy": "it", "italya": "it", "spain": "es", "ispanya": "es", "netherlands": "nl", "hollanda": "nl",
+  "japan": "jp", "japonya": "jp", "china": "cn", "cin": "cn", "india": "in", "hindistan": "in",
+  "canada": "ca", "kanada": "ca", "australia": "au", "avustralya": "au", "brazil": "br", "brezilya": "br",
+  "russia": "ru", "rusya": "ru", "switzerland": "ch", "isvicre": "ch", "uae": "ae", "bae": "ae"
+};
+const TRAILING_COUNTRIES = Object.keys(TRAILING_COUNTRY_CODES);
+
+/** True when `tz` is one of the zones of the country with this code. */
+export function isZoneInCountry(tz: string, countryCode: string): boolean {
+  const zones = COUNTRY_ZONES[countryCode];
+  if (!zones) return false;
+  return zones.some((z) => (z.endsWith("/") ? tz.startsWith(z) : tz === z));
+}
 
 export interface ResolvedTimezone {
   timezone: string;
@@ -268,24 +327,29 @@ export function resolveTimezone(cityOrZone: unknown): ResolvedTimezone | null {
   const raw = cityOrZone.trim();
   const cleaned = normalize(raw);
 
-  const candidates: string[] = [cleaned];
+  // A candidate found by dropping a country only counts if its zone is in that
+  // country ("London, Canada" must not become Europe/London).
+  const candidates: Array<{ text: string; country?: string }> = [{ text: cleaned }];
   // "London, UK" -> "london", but only when what follows the comma is a known
   // country: "Paris, Texas" must not become Europe/Paris.
   const commaAt = raw.indexOf(",");
-  if (commaAt > 0 && TRAILING_COUNTRIES.includes(normalize(raw.slice(commaAt + 1)))) {
-    candidates.push(normalize(raw.slice(0, commaAt)));
+  const commaCountry = commaAt > 0 ? TRAILING_COUNTRY_CODES[normalize(raw.slice(commaAt + 1))] : undefined;
+  if (commaCountry) {
+    candidates.push({ text: normalize(raw.slice(0, commaAt)), country: commaCountry });
   }
   const beforeApostrophe = normalize(raw.split(/['’]/)[0] ?? "");
-  if (beforeApostrophe !== cleaned) candidates.push(beforeApostrophe);
+  if (beforeApostrophe !== cleaned) candidates.push({ text: beforeApostrophe });
   for (const country of TRAILING_COUNTRIES) {
     if (cleaned.endsWith(" " + country)) {
-      candidates.push(cleaned.slice(0, -(country.length + 1)).trim());
+      candidates.push({ text: cleaned.slice(0, -(country.length + 1)).trim(), country: TRAILING_COUNTRY_CODES[country] });
     }
   }
 
   for (const candidate of candidates) {
-    const tz = lookup(candidate);
-    if (accepted(tz)) return { timezone: tz, matchedCity: raw };
+    const tz = lookup(candidate.text);
+    if (!accepted(tz)) continue;
+    if (candidate.country && !isZoneInCountry(tz, candidate.country)) continue;
+    return { timezone: tz, matchedCity: raw };
   }
 
   const direct = intlCanonical(raw);

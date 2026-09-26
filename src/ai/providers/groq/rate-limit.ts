@@ -81,6 +81,9 @@ export function classifyRateLimit(errorBodyMessage: string | null | undefined): 
     const period = phrase[2].toLowerCase() === "minute" ? "m" : "d";
     return `${kind}p${period}` as RateLimitType;
   }
+  // Gemini names quotas instead ("GenerateRequestsPerDayPerProjectPerModel-FreeTier",
+  // "…input_token_count…PerMinute…"); only a daily one changes the decision.
+  if (/PerDay|\bper\s+day\b|\bdaily\b/i.test(text)) return /token/i.test(text) ? "tpd" : "rpd";
   return "unknown";
 }
 
@@ -88,7 +91,8 @@ export function classifyRateLimit(errorBodyMessage: string | null | undefined): 
  * Reads the limit type and the real wait from a 429.
  *
  * The wait is, in order: a positive numeric `retry-after` header (seconds), else
- * the body's "try again in <duration>" hint, else null. It is never clamped.
+ * the body's "try again in <duration>" (Groq) or "retry in <duration>" (Gemini)
+ * hint, else null. It is never clamped.
  */
 export function parseRateLimitInfo(
   retryAfterHeader: string | null | undefined,
@@ -102,7 +106,8 @@ export function parseRateLimitInfo(
     return { limitType, retryAfterMs: Math.round(header * 1000), retryAfterSource: "header" };
   }
 
-  const hint = /try again in\s+((?:\d+(?:\.\d+)?(?:h|ms|m|s))+)/i.exec(errorBodyMessage || "");
+  // Groq: "Please try again in 3m19.152s."; Gemini: "Please retry in 33.52s."
+  const hint = /(?:try again|retry) in\s+((?:\d+(?:\.\d+)?(?:h|ms|m|s))+)/i.exec(errorBodyMessage || "");
   const hinted = hint ? parseGroqDurationSeconds(hint[1]) : null;
   if (hinted !== null && hinted > 0) {
     return { limitType, retryAfterMs: Math.round(hinted * 1000), retryAfterSource: "message" };

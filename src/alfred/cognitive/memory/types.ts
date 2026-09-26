@@ -38,4 +38,6 @@ export interface ReindexResult {
   succeeded: number;
   failed: number;
   errors: Array<{ memoryId: string; error: string }>;
+  /** Superseded / retracted memories whose vectors were removed (a no-op when none was left). */
+  retiredRemoved: number;
 }

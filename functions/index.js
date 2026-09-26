@@ -653,14 +653,13 @@ export const api = onRequest({
     turnState.model = primary.model;
     let isFinalized = false;
 
-    const finalizeTurn = async (content) => {
-      if (isFinalized || !content) return;
-      isFinalized = true;
-
-      let asstMsgDocId = null;
+    // The assistant message takes the next sequence and raises messageCount in
+    // one transaction, for a completed and an interrupted reply alike, so the
+    // next user message never reuses its sequence. Returns the doc id, or null
+    // when the write failed.
+    const persistAssistantMessage = async (content, status) => {
       try {
         const asstMsgRef = convRef.collection("messages").doc();
-        asstMsgDocId = asstMsgRef.id;
         await db.runTransaction(async (tx) => {
           const cSnap = await tx.get(convRef);
           const cData = cSnap.exists ? cSnap.data() : {};
@@ -671,7 +670,7 @@ export const api = onRequest({
             role: "assistant",
             content,
             sequence: asstSeq,
-            status: "completed",
+            status,
             provider: turnState.providerId,
             model: turnState.model,
             createdAt: asstNow
@@ -683,9 +682,16 @@ export const api = onRequest({
             lastMessageAt: asstNow
           });
         });
+        return asstMsgRef.id;
       } catch (persistErr) {
-        console.error("Failed to persist assistant message to Firestore:", persistErr);
+        console.error(`Failed to persist ${status} assistant message to Firestore:`, persistErr);
+        return null;
       }
+    };
+
+    const finalizeTurn = async (content, asstMsgDocId) => {
+      if (isFinalized || !content) return;
+      isFinalized = true;
 
       // Bellek cikarimi cevap kapanmadan once beklenir: Cloud Run yanit
       // bittikten sonra CPU'yu kistigi icin arka planda birakilan is yarida
@@ -936,8 +942,12 @@ export const api = onRequest({
         throw emptyErr;
       }
       logLlmRequest("ok");
+      // Persisted before "done": the UI releases the composer on "done", and
+      // a quick next message must see this reply in its history and come
+      // after it in the conversation.
+      const asstMsgDocId = await persistAssistantMessage(cleanContent, "completed");
       sendEvent({ type: "done" });
-      await finalizeTurn(cleanContent);
+      await finalizeTurn(cleanContent, asstMsgDocId);
       res.end();
     } catch (err) {
       logLlmRequest("error", err);
@@ -946,19 +956,7 @@ export const api = onRequest({
       // Persist interrupted message if partially generated
       const cleanInterrupted = turnState.accumulatedText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
       if (cleanInterrupted) {
-        try {
-          const asstMsgRef = convRef.collection("messages").doc();
-          const asstNow = Timestamp.now();
-          await asstMsgRef.set({
-            role: "assistant",
-            content: cleanInterrupted,
-            sequence: userSeq + 1,
-            status: "interrupted",
-            provider: turnState.providerId,
-            model: turnState.model,
-            createdAt: asstNow
-          });
-        } catch {}
+        await persistAssistantMessage(cleanInterrupted, "interrupted");
       }
 
       // 429'da ham saglayici JSON'u yerine kisa bir mesaj + code: "rate_limited";

@@ -83,6 +83,27 @@ describe("Groq rate-limit helpers", () => {
   });
 
   describe("parseRateLimitInfo", () => {
+    // Gemini (OpenAI-compatible endpoint) 429 message text.
+    const GEMINI_RPM_429 =
+      "You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits.\n" +
+      "* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 10, model: gemini-3.8-flash\n" +
+      "Please retry in 33.52s.";
+
+    it("reads Gemini's \"retry in\" hint instead of a blind default wait", () => {
+      const info = parseRateLimitInfo(null, GEMINI_RPM_429);
+      expect(info).toEqual({ limitType: "unknown", retryAfterMs: 33_520, retryAfterSource: "message" });
+      // 33.5 s + margin does not fit the 25 s turn budget: give up at once
+      // (the next provider is tried) rather than sleep 5 s and get another 429.
+      expect(computeRateLimitWait({ info, attempt: 1, spentMs: 0 })).toMatchObject({ retry: false, reason: "budget_exhausted", waitMs: 0 });
+      expect(parseRateLimitInfo(null, "Please retry in 2s.").retryAfterMs).toBe(2000);
+    });
+
+    it("treats a Gemini per-day quota as a daily limit", () => {
+      expect(classifyRateLimit("Quota exceeded for quota id GenerateRequestsPerDayPerProjectPerModel-FreeTier")).toBe("rpd");
+      expect(classifyRateLimit("Quota exceeded for metric input_token_count, quota id GenerateContentInputTokensPerModelPerDay-FreeTier")).toBe("tpd");
+      expect(classifyRateLimit("GenerateRequestsPerMinutePerProjectPerModel-FreeTier")).toBe("unknown");
+    });
+
     it("keeps the real, unclamped wait of the production TPD 429", () => {
       expect(parseRateLimitInfo(null, PROD_TPD_429)).toEqual({
         limitType: "tpd",

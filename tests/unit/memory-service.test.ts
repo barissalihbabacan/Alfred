@@ -258,6 +258,24 @@ describe("MemoryService — Core Cognitive Memory Lifecycle", () => {
       expect(search[0]!.content).toContain("Gemma 4 12B MLX");
     });
 
+    it("removes the vector of a memory that was retracted in Firestore but whose vector delete never happened", async () => {
+      const kept = await service.createMemory({ userId: "baris", content: "Alfred runs Gemma 4 12B MLX locally", memoryType: "architectural_decision" });
+      const forgotten = await service.createMemory({ userId: "baris", content: "Barış's old office was in Levent", memoryType: "user_preference" });
+      expect(await vectorStore.count()).toBe(2);
+
+      // Firestore says retracted, but the process died before the vector delete.
+      const record = await memoryRepo.getMemoryRecordByMemoryId(forgotten.memoryId);
+      await memoryRepo.updateMemoryStatus({ id: record!.id, status: "retracted" });
+      expect(await vectorStore.count()).toBe(2);
+
+      const result = await service.reindexAll("baris");
+      expect(result).toMatchObject({ total: 1, succeeded: 1, failed: 0, retiredRemoved: 1 });
+      expect(await vectorStore.count()).toBe(1);
+      const hits = await service.searchMemories("Where was Barış's old office?", "baris");
+      expect(hits.map((h) => h.memoryId)).not.toContain(forgotten.memoryId);
+      expect(kept.memoryId).toBeTruthy();
+    });
+
     it("re-indexing is idempotent and safe to run repeatedly", async () => {
       await service.createMemory({
         userId: "baris",

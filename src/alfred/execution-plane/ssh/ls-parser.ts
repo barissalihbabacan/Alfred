@@ -9,13 +9,16 @@ import { DirectoryEntry, FileType } from "./ssh-client.interface.js";
 
 // Matches `LC_ALL=C ls -la --full-time`
 // Columns: permissions, links, owner, group, size, YYYY-MM-DD HH:MM:SS.NNNNNNNNN +ZZZZ, name
+// Permission column: a file-type letter and nine mode letters, including the
+// setuid/setgid/sticky forms (s S t T), optionally followed by the ACL "+",
+// SELinux "." or macOS "@" marker ("drwxrwxr-x+", "drwxrwxrwt", "-rw-r--r--.").
 const FULL_TIME_REGEX =
-  /^([drwxlsbcp-]{10})\s+\d+\s+\S+\s+\S+\s+(\d+)\s+(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?\s+[+-]?\d{4})\s+(.+)$/;
+  /^([-dlbcpsD][-rwxsStTl]{9})[+.@]?\s+\d+\s+\S+\s+\S+\s+(\d+)\s+(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?\s+[+-]?\d{4})\s+(.+)$/;
 
 // Matches standard POSIX `ls -la`
 // Columns: permissions, links, owner, group, size, Month Day (Time or Year), name
 const STANDARD_LS_REGEX =
-  /^([drwxlsbcp-]{10})\s+\d+\s+\S+\s+\S+\s+(\d+)\s+([A-Za-z]{3}\s+\d+\s+[\d:]{4,5})\s+(.+)$/;
+  /^([-dlbcpsD][-rwxsStTl]{9})[+.@]?\s+\d+\s+\S+\s+\S+\s+(\d+)\s+([A-Za-z]{3}\s+\d+\s+[\d:]{4,5})\s+(.+)$/;
 
 export class LSParser {
   /**

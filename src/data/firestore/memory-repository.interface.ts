@@ -59,6 +59,12 @@ export interface IMemoryRepository {
   listAllActive(userId?: string): Promise<MemoryVectorDocument[]>;
 
   /**
+   * Lists all superseded and retracted memories (all users when userId is
+   * omitted), so a rebuild can remove vectors a failed delete left behind.
+   */
+  listAllInactive(userId?: string): Promise<MemoryVectorDocument[]>;
+
+  /**
    * Deletes a memory record (used primarily in cleanup or testing).
    */
   deleteMemoryRecord(id: string): Promise<void>;

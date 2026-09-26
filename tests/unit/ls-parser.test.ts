@@ -86,4 +86,27 @@ describe("LSParser Unit Suite", () => {
     expect(LSParser.parse("   \n\n  ")).toEqual([]);
     expect(LSParser.parse("total 0")).toEqual([]);
   });
+
+  it("keeps entries with ACL, SELinux or macOS markers and setuid/sticky bits", () => {
+    const raw = [
+      "total 16",
+      "drwxrwxr-x+  2 baris baris 4096 2026-09-06 19:43:03.506103459 +0300 shared",
+      "drwxrwxrwt   2 root  root  4096 2026-09-06 19:43:03.506103459 +0300 tmpdir",
+      "-rw-r--r--.  1 baris baris   12 2026-09-06 19:43:03.506103459 +0300 selinux.txt",
+      "-rwsr-xr-x   1 root  root   100 2026-09-06 19:43:03.506103459 +0300 suid-tool",
+      "drwxr-sr-T   2 baris baris 4096 2026-09-06 19:43:03.506103459 +0300 setgid-dir",
+      "-rw-r--r--@  1 baris staff   34 2026-09-06 19:43:03.506103459 +0300 mac.txt",
+      "-rw-r--r--   1 baris baris    5 2026-09-06 19:43:03.506103459 +0300 plain.txt"
+    ].join("\n");
+    const byName = new Map(LSParser.parse(raw).map((e) => [e.name, e]));
+    expect([...byName.keys()].sort()).toEqual(["mac.txt", "plain.txt", "selinux.txt", "setgid-dir", "shared", "suid-tool", "tmpdir"]);
+    expect(byName.get("shared")?.type).toBe("directory");
+    expect(byName.get("tmpdir")?.type).toBe("directory");
+    expect(byName.get("selinux.txt")).toMatchObject({ type: "file", size: 12 });
+  });
+
+  it("keeps a standard (non full-time) line with an ACL marker", () => {
+    const entries = LSParser.parse("drwxr-xr-x+ 3 baris baris 4096 Sep  6 19:43 Ödevler");
+    expect(entries.map((e) => e.name)).toEqual(["Ödevler"]);
+  });
 });

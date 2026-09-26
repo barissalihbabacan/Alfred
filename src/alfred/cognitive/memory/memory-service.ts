@@ -335,6 +335,9 @@ export class MemoryService {
    * - Authoritative source is Firestore.
    * - Uses existing embeddings stored in Firestore when available to avoid redundant model calls.
    * - Never deletes or mutates Firestore memory content.
+   * - Removes the vectors of superseded / retracted memories first: retracting
+   *   marks Firestore before deleting the vector, so a crash or a failed
+   *   delete in between would otherwise keep a forgotten fact searchable.
    * - Idempotent and safe to run repeatedly.
    */
   public async reindexAll(userId?: string): Promise<ReindexResult> {
@@ -344,6 +347,17 @@ export class MemoryService {
     let succeeded = 0;
     let failed = 0;
     const errors: Array<{ memoryId: string; error: string }> = [];
+
+    let retiredRemoved = 0;
+    for (const record of await this.memoryRepo.listAllInactive(userId)) {
+      try {
+        await this.vectorStore.deleteByMemoryId(record.memoryId);
+        retiredRemoved++;
+      } catch (err: unknown) {
+        failed++;
+        errors.push({ memoryId: record.memoryId, error: `Removing retired vector failed: ${errorMessage(err)}` });
+      }
+    }
 
     for (const record of activeRecords) {
       try {
@@ -399,7 +413,8 @@ export class MemoryService {
       total: activeRecords.length,
       succeeded,
       failed,
-      errors
+      errors,
+      retiredRemoved
     };
 
     console.log(

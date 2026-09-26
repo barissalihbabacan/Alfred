@@ -27,6 +27,7 @@ async function main() {
     console.log(`Total Active Records : ${result.total}`);
     console.log(`Successfully Indexed : ${result.succeeded}`);
     console.log(`Failed               : ${result.failed}`);
+    console.log(`Retired vectors gone : ${result.retiredRemoved}`);
     console.log(`Duration             : ${durationMs}ms`);
 
     if (result.errors.length > 0) {

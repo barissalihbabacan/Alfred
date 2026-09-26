@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { GetCurrentTimeTool } from "../../src/ai/tools/time/get-current-time.tool.js";
 import { GET_CURRENT_TIME_TOOL_DEFINITION, type CurrentTimeResult } from "../../src/ai/tools/time/current-time.js";
-import { resolveTimezone } from "../../src/ai/tools/time/timezone-resolver.js";
+import { CITY_TIMEZONE_ALIASES, isZoneInCountry, resolveTimezone } from "../../src/ai/tools/time/timezone-resolver.js";
 import { PermissionLevel } from "../../src/alfred/control-plane/permission-system/types.js";
 
 describe("GetCurrentTimeTool & TimezoneResolver Suite", () => {
@@ -49,6 +49,39 @@ describe("GetCurrentTimeTool & TimezoneResolver Suite", () => {
       expect(resolveTimezone(undefined)).toBeNull();
       expect(resolveTimezone(42)).toBeNull();
     });
+
+    it("does not answer with a same-named city in another country", () => {
+      for (const input of [
+        "London, Canada", "Birmingham, USA", "Sydney, Canada", "Perth, UK", "Cordoba, Spain",
+        "Cordoba Spain", "Santiago, Spain", "Merida, Spain", "London Kanada", "Paris, Texas"
+      ]) {
+        expect(resolveTimezone(input), input).toBeNull();
+      }
+    });
+
+    it("still resolves a city followed by its own country", () => {
+      const cases: Array<[string, string]> = [
+        ["London, UK", "Europe/London"], ["Istanbul Turkey", "Europe/Istanbul"], ["İstanbul, Türkiye", "Europe/Istanbul"],
+        ["New York, USA", "America/New_York"], ["Seattle, ABD", "America/Los_Angeles"], ["Toronto, Canada", "America/Toronto"],
+        ["Sydney, Australia", "Australia/Sydney"], ["Berlin, Almanya", "Europe/Berlin"], ["Paris France", "Europe/Paris"],
+        ["Madrid, Spain", "Europe/Madrid"], ["Tokyo, Japan", "Asia/Tokyo"], ["Beijing, China", "Asia/Shanghai"],
+        ["Moscow, Russia", "Europe/Moscow"], ["Sao Paulo, Brazil", "America/Sao_Paulo"], ["Zurich, Switzerland", "Europe/Zurich"],
+        ["Dubai, UAE", "Asia/Dubai"], ["Rome, Italy", "Europe/Rome"], ["Amsterdam, Netherlands", "Europe/Amsterdam"]
+      ];
+      for (const [input, zone] of cases) expect(resolveTimezone(input)?.timezone, input).toBe(zone);
+    });
+
+    it("with a country, answers either the city's own zone inside that country or nothing", () => {
+      const countries = ["UK", "USA", "Canada", "Australia", "Spain", "Germany", "Turkey", "Japan", "Brazil", "Russia"];
+      const codes: Record<string, string> = { UK: "gb", USA: "us", Canada: "ca", Australia: "au", Spain: "es", Germany: "de", Turkey: "tr", Japan: "jp", Brazil: "br", Russia: "ru" };
+      for (const [city, zone] of Object.entries(CITY_TIMEZONE_ALIASES)) {
+        for (const country of countries) {
+          const result = resolveTimezone(`${city}, ${country}`);
+          if (isZoneInCountry(zone, codes[country])) expect(result?.timezone, `${city}, ${country}`).toBe(zone);
+          else if (result) expect(isZoneInCountry(result.timezone, codes[country]), `${city}, ${country} -> ${result.timezone}`).toBe(true);
+        }
+      }
+    }, 60_000);
   });
 
   describe("GetCurrentTimeTool Definition & Validation", () => {

@@ -1,0 +1,72 @@
+name: Weekly Firestore backup
+
+# Dumps every Firestore collection (conversations, messages, memories) with
+# scripts/backup-firestore.ts, encrypts the dump with the BACKUP_PASSPHRASE
+# secret (AES-256, gpg symmetric) and keeps only the encrypted file as an
+# artifact for 90 days. The plaintext never leaves the runner and the log shows
+# document counts only. Restore: docs/OPERATIONS.md ("Firestore backups").
+on:
+  schedule:
+    - cron: "0 3 * * 0" # Sundays 03:00 UTC (06:00 Istanbul)
+  workflow_dispatch:
+
+concurrency:
+  group: firestore-backup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    name: Back up Firestore
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require the backup passphrase
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          if [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "::error::The BACKUP_PASSPHRASE secret is not set (gh secret set BACKUP_PASSPHRASE)."
+            exit 1
+          fi
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Root Dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Authenticate to Google Cloud / Firebase
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BUTLER_ALFRED }}
+
+      - name: Dump Firestore
+        run: npm run -s backup:firestore -- --out "$RUNNER_TEMP/firestore-backup.json"
+
+      - name: Encrypt the dump
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          name="firestore-backup-$(date -u +%Y-%m-%d).json.gpg"
+          printf '%s' "$BACKUP_PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
+            --symmetric --cipher-algo AES256 -o "$RUNNER_TEMP/$name" "$RUNNER_TEMP/firestore-backup.json"
+          shred -u "$RUNNER_TEMP/firestore-backup.json"
+          mkdir -p "$RUNNER_TEMP/backup" && mv "$RUNNER_TEMP/$name" "$RUNNER_TEMP/backup/"
+          echo "BACKUP_FILE=$name" >> "$GITHUB_ENV"
+          ls -l "$RUNNER_TEMP/backup"
+
+      - name: Keep the encrypted backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BACKUP_FILE }}
+          path: ${{ runner.temp }}/backup/${{ env.BACKUP_FILE }}
+          retention-days: 90
+          if-no-files-found: error

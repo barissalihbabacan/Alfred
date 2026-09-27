@@ -27,6 +27,7 @@ npm run test:ollama
 
 # Long-term memory
 npm run memory:reindex     # rebuild vector store from Firestore (source of truth)
+npm run backup:firestore -- --out backup.json   # JSON dump of every collection (needs ADC; CI runs it weekly, encrypted)
 
 # Canonical user profile (after editing users/*.md)
 # 1. update src/alfred/cognitive/context/user-profile.digest.md by hand to reflect the edit
@@ -48,7 +49,7 @@ npm run deploy --prefix functions   # firebase deploy --only functions
 ./scripts/monitoring/teardown-alerts.sh --project butler-alfred [--apply] [--delete-channels]
 ```
 
-As of the last check `npm run test:unit` is 877 passing tests across 64 files, `npm run typecheck`, `npm run typecheck:tests` and `npx tsc -p apps/web/tsconfig.json --noEmit` are clean, `npm run build:web` succeeds and `npm run lint` has 0 errors and 0 warnings — keep all of them green (CI runs them all). Every rule in `eslint.config.js` is an error, including `no-explicit-any` (use `unknown` plus narrowing, and `errorMessage()` from `src/core/errors` for caught errors), so any lint finding fails CI. There is no Prettier: formatting is not enforced, so don't mass-reformat files.
+As of the last check `npm run test:unit` is 881 passing tests across 65 files, `npm run typecheck`, `npm run typecheck:tests` and `npx tsc -p apps/web/tsconfig.json --noEmit` are clean, `npm run build:web` succeeds and `npm run lint` has 0 errors and 0 warnings — keep all of them green (CI runs them all). Every rule in `eslint.config.js` is an error, including `no-explicit-any` (use `unknown` plus narrowing, and `errorMessage()` from `src/core/errors` for caught errors), so any lint finding fails CI. There is no Prettier: formatting is not enforced, so don't mass-reformat files.
 
 `tests/unit/*` run offline against in-memory repositories/stores. `tests/integration/*` and the `test:groq`/`test:ollama` scripts hit real services and need `.env` populated (copy from `.env.example`). Gating lives in `tests/integration/prerequisites.ts`: with `ALFRED_OFFLINE=1` every service-dependent suite is `describe.skipIf`-skipped regardless of credentials; without it each suite skips when its own prerequisite is absent, and the SSH/Ollama tests call the test context's `skip()` (reported as skipped, not passed) when the host is unreachable. Any new integration test that needs a service must be gated on `OFFLINE` too.
 
@@ -121,6 +122,8 @@ Preserve when editing memory code:
 - Firebase Hosting serves `apps/web/out` (build it first), rewrites `/api/**` to `api` and everything else to `index.html`. No App Hosting, no server runtime.
 - `.github/workflows/ci.yml` runs every check listed under **Commands** plus the functions bundle build/check on each PR (Node 22, no `.env`; `.nvmrc` pins the same major for `nvm use` locally). `deploy.yml` reuses it, then builds and runs `firebase deploy --only hosting,functions,firestore:rules,firestore:indexes` on pushes to `main`, so any red check blocks the deploy.
 - Rollback: `firebase hosting:rollback`.
+- `.github/workflows/preview.yml` deploys each PR's web app to the fixed Hosting channel `preview` and comments the URL (UI only: `/api/**` there is the production function and data). Its domain must be in Firebase Auth's authorized domains and the reCAPTCHA key (`docs/OPERATIONS.md`, "Preview channel").
+- `.github/workflows/backup.yml` dumps Firestore every Sunday, encrypts it with the `BACKUP_PASSPHRASE` secret and keeps it as a 90-day artifact (`docs/OPERATIONS.md`, "Firestore backups"). The dump script must never print document content: workflow logs are public once the repo is.
 
 ### Functions bundle — `functions/` imports `src/` via esbuild
 `functions/index.js` is the **source**; `functions/build.js` bundles it with the `src/` modules it imports into `functions/lib/index.js` (gitignored; built by the `predeploy` hook). Only `functions/` is uploaded.

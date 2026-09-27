@@ -92,6 +92,41 @@ Figures as published on Google's pricing pages in Sep 2026 — check <https://cl
 
 Keep the GitHub email notifications on; if someone else starts merging, they receive the failure email instead of the owner.
 
+## Firestore backups
+
+Firestore has no scheduled backup enabled (it is billed; this is the free alternative). `.github/workflows/backup.yml` runs every **Sunday 03:00 UTC** (and on demand: Actions → *Weekly Firestore backup* → *Run workflow*):
+
+1. `npm run backup:firestore` (`scripts/backup-firestore.ts`) dumps every collection with its subcollections (`conversations/{id}/messages`, `memory_vectors`, …) to JSON. Timestamps, references, geopoints and bytes are tagged (`{"__type": "timestamp", …}`) so nothing is lost. The log shows document counts only.
+2. The dump is encrypted with the `BACKUP_PASSPHRASE` secret (gpg, AES-256) and the plaintext is shredded.
+3. Only the encrypted file is kept, as the artifact `firestore-backup-YYYY-MM-DD.json.gpg`, for **90 days** (about 13 weekly backups).
+
+**One-time setup:** create the passphrase secret and keep the passphrase somewhere safe outside GitHub (a password manager). Without it the backups cannot be opened.
+
+```bash
+gh secret set BACKUP_PASSPHRASE
+```
+
+**Open a backup:** download the artifact from the workflow run (Actions → the run → *Artifacts*), unzip it, then:
+
+```bash
+gpg --decrypt firestore-backup-YYYY-MM-DD.json.gpg > firestore-backup.json
+```
+
+The JSON is `{ format: "alfred-firestore-backup/1", projectId, createdAt, collections: { name: [ { id, data, collections? } ] } }`. There is no automated restore yet: a lost document is written back by hand (or with a small script) from that file; the vector store is then rebuilt with `npm run memory:reindex`.
+
+**Caveats:** artifacts are deleted after 90 days, so a backup older than that is gone. GitHub pauses scheduled workflows in a public repository after 60 days without repository activity; a push re-enables them (the run history shows when the last one ran).
+
+## Preview channel
+
+`.github/workflows/preview.yml` deploys the web app of every pull request that touches `apps/**` (or the package files / `firebase.json`) to the Hosting channel **`preview`** and comments its URL on the PR (`https://butler-alfred--preview-<hash>.web.app`). It is **UI only**: `/api/**` there still reaches the production `api` function and its data, so a preview shows real conversations. The channel is fixed so the URL stays the same; each deploy extends it by 30 days.
+
+**One-time setup** (after the first preview deploy prints the URL), otherwise Google sign-in fails (`auth/unauthorized-domain`) and App Check rejects the requests:
+
+1. Firebase console → Authentication → Settings → *Authorized domains* → add `butler-alfred--preview-<hash>.web.app`.
+2. Google Cloud console → Security → reCAPTCHA → the key used by App Check → *Domains* → add the same domain.
+
+Sign in once on the preview URL (sessions are per domain). If no PR deploys for 30 days the channel expires and the next one gets a new `<hash>`: repeat the two steps for the new URL.
+
 ## Runbook (Türkçe)
 
 Her uyarı e-postası konuyu ve başlangıç log sorgusunu içerir. Loglar: Cloud Console → Logging → Logs Explorer, proje `butler-alfred`. Terminalden salt-okur sorgu:

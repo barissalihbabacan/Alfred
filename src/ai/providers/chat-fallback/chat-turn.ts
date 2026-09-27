@@ -127,7 +127,8 @@ export interface ChatTurnDeps {
   /** Tool definitions (OpenAI format), offered on every call except the last. */
   tools: unknown[];
   maxTurns: number;
-  runTool: (name: string, args: unknown) => unknown;
+  /** Runs one tool call; may be async (web_search). A thrown error becomes `{ error }` for the model. */
+  runTool: (name: string, args: unknown) => unknown | Promise<unknown>;
   fetch: ChatFetch;
   sendEvent: (event: Record<string, unknown>) => void;
   sleep: (ms: number) => Promise<void>;
@@ -358,7 +359,12 @@ async function runOnProvider(deps: ChatTurnDeps, provider: ResolvedChatProvider,
       }
 
       const toolStart = clock();
-      const toolResult = deps.runTool(fnName, fnArgs);
+      let toolResult: unknown;
+      try {
+        toolResult = await deps.runTool(fnName, fnArgs);
+      } catch {
+        toolResult = { error: `Tool ${String(fnName)} failed.` };
+      }
       const toolOk = !(toolResult && typeof toolResult === "object" && (toolResult as { error?: unknown }).error);
       const toolName = typeof fnName === "string" ? fnName.slice(0, 64) : null;
       // Arguments are never logged; only the tool name.

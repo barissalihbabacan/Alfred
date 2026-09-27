@@ -7,7 +7,8 @@ import {
   runGetCurrentTimeTool
 } from "../src/ai/tools/time/current-time.js";
 import { isRateLimitedError } from "../src/ai/providers/groq/rate-limit.js";
-import { resolveChatProviders } from "../src/ai/providers/chat-fallback/chat-providers.js";
+import { isUsableApiKey, resolveChatProviders } from "../src/ai/providers/chat-fallback/chat-providers.js";
+import { WEB_SEARCH_TOOL_DEFINITION, runWebSearchTool } from "../src/ai/tools/web/web-search.js";
 import { buildHealthStatus } from "../src/ai/providers/chat-fallback/health-status.js";
 import {
   addUsageToMetrics,
@@ -60,6 +61,8 @@ const GROQ_API_KEY = defineSecret("GROQ_API_KEY");
 const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
 const CEREBRAS_API_KEY = defineSecret("CEREBRAS_API_KEY");
 const OPENROUTER_API_KEY = defineSecret("OPENROUTER_API_KEY");
+// web_search (Tavily). "unset" (or empty) leaves the tool out entirely.
+const TAVILY_API_KEY = defineSecret("TAVILY_API_KEY");
 
 const ALLOWED_UID = process.env.ALLOWED_UID || "test-owner-uid-123456";
 
@@ -215,7 +218,7 @@ const extractAndPersistMemories = createExtractAndPersistMemories({
 
 export const api = onRequest({
   cors: true,
-  secrets: [GROQ_API_KEY, GEMINI_API_KEY, CEREBRAS_API_KEY, OPENROUTER_API_KEY]
+  secrets: [GROQ_API_KEY, GEMINI_API_KEY, CEREBRAS_API_KEY, OPENROUTER_API_KEY, TAVILY_API_KEY]
 }, async (req, res) => {
   // CORS Preflight
   if (req.method === "OPTIONS") {
@@ -461,6 +464,8 @@ export const api = onRequest({
     const groqKey = gizliOku(GROQ_API_KEY, "GROQ_API_KEY");
     const groqModel = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
     const geminiKey = gizliOku(GEMINI_API_KEY, "GEMINI_API_KEY");
+    const tavilyKey = gizliOku(TAVILY_API_KEY, "TAVILY_API_KEY");
+    const webSearchEnabled = isUsableApiKey(tavilyKey);
     const ollamaUrl = process.env.OLLAMA_BASE_URL || "https://ollama.example.invalid";
     const ollamaModel = process.env.OLLAMA_MODEL || "gemma4:12b-mlx";
 
@@ -613,7 +618,8 @@ export const api = onRequest({
         role: "system",
         content: buildAlfredSystemPrompt({
           runtime: { provider: runtime.id, model: runtime.model },
-          memories: retrievedMemories
+          memories: retrievedMemories,
+          webSearchAvailable: webSearchEnabled
         })
       },
       ...boundedHistory,
@@ -762,11 +768,16 @@ export const api = onRequest({
     // bir baglanti yoktu (sabit yer tutucu ciktilar donuyordu); model
     // uydurma sunucu durumu raporlamasin diye kaldirildilar. Persona da
     // sunucu erisiminin henuz bagli olmadigini soyluyor.
-    const activeTools = [TIME_TOOL_DEFINITION];
+    // web_search yalnizca Tavily anahtari varsa sunulur; persona da buna gore
+    // kurulur (buildMessagesFor), sunulmayan bir araci vaat etmez.
+    const activeTools = webSearchEnabled ? [TIME_TOOL_DEFINITION, WEB_SEARCH_TOOL_DEFINITION] : [TIME_TOOL_DEFINITION];
     const MAX_TURNS = 3;
-    const runTool = (fnName, fnArgs) => {
+    const runTool = async (fnName, fnArgs) => {
       if (fnName === "get_current_time") {
         return runGetCurrentTimeTool(fnArgs);
+      }
+      if (fnName === "web_search" && webSearchEnabled) {
+        return runWebSearchTool(fnArgs, { apiKey: tavilyKey, fetch: (url, init) => fetch(url, init) });
       }
       return { error: `Tool ${fnName} not recognized.` };
     };
@@ -903,7 +914,7 @@ export const api = onRequest({
               }
 
               const toolStart = performance.now();
-              const toolResult = runTool(fnName, fnArgs);
+              const toolResult = await runTool(fnName, fnArgs);
 
               // Argumanlar loglanmaz; yalnizca arac adi.
               const toolOk = !toolResult?.error;

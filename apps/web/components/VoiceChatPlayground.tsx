@@ -106,6 +106,8 @@ const DEFAULT_MODEL_LABEL = "openai/gpt-oss-120b";
 const CONVERSATION_KEY = "alfred_conversation_id";
 // Must match the `mobile` custom variant in apps/web/app/globals.css.
 const MOBILE_QUERY = "(max-width: 768px)";
+// Voice input (SpeechRecognition) listens for Turkish; there is no language picker.
+const STT_LANG = "tr-TR";
 // Eski surumlerin tarayiciya yazdigi anahtarlar. API anahtarlari artik yalnizca
 // sunucuda (Secret Manager) tutuluyor; Ollama URL alani da artik yok.
 const LEGACY_STORAGE_KEYS = ["alfred_groq_api_key", "alfred_gemini_api_key", "alfred_ollama_url"];
@@ -167,7 +169,6 @@ export default function VoiceChatPlayground() {
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [sttLang, setSttLang] = useState("tr-TR");
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
@@ -615,7 +616,7 @@ export default function VoiceChatPlayground() {
 
     const rec = new SpeechRec();
     recognitionRef.current = rec;
-    rec.lang = sttLang;
+    rec.lang = STT_LANG;
     rec.interimResults = false;
 
     rec.onstart = () => {
@@ -816,16 +817,29 @@ export default function VoiceChatPlayground() {
               <span className="text-[11px] text-chat-faint">Google ile Doğrulandı</span>
             </div>
           </button>
-          <button
-            onClick={() => setShowSettingsModal(true)}
-            className="flex cursor-pointer items-center border-none bg-transparent p-1 text-chat-subtle"
-            title="Ayarlar"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              onClick={() => setShowSettingsModal(true)}
+              className="flex cursor-pointer items-center border-none bg-transparent p-1 text-chat-subtle"
+              title="Ayarlar"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </button>
+            <button
+              onClick={handleSignOut}
+              className="flex cursor-pointer items-center border-none bg-transparent p-1 text-chat-subtle"
+              title="Güvenli Çıkış Yap"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -853,27 +867,6 @@ export default function VoiceChatPlayground() {
           </div>
 
           <div className="flex shrink-0 items-center gap-2.5 mobile:gap-1.5">
-            <button
-              onClick={handleSignOut}
-              title="Güvenli Çıkış Yap"
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-white/10 bg-transparent px-2.5 py-1 text-[12px] text-chat-muted"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <polyline points="16 17 21 12 16 7" />
-                <line x1="21" y1="12" x2="9" y2="12" />
-              </svg>
-              <span className="mobile:hidden">Çıkış</span>
-            </button>
-
-            <select
-              value={sttLang}
-              onChange={(e) => setSttLang(e.target.value)}
-              className="rounded-md border border-white/10 bg-chat-surface px-2 py-1 text-[12px] text-chat-muted"
-            >
-              <option value="tr-TR">TR</option>
-              <option value="en-GB">EN</option>
-            </select>
 
             <div className="flex items-center gap-1.5 rounded-full border border-white/8 bg-white/4 px-2.5 py-1 text-[12px] text-chat-muted">
               <span className={cx(

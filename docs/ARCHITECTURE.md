@@ -246,9 +246,9 @@ The Control Plane (`src/alfred/control-plane/`) is responsible for:
 The Execution Plane (`src/alfred/execution-plane/`) contains capabilities Alfred can execute through tools and integrations:
 
 - **SSH** (implemented): `ssh2`-based client with a mock for tests, connection manager, an allow-listed command registry (`list_directory`, `disk_usage`, `current_directory`, `identity`, `system_info`), path sandbox, and `ls` parser. Hosts are referred to by alias (`home-server`), never by raw credentials in tool arguments.
-- **GitHub, Gmail, Calendar, Files, Browser, Terminal, Web Search, External APIs** (planned): Directories exist, but they are empty.
+- **GitHub, Gmail, Calendar, Files, Browser, Terminal, External APIs** (planned): Directories exist, but they are empty.
 
-Production offers the model exactly one tool: `get_current_time`, shared with `src/ai/tools/time/` (its resolver folds Turkish and accented spellings and drops country suffixes).
+Production offers the model `get_current_time`, and `web_search` (Tavily, `src/ai/tools/web/web-search.ts`) when a Tavily key is configured. `get_current_time` is shared with `src/ai/tools/time/` (its resolver folds Turkish and accented spellings and drops country suffixes).
 
 **SSH is not connected in production.** The `api` function has no SSH connection. The `ssh_*` tools used to return canned output (a fixed `Belgeler/` listing, `df`, `pwd`, `whoami` and `uname` snapshots), which Alfred presented as real server state. They were therefore removed from the tool list:
 - An unexpected `ssh_*` call gets `Tool … not recognized.`

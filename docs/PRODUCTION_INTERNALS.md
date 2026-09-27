@@ -10,7 +10,7 @@ Much of this is pinned by tests: when a test named here fails after a change, th
 
 ## SSH in production
 
-**Production does not use any of it, and offers no SSH tools.** There is no SSH connection behind `functions/index.js`: the ssh_* tools used to return canned results (a fixed 15-entry `Belgeler/` listing and fixed `df`/`pwd`/`whoami`/`uname` output) that Alfred presented as real server state. They were removed from the tool list: production sends only `get_current_time`, an unexpected `ssh_*` call gets `Tool … not recognized.`, and the persona (built with `sshAvailable: false`, the default) says server access is not connected and forbids inventing server state. `buildAlfredSystemPrompt({ sshAvailable: true })` restores the SSH instructions byte-for-byte for a caller that really executes them. The three tool definitions and argument rules (default host `home-server`, default path `Belgeler`, exact-match allow-list, path deny-list) remain in `src/ai/tools/ssh/ssh-tool-definitions.ts` for the src tools, which add the real-SSH guards (non-string host/path, registry lookup, `SSHPathSandbox`, realpath containment); the allow-list itself is `src/alfred/execution-plane/ssh/allowed-commands.ts`. Wiring real SSH into production (e.g. over Tailscale) is a separate design decision.
+**Production does not use any of it, and offers no SSH tools.** There is no SSH connection behind `functions/index.js`: the ssh_* tools used to return canned results (a fixed 15-entry `Belgeler/` listing and fixed `df`/`pwd`/`whoami`/`uname` output) that Alfred presented as real server state. They were removed from the tool list: production sends `get_current_time` (plus `web_search` when `TAVILY_API_KEY` is set), an unexpected `ssh_*` call gets `Tool … not recognized.`, and the persona (built with `sshAvailable: false`, the default) says server access is not connected and forbids inventing server state. `buildAlfredSystemPrompt({ sshAvailable: true })` restores the SSH instructions byte-for-byte for a caller that really executes them. The three tool definitions and argument rules (default host `home-server`, default path `Belgeler`, exact-match allow-list, path deny-list) remain in `src/ai/tools/ssh/ssh-tool-definitions.ts` for the src tools, which add the real-SSH guards (non-string host/path, registry lookup, `SSHPathSandbox`, realpath containment); the allow-list itself is `src/alfred/execution-plane/ssh/allowed-commands.ts`. Wiring real SSH into production (e.g. over Tailscale) is a separate design decision.
 
 ## Streaming chat (SSE)
 
@@ -84,7 +84,7 @@ The app is locked to one person. There is no sign-up, no password login and no S
 
 ## Secrets — LLM keys live only in Secret Manager
 
-`GROQ_API_KEY`, `GEMINI_API_KEY`, `CEREBRAS_API_KEY` and `OPENROUTER_API_KEY` are never taken from the caller. There is no request-header path, and the browser neither stores nor sends keys.
+`GROQ_API_KEY`, `GEMINI_API_KEY`, `CEREBRAS_API_KEY`, `OPENROUTER_API_KEY` and `TAVILY_API_KEY` (web search) are never taken from the caller. There is no request-header path, and the browser neither stores nor sends keys.
 - `functions/index.js` binds all four through `defineSecret()` (Cerebras and OpenRouter only on `api`; `alfredCallable` needs no LLM key). Because they are bound, **a deploy fails if a secret does not exist**; create a missing one first, with the placeholder value `unset` if there is no key yet (the fallback then skips that provider):
 
   ```bash

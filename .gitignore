@@ -90,3 +90,7 @@ test_output/
 *.mp3
 *.ogg
 *.pcm
+
+# Firestore backups (decrypted or not) never belong in the repository.
+firestore-backup*.json
+firestore-backup*.json.gpg

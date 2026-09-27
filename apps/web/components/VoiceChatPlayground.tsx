@@ -8,6 +8,7 @@ import { errorMessage as messageOf, isAbortError } from "../lib/errors";
 import { formatRateLimitStatus, normalizeRateLimitWaitMs } from "../lib/rate-limit";
 import { formatProviderFallbackStatus, providerDisplayName } from "../lib/providers";
 import { renderMarkdown } from "../lib/markdown";
+import { toolStatusText } from "../lib/tools";
 
 export type AssistantState =
   | "Idle"
@@ -483,10 +484,19 @@ export default function VoiceChatPlayground() {
             setState("Thinking");
             break;
           case "thinking":
-          case "tool_call":
-          case "tool_result":
             setState("Thinking");
             updateAssistant({ rateLimitUntil: undefined });
+            break;
+          case "tool_call": {
+            // A slow tool (web_search) says what it is doing instead of "Düşünüyor...".
+            const status = toolStatusText(event);
+            setState("Thinking");
+            updateAssistant(status ? { rateLimitUntil: undefined, providerNotice: status } : { rateLimitUntil: undefined });
+            break;
+          }
+          case "tool_result":
+            setState("Thinking");
+            updateAssistant({ rateLimitUntil: undefined, providerNotice: undefined });
             break;
           case "rate_limited":
             // Sunucu gercekten `waitMs` bekleyip yeniden deneyecek (sigmayan beklemede

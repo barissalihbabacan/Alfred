@@ -12,6 +12,18 @@ import { getFirebaseAuth } from "./auth";
  */
 export const API_BASE = "/api";
 
+/**
+ * Base for requests whose response must stream (POST /chat, SSE). Firebase
+ * Hosting buffers responses from its /api/** rewrite: measured in production,
+ * every event of a chat turn reached the browser in the same millisecond, at
+ * the end. So streaming requests go straight to the function (same auth: ID
+ * token + App Check; the function allows CORS). `next dev` keeps /api, which
+ * it proxies to ALFRED_API_ORIGIN. Override with NEXT_PUBLIC_STREAM_API_BASE.
+ */
+export const STREAM_API_BASE =
+  process.env.NEXT_PUBLIC_STREAM_API_BASE ||
+  (process.env.NODE_ENV === "production" ? "https://us-central1-butler-alfred.cloudfunctions.net/api" : API_BASE);
+
 export class ApiError extends Error {
   readonly status: number;
   constructor(status: number, message: string) {
@@ -45,6 +57,8 @@ export interface ApiDeps {
   getUser: () => User | null;
   getAppCheckToken: () => Promise<string | null>;
   fetchImpl: typeof fetch;
+  /** Base for `stream: true` requests; defaults to STREAM_API_BASE. */
+  streamBase?: string;
 }
 
 const defaultDeps: ApiDeps = {
@@ -56,6 +70,8 @@ const defaultDeps: ApiDeps = {
 export interface ApiRequestInit extends RequestInit {
   /** true ise ID token eklenmez (yalnizca /health gibi acik uc noktalar icin). */
   anonymous?: boolean;
+  /** true: the response streams (SSE), so bypass Hosting (see STREAM_API_BASE). */
+  stream?: boolean;
 }
 
 export async function apiFetch(
@@ -63,7 +79,7 @@ export async function apiFetch(
   init: ApiRequestInit = {},
   deps: ApiDeps = defaultDeps
 ): Promise<Response> {
-  const { anonymous, headers: extraHeaders, ...rest } = init;
+  const { anonymous, stream, headers: extraHeaders, ...rest } = init;
   const headers = new Headers(extraHeaders);
 
   if (!anonymous) {
@@ -80,7 +96,8 @@ export async function apiFetch(
     headers.set("X-Firebase-AppCheck", appCheckToken);
   }
 
-  const url = `${API_BASE}${path.startsWith("/") ? path : `/${path}`}`;
+  const base = stream ? (deps.streamBase ?? STREAM_API_BASE) : API_BASE;
+  const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
   return deps.fetchImpl(url, { ...rest, headers });
 }
 

@@ -50,6 +50,49 @@ describe("renderMarkdown (apps/web/lib/markdown.ts)", () => {
     expect(renderMarkdown("```javascript\nx\n```")).toContain('<span lang="en">javascript</span>');
   });
 
+  describe("links", () => {
+    const CNBC = "https://www.cnbc.com/2026/09/26/meta-microsoft-led-tech-higher-this-week-despite-soaring-bond-yields.html";
+    const anchor = (href: string, label: string) =>
+      `<a href="${href}" target="_blank" rel="noopener noreferrer" class="md-link">${label}</a>`;
+
+    it("renders [label](url) as a link that opens in a new tab", () => {
+      expect(renderMarkdown(`Kaynak: [cnbc.com](${CNBC})`)).toBe(`<p>Kaynak: ${anchor(CNBC, "cnbc.com")}</p>`);
+    });
+
+    it("links bare URLs, leaving surrounding punctuation and parentheses outside", () => {
+      expect(renderMarkdown("Kaynak: PCMag (https://www.pcmag.com/news).")).toBe(
+        `<p>Kaynak: PCMag (${anchor("https://www.pcmag.com/news", "https://www.pcmag.com/news")}).</p>`
+      );
+      expect(renderMarkdown("Bkz. https://example.com/a?b=1&c=2, sonra")).toBe(
+        `<p>Bkz. ${anchor("https://example.com/a?b=1&amp;c=2", "https://example.com/a?b=1&amp;c=2")}, sonra</p>`
+      );
+      expect(renderMarkdown("https://en.wikipedia.org/wiki/Foo_(bar)")).toBe(
+        `<p>${anchor("https://en.wikipedia.org/wiki/Foo_(bar)", "https://en.wikipedia.org/wiki/Foo_(bar)")}</p>`
+      );
+    });
+
+    it("keeps bold/italic out of URLs and still formats the text around them", () => {
+      const html = renderMarkdown("**Önemli:** [a_b*c*](https://x.test/a_b*c*d)");
+      expect(html).toBe(`<p><strong>Önemli:</strong> ${anchor("https://x.test/a_b*c*d", "a_b*c*")}</p>`);
+    });
+
+    it("never links other schemes and never lets a URL leave its href", () => {
+      expect(renderMarkdown("[tıkla](javascript:alert(1))")).not.toContain("<a ");
+      expect(renderMarkdown("data:text/html,<b>x</b>")).not.toContain("<a ");
+      const hostile = renderMarkdown('[x](https://a.test/"onmouseover=alert(1))');
+      const attrs = hostile.match(/<a ([^>]*)>/)?.[1] ?? "";
+      expect(attrs).toMatch(/^href="[^"]*" target="_blank" rel="noopener noreferrer" class="md-link"$/);
+      expect(attrs).not.toMatch(/"\s*onmouseover/);
+      const quoted = renderMarkdown('"https://a.test/x" dedi');
+      expect(quoted).toBe(`<p>&quot;${anchor("https://a.test/x", "https://a.test/x")}&quot; dedi</p>`);
+    });
+
+    it("does not link URLs inside code", () => {
+      expect(renderMarkdown("`https://a.test/x`")).toBe('<p><code class="inline-code">https://a.test/x</code></p>');
+      expect(renderMarkdown("```\ncurl https://a.test/x\n```")).not.toContain("<a ");
+    });
+  });
+
   it("escapes HTML in ordinary text", () => {
     expect(renderMarkdown("<script>alert(1)</script>")).toBe("<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>");
   });

@@ -219,7 +219,7 @@ Conversation Exchange (User Message + Assistant Response)
   - restrained dry humour and firm first-principles pushback;
   - reasoning strictly from the known pipeline;
   - no corporate or customer-service boilerplate.
-- **Chat formatting**: Replies are rendered as markdown in the chat (not read aloud). The persona allows only what `apps/web/lib/markdown.ts` renders (bold, italic, inline code, code blocks, bulleted and numbered lists), keeps conversation as prose, and forbids headings, tables and links (see `docs/persona/ALFRED_PERSONA.md`, Section 7, "Chat Formatting").
+- **Chat formatting**: Replies are rendered as markdown in the chat (not read aloud). The persona allows only what `apps/web/lib/markdown.ts` renders (bold, italic, inline code, code blocks, bulleted and numbered lists, http(s) links), keeps conversation as prose, and forbids headings and tables (see `docs/persona/ALFRED_PERSONA.md`, Section 7, "Chat Formatting").
 
 ---
 

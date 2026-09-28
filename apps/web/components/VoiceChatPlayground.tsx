@@ -446,7 +446,9 @@ export default function VoiceChatPlayground() {
     let accumulatedText = "";
 
     try {
+      // stream: SSE must bypass Hosting, which buffers the whole response.
       const res = await apiFetch("/chat", {
+        stream: true,
         method: "POST",
         headers: {
           "Content-Type": "application/json",

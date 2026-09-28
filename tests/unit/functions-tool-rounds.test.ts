@@ -61,7 +61,7 @@ describe("production tool rounds", () => {
   const stream = readFileSync(new URL("../../src/ai/providers/chat-fallback/openai-stream.ts", import.meta.url), "utf8");
 
   it("keeps tools available on every round except the last", () => {
-    expect(turn).toContain("const tools = deps.tools.length > 0 && toolTurn < deps.maxTurns ? deps.tools : undefined;");
+    expect(turn).toContain("const tools = deps.tools.length > 0 && toolTurn < deps.maxTurns && !finalRound ? deps.tools : undefined;");
     expect(source).toContain("const MAX_TURNS = 3;");
     expect(source).toContain("if (activeTools && activeTools.length > 0 && toolTurn < MAX_TURNS) {\n            requestBody.tools = activeTools;");
     expect(source).not.toContain("activeTools = undefined;");

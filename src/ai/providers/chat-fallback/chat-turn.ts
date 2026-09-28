@@ -127,6 +127,13 @@ export interface ChatTurnDeps {
   /** Tool definitions (OpenAI format), offered on every call except the last. */
   tools: unknown[];
   maxTurns: number;
+  /**
+   * Tools after which the next round is the final one (no tools offered), so
+   * the model answers from what it got. web_search: a second search round
+   * resends the prompt with both result sets and blew Groq's 8,000 tokens/min
+   * on one question (live, 28 Sep).
+   */
+  finalRoundAfter?: readonly string[];
   /** Runs one tool call; may be async (web_search). A thrown error becomes `{ error }` for the model. */
   runTool: (name: string, args: unknown) => unknown | Promise<unknown>;
   fetch: ChatFetch;
@@ -255,13 +262,14 @@ async function runOnProvider(deps: ChatTurnDeps, provider: ResolvedChatProvider,
   const payload: unknown[] = [...deps.buildMessages({ id: provider.id, model: provider.model })];
   let toolTurn = 0;
 
+  let finalRound = false;
   while (toolTurn < deps.maxTurns) {
     toolTurn++;
     // Tools stay available on every round except the last: a model that asks
     // for cities one at a time can call again in round two (without tools it
     // called anyway and Groq returned tool_use_failed, 24 Sep). The last round
     // has no tools, so the model must write the answer.
-    const tools = deps.tools.length > 0 && toolTurn < deps.maxTurns ? deps.tools : undefined;
+    const tools = deps.tools.length > 0 && toolTurn < deps.maxTurns && !finalRound ? deps.tools : undefined;
     const body = JSON.stringify(buildChatRequestBody(provider, { messages: payload, tools }));
     const res = await postWithRateLimit(deps, provider, body, toolTurn, hasNextProvider);
     const textBeforeRound = state.accumulatedText.length;
@@ -333,6 +341,7 @@ async function runOnProvider(deps: ChatTurnDeps, provider: ResolvedChatProvider,
     }
 
     metrics.tool_rounds++;
+    if (toolCalls.some((tc) => deps.finalRoundAfter?.includes(tc.function.name))) finalRound = true;
     metrics.tool_calls += toolCalls.length;
     deps.sendEvent({
       type: "tool_call",

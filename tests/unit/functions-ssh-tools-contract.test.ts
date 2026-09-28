@@ -571,7 +571,9 @@ describe("production offers no SSH tools", () => {
   it("does not send SSH tool definitions to the model or run placeholder results", () => {
     // There is no SSH connection behind these tools in production; they used
     // to return canned output that Alfred presented as real server state.
-    expect(/(?:let|const) activeTools = \[([^\]]*)\]/.exec(source)?.[1]?.trim()).toBe("TIME_TOOL_DEFINITION");
+    const activeLine = /const activeTools = [^\n]*/.exec(source)?.[0] ?? "";
+    expect(activeLine).toContain("TIME_TOOL_DEFINITION");
+    expect(activeLine).not.toMatch(/SSH/);
     expect(source).not.toContain("ssh-tool-definitions.js");
     expect(source).not.toContain("ssh-placeholder");
     expect(source).not.toMatch(/SSH_\w*TOOL_DEFINITION/);
@@ -582,7 +584,7 @@ describe("production offers no SSH tools", () => {
 
   it("answers an unexpected SSH tool call with the generic not-recognized error", () => {
     expect(source).toMatch(
-      /const runTool = \(fnName, fnArgs\) => \{\n\s*if \(fnName === "get_current_time"\) \{\n\s*return runGetCurrentTimeTool\(fnArgs\);\n\s*\}\n\s*return \{ error: `Tool \$\{fnName\} not recognized\.` \};/
+      /const runTool = async \(fnName, fnArgs\) => \{\n\s*if \(fnName === "get_current_time"\) \{\n\s*return runGetCurrentTimeTool\(fnArgs\);\n\s*\}\n\s*if \(fnName === "web_search" && webSearchEnabled\) \{\n[^\n]*\n\s*\}\n\s*return \{ error: `Tool \$\{fnName\} not recognized\.` \};/
     );
   });
 

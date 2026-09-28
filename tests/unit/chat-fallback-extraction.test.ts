@@ -151,7 +151,7 @@ describe("functions/index.js secrets", () => {
   it("binds the Cerebras and OpenRouter keys to the api function", () => {
     expect(index).toContain('const CEREBRAS_API_KEY = defineSecret("CEREBRAS_API_KEY");');
     expect(index).toContain('const OPENROUTER_API_KEY = defineSecret("OPENROUTER_API_KEY");');
-    expect(index).toContain("secrets: [GROQ_API_KEY, GEMINI_API_KEY, CEREBRAS_API_KEY, OPENROUTER_API_KEY]");
+    expect(index).toContain("secrets: [GROQ_API_KEY, GEMINI_API_KEY, CEREBRAS_API_KEY, OPENROUTER_API_KEY, TAVILY_API_KEY]");
     expect(index).toContain('cerebras: gizliOku(CEREBRAS_API_KEY, "CEREBRAS_API_KEY"),');
     expect(index).toContain('openrouter: gizliOku(OPENROUTER_API_KEY, "OPENROUTER_API_KEY")');
   });

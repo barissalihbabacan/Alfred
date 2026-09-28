@@ -28,7 +28,9 @@ This page lists the candidate features, what each one needs from Barış, and a 
 
 ## Candidates
 
-### 1. Web search
+### 1. Web search — done (28 Sep 2026)
+Implemented as `web_search` with Tavily (free plan: 1,000 basic searches a month, no card); see CLAUDE.md "Web search". The notes below are the original plan.
+
 - **Value:** High. Current events and fact checks, which Alfred cannot do today.
 - **Effort:** Small (about half a day).
 - **Needs from Barış:** a provider choice and its API key:
@@ -88,7 +90,7 @@ This page lists the candidate features, what each one needs from Barış, and a 
 
 ## Suggested order
 
-1. **Web search.** It is the smallest change with the largest capability gain, and needs only one API key.
+1. ~~**Web search.**~~ Done (Tavily).
 2. **Calendar (read-only).** It sets up the OAuth plumbing that Gmail reuses.
 3. **Gmail (read-only).**
 4. **Scheduled morning brief.** It combines 1–3.
@@ -96,7 +98,6 @@ This page lists the candidate features, what each one needs from Barış, and a 
 
 ## Decisions to bring to the session
 
-- Web search provider (and key).
 - Whether to set up the Google OAuth consent screen now (Calendar and Gmail).
 - The delivery channel for scheduled briefings.
 - Whether to enable App Check enforcement: check `app_check` on recent `llm_request` logs first; if it is consistently `valid`, set `ENFORCE_APP_CHECK=true`.

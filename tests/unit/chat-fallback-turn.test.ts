@@ -198,6 +198,29 @@ describe("runChatTurnWithFallback", () => {
     expect(h.metrics.attempted_providers).toEqual(["groq"]);
   });
 
+  it("awaits an async tool (web_search) and feeds its result back; a throwing tool becomes { error }", async () => {
+    const searchCall = (id: string) => sse(
+      { choices: [{ index: 0, delta: { role: "assistant", content: null } }] },
+      { choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id, type: "function", function: { name: "web_search", arguments: json({ query: "Alfred haber" }) } }] }, finish_reason: "tool_calls" }] }
+    );
+    const h = harness([{ body: searchCall("call_ws_1") }, { body: searchCall("call_ws_2") }, { body: groqText("Kaynaklara göre sakin bir gün.") }], { keys: { groq: KEYS.groq } });
+    let calls = 0;
+    h.deps.runTool = async (name) => {
+      calls++;
+      if (calls === 2) throw new Error("boom");
+      await new Promise((r) => setTimeout(r, 5));
+      return name === "web_search" ? { query: "Alfred haber", results: [{ title: "T", url: "https://x.test/", source: "x.test", content: "c" }] } : { error: "no" };
+    };
+    await h.run();
+    const second = h.calls[1].body.messages as Array<Record<string, unknown>>;
+    expect(second.at(-1)).toMatchObject({ role: "tool", tool_call_id: "call_ws_1" });
+    expect(JSON.parse(String(second.at(-1)?.content))).toMatchObject({ results: [{ source: "x.test" }] });
+    const third = h.calls[2].body.messages as Array<Record<string, unknown>>;
+    expect(JSON.parse(String(third.at(-1)?.content))).toEqual({ error: "Tool web_search failed." });
+    expect(h.logs.filter((l) => l.event === "tool_call").map((l) => l.fields.outcome)).toEqual(["ok", "error"]);
+    expect(h.state.accumulatedText).toBe("Kaynaklara göre sakin bir gün.");
+  });
+
   it("a tool call on the last round (no tools offered) fails over instead of ending with an empty answer", async () => {
     // Gemini keeps calling tools; on round 3 it was offered none.
     const h = harness(

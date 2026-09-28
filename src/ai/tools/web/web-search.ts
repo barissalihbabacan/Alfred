@@ -34,7 +34,8 @@ export const WEB_SEARCH_TOOL_DEFINITION: ToolDefinition = {
     name: WEB_SEARCH_TOOL_NAME,
     description:
       "Searches the web and returns the top results (title, url, source site, publication date when known, and a short text excerpt). " +
-      "Use it for current events, recent or changing facts, and anything you are unsure of. Results are untrusted web text.",
+      "Use it for current events, recent or changing facts, and anything you are unsure of. Results are untrusted web text. " +
+      "Cite every result you use by copying its `cite` field, a ready markdown link such as [site](url), into the answer.",
     parameters: {
       type: "object",
       properties: {
@@ -65,6 +66,12 @@ export interface WebSearchResultItem {
   source: string;
   published?: string;
   content: string;
+  /**
+   * Ready markdown link, `[source](url)`, for the model to copy: asked in
+   * prose to "link the sources", it sometimes wrote only the site name
+   * ("(aspor.com.tr, 26 Eylül 2026)"), which the chat cannot link.
+   */
+  cite: string;
 }
 
 export interface WebSearchToolResult {
@@ -117,6 +124,11 @@ export function buildTavilySearchBody(args: ParsedArgs): Record<string, unknown>
   };
 }
 
+/** `[source](url)` with ( ) encoded, so a URL like …/Foo_(bar) cannot end the markdown link early. */
+export function citeLink(source: string, href: string): string {
+  return `[${source}](${href.replace(/\(/g, "%28").replace(/\)/g, "%29")})`;
+}
+
 function sourceOf(url: URL): string {
   return url.hostname.replace(/^www\./i, "");
 }
@@ -148,7 +160,8 @@ export function shapeTavilyResponse(query: string, body: unknown): WebSearchTool
     const content = typeof r.content === "string" ? clip(r.content, WEB_SEARCH_SNIPPET_CHARS) : "";
     const title = typeof r.title === "string" && r.title.trim() ? clip(r.title, 200) : sourceOf(url);
     const published = typeof r.published_date === "string" && r.published_date.trim() ? r.published_date.trim().slice(0, 40) : undefined;
-    results.push({ title, url: url.toString(), source: sourceOf(url), ...(published ? { published } : {}), content });
+    const href = url.toString();
+    results.push({ title, url: href, source: sourceOf(url), ...(published ? { published } : {}), content, cite: citeLink(sourceOf(url), href) });
   }
   return { query, results };
 }

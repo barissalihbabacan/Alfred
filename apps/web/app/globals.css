@@ -194,6 +194,9 @@
   .code-content {
     @apply overflow-x-auto p-3.5 font-[monospace] text-[13px] leading-normal text-[#e6edf3];
   }
+  .md-link {
+    @apply break-words text-gold-light underline decoration-gold/50 underline-offset-2 hover:text-gold;
+  }
   .inline-code {
     @apply rounded-sm bg-white/10 px-1.5 py-0.5 font-[monospace] text-[13px] text-[#f6d899];
   }

@@ -33,6 +33,30 @@ function copyPayload(escapedCode: string): string {
   return encodeURIComponent(unescapeHtml(escapedCode)).replace(/'/g, "%27");
 }
 
+/**
+ * A bare http(s) URL in HTML-escaped text: it ends at whitespace or at an
+ * escaped quote / angle bracket (&quot; &#39; &lt; &gt;).
+ */
+const BARE_URL = /https?:\/\/(?:(?!&quot;|&#39;|&lt;|&gt;)[^\s])+/g;
+
+/** Punctuation after a URL ("see https://x.com/a." or "(https://x.com)") is not part of it. */
+function splitTrailing(match: string): { url: string; trailing: string } {
+  let url = match;
+  let trailing = "";
+  for (;;) {
+    const last = url.slice(-1);
+    if (/[.,;:!?]/.test(last)) {
+      trailing = last + trailing;
+      url = url.slice(0, -1);
+    } else if (last === ")" && (url.match(/\(/g)?.length ?? 0) < (url.match(/\)/g)?.length ?? 0)) {
+      trailing = last + trailing;
+      url = url.slice(0, -1);
+    } else {
+      return { url, trailing };
+    }
+  }
+}
+
 export function renderMarkdown(text: string): string {
   if (!text) return "";
 
@@ -68,6 +92,22 @@ export function renderMarkdown(text: string): string {
     const idx = inlineCodes.length;
     inlineCodes.push(`<code class="inline-code">${c}</code>`);
     return `§§INLINECODE${idx}§§`;
+  });
+
+  // Links: [label](https://…) and bare http(s) URLs. Protected like code, so
+  // bold/italic rules never touch a URL. Only http(s) becomes a link (no
+  // javascript: or data:), and the text is already HTML-escaped, so the URL
+  // cannot leave the href attribute.
+  const links: string[] = [];
+  const protectLink = (label: string, url: string) => {
+    const idx = links.length;
+    links.push(`<a href="${url}" target="_blank" rel="noopener noreferrer" class="md-link">${label}</a>`);
+    return `§§LINK${idx}§§`;
+  };
+  html = html.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, (_m, label: string, url: string) => protectLink(label, url));
+  html = html.replace(BARE_URL, (match: string) => {
+    const { url, trailing } = splitTrailing(match);
+    return protectLink(url, url) + trailing;
   });
 
   // Bold + Italic: ***text***
@@ -127,7 +167,8 @@ export function renderMarkdown(text: string): string {
     return `<p>${trimmed.replace(/\n/g, "<br/>")}</p>`;
   }).join("");
 
-  // Restore protected code blocks & inline codes
+  // Restore protected code blocks, inline codes and links
+  html = html.replace(/§§LINK(\d+)§§/g, (_m, idx) => links[Number(idx)]);
   html = html.replace(/§§INLINECODE(\d+)§§/g, (_m, idx) => inlineCodes[Number(idx)]);
   html = html.replace(/§§CODEBLOCK(\d+)§§/g, (_m, idx) => codeBlocks[Number(idx)]);
 

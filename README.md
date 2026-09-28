@@ -18,37 +18,40 @@
 - **Hatırlar.** "Yeşil elma suyunu severim" gibi kalıcı bilgileri kendiliğinden kaydeder ve sonraki konuşmalarda kullanır. API anahtarı ya da şifre içeren bilgileri kaydetmez.
 - **İtiraz eder.** Üretim veritabanını silmek gibi geri dönüşü olmayan bir öneriye "Hayır, Barış Bey" der ve nedenini açıklar.
 - **Saati bilir.** Tek soruda altı şehre kadar yerel saati söyler; "Londra", "Sidney" gibi Türkçe adları anlar.
-- **Uydurmaz.** Henüz bağlı olmayan bir şey sorulursa (sunucu, takvim, e-posta, web araması) bunu açıkça söyler.
+- **Web'de arar.** Güncel haberler ve değişen bilgiler için Tavily ile arar; soru başına bir arama yapar ve kullandığı kaynakları bağlantı olarak verir.
+- **Uydurmaz.** Henüz bağlı olmayan bir şey sorulursa (sunucu, takvim, e-posta) bunu açıkça söyler.
 
 ### Canlıda doğrulanan davranışlar
 
-Aşağıdakiler 24 Eylül 2026'da canlı sistemde, gerçek konuşmalarla ve loglarla doğrulandı:
+Aşağıdakiler canlı sistemde, gerçek konuşmalarla ve loglarla doğrulandı (24 ve 28 Eylül 2026):
 
 | Barış'ın mesajı | Alfred'in cevabı |
 | :--- | :--- |
 | *Prod veritabanını silelim mi?* | "Hayır, Barış Bey. Üretim veritabanını silmek, geri dönüşü olmayan veri kaybına ve hizmet kesintilerine yol açar…" |
 | *Londra, Tokyo ve Sidney'de saat kaç?* | Tek araç çağrısı (`["Londra","Tokyo","Sidney"]`) → "Londra'da saat 14:03, Tokyo'da 22:03 ve Sidney'de 23:03." |
 | *Remember that I love the green apple juice* | Bellek kaydı: `"Barış loves green apple juice" (user_preference)` |
+| *Bu hafta teknoloji dünyasında öne çıkan üç haber ne? Kısaca, kaynaklarıyla.* | Tek web araması (Tavily, 5 sonuç) → "Meta ve Microsoft'un hisse performansı yükseldi – CNBC…" ve iki haber daha; her birinin kaynağı bağlantı olarak. ~4,7 sn, cevap akarak geldi. |
 
-Henüz **yapamadıkları**: takvim, e-posta, web araması ve ev sunucusuna erişim. Hangisinin ne gerektirdiği [yol haritasında](docs/FEATURE_ROADMAP.md) yazıyor.
+Henüz **yapamadıkları**: takvim, e-posta ve ev sunucusuna erişim. Hangisinin ne gerektirdiği [yol haritasında](docs/FEATURE_ROADMAP.md) yazıyor.
 
 ## Nasıl çalışır?
 
 <p align="center">
-  <img src="./assets/readme/architecture.svg" width="100%" alt="Bir mesajın yolculuğu: tarayıcı, api fonksiyonu, model zinciri (Groq, Gemini, OpenRouter) ve akışlı cevap; arka planda istem, saat aracı ve bellek.">
+  <img src="./assets/readme/architecture.svg" width="100%" alt="Bir mesajın yolculuğu: tarayıcı, api fonksiyonu, model zinciri (Groq, Gemini, OpenRouter) ve akışlı cevap; arka planda istem, saat ve web araması araçları ve bellek.">
 </p>
 
 1. **Tarayıcı.** `apps/web` statik olarak derlenen bir Next.js uygulamasıdır; Firebase Hosting'den sunulur ve kendi sunucusu yoktur. Google ile girişten sonra her isteğe Firebase ID token'ı ve App Check token'ı ekler.
 2. **api fonksiyonu.** `functions/index.js` tek giriş noktasıdır. Geçerli bir ID token ve izinli tek UID olmadan, ya da App Check token'ı olmadan hiçbir isteği kabul etmez. API anahtarları yalnızca Secret Manager'dadır; tarayıcı hiçbir anahtar görmez.
 3. **Model zinciri.** Önce Groq `gpt-oss-120b` denenir. Groq sınıra çarparsa ya da hata verirse, kullanıcıya henüz metin gönderilmemişse, sırayla Gemini `gemini-3.8-flash` ve OpenRouter devreye girer. Cevap veren model istemde de adıyla belirtilir.
-4. **Akışlı cevap.** Cevap Server-Sent Events ile parça parça gelir; beklemeler, sınıra çarpma ve sağlayıcı değişimi arayüzde görünür.
+4. **Akışlı cevap.** Cevap Server-Sent Events ile parça parça gelir; web araması, beklemeler, sınıra çarpma ve sağlayıcı değişimi arayüzde görünür. Firebase Hosting yanıtları tamponladığı için sohbet isteği Hosting'i atlayıp doğrudan fonksiyona gider.
 
 Her mesajda arka planda:
 
-- **İstem** kâhya personasından, `users/*.md` profilinin gözden geçirilmiş bir özetinden ve konuyla ilgili anılardan kurulur (~2.100 token).
+- **İstem** kâhya personasından, `users/*.md` profilinin gözden geçirilmiş bir özetinden ve konuyla ilgili anılardan kurulur (~2.400 token).
+- **Web araması:** Model gerektiğinde `web_search` aracını çağırır. Tavily'den en fazla 5 sonuç gelir, soru başına tek arama yapılır ve sonuçlar güvenilmeyen veri olarak işlenir: içlerindeki talimatlar uygulanmaz.
 - **Bellek:** Konuşmadan kalıcı bilgiler ayrı bir modelle (`gpt-oss-20b`, gerekirse Gemini) çıkarılır, gizli bilgi filtresinden geçer, `gemini-embedding-001` ile vektöre çevrilir ve Firestore'a yazılır.
 
-`functions/` kodu, `src/` altındaki TypeScript çekirdeğini esbuild ile paketleyerek kullanır. İstem, bellek kuralları, saat aracı ve sağlayıcı zinciri tek yerde yazılır ve testlerle sabitlenir. Ayrıntılar: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+`functions/` kodu, `src/` altındaki TypeScript çekirdeğini esbuild ile paketleyerek kullanır. İstem, bellek kuralları, saat ve web araması araçları ve sağlayıcı zinciri tek yerde yazılır ve testlerle sabitlenir. Ayrıntılar: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Hızlı başlangıç
 

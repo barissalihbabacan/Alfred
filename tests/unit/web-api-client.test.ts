@@ -28,6 +28,29 @@ describe("Web API client (apps/web/lib/api.ts)", () => {
     expect(init.method).toBe("GET");
   });
 
+  it("sends streaming requests straight to the function (Hosting buffers them), with the same auth headers", async () => {
+    const deps = makeDeps({ streamBase: "https://us-central1-example.cloudfunctions.net/api" });
+    await apiFetch("/chat", { method: "POST", stream: true, body: "{}" }, deps);
+    const [url, init] = deps.fetchImpl.mock.calls[0];
+    expect(url).toBe("https://us-central1-example.cloudfunctions.net/api/chat");
+    const headers = init.headers as Headers;
+    expect(headers.get("Authorization")).toBe("Bearer id-token-123");
+    expect(headers.get("X-Firebase-AppCheck")).toBe("app-check-456");
+    expect(init).not.toHaveProperty("stream");
+
+    // Everything else keeps going through the Hosting rewrite.
+    await apiFetch("/chat?conversationId=c", {}, deps);
+    expect(deps.fetchImpl.mock.calls[1][0]).toBe("/api/chat?conversationId=c");
+  });
+
+  it("uses the production function URL only in a production build", async () => {
+    const { STREAM_API_BASE } = await import("../../apps/web/lib/api.js");
+    // vitest runs with NODE_ENV=test, like next dev: stay on the /api proxy.
+    expect(STREAM_API_BASE).toBe("/api");
+    const source = (await import("node:fs")).readFileSync(new URL("../../apps/web/lib/api.ts", import.meta.url), "utf8");
+    expect(source).toContain('process.env.NODE_ENV === "production" ? "https://us-central1-butler-alfred.cloudfunctions.net/api" : API_BASE');
+  });
+
   it("refuses to call an authenticated endpoint before the session is restored", async () => {
     const deps = makeDeps({ getUser: () => null });
 

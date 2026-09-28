@@ -1,0 +1,39 @@
+{
+  "displayName": "Alfred: web search errors",
+  "documentation": {
+    "subject": "[Alfred] Web araması hataları",
+    "mimeType": "text/markdown",
+    "content": "1 saatte 3 veya daha fazla başarısız `web_search` çağrısı. Alfred bu sorularda web sonucu olmadan cevap veriyor. Log: `jsonPayload.event=\"tool_call\" jsonPayload.tool=\"web_search\" jsonPayload.outcome=\"error\"`. En olası neden Tavily'nin aylık 1.000 kredilik kotasının dolması ya da anahtarın geçersiz olması.\n\nRunbook: docs/OPERATIONS.md (Uyarılar ve runbook)."
+  },
+  "userLabels": {
+    "managed_by": "alfred-setup-alerts",
+    "alfred_alert": "web_search_errors"
+  },
+  "severity": "WARNING",
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "Alfred: web search errors",
+      "conditionThreshold": {
+        "filter": "metric.type=\"logging.googleapis.com/user/alfred_web_search_errors\" AND resource.type=\"cloud_run_revision\"",
+        "aggregations": [
+          {
+            "alignmentPeriod": "3600s",
+            "perSeriesAligner": "ALIGN_SUM",
+            "crossSeriesReducer": "REDUCE_SUM"
+          }
+        ],
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 2,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        }
+      }
+    }
+  ],
+  "alertStrategy": {
+    "autoClose": "3600s"
+  },
+  "enabled": true
+}

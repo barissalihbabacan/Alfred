@@ -60,14 +60,14 @@
       <text x="24" y="44" font-size="22" font-weight="600" fill="#F4EFE3">İstem</text>
       <text x="24" y="82" font-size="20" fill="#C8CEDA">kâhya personası</text>
       <text x="24" y="112" font-size="20" fill="#C8CEDA">+ profil özeti (users/*.md)</text>
-      <text x="24" y="142" font-size="20" fill="#C8CEDA">+ ilgili anılar · ~2.100 token</text>
+      <text x="24" y="142" font-size="20" fill="#C8CEDA">+ ilgili anılar · ~2.400 token</text>
     </g>
     <g transform="translate(426 408)">
       <rect width="348" height="184" rx="16" fill="#131F33" stroke="#26344D"/>
-      <text x="24" y="44" font-size="22" font-weight="600" fill="#F4EFE3">Araç</text>
+      <text x="24" y="44" font-size="22" font-weight="600" fill="#F4EFE3">Araçlar</text>
       <text x="24" y="82" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="19" fill="#C9A45C">get_current_time</text>
-      <text x="24" y="112" font-size="20" fill="#C8CEDA">tek çağrıda 6 şehre kadar</text>
-      <text x="24" y="142" font-size="20" fill="#C8CEDA">Türkçe şehir adları</text>
+      <text x="24" y="112" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="19" fill="#C9A45C">web_search</text>
+      <text x="24" y="142" font-size="20" fill="#C8CEDA">Tavily · soru başına 1 arama</text>
     </g>
     <g transform="translate(804 408)">
       <rect width="348" height="184" rx="16" fill="#131F33" stroke="#26344D"/>

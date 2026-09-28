@@ -772,7 +772,7 @@ export const api = onRequest({
     // kurulur (buildMessagesFor), sunulmayan bir araci vaat etmez.
     const activeTools = webSearchEnabled ? [TIME_TOOL_DEFINITION, WEB_SEARCH_TOOL_DEFINITION] : [TIME_TOOL_DEFINITION];
     const MAX_TURNS = 3;
-    // Tur basina bir arama oturumu: ayni sorgu tekrar aranmaz, en fazla 2 arama;
+    // Tur basina bir arama oturumu: ayni sorgu tekrar aranmaz, en fazla 1 arama;
     // yedek saglayiciya gecilince tur bastan baslasa da yeni kredi harcanmaz.
     const webSearch = webSearchEnabled
       ? createTurnWebSearch({ apiKey: tavilyKey, fetch: (url, init) => fetch(url, init) })
@@ -796,6 +796,9 @@ export const api = onRequest({
           buildMessages: buildMessagesFor,
           tools: activeTools,
           maxTurns: MAX_TURNS,
+          // Arama sonrasi tur aracsiz: model elindeki sonucla cevap verir
+          // (ikinci arama turu Groq'un dakikalik token sinirini asiyordu).
+          finalRoundAfter: ["web_search"],
           runTool,
           fetch: (url, init) => fetch(url, init),
           sendEvent,

@@ -143,24 +143,29 @@ describe("web_search tool (src/ai/tools/web/web-search.ts)", () => {
       expect(again).toEqual({ ...first, reused: "same_query" });
     });
 
-    it(`spends at most ${WEB_SEARCHES_PER_TURN} searches; later calls get the latest results back`, async () => {
-      const m = counting([reply("one"), reply("two"), reply("three")]);
+    it(`spends at most ${WEB_SEARCHES_PER_TURN} search; a provider restart gets those results back`, async () => {
+      expect(WEB_SEARCHES_PER_TURN).toBe(1);
+      const m = counting([reply("one"), reply("two")]);
       const search = createTurnWebSearch({ apiKey: KEY, fetch: m.fetch });
-      await search({ query: "q1" });
-      const second = await search({ query: "q2" });
-      // A provider restart asks again with its own wording: no third search.
-      const third = await search({ query: "q3 other wording" });
-      expect(m.queries).toEqual(["q1", "q2"]);
-      expect(third).toEqual({ ...second, reused: "turn_limit" });
+      const first = await search({ query: "q1" });
+      // The next provider asks again with its own wording: no second search.
+      const restart = await search({ query: "q2 other wording" });
+      expect(m.queries).toEqual(["q1"]);
+      expect(restart).toEqual({ ...first, reused: "turn_limit" });
+      // A larger budget is still honoured when asked for.
+      const two = counting([reply("a"), reply("b"), reply("c")]);
+      const search2 = createTurnWebSearch({ apiKey: KEY, fetch: two.fetch }, 2);
+      await search2({ query: "x" }); await search2({ query: "y" }); await search2({ query: "z" });
+      expect(two.queries).toEqual(["x", "y"]);
     });
 
     it("does not cache errors, and reports the limit when nothing was found", async () => {
       const m = counting([{ status: 500 }, { status: 500 }]);
       const search = createTurnWebSearch({ apiKey: KEY, fetch: m.fetch });
       expect(await search({ query: "q" })).toHaveProperty("error");
-      expect(await search({ query: "q" })).toHaveProperty("error");
+      // The failed search was not cached, but it used the turn's one search.
       expect(await search({ query: "q" })).toEqual({ error: "The web search limit for this question was reached." });
-      expect(m.count()).toBe(2);
+      expect(m.count()).toBe(1);
       expect(await search({})).toEqual({ error: "web_search needs a non-empty `query` string." });
     });
   });

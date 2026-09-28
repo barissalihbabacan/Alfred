@@ -181,8 +181,12 @@ export async function runWebSearchTool(args: unknown, options: WebSearchOptions)
   }
 }
 
-/** Searches one chat turn may spend, across tool rounds and provider restarts. */
-export const WEB_SEARCHES_PER_TURN = 2;
+/**
+ * Searches one chat turn may spend, across tool rounds and provider restarts.
+ * One: the round after a search offers no tools (finalRoundAfter), and a
+ * provider restart gets the same results back instead of a new search.
+ */
+export const WEB_SEARCHES_PER_TURN = 1;
 
 export interface WebSearchTurnResult extends WebSearchToolResult {
   /**
@@ -197,7 +201,7 @@ export interface WebSearchTurnResult extends WebSearchToolResult {
  * the user's message and the next model searches again; without this each
  * restart spent new credits (seen in production: one question, three
  * providers, six searches). The same query (case and spacing ignored) is
- * answered from the first result; once `maxSearches` searches were made,
+ * answered from the first result; once `maxSearches` searches (default 1) were made,
  * further calls get the latest results back, marked `reused`, instead of a
  * new search. Errors are not cached, so a failed search can be retried.
  */

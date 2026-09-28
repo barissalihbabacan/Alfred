@@ -221,6 +221,24 @@ describe("runChatTurnWithFallback", () => {
     expect(h.state.accumulatedText).toBe("Kaynaklara göre sakin bir gün.");
   });
 
+  it("finalRoundAfter: the round after a web_search offers no tools, so the model answers", async () => {
+    const searchCall = sse(
+      { choices: [{ index: 0, delta: { role: "assistant", content: null } }] },
+      { choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: "ws1", type: "function", function: { name: "web_search", arguments: json({ query: "q" }) } }] }, finish_reason: "tool_calls" }] }
+    );
+    const h = harness([{ body: searchCall }, { body: groqText("Cevap.") }], { keys: { groq: KEYS.groq } });
+    h.deps.finalRoundAfter = ["web_search"];
+    h.deps.runTool = async () => ({ query: "q", results: [] });
+    await h.run();
+    expect(h.calls.map((c) => "tools" in c.body)).toEqual([true, false]);
+    expect(h.state.accumulatedText).toBe("Cevap.");
+    // get_current_time rounds are unaffected: tools stay on until the last round.
+    const t = harness([{ body: groqToolCall(["Tokyo"]) }, { body: groqToolCall(["Londra"]) }, { body: groqText("Tamam.") }]);
+    t.deps.finalRoundAfter = ["web_search"];
+    await t.run();
+    expect(t.calls.map((c) => "tools" in c.body)).toEqual([true, true, false]);
+  });
+
   it("a tool call on the last round (no tools offered) fails over instead of ending with an empty answer", async () => {
     // Gemini keeps calling tools; on round 3 it was offered none.
     const h = harness(

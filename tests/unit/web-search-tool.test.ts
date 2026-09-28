@@ -4,6 +4,8 @@ import {
   WEB_SEARCH_MAX_RESULTS,
   WEB_SEARCH_SNIPPET_CHARS,
   WEB_SEARCH_TOOL_DEFINITION,
+  WEB_SEARCHES_PER_TURN,
+  createTurnWebSearch,
   parseWebSearchArgs,
   runWebSearchTool,
   shapeTavilyResponse
@@ -117,5 +119,49 @@ describe("web_search tool (src/ai/tools/web/web-search.ts)", () => {
   it("copes with an unexpected response shape", () => {
     expect(shapeTavilyResponse("q", null)).toEqual({ query: "q", results: [] });
     expect(shapeTavilyResponse("q", { results: "nope" })).toEqual({ query: "q", results: [] });
+  });
+
+  describe("createTurnWebSearch (one turn, across tool rounds and provider restarts)", () => {
+    function counting(replies: Array<{ status?: number; body?: unknown }>) {
+      let n = 0;
+      const queries: string[] = [];
+      const fetch = async (_url: string, init: RequestInit) => {
+        queries.push(JSON.parse(String(init.body)).query);
+        const reply = replies[Math.min(n++, replies.length - 1)];
+        return new Response(JSON.stringify(reply.body ?? {}), { status: reply.status ?? 200 });
+      };
+      return { fetch, queries, count: () => n };
+    }
+    const reply = (q: string) => ({ body: { results: [{ title: q, url: `https://${q.replace(/\W+/g, "")}.test/`, content: q }] } });
+
+    it("answers a repeated query (case and spacing ignored) without a new search", async () => {
+      const m = counting([reply("a")]);
+      const search = createTurnWebSearch({ apiKey: KEY, fetch: m.fetch });
+      const first = await search({ query: "Teknoloji haberleri" });
+      const again = await search({ query: "  teknoloji   HABERLERI " });
+      expect(m.count()).toBe(1);
+      expect(again).toEqual({ ...first, reused: "same_query" });
+    });
+
+    it(`spends at most ${WEB_SEARCHES_PER_TURN} searches; later calls get the latest results back`, async () => {
+      const m = counting([reply("one"), reply("two"), reply("three")]);
+      const search = createTurnWebSearch({ apiKey: KEY, fetch: m.fetch });
+      await search({ query: "q1" });
+      const second = await search({ query: "q2" });
+      // A provider restart asks again with its own wording: no third search.
+      const third = await search({ query: "q3 other wording" });
+      expect(m.queries).toEqual(["q1", "q2"]);
+      expect(third).toEqual({ ...second, reused: "turn_limit" });
+    });
+
+    it("does not cache errors, and reports the limit when nothing was found", async () => {
+      const m = counting([{ status: 500 }, { status: 500 }]);
+      const search = createTurnWebSearch({ apiKey: KEY, fetch: m.fetch });
+      expect(await search({ query: "q" })).toHaveProperty("error");
+      expect(await search({ query: "q" })).toHaveProperty("error");
+      expect(await search({ query: "q" })).toEqual({ error: "The web search limit for this question was reached." });
+      expect(m.count()).toBe(2);
+      expect(await search({})).toEqual({ error: "web_search needs a non-empty `query` string." });
+    });
   });
 });

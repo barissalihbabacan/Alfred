@@ -27,8 +27,9 @@ scripts/monitoring/
 | Alfred: rate-limit give-ups | WARNING | ≥ 3 `llm_rate_limited` give-ups (`daily_limit` / `max_attempts` / `budget_exhausted`) in 30 min | `alfred_rate_limit_giveups` |
 | Alfred: Gemini embedding errors | WARNING | ≥ 3 `embedding_error` in 30 min | `alfred_embedding_errors` |
 | Alfred: memory extraction failing | WARNING | ≥ 3 `memory_extraction` with `outcome` `failed` / `timeout` in 1 h | `alfred_memory_extraction_failures` |
+| Alfred: web search errors | WARNING | ≥ 3 `tool_call` with `tool="web_search"` and `outcome="error"` in 1 h | `alfred_web_search_errors` |
 
-All policies use a sliding window (`ALIGN_SUM` over the window, `COMPARISON_GT`), fire on the first matching window (`duration: "0s"`), and auto-close after 30 min (deploy failures and memory extraction: 1 h). They set no `evaluationMissingData`: Cloud Monitoring rejects it on a zero-duration condition, so an incident stays open until the errors are gone for the auto-close period. Each email carries a short Turkish summary and the log query to start from (the `documentation` block of the policy).
+All policies use a sliding window (`ALIGN_SUM` over the window, `COMPARISON_GT`), fire on the first matching window (`duration: "0s"`), and auto-close after 30 min (deploy failures, memory extraction and web search: 1 h). They set no `evaluationMissingData`: Cloud Monitoring rejects it on a zero-duration condition, so an incident stays open until the errors are gone for the auto-close period. Each email carries a short Turkish summary and the log query to start from (the `documentation` block of the policy).
 
 ### What the metrics count
 
@@ -177,6 +178,9 @@ Sağlayıcı SSE akışı içinde hata nesnesi döndü. `llm_stream_error` kayd�
 
 ### Gemini embedding hataları (WARNING)
 Uzun süreli hafıza okuması/yazması embedding olmadan çalışıyor. `embedding_error` kaydındaki `http_status`: 429 kota, 400/403 anahtar veya model (`gemini-embedding-001`) sorunudur. `GEMINI_API_KEY` secret'ını ve Google AI Studio kotasını kontrol edin. Üretimde embedding alınamayan turdan hafıza kaydı yazılmaz; düzeldikten sonra ek bir işlem gerekmez.
+
+### Web araması hataları (WARNING)
+Alfred bu sorularda web sonucu olmadan cevap veriyor (hatayı modele kısa bir mesaj olarak iletir, cevap yine gelir). En olası nedenler: Tavily'nin aylık 1.000 kredilik ücretsiz kotası doldu ya da hız sınırına takıldı (Tavily 429 / 432 / 433), anahtar geçersiz (401 / 403) ya da Tavily yanıt vermiyor. Kullanımı ve kalan krediyi Tavily panelinden kontrol edin. Anahtar sorunuysa yeni anahtar üretip `firebase functions:secrets:set TAVILY_API_KEY` ile kaydedin ve functions'ı yeniden deploy edin (secret yeni sürümüyle bağlanır). Kota dolduysa ay başında kendiliğinden düzelir. Web aramasını geçici olarak kapatmak için secret'ı `unset` yapıp deploy edin: araç sunulmaz ve persona web aramasını "bağlı değil" olarak anlatır.
 
 ### Hafıza çıkarımı başarısız (WARNING)
 Sohbet etkilenmez; yalnızca bu turlardan yeni hafıza yazılmaz. Aynı zamandaki `memory_extraction_provider_error` (sağlayıcı, `http_status`, `limit_type`) ve `memory_extraction_parse_error` kayıtlarına bakın. Genelde Groq 429'dur (`MEMORY_EXTRACTION_MODEL`, varsayılan `openai/gpt-oss-20b`) ve kendiliğinden düzelir; `timeout` ise çıkarım bütçesi aşılıyor demektir.

@@ -65,17 +65,17 @@ describe("Canonical User Profile Layer", () => {
     const prompt = getAlfredSystemPrompt();
 
     // Persona anchors must remain present
-    expect(prompt).toContain("B.U.T.L.E.R. Alfred");
-    expect(prompt).toContain("British gentleman");
-    expect(prompt).toContain("British English");
-    expect(prompt).toContain("NEVER use colloquial slang");
+    expect(prompt).toContain("You are Alfred (B.U.T.L.E.R.:");
+    expect(prompt).toContain("an intellectual peer, never servile");
+    expect(prompt).toContain("English replies use British spelling");
+    expect(prompt).toContain("NEVER use slang");
     expect(prompt).toContain("calmly and firmly push back");
   });
 
   it("5. should not allow user profile to replace or override the Alfred persona", () => {
     // Both sections must coexist with the persona preceding the profile
     const prompt = getAlfredSystemPrompt();
-    const personaIndex = prompt.indexOf("You are B.U.T.L.E.R. Alfred");
+    const personaIndex = prompt.indexOf("You are Alfred (B.U.T.L.E.R.:");
     const profileIndex = prompt.indexOf("=== CANONICAL USER PROFILE");
 
     expect(personaIndex).toBeGreaterThanOrEqual(0);

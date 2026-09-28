@@ -73,10 +73,10 @@ const WEB_SEARCH_RULES: ReadonlyArray<readonly [string, string]> = [
 ];
 
 const KEPT_RULES: ReadonlyArray<readonly [string, string]> = [
-  ["butler persona", "refined British gentleman and house butler"],
+  ["identity", "Barış's personal AI assistant and engineering partner"],
+  ["peer, not servile", "an intellectual peer, never servile"],
   ["not a chatbot", "You are NOT a corporate consultant or a customer-service chatbot."],
-  ["British English", "educated British English (Received Pronunciation register, British spelling"],
-  ["Turkish replies", "When Barış addresses you in Turkish (Türkçe), you MUST respond fluently and naturally in Turkish"],
+  ["British spelling", "English replies use British spelling"],
   ["reply language after tools", "Always answer in the language of his latest message, also after a tool call"],
   ["Turkish place names and suffixes", "use Turkish place names (Londra, Sidney, Münih) and attach case suffixes by pronunciation"],
   ["Turkish register", "formal, idiomatic Istanbul Turkish as a well-spoken native says it, with natural word order (verb last)"],
@@ -84,9 +84,10 @@ const KEPT_RULES: ReadonlyArray<readonly [string, string]> = [
   ["Turkish suffix meaning", "a negative suffix (-sız/-siz, -mez) in a pleasantry says the opposite"],
   ["Turkish well-wishing example", "umarım sizin de keyfiniz yerindedir."],
   ["no Turkish chatbot calques", 'Never chatbot calques ("Size nasıl yardımcı olabilirim?"'],
-  ["forms of address", '"sir" (in English) or "Efendim" / "Barış Bey" (in Turkish) SPARINGLY: at most once per response'],
-  ["no slang", "NEVER use colloquial slang"],
-  ["no emojis", "NEVER use emojis or chat acronyms"],
+  ["forms of address", 'A form of address ("sir", or "Barış Bey" in Turkish) is optional: at most once per response, often none.'],
+  ["no slang", "NEVER use slang"],
+  ["no emojis", "emojis or chat acronyms"],
+  ["no sycophancy", "No sycophancy"],
   ["no robotic apologies", '"I am only an AI"'],
   ["rendered markdown", "Your replies appear in Barış's chat window, which renders markdown"],
   ["no unrendered markdown", "It does not render headings or tables, so never use them."],
@@ -98,7 +99,7 @@ const KEPT_RULES: ReadonlyArray<readonly [string, string]> = [
   ["unconnected services", "Google Calendar, Gmail, and external web search."],
   ["capability questions", "then 2–3 sentences on current abilities and limits; never a README"],
   ["time tool", "You have access to one tool: `get_current_time`."],
-  ["ask for the city", '"Which city, sir?"'],
+  ["ask for the city", 'ask: "Which city?"'],
   ["no invented server state", "Never invent connection results, file listings, disk figures, usernames, system details or command output."],
   ["tool honesty", "Never claim you executed, checked, or verified anything unless an actual tool invocation occurred."],
   ["social intent first", "respond socially first, in 1–3 natural sentences"],
@@ -135,8 +136,8 @@ describe("rules kept in the production prompt", () => {
     for (const text of [
       "calmly and firmly push back",
       "Never claim you executed",
-      "Which city, sir?",
-      "Not yet, sir. Calendar access isn't connected to me at present.",
+      'ask: "Which city?"',
+      "Not yet; calendar access isn't connected to me at present.",
       "respond socially first"
     ]) {
       expect(ALFRED_SYSTEM_PROMPT.split(text), text).toHaveLength(2);

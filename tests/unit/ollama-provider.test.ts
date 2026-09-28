@@ -212,7 +212,7 @@ describe("OllamaProvider Unit Tests", () => {
     const parsedBody = JSON.parse(mockFetch.mock.calls[0][1].body);
     expect(parsedBody.messages[0].role).toBe("system");
     expect(parsedBody.messages[0].content).toBe(canonicalPrompt);
-    expect(parsedBody.messages[0].content).toContain("You are B.U.T.L.E.R. Alfred");
+    expect(parsedBody.messages[0].content).toContain("You are Alfred (B.U.T.L.E.R.:");
   });
 
   describe("Health & Diagnostics", () => {

@@ -248,10 +248,8 @@ describe("3. capability line matches what production runs", () => {
   });
 
   it("keeps the unchanged persona rules (Turkish replies, forms of address, unconnected services)", () => {
-    expect(ALFRED_PERSONA_PROMPT).toContain(
-      "When Barış addresses you in Turkish (Türkçe), you MUST respond fluently and naturally in Turkish"
-    );
-    expect(ALFRED_PERSONA_PROMPT).toContain('"sir" (in English) or "Efendim" / "Barış Bey" (in Turkish)');
+    expect(ALFRED_PERSONA_PROMPT).toContain("Always answer in the language of his latest message, also after a tool call");
+    expect(ALFRED_PERSONA_PROMPT).toContain('A form of address ("sir", or "Barış Bey" in Turkish) is optional: at most once per response');
     expect(ALFRED_PERSONA_PROMPT).toContain("Google Calendar, Gmail, and external web search.");
   });
 });

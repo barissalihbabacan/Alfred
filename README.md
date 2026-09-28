@@ -10,7 +10,7 @@
   <a href="docs/FEATURE_ROADMAP.md">Yol haritası</a>
 </p>
 
-**Alfred**, Barış için yazılmış kişisel bir yapay zeka asistanıdır. İngiliz kâhyası üslubuyla konuşur, önemli bilgileri hatırlar ve riskli bir isteğe kibarca ama net bir şekilde itiraz eder. Tek kullanıcılıdır: yalnızca Barış'ın Google hesabıyla açılır.
+**Alfred**, Barış için yazılmış kişisel bir yapay zeka asistanıdır. Sakin ve kibar, eşit bir çalışma arkadaşı gibi konuşur, önemli bilgileri hatırlar ve riskli bir isteğe kibarca ama net bir şekilde itiraz eder. Tek kullanıcılıdır: yalnızca Barış'ın Google hesabıyla açılır.
 
 ## Alfred ne yapar?
 
@@ -47,7 +47,7 @@ Henüz **yapamadıkları**: takvim, e-posta ve ev sunucusuna erişim. Hangisinin
 
 Her mesajda arka planda:
 
-- **İstem** kâhya personasından, `users/*.md` profilinin gözden geçirilmiş bir özetinden ve konuyla ilgili anılardan kurulur (~2.400 token).
+- **İstem** Alfred personasından, `users/*.md` profilinin gözden geçirilmiş bir özetinden ve konuyla ilgili anılardan kurulur (~2.200 token).
 - **Web araması:** Model gerektiğinde `web_search` aracını çağırır. Tavily'den en fazla 5 sonuç gelir, soru başına tek arama yapılır ve sonuçlar güvenilmeyen veri olarak işlenir: içlerindeki talimatlar uygulanmaz.
 - **Bellek:** Konuşmadan kalıcı bilgiler ayrı bir modelle (`gpt-oss-20b`, gerekirse Gemini) çıkarılır, gizli bilgi filtresinden geçer, `gemini-embedding-001` ile vektöre çevrilir ve Firestore'a yazılır.
 

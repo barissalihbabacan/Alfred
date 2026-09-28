@@ -68,9 +68,10 @@ describe("monitoring definitions (scripts/monitoring)", () => {
       "alfred_llm_stream_errors",
       "alfred_memory_extraction_failures",
       "alfred_provider_fallbacks",
-      "alfred_rate_limit_giveups"
+      "alfred_rate_limit_giveups",
+      "alfred_web_search_errors"
     ]);
-    expect(policies.size).toBe(10);
+    expect(policies.size).toBe(11);
   });
 
   it("defines every metric as a DELTA INT64 counter whose labels all have extractors", () => {
@@ -107,6 +108,11 @@ describe("monitoring definitions (scripts/monitoring)", () => {
     expect(emittingSources).toMatch(/outcome: "invalid", path, exempt: isAppCheckExempt\(path\)/);
     expect(metrics.get("alfred_rate_limit_giveups")!.filter).toContain('NOT jsonPayload.outcome="retry"');
     expect(emittingSources).toMatch(/outcome: decision\.retry \? "retry" : decision\.reason/);
+    // web_search errors: the tool_call event carries the tool name and ok/error.
+    expect(metrics.get("alfred_web_search_errors")!.filter).toContain('jsonPayload.tool="web_search"');
+    expect(metrics.get("alfred_web_search_errors")!.filter).toContain('jsonPayload.outcome="error"');
+    expect(emittingSources).toMatch(/"tool_call", `Tool \$\{toolName\} \$\{toolOk \? "ok" : "error"\}`, \{\n\s*tool: toolName,\n\s*provider: provider\.id,/);
+    expect(emittingSources).toMatch(/outcome: toolOk \? "ok" : "error"/);
   });
 
   it("points every policy at a defined metric (or Cloud Run's request_count) and uses every metric", () => {

@@ -8,8 +8,10 @@ import {
   createTurnWebSearch,
   parseWebSearchArgs,
   runWebSearchTool,
-  shapeTavilyResponse
+  shapeTavilyResponse,
+  citeLink
 } from "../../src/ai/tools/web/web-search.js";
+import { renderMarkdown } from "../../apps/web/lib/markdown.js";
 
 const KEY = "tvly-test-secret-key";
 
@@ -78,7 +80,8 @@ describe("web_search tool (src/ai/tools/web/web-search.ts)", () => {
       url: "https://www.mgm.gov.tr/tahmin/il-ve-ilceler.aspx?il=Istanbul",
       source: "mgm.gov.tr",
       published: "2026-09-28",
-      content: "Bugün parçalı bulutlu, 22°C."
+      content: "Bugün parçalı bulutlu, 22°C.",
+      cite: "[mgm.gov.tr](https://www.mgm.gov.tr/tahmin/il-ve-ilceler.aspx?il=Istanbul)"
     });
     // Missing title falls back to the site; long text is cut with an ellipsis.
     expect(out.results[1].title).toBe("example.com");
@@ -114,6 +117,24 @@ describe("web_search tool (src/ai/tools/web/web-search.ts)", () => {
       expect((out as { error: string }).error).toMatch(message);
       expect(JSON.stringify(out)).not.toContain(KEY);
     }
+  });
+
+  it("gives every result a ready cite link that the chat renders as a link, Turkish sites included", () => {
+    const out = shapeTavilyResponse("q", { results: [
+      { title: "Transfer", url: "https://www.aspor.com.tr/futbol/besiktas/2026/09/26/transfer", content: "x" },
+      { title: "Wiki", url: "https://tr.wikipedia.org/wiki/Be%C5%9Fikta%C5%9F_(futbol_tak%C4%B1m%C4%B1)", content: "y" }
+    ] });
+    expect(out.results.map((r) => r.cite)).toEqual([
+      "[aspor.com.tr](https://www.aspor.com.tr/futbol/besiktas/2026/09/26/transfer)",
+      "[tr.wikipedia.org](https://tr.wikipedia.org/wiki/Be%C5%9Fikta%C5%9F_%28futbol_tak%C4%B1m%C4%B1%29)"
+    ]);
+    for (const r of out.results) {
+      const html = renderMarkdown(`Kaynak: ${r.cite}`);
+      expect(html).toContain(`>${r.source}</a>`);
+      expect(html).not.toContain("](");
+    }
+    expect(citeLink("a.test", "https://a.test/x(1)")).toBe("[a.test](https://a.test/x%281%29)");
+    expect(WEB_SEARCH_TOOL_DEFINITION.function.description).toContain("`cite` field");
   });
 
   it("copes with an unexpected response shape", () => {

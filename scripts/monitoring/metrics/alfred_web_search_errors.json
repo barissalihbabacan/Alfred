@@ -1,0 +1,20 @@
+{
+  "description": "web_search tool calls that returned an error (tool_call with tool=web_search, outcome=error): Tavily rejected the key, the monthly quota or rate limit was reached, the service failed or timed out, or the per-question search limit was hit with nothing found. Alfred then answers without web results.",
+  "filter": "resource.type=\"cloud_run_revision\"\njsonPayload.event=\"tool_call\"\njsonPayload.tool=\"web_search\"\njsonPayload.outcome=\"error\"",
+  "metricDescriptor": {
+    "metricKind": "DELTA",
+    "valueType": "INT64",
+    "unit": "1",
+    "displayName": "alfred_web_search_errors",
+    "labels": [
+      {
+        "key": "provider",
+        "valueType": "STRING",
+        "description": "Chat provider whose tool call failed (groq, gemini, …)"
+      }
+    ]
+  },
+  "labelExtractors": {
+    "provider": "EXTRACT(jsonPayload.provider)"
+  }
+}

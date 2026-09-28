@@ -180,3 +180,45 @@ export async function runWebSearchTool(args: unknown, options: WebSearchOptions)
     return { error: "Web search could not be reached." };
   }
 }
+
+/** Searches one chat turn may spend, across tool rounds and provider restarts. */
+export const WEB_SEARCHES_PER_TURN = 2;
+
+export interface WebSearchTurnResult extends WebSearchToolResult {
+  /**
+   * Set when this call spent no search: the same query was already answered,
+   * or the turn's budget was used and the latest results are returned again.
+   */
+  reused?: "same_query" | "turn_limit";
+}
+
+/**
+ * web_search for one chat turn. On a provider fallback the turn restarts from
+ * the user's message and the next model searches again; without this each
+ * restart spent new credits (seen in production: one question, three
+ * providers, six searches). The same query (case and spacing ignored) is
+ * answered from the first result; once `maxSearches` searches were made,
+ * further calls get the latest results back, marked `reused`, instead of a
+ * new search. Errors are not cached, so a failed search can be retried.
+ */
+export function createTurnWebSearch(options: WebSearchOptions, maxSearches = WEB_SEARCHES_PER_TURN) {
+  const byQuery = new Map<string, WebSearchToolResult>();
+  let latest: WebSearchToolResult | undefined;
+  let spent = 0;
+  return async (args: unknown): Promise<WebSearchTurnResult | WebSearchToolError> => {
+    const parsed = parseWebSearchArgs(args);
+    if ("error" in parsed) return parsed;
+    // Turkish lower-casing turns "I" into "ı": fold ı/i so "HABERLERI" matches "haberleri".
+    const key = `${parsed.query.toLocaleLowerCase("tr-TR").replace(/ı/g, "i")}|${parsed.topic}|${parsed.timeRange ?? ""}`;
+    const same = byQuery.get(key);
+    if (same) return { ...same, reused: "same_query" };
+    if (spent >= maxSearches && latest) return { ...latest, reused: "turn_limit" };
+    if (spent >= maxSearches) return { error: "The web search limit for this question was reached." };
+    spent++;
+    const result = await runWebSearchTool(args, options);
+    if ("error" in result) return result;
+    byQuery.set(key, result);
+    latest = result;
+    return result;
+  };
+}

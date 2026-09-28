@@ -8,7 +8,7 @@ import {
 } from "../src/ai/tools/time/current-time.js";
 import { isRateLimitedError } from "../src/ai/providers/groq/rate-limit.js";
 import { isUsableApiKey, resolveChatProviders } from "../src/ai/providers/chat-fallback/chat-providers.js";
-import { WEB_SEARCH_TOOL_DEFINITION, runWebSearchTool } from "../src/ai/tools/web/web-search.js";
+import { WEB_SEARCH_TOOL_DEFINITION, createTurnWebSearch } from "../src/ai/tools/web/web-search.js";
 import { buildHealthStatus } from "../src/ai/providers/chat-fallback/health-status.js";
 import {
   addUsageToMetrics,
@@ -772,12 +772,17 @@ export const api = onRequest({
     // kurulur (buildMessagesFor), sunulmayan bir araci vaat etmez.
     const activeTools = webSearchEnabled ? [TIME_TOOL_DEFINITION, WEB_SEARCH_TOOL_DEFINITION] : [TIME_TOOL_DEFINITION];
     const MAX_TURNS = 3;
+    // Tur basina bir arama oturumu: ayni sorgu tekrar aranmaz, en fazla 2 arama;
+    // yedek saglayiciya gecilince tur bastan baslasa da yeni kredi harcanmaz.
+    const webSearch = webSearchEnabled
+      ? createTurnWebSearch({ apiKey: tavilyKey, fetch: (url, init) => fetch(url, init) })
+      : null;
     const runTool = async (fnName, fnArgs) => {
       if (fnName === "get_current_time") {
         return runGetCurrentTimeTool(fnArgs);
       }
-      if (fnName === "web_search" && webSearchEnabled) {
-        return runWebSearchTool(fnArgs, { apiKey: tavilyKey, fetch: (url, init) => fetch(url, init) });
+      if (fnName === "web_search" && webSearch) {
+        return webSearch(fnArgs);
       }
       return { error: `Tool ${fnName} not recognized.` };
     };

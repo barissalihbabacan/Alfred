@@ -6,7 +6,12 @@ import { apiFetch, ensureOk, ChatStreamError } from "../lib/api";
 import { createSseParser, stripThinking, ChatStreamEvent } from "../lib/sse";
 import { errorMessage as messageOf, isAbortError } from "../lib/errors";
 import { formatRateLimitStatus, normalizeRateLimitWaitMs } from "../lib/rate-limit";
-import { formatProviderFallbackStatus, providerDisplayName } from "../lib/providers";
+import {
+  CHAT_MODEL_OPTIONS,
+  formatProviderFallbackStatus,
+  providerDisplayName,
+  type ModelOption
+} from "../lib/providers";
 import { linkCitationsInText, renderMarkdown, type WebSearchCitationSource } from "../lib/markdown";
 import { toolStatusText } from "../lib/tools";
 
@@ -103,8 +108,9 @@ function fallbackCopy(text: string) {
   document.body.removeChild(ta);
 }
 
-const DEFAULT_MODEL_LABEL = "openai/gpt-oss-120b";
+const DEFAULT_MODEL_LABEL = "deepseek-v4.1-flash";
 const CONVERSATION_KEY = "alfred_conversation_id";
+const MODEL_SELECTION_KEY = "alfred_model_selection";
 // Must match the `mobile` custom variant in apps/web/app/globals.css.
 const MOBILE_QUERY = "(max-width: 768px)";
 // Voice input (SpeechRecognition) listens for Turkish; there is no language picker.
@@ -173,12 +179,15 @@ export default function VoiceChatPlayground() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
+  const [modelMenuOpen, setModelMenuOpen] = useState(false);
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [health, setHealth] = useState<HealthInfo | null>(null);
   const [modelLabel, setModelLabel] = useState(DEFAULT_MODEL_LABEL);
   // Son turu cevaplayan saglayici (`start` / `provider_fallback`); null: /health'e gore.
   const [chatProvider, setChatProvider] = useState<string | null>(null);
 
   const toolsBtnRef = useRef<HTMLButtonElement | null>(null);
+  const modelMenuRef = useRef<HTMLDivElement | null>(null);
   const turnSeqRef = useRef(0);
   const activeTurnRef = useRef<ActiveTurn | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
@@ -313,22 +322,39 @@ export default function VoiceChatPlayground() {
     });
   }, [currentUserId, fetchConversations, loadConversation]);
 
-  // Active provider (public /health endpoint, no token needed).
+  // Active provider (public /health endpoint, no token needed) + saved model preference.
   useEffect(() => {
+    const savedId = storageGet(MODEL_SELECTION_KEY);
+    const savedOption = savedId ? CHAT_MODEL_OPTIONS.find((o) => o.id === savedId) : undefined;
+    if (savedOption) {
+      setSelectedModelId(savedOption.id);
+      setChatProvider(savedOption.provider);
+      setModelLabel(savedOption.model);
+    }
+
     let cancelled = false;
     apiFetch("/health", { anonymous: true })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (cancelled || !data?.activeProvider) return;
         setHealth({ activeProvider: data.activeProvider });
+        if (savedOption) return;
         if (typeof data.model === "string" && data.model) setModelLabel(data.model);
-        else if (data.activeProvider === "groq") setModelLabel(DEFAULT_MODEL_LABEL);
+        else if (data.activeProvider === "groq") setModelLabel("openai/gpt-oss-120b");
         else if (data.activeProvider === "ollama") setModelLabel("gemma4:12b-mlx");
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  const handleSelectModelOption = useCallback((option: ModelOption) => {
+    setSelectedModelId(option.id);
+    storageSet(MODEL_SELECTION_KEY, option.id);
+    setChatProvider(option.provider);
+    setModelLabel(option.model);
+    setModelMenuOpen(false);
   }, []);
 
   // Cmd/Ctrl + K: new conversation.
@@ -358,17 +384,21 @@ export default function VoiceChatPlayground() {
 
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
-      if (toolsBtnRef.current && !toolsBtnRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (toolsBtnRef.current && !toolsBtnRef.current.contains(target)) {
         setToolsMenuOpen(false);
       }
+      if (modelMenuRef.current && !modelMenuRef.current.contains(target)) {
+        setModelMenuOpen(false);
+      }
     };
-    if (toolsMenuOpen) {
+    if (toolsMenuOpen || modelMenuOpen) {
       document.addEventListener("click", handleOutsideClick);
     }
     return () => {
       document.removeEventListener("click", handleOutsideClick);
     };
-  }, [toolsMenuOpen]);
+  }, [toolsMenuOpen, modelMenuOpen]);
 
   const handleDeleteConversation = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
@@ -453,6 +483,9 @@ export default function VoiceChatPlayground() {
     const searchSources: WebSearchCitationSource[] = [];
 
     try {
+      const selectedOption = selectedModelId
+        ? CHAT_MODEL_OPTIONS.find((o) => o.id === selectedModelId)
+        : undefined;
       // stream: SSE must bypass Hosting, which buffers the whole response.
       const res = await apiFetch("/chat", {
         stream: true,
@@ -465,6 +498,7 @@ export default function VoiceChatPlayground() {
           message: text,
           conversationId: conversationId || undefined,
           userId: currentUserId || undefined,
+          ...(selectedOption ? { provider: selectedOption.provider, model: selectedOption.model } : {}),
           stream: true
         }),
         signal: turn.controller.signal
@@ -908,10 +942,97 @@ export default function VoiceChatPlayground() {
                 <line x1="9" y1="3" x2="9" y2="21" />
               </svg>
             </button>
-            <div
-              className="flex min-w-0 select-none items-center px-2.5 py-1.5 text-[14px] font-semibold text-chat-text"
-            >
-              <span className="min-w-0 truncate">{modelLabel}</span>
+            <div ref={modelMenuRef} className="relative min-w-0">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setModelMenuOpen((prev) => !prev);
+                }}
+                className="flex min-w-0 cursor-pointer select-none items-center gap-2 rounded-lg border border-transparent px-2.5 py-1.5 text-[14px] font-semibold text-chat-text [transition:background_0.15s,border-color_0.15s] hover:border-white/10 hover:bg-white/5"
+                title="Model ve sağlayıcı seçin"
+              >
+                <span className="rounded-sm border border-gold/35 bg-gold/12 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-gold">
+                  {providerDisplayName(engineProvider || "evren")}
+                </span>
+                <span className="min-w-0 truncate">{modelLabel}</span>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className={cx(
+                    "shrink-0 text-chat-subtle [transition:transform_0.2s_ease]",
+                    modelMenuOpen && "rotate-180"
+                  )}
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+
+              {modelMenuOpen && (
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute left-0 top-[calc(100%+6px)] z-80 flex w-[320px] max-w-[calc(100vw-24px)] flex-col gap-1 rounded-xl border border-white/12 bg-chat-modal p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.65)]"
+                >
+                  <div className="px-2.5 pb-1 pt-1.5 text-[10px] font-bold uppercase tracking-wider text-chat-faint">
+                    Model &amp; Sağlayıcı Seçimi
+                  </div>
+                  {CHAT_MODEL_OPTIONS.map((option) => {
+                    const isSelected =
+                      selectedModelId === option.id ||
+                      (!selectedModelId &&
+                        (engineProvider || "evren") === option.provider &&
+                        modelLabel === option.model);
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => handleSelectModelOption(option)}
+                        className={cx(
+                          "flex w-full cursor-pointer items-start justify-between gap-2.5 rounded-lg border-none px-2.5 py-2 text-left [transition:background_0.15s]",
+                          isSelected
+                            ? "bg-gold/14 text-chat-text"
+                            : "bg-transparent text-chat-text hover:bg-white/6"
+                        )}
+                      >
+                        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[13px] font-semibold text-chat-text">
+                              {option.label}
+                            </span>
+                            <span className="rounded-sm border border-white/12 bg-white/6 px-1.5 py-px text-[10px] font-medium text-chat-muted">
+                              {option.badge}
+                            </span>
+                          </div>
+                          <span className="truncate text-[11px] text-chat-subtle">
+                            {option.description}
+                          </span>
+                        </div>
+                        {isSelected && (
+                          <svg
+                            width="15"
+                            height="15"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="#c5a059"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="mt-0.5 shrink-0"
+                          >
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
@@ -1202,7 +1323,7 @@ export default function VoiceChatPlayground() {
             </div>
 
             <p className="mb-4 text-[13px] leading-normal text-chat-muted">
-              Etkin motor sunucu tarafında (Cloud Functions, <code className="inline-code">ALFRED_LLM_PROVIDER</code>) seçilir; bu bilgi <code className="inline-code">/api/health</code> uç noktasından okunur.
+              Üst çubuktaki seçiciden istediğiniz modeli seçebilirsiniz; seçilen sağlayıcı yanıt veremezse istek otomatik olarak yedek sağlayıcı zincirine (<code className="inline-code">EVREN → Groq → Gemini</code>) aktarılır.
             </p>
 
             <div className="mb-3.5">

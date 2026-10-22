@@ -45,6 +45,83 @@ export const DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b";
  */
 export const DEFAULT_GEMINI_CHAT_MODEL = "gemini-3.8-flash";
 
+/** EVREN models that accept the `reasoning_effort` parameter (`/v1/models`). */
+export const EVREN_REASONING_EFFORT_MODELS: ReadonlySet<string> = new Set([
+  "deepseek-v4.1-flash",
+  "glm-5.3",
+  "qwen3.8-flash-next",
+  "mimo-v2.6-pro"
+]);
+
+/** Allow-listed models selectable per provider from the web UI. */
+export const ALLOWED_CHAT_MODELS: Readonly<Record<ChatProviderId, ReadonlySet<string>>> = {
+  evren: new Set([
+    "deepseek-v4.1-flash",
+    "glm-5.3",
+    "mimo-v2.6-pro",
+    "qwen3.8-flash-next",
+    "gemma-4-31b"
+  ]),
+  groq: new Set([
+    "openai/gpt-oss-120b",
+    "llama-3.3-70b-versatile"
+  ]),
+  gemini: new Set([
+    "gemini-3.8-flash"
+  ])
+};
+
+export interface ChatModelPreference {
+  provider?: unknown;
+  model?: unknown;
+}
+
+/**
+ * Returns a copy of `env` adjusted for a validated client-side `{ provider, model }`
+ * selection: moves `provider` to the front of `CHAT_FALLBACK_ORDER` (keeping the
+ * remaining providers as fallback) and overrides that provider's model when
+ * `model` is allow-listed for `provider`. Invalid or unknown values are ignored.
+ */
+export function applyChatModelPreference(
+  env: ChatProviderEnv = {},
+  preference?: ChatModelPreference | null
+): ChatProviderEnv {
+  if (!preference || typeof preference !== "object") return env;
+  const rawProvider = typeof preference.provider === "string" ? preference.provider.trim().toLowerCase() : "";
+  const rawModel = typeof preference.model === "string" ? preference.model.trim() : "";
+
+  let targetProvider: ChatProviderId | null = null;
+  if (rawProvider === "evren" || rawProvider === "groq" || rawProvider === "gemini") {
+    targetProvider = rawProvider;
+  } else if (rawModel) {
+    for (const id of CHAT_PROVIDER_ORDER) {
+      if (ALLOWED_CHAT_MODELS[id].has(rawModel)) {
+        targetProvider = id;
+        break;
+      }
+    }
+  }
+  if (!targetProvider) return env;
+
+  const baseOrder = parseChatProviderOrder(env.CHAT_FALLBACK_ORDER);
+  const reordered = [targetProvider, ...baseOrder.filter((id) => id !== targetProvider)];
+  const nextEnv: ChatProviderEnv = {
+    ...env,
+    CHAT_FALLBACK_ORDER: reordered.join(",")
+  };
+
+  if (rawModel && ALLOWED_CHAT_MODELS[targetProvider].has(rawModel)) {
+    const envVar =
+      targetProvider === "evren"
+        ? "EVREN_MODEL"
+        : targetProvider === "groq"
+          ? "GROQ_MODEL"
+          : "GEMINI_CHAT_MODEL";
+    nextEnv[envVar] = rawModel;
+  }
+  return nextEnv;
+}
+
 export interface ChatProviderConfig {
   id: ChatProviderId;
   /** Human-readable name for logs and the client ("Groq", "Gemini", ...). */
@@ -94,18 +171,23 @@ function envModel(env: ChatProviderEnv, name: string, fallback: string): string 
 /** Configuration of one provider, with models taken from `env` when set. */
 export function getChatProviderConfig(id: ChatProviderId, env: ChatProviderEnv = {}): ChatProviderConfig {
   switch (id) {
-    case "evren":
+    case "evren": {
+      const model = envModel(env, "EVREN_MODEL", DEFAULT_EVREN_MODEL);
       return {
         id,
         label: "EVREN",
         url: EVREN_CHAT_COMPLETIONS_URL,
-        model: envModel(env, "EVREN_MODEL", DEFAULT_EVREN_MODEL),
+        model,
         secretName: "EVREN_API_KEY",
-        extraBody: { reasoning_effort: "low", stream_options: { include_usage: true } },
+        extraBody: {
+          ...(EVREN_REASONING_EFFORT_MODELS.has(model) ? { reasoning_effort: "low" } : {}),
+          stream_options: { include_usage: true }
+        },
         extraHeaders: {},
         maxTokens: 4096,
         waitOnRateLimit: true
       };
+    }
     case "groq":
       return {
         id,

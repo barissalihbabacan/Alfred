@@ -7,7 +7,11 @@ import {
   runGetCurrentTimeTool
 } from "../src/ai/tools/time/current-time.js";
 import { isRateLimitedError } from "../src/ai/providers/groq/rate-limit.js";
-import { isUsableApiKey, resolveChatProviders } from "../src/ai/providers/chat-fallback/chat-providers.js";
+import {
+  applyChatModelPreference,
+  isUsableApiKey,
+  resolveChatProviders
+} from "../src/ai/providers/chat-fallback/chat-providers.js";
 import { WEB_SEARCH_TOOL_DEFINITION, createTurnWebSearch } from "../src/ai/tools/web/web-search.js";
 import { buildHealthStatus } from "../src/ai/providers/chat-fallback/health-status.js";
 import {
@@ -449,7 +453,12 @@ export const api = onRequest({
     // SSE-only: the response is always `text/event-stream`. Clients may still
     // send `stream: true`, but it is ignored; there is no non-streaming JSON
     // mode (no client ever sent `stream: false`).
-    const { message, conversationId: requestedConvId } = req.body || {};
+    const {
+      message,
+      conversationId: requestedConvId,
+      provider: requestedProvider,
+      model: requestedModel
+    } = req.body || {};
     if (!message || typeof message !== "string") {
       res.status(400).json({ error: "Message is required." });
       return;
@@ -595,13 +604,17 @@ export const api = onRequest({
     // (src/ai/providers/chat-fallback/). Anahtari "unset"/"none"/bos olan
     // saglayici atlanir. ALFRED_LLM_PROVIDER=ollama ise eski Ollama yolu.
     const useOllama = activeProvider !== "groq";
+    const turnEnv = applyChatModelPreference(process.env, {
+      provider: requestedProvider,
+      model: requestedModel
+    });
     const { providers: chatProviders, skipped: skippedProviders } = useOllama
       ? { providers: [], skipped: [] }
       : resolveChatProviders({
         evren: evrenKey,
         groq: groqKey,
         gemini: geminiKey
-      }, process.env);
+      }, turnEnv);
 
     // Persona states the provider/model actually answering this turn; the
     // profile is the reviewed digest of users/*.md embedded at build time

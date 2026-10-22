@@ -5,6 +5,7 @@ import {
   DEFAULT_EVREN_MODEL,
   DEFAULT_GEMINI_CHAT_MODEL,
   EVREN_CHAT_COMPLETIONS_URL,
+  applyChatModelPreference,
   buildChatRequestBody,
   buildChatRequestHeaders,
   getChatProviderConfig,
@@ -137,8 +138,40 @@ describe("request shape", () => {
     }
   });
 
-  it("adds Gemini's extras", () => {
+  it("adds Gemini's extras and EVREN's model-aware reasoning_effort", () => {
     const gemini = buildChatRequestBody(getChatProviderConfig("gemini"), { messages });
     expect(gemini).toMatchObject({ model: "gemini-3.8-flash", max_tokens: 4096, reasoning_effort: "low", stream_options: { include_usage: true } });
+
+    const evrenDefault = buildChatRequestBody(getChatProviderConfig("evren"), { messages });
+    expect(evrenDefault).toMatchObject({ model: "deepseek-v4.1-flash", max_tokens: 4096, reasoning_effort: "low", stream_options: { include_usage: true } });
+
+    // gemma-4-31b rejects reasoning_effort on EVREN API, so it must be omitted.
+    const evrenGemma = buildChatRequestBody(getChatProviderConfig("evren", { EVREN_MODEL: "gemma-4-31b" }), { messages });
+    expect(evrenGemma).toMatchObject({ model: "gemma-4-31b", max_tokens: 4096, stream_options: { include_usage: true } });
+    expect("reasoning_effort" in evrenGemma).toBe(false);
+  });
+
+  it("applyChatModelPreference reorders the preferred provider first and sets allow-listed models only", () => {
+    const envGroq = applyChatModelPreference({}, { provider: "groq", model: "llama-3.3-70b-versatile" });
+    expect(resolveChatProviders(KEYS, envGroq).providers.map((p) => [p.id, p.model])).toEqual([
+      ["groq", "llama-3.3-70b-versatile"],
+      ["evren", "deepseek-v4.1-flash"],
+      ["gemini", "gemini-3.8-flash"]
+    ]);
+
+    const envEvren = applyChatModelPreference({}, { provider: "evren", model: "glm-5.3" });
+    expect(resolveChatProviders(KEYS, envEvren).providers.map((p) => [p.id, p.model])).toEqual([
+      ["evren", "glm-5.3"],
+      ["groq", "openai/gpt-oss-120b"],
+      ["gemini", "gemini-3.8-flash"]
+    ]);
+
+    // Unknown model is ignored while keeping the provider reorder.
+    const envUnknownModel = applyChatModelPreference({}, { provider: "groq", model: "not-allowed-model" });
+    expect(resolveChatProviders(KEYS, envUnknownModel).providers.map((p) => [p.id, p.model])).toEqual([
+      ["groq", "openai/gpt-oss-120b"],
+      ["evren", "deepseek-v4.1-flash"],
+      ["gemini", "gemini-3.8-flash"]
+    ]);
   });
 });

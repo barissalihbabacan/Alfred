@@ -92,14 +92,40 @@ describe("web_search tool (src/ai/tools/web/web-search.ts)", () => {
     expect(JSON.stringify(out)).not.toContain("javascript:");
   });
 
-  it("defaults bad topic / time_range and rejects an empty query without calling out", async () => {
+  it("defaults bad topic / time_range, auto-selects topic=news for news/transfer queries, and rejects an empty query without calling out", async () => {
     expect(parseWebSearchArgs({ query: "x", topic: "sports", time_range: "decade" })).toEqual({ query: "x", topic: "general" });
     expect(parseWebSearchArgs("plain string query")).toEqual({ query: "plain string query", topic: "general" });
+    expect(parseWebSearchArgs({ query: "istanbul hava durumu" })).toEqual({ query: "istanbul hava durumu", topic: "general" });
+    expect(parseWebSearchArgs({ query: "Beşiktaş son transfer haberleri", time_range: "week" })).toEqual({
+      query: "Beşiktaş son transfer haberleri",
+      topic: "news",
+      timeRange: "week"
+    });
+    expect(parseWebSearchArgs({ query: "Fenerbahçe transfer gündemi", topic: "general" })).toEqual({
+      query: "Fenerbahçe transfer gündemi",
+      topic: "news"
+    });
+    expect(parseWebSearchArgs({ query: "Türkiye son dakika gelişmeleri" })).toEqual({
+      query: "Türkiye son dakika gelişmeleri",
+      topic: "news"
+    });
     const m = mockFetch({ body: TAVILY_REPLY });
     for (const bad of [{}, { query: "   " }, { query: 42 }, null, undefined]) {
       expect(await runWebSearchTool(bad, { apiKey: KEY, fetch: m.fetch })).toEqual({ error: "web_search needs a non-empty `query` string." });
     }
     expect(m.calls).toHaveLength(0);
+  });
+
+  it("filters out excluded social media and low-credibility clickbait domains in shapeTavilyResponse", () => {
+    const out = shapeTavilyResponse("Beşiktaş transfer haberleri", {
+      results: [
+        { title: "Instagram Reel", url: "https://www.instagram.com/reel/C123/", content: "x" },
+        { title: "Clickbait", url: "https://www.habersbalikesir.com/besiktasin-yeni-transferi/107412", content: "y" },
+        { title: "X Post", url: "https://x.com/besiktas/status/1", content: "z" },
+        { title: "Gerçek Haber", url: "https://www.aspor.com.tr/besiktas/2026/09/26/transfer", content: "Gerçek içerik" }
+      ]
+    });
+    expect(out.results.map((r) => r.source)).toEqual(["aspor.com.tr"]);
   });
 
   it("turns HTTP errors, timeouts and network failures into short errors that never contain the key", async () => {

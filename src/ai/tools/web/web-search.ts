@@ -28,6 +28,37 @@ const TIME_RANGES = ["day", "week", "month", "year"] as const;
 type WebSearchTopic = (typeof TOPICS)[number];
 type WebSearchTimeRange = (typeof TIME_RANGES)[number];
 
+/**
+ * Queries that clearly ask for news, headlines, press coverage, or sports
+ * transfers. Models frequently omit `topic: "news"` (leaving `"general"`),
+ * which causes Tavily to return undated SEO/social pages instead of its dated
+ * news index.
+ */
+const NEWS_QUERY_PATTERN =
+  /(?:^|[^\p{L}\p{N}])(haber(?:ler(?:i)?)?|son\s+dakika|g[üu]ndem(?:i|de|deki)?|geli[şs]me(?:ler(?:i)?)?|transfer(?:ler(?:i)?|de|i)?|s[öo]ylenti(?:ler(?:i)?)?|iddia(?:lar(?:[ıi])?)?|bas[ıi]n|breaking\s+news|headlines?|latest\s+news|transfer\s+news|rumou?rs?)(?=$|[^\p{L}\p{N}])/iu;
+
+/**
+ * Domains excluded from shaped search results: login-walled social feeds and
+ * known low-credibility clickbait aggregators that pollute general search.
+ */
+export const WEB_SEARCH_EXCLUDED_DOMAINS: readonly string[] = [
+  "instagram.com",
+  "facebook.com",
+  "tiktok.com",
+  "pinterest.com",
+  "x.com",
+  "twitter.com",
+  "threads.net",
+  "habersbalikesir.com"
+];
+
+export function inferWebSearchTopic(query: string, explicitTopic?: unknown): WebSearchTopic {
+  if (explicitTopic === "news") return "news";
+  const folded = query.toLocaleLowerCase("tr-TR").replace(/ı/g, "i");
+  if (NEWS_QUERY_PATTERN.test(folded)) return "news";
+  return TOPICS.includes(explicitTopic as WebSearchTopic) ? (explicitTopic as WebSearchTopic) : "general";
+}
+
 export const WEB_SEARCH_TOOL_DEFINITION: ToolDefinition = {
   type: "function",
   function: {
@@ -47,7 +78,7 @@ export const WEB_SEARCH_TOOL_DEFINITION: ToolDefinition = {
         topic: {
           type: "string",
           enum: [...TOPICS],
-          description: "\"news\" for news and current events; \"general\" (default) otherwise."
+          description: "\"news\" for news, transfers, headlines, and current events; \"general\" (default) otherwise."
         },
         time_range: {
           type: "string",
@@ -106,7 +137,7 @@ export function parseWebSearchArgs(args: unknown): ParsedArgs | WebSearchToolErr
     return { error: "web_search needs a non-empty `query` string." };
   }
   const query = raw.replace(/\s+/g, " ").trim().slice(0, WEB_SEARCH_MAX_QUERY_CHARS);
-  const topic = TOPICS.includes(obj.topic as WebSearchTopic) ? (obj.topic as WebSearchTopic) : "general";
+  const topic = inferWebSearchTopic(query, obj.topic);
   const timeRange = TIME_RANGES.includes(obj.time_range as WebSearchTimeRange) ? (obj.time_range as WebSearchTimeRange) : undefined;
   return { query, topic, ...(timeRange ? { timeRange } : {}) };
 }
@@ -267,6 +298,11 @@ function sourceOf(url: URL): string {
   return url.hostname.replace(/^www\./i, "");
 }
 
+function isExcludedDomain(url: URL): boolean {
+  const host = sourceOf(url).toLowerCase();
+  return WEB_SEARCH_EXCLUDED_DOMAINS.some((domain) => host === domain || host.endsWith(`.${domain}`));
+}
+
 function clip(text: string, max: number): string {
   const collapsed = text.replace(/\s+/g, " ").trim();
   if (collapsed.length <= max) return collapsed;
@@ -291,6 +327,7 @@ export function shapeTavilyResponse(query: string, body: unknown): WebSearchTool
       continue;
     }
     if (url.protocol !== "https:" && url.protocol !== "http:") continue;
+    if (isExcludedDomain(url)) continue;
     const content = typeof r.content === "string" ? clip(r.content, WEB_SEARCH_SNIPPET_CHARS) : "";
     const title = typeof r.title === "string" && r.title.trim() ? clip(r.title, 200) : sourceOf(url);
     const published = typeof r.published_date === "string" && r.published_date.trim() ? r.published_date.trim().slice(0, 40) : undefined;

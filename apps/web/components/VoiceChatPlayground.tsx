@@ -53,6 +53,35 @@ interface StoredMessageDto {
   createdAt?: string | number | Date;
 }
 
+interface MemoryItem {
+  id: string;
+  docId: string;
+  content: string;
+  memoryType: string;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+const MEMORY_TYPE_LABELS: Record<string, string> = {
+  user_preference: "Tercih",
+  project_fact: "Proje",
+  personal_fact: "Kişisel",
+  decision: "Karar",
+  workflow_rule: "İş Akışı",
+  general: "Genel"
+};
+
+function memoryTypeLabel(type: string): string {
+  return MEMORY_TYPE_LABELS[type] || type;
+}
+
+function formatDateShort(iso?: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric" });
+}
+
 // Minimal Web Speech API typings: TypeScript's DOM lib does not ship
 // SpeechRecognition (it is still prefixed as webkitSpeechRecognition in Chrome).
 interface SpeechRecognitionResultEventLike {
@@ -178,6 +207,12 @@ export default function VoiceChatPlayground() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
+  const [showMemoryModal, setShowMemoryModal] = useState(false);
+  const [memoryItems, setMemoryItems] = useState<MemoryItem[]>([]);
+  const [memoriesLoading, setMemoriesLoading] = useState(false);
+  const [memorySearch, setMemorySearch] = useState("");
+  const [memoryTypeFilter, setMemoryTypeFilter] = useState<string>("all");
+  const [deletingMemoryId, setDeletingMemoryId] = useState<string | null>(null);
   const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
@@ -355,6 +390,45 @@ export default function VoiceChatPlayground() {
     setChatProvider(option.provider);
     setModelLabel(option.model);
     setModelMenuOpen(false);
+  }, []);
+
+  const fetchMemories = useCallback(async () => {
+    if (!currentUserId) return;
+    setMemoriesLoading(true);
+    try {
+      const res = await apiFetch("/memories");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.memories)) {
+          setMemoryItems(data.memories as MemoryItem[]);
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to fetch memories:", err);
+    } finally {
+      setMemoriesLoading(false);
+    }
+  }, [currentUserId]);
+
+  const handleOpenMemoryModal = useCallback(() => {
+    setShowMemoryModal(true);
+    void fetchMemories();
+  }, [fetchMemories]);
+
+  const handleDeleteMemory = useCallback(async (docId: string) => {
+    setDeletingMemoryId(docId);
+    try {
+      const res = await apiFetch(`/memories?memoryId=${encodeURIComponent(docId)}`, {
+        method: "DELETE"
+      });
+      if (res.ok) {
+        setMemoryItems((prev) => prev.filter((m) => m.docId !== docId && m.id !== docId));
+      }
+    } catch (err) {
+      console.warn("Failed to delete memory:", err);
+    } finally {
+      setDeletingMemoryId(null);
+    }
   }, []);
 
   // Cmd/Ctrl + K: new conversation.
@@ -902,8 +976,19 @@ export default function VoiceChatPlayground() {
           </button>
           <div className="flex shrink-0 items-center gap-1">
             <button
+              onClick={handleOpenMemoryModal}
+              className="flex cursor-pointer items-center border-none bg-transparent p-1 text-chat-subtle hover:text-gold"
+              title="Uzun Süreli Bellek Yönetimi"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <ellipse cx="12" cy="5" rx="9" ry="3" />
+                <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+                <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+              </svg>
+            </button>
+            <button
               onClick={() => setShowSettingsModal(true)}
-              className="flex cursor-pointer items-center border-none bg-transparent p-1 text-chat-subtle"
+              className="flex cursor-pointer items-center border-none bg-transparent p-1 text-chat-subtle hover:text-chat-text"
               title="Ayarlar"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1036,7 +1121,20 @@ export default function VoiceChatPlayground() {
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2.5 mobile:gap-1.5">
+          <div className="flex shrink-0 items-center gap-2 mobile:gap-1.5">
+            <button
+              type="button"
+              onClick={handleOpenMemoryModal}
+              className="flex cursor-pointer items-center gap-1.5 rounded-full border border-white/8 bg-white/4 px-2.5 py-1 text-[12px] font-medium text-chat-muted [transition:border-color_0.15s,color_0.15s,background_0.15s] hover:border-gold/35 hover:bg-gold/10 hover:text-gold"
+              title="Alfred'in uzun süreli belleğini görüntüle ve yönet"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <ellipse cx="12" cy="5" rx="9" ry="3" />
+                <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+                <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+              </svg>
+              <span className="mobile:hidden">Bellek</span>
+            </button>
 
             <div className="flex items-center gap-1.5 rounded-full border border-white/8 bg-white/4 px-2.5 py-1 text-[12px] text-chat-muted">
               <span className={cx(
@@ -1369,6 +1467,194 @@ export default function VoiceChatPlayground() {
               >
                 Tamam
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Memory Management Modal */}
+      {showMemoryModal && (
+        <div
+          onClick={() => setShowMemoryModal(false)}
+          className="fixed inset-0 z-1000 flex items-center justify-center bg-black/75 p-4 backdrop-blur-[6px]"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="flex max-h-[82vh] w-full max-w-[600px] flex-col rounded-2xl border border-white/10 bg-chat-modal p-6 shadow-[0_20px_50px_rgba(0,0,0,0.65)] mobile:p-4"
+          >
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-gold/35 bg-gold/12 text-gold">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <ellipse cx="12" cy="5" rx="9" ry="3" />
+                    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+                    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-[16px] font-semibold text-chat-text">Uzun Süreli Bellek</h3>
+                    <span className="rounded-full border border-gold/35 bg-gold/12 px-2 py-0.5 text-[11px] font-semibold text-gold">
+                      {memoryItems.length} kayıt
+                    </span>
+                  </div>
+                  <p className="text-[11.5px] text-chat-subtle">
+                    Firestore + Gemini semantik vektör belleğinde saklanan aktif bilgiler
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => void fetchMemories()}
+                  disabled={memoriesLoading}
+                  className="flex cursor-pointer items-center gap-1 rounded-lg border border-white/10 bg-white/4 px-2.5 py-1.5 text-[12px] text-chat-muted hover:bg-white/8 hover:text-chat-text"
+                  title="Yenile"
+                >
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className={cx(memoriesLoading && "animate-spin-fast")}
+                  >
+                    <polyline points="23 4 23 10 17 10" />
+                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                  </svg>
+                  <span className="mobile:hidden">Yenile</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowMemoryModal(false)}
+                  className="flex cursor-pointer items-center rounded-lg border-none bg-transparent p-1.5 text-chat-subtle hover:text-chat-text"
+                  title="Kapat"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Search + Category Filters */}
+            <div className="mb-3 flex flex-col gap-2">
+              <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/4 px-3 py-2">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-chat-faint">
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <input
+                  id="memory-search-input"
+                  name="memorySearch"
+                  type="search"
+                  aria-label="Bellekte ara"
+                  value={memorySearch}
+                  onChange={(e) => setMemorySearch(e.target.value)}
+                  placeholder="Bellek kayıtlarında ara (ör. tercih, proje, teknoloji)..."
+                  className="w-full border-none bg-transparent text-[13px] text-chat-text outline-hidden placeholder:text-chat-faint"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                {[
+                  { id: "all", label: "Tümü" },
+                  { id: "user_preference", label: "Tercih" },
+                  { id: "project_fact", label: "Proje" },
+                  { id: "personal_fact", label: "Kişisel" },
+                  { id: "decision", label: "Karar" },
+                  { id: "general", label: "Genel" }
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setMemoryTypeFilter(tab.id)}
+                    className={cx(
+                      "cursor-pointer rounded-full border px-2.5 py-1 text-[11.5px] font-medium [transition:all_0.15s]",
+                      memoryTypeFilter === tab.id
+                        ? "border-gold/50 bg-gold/15 text-gold"
+                        : "border-white/10 bg-white/4 text-chat-muted hover:bg-white/8"
+                    )}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Memories List */}
+            <div className="flex flex-1 flex-col gap-2 overflow-y-auto pr-1">
+              {memoriesLoading && memoryItems.length === 0 ? (
+                <div className="flex flex-col gap-2.5 py-3">
+                  {[85, 70, 90].map((w, idx) => (
+                    <div key={idx} className="rounded-xl border border-white/8 bg-white/3 p-3.5">
+                      <div className={cx(SHIMMER, "mb-2 h-3.5 w-20 rounded-sm")} />
+                      <div className={cx(SHIMMER, "h-3.5 rounded-sm")} style={{ width: `${w}%` }} />
+                    </div>
+                  ))}
+                </div>
+              ) : (() => {
+                const q = memorySearch.trim().toLocaleLowerCase("tr-TR");
+                const filtered = memoryItems.filter((item) => {
+                  if (memoryTypeFilter !== "all" && item.memoryType !== memoryTypeFilter) return false;
+                  if (!q) return true;
+                  return (
+                    item.content.toLocaleLowerCase("tr-TR").includes(q) ||
+                    memoryTypeLabel(item.memoryType).toLocaleLowerCase("tr-TR").includes(q)
+                  );
+                });
+                if (filtered.length === 0) {
+                  return (
+                    <div className="flex flex-col items-center justify-center rounded-xl border border-white/8 bg-white/2 px-4 py-10 text-center text-[13px] text-chat-subtle">
+                      {memoryItems.length === 0
+                        ? "Henüz kaydedilmiş aktif bir uzun süreli bellek bulunmuyor."
+                        : "Arama veya filtreyle eşleşen bellek kaydı bulunamadı."}
+                    </div>
+                  );
+                }
+                return filtered.map((item) => (
+                  <div
+                    key={item.docId}
+                    className="group flex items-start justify-between gap-3 rounded-xl border border-white/8 bg-white/3 p-3.5 [transition:border-color_0.15s,background_0.15s] hover:border-white/14 hover:bg-white/5"
+                  >
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-sm border border-gold/30 bg-gold/12 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-gold">
+                          {memoryTypeLabel(item.memoryType)}
+                        </span>
+                        {item.createdAt && (
+                          <span className="text-[11px] text-chat-faint">
+                            {formatDateShort(item.createdAt)}
+                          </span>
+                        )}
+                      </div>
+                      <p className="m-0 text-[13.5px] leading-[1.5] text-chat-text [word-break:break-word]">
+                        {item.content}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={deletingMemoryId === item.docId}
+                      onClick={() => void handleDeleteMemory(item.docId)}
+                      className="flex shrink-0 cursor-pointer items-center gap-1 rounded-lg border border-transparent bg-transparent px-2 py-1 text-[11.5px] text-chat-subtle [transition:all_0.15s] hover:border-danger/30 hover:bg-danger/12 hover:text-danger disabled:opacity-50"
+                      title="Bu bellek kaydını sil (unut)"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 6h18" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      </svg>
+                      <span className="mobile:hidden">
+                        {deletingMemoryId === item.docId ? "Siliniyor..." : "Unut"}
+                      </span>
+                    </button>
+                  </div>
+                ));
+              })()}
             </div>
           </div>
         </div>

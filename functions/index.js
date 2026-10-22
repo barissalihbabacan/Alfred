@@ -26,6 +26,7 @@ import {
   DEFAULT_GROQ_EXTRACTION_MODEL
 } from "../src/ai/providers/chat-fallback/extraction-providers.js";
 import { MEMORY_EXTRACTION_BUDGET_MS } from "../src/alfred/cognitive/memory/extractor/extraction-pipeline.js";
+import { buildMemoryRetractionUpdate } from "../src/alfred/cognitive/memory/memory-write-planner.js";
 import {
   generateEmbedding,
   isComparableEmbedding
@@ -224,7 +225,7 @@ export const api = onRequest({
   // CORS Preflight
   if (req.method === "OPTIONS") {
     res.set("Access-Control-Allow-Origin", "*");
-    res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
     res.set("Access-Control-Allow-Headers", "Content-Type, Accept, Authorization, X-Firebase-AppCheck, x-recaptcha-token");
     res.status(204).send("");
     return;
@@ -441,6 +442,77 @@ export const api = onRequest({
       res.status(500).json({ error: "Failed to delete conversation." });
       return;
     }
+  }
+
+  // Long-term memory management endpoints: GET /memories and DELETE /memories
+  if (path.endsWith("/memories")) {
+    if (req.method === "GET") {
+      try {
+        const memSnap = await db
+          .collection("memory_vectors")
+          .where("userId", "==", userId)
+          .where("status", "==", "active")
+          .get();
+
+        const memories = memSnap.docs
+          .map((doc) => {
+            const d = doc.data() || {};
+            const createdDate = d.createdAt?.toDate ? d.createdAt.toDate() : null;
+            const updatedDate = d.updatedAt?.toDate ? d.updatedAt.toDate() : null;
+            return {
+              id: d.memoryId || doc.id,
+              docId: doc.id,
+              content: typeof d.content === "string" ? d.content : "",
+              memoryType: typeof d.memoryType === "string" ? d.memoryType : "general",
+              createdAt: createdDate ? createdDate.toISOString() : null,
+              updatedAt: updatedDate ? updatedDate.toISOString() : null,
+              sortMs: createdDate ? createdDate.getTime() : 0
+            };
+          })
+          .filter((m) => Boolean(m.content))
+          .sort((a, b) => b.sortMs - a.sortMs)
+          .map(({ sortMs: _s, ...rest }) => rest);
+
+        res.status(200).json({ success: true, memories });
+        return;
+      } catch (err) {
+        console.error("Cloud Function memories retrieval failed:", err);
+        res.status(500).json({ error: "Failed to retrieve memories." });
+        return;
+      }
+    }
+
+    if (req.method === "DELETE") {
+      try {
+        const memoryId = (req.query?.memoryId || req.query?.id || "").toString().trim();
+        if (!memoryId) {
+          res.status(400).json({ error: "memoryId is required." });
+          return;
+        }
+
+        const memRef = db.collection("memory_vectors").doc(memoryId);
+        const memSnap = await memRef.get();
+        if (!memSnap.exists || baskasinin(memSnap)) {
+          res.status(404).json({ error: "Memory not found" });
+          return;
+        }
+
+        await memRef.update(buildMemoryRetractionUpdate(Timestamp.now()));
+        logger.info(`[Memory] Retracted memory ${memoryId} via UI`, {
+          memory_id: memoryId,
+          memory_type: memSnap.data()?.memoryType ?? null
+        });
+        res.status(200).json({ success: true, retractedMemoryId: memoryId });
+        return;
+      } catch (err) {
+        console.error("Cloud Function memory retraction failed:", err);
+        res.status(500).json({ error: "Failed to delete memory." });
+        return;
+      }
+    }
+
+    res.status(405).json({ error: "Method not allowed." });
+    return;
   }
 
   // Chat endpoint: POST /chat or POST /api/chat

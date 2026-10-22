@@ -266,6 +266,8 @@ export default function VoiceChatPlayground() {
   const [projectFormColor, setProjectFormColor] = useState(PROJECT_COLORS[0]);
   const [savingProject, setSavingProject] = useState(false);
   const [projectFormError, setProjectFormError] = useState<string | null>(null);
+  const [renamingConvId, setRenamingConvId] = useState<string | null>(null);
+  const [renamingTitle, setRenamingTitle] = useState("");
   const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
@@ -688,6 +690,80 @@ export default function VoiceChatPlayground() {
       document.removeEventListener("click", handleOutsideClick);
     };
   }, [toolsMenuOpen, modelMenuOpen]);
+
+  const handleStartRenameConversation = (e: React.MouseEvent, conv: ConversationSummary) => {
+    e.stopPropagation();
+    setRenamingConvId(conv.id);
+    setRenamingTitle(conv.title || "Sohbet");
+  };
+
+  const handleSaveRenameConversation = async (id: string) => {
+    const trimmed = renamingTitle.trim();
+    setRenamingConvId(null);
+    if (!trimmed) return;
+    setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, title: trimmed } : c)));
+    try {
+      const res = await apiFetch("/conversation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId: id, title: trimmed })
+      });
+      if (!res.ok) {
+        await fetchConversations();
+      }
+    } catch {
+      await fetchConversations();
+    }
+  };
+
+  const handleExportMarkdown = () => {
+    if (messages.length === 0) return;
+    const currentConv = conversations.find((c) => c.id === conversationId);
+    const title = currentConv?.title || "B.U.T.L.E.R. Alfred Sohbeti";
+    const activeProj = activeProjectId ? projects.find((p) => p.id === activeProjectId) : null;
+    const dateStr = new Date().toLocaleString("tr-TR");
+    const lines: string[] = [
+      `# ${title}`,
+      "",
+      `- **Tarih:** ${dateStr}`,
+      ...(activeProj ? [`- **Proje:** ${activeProj.name}`] : []),
+      `- **Model:** ${providerDisplayName(engineProvider || "evren")} (${modelLabel})`,
+      "",
+      "---",
+      ""
+    ];
+
+    for (const m of messages) {
+      if (m.isThinking && !m.text) continue;
+      const roleHeader = m.role === "user" ? `### 👤 Barış (${m.timestamp})` : `### 🤖 Alfred (${m.timestamp})`;
+      const cleanBody = m.text.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim() || m.text;
+      lines.push(roleHeader, "", cleanBody, "");
+      if (m.sources && m.sources.length > 0) {
+        lines.push("**Kaynaklar:**");
+        m.sources.forEach((src, i) => {
+          lines.push(`${i + 1}. [${src.title || src.source || src.url}](${src.url})`);
+        });
+        lines.push("");
+      }
+      lines.push("---", "");
+    }
+
+    const blob = new Blob([lines.join("\n")], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const safeSlug = title
+      .toLocaleLowerCase("tr-TR")
+      .replace(/[^a-z0-9ğüşıöç\s-_]+/gi, "")
+      .trim()
+      .replace(/\s+/g, "-")
+      .slice(0, 60) || "alfred-sohbet";
+    a.href = url;
+    a.download = `${safeSlug}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   const handleDeleteConversation = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
@@ -1177,14 +1253,14 @@ export default function VoiceChatPlayground() {
                 />
                 <span className="truncate">{proj.name}</span>
               </div>
-              <div className="ml-1 flex shrink-0 items-center gap-0.5 opacity-0 group-hover:opacity-80 touch:opacity-80">
+              <div className="ml-1 flex shrink-0 items-center gap-0.5">
                 <button
                   type="button"
                   onClick={(e) => handleOpenEditProjectModal(e, proj)}
-                  className="flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-chat-subtle hover:bg-white/10 hover:text-chat-text"
+                  className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-chat-subtle opacity-0 [transition:all_0.15s_ease] hover:bg-white/10! hover:text-chat-text! hover:opacity-100! group-hover:opacity-70 touch:opacity-70"
                   title="Projeyi Düzenle"
                 >
-                  <svg width="11.5" height="11.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M12 20h9" />
                     <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
                   </svg>
@@ -1192,12 +1268,15 @@ export default function VoiceChatPlayground() {
                 <button
                   type="button"
                   onClick={(e) => handleDeleteProject(e, proj)}
-                  className="flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-chat-subtle hover:bg-danger/15 hover:text-danger"
+                  className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-chat-subtle opacity-0 [transition:all_0.15s_ease] hover:bg-danger/15! hover:text-danger! hover:opacity-100! group-hover:opacity-70 touch:opacity-70"
                   title="Projeyi Sil"
                 >
-                  <svg width="11.5" height="11.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M3 6h18" />
                     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    <line x1="10" y1="11" x2="10" y2="17" />
+                    <line x1="14" y1="11" x2="14" y2="17" />
                   </svg>
                 </button>
               </div>
@@ -1228,7 +1307,7 @@ export default function VoiceChatPlayground() {
               : conversations.filter((c) => !c.projectId);
             if (visibleConvs.length === 0) {
               return (
-                <div className="whitespace-normal px-2 py-2.5 text-[12px] leading-normal text-chat-faint">
+                <div className="truncate px-2 py-2.5 text-[12px] text-chat-faint">
                   {activeProjectId
                     ? "Bu projede henüz sohbet yok."
                     : "Henüz kayıtlı sohbet yok."}
@@ -1239,6 +1318,7 @@ export default function VoiceChatPlayground() {
               <div
                 key={conv.id}
                 onClick={() => {
+                  if (renamingConvId === conv.id) return;
                   loadConversation(conv.id);
                   closeSidebarOnMobile();
                 }}
@@ -1251,24 +1331,62 @@ export default function VoiceChatPlayground() {
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-chat-subtle">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                   </svg>
-                  <span className="truncate">
-                    {conv.title || "Sohbet"}
-                  </span>
+                  {renamingConvId === conv.id ? (
+                    <input
+                      id={`rename-conv-${conv.id}`}
+                      name="conversationTitle"
+                      type="text"
+                      autoFocus
+                      maxLength={120}
+                      value={renamingTitle}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => setRenamingTitle(e.target.value)}
+                      onBlur={() => void handleSaveRenameConversation(conv.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          void handleSaveRenameConversation(conv.id);
+                        } else if (e.key === "Escape") {
+                          e.preventDefault();
+                          setRenamingConvId(null);
+                        }
+                      }}
+                      className="w-full min-w-0 rounded-md border border-gold/50 bg-black/40 px-1.5 py-0.5 text-[12.5px] text-white outline-hidden"
+                    />
+                  ) : (
+                    <span className="truncate">
+                      {conv.title || "Sohbet"}
+                    </span>
+                  )}
                 </div>
                 {/* Hidden until the row is hovered; touch screens have no hover, so it stays visible there. */}
-                <button
-                  onClick={(e) => handleDeleteConversation(e, conv.id)}
-                  className="ml-1.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-chat-subtle opacity-0 [transition:all_0.15s_ease] hover:bg-danger/15! hover:text-danger! hover:opacity-100! group-hover:opacity-70 touch:opacity-70"
-                  title="Sohbeti Sil"
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 6h18" />
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                    <line x1="10" y1="11" x2="10" y2="17" />
-                    <line x1="14" y1="11" x2="14" y2="17" />
-                  </svg>
-                </button>
+                <div className="ml-1 flex shrink-0 items-center gap-0.5">
+                  <button
+                    type="button"
+                    onClick={(e) => handleStartRenameConversation(e, conv)}
+                    className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-chat-subtle opacity-0 [transition:all_0.15s_ease] hover:bg-white/10! hover:text-chat-text! hover:opacity-100! group-hover:opacity-70 touch:opacity-70"
+                    title="Sohbeti Yeniden Adlandır"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 20h9" />
+                      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => handleDeleteConversation(e, conv.id)}
+                    className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-chat-subtle opacity-0 [transition:all_0.15s_ease] hover:bg-danger/15! hover:text-danger! hover:opacity-100! group-hover:opacity-70 touch:opacity-70"
+                    title="Sohbeti Sil"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 6h18" />
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      <line x1="10" y1="11" x2="10" y2="17" />
+                      <line x1="14" y1="11" x2="14" y2="17" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             ));
           })()}
@@ -1484,6 +1602,21 @@ export default function VoiceChatPlayground() {
                 </div>
               );
             })()}
+            {messages.length > 0 && (
+              <button
+                type="button"
+                onClick={handleExportMarkdown}
+                className="flex cursor-pointer items-center gap-1.5 rounded-full border border-white/8 bg-white/4 px-2.5 py-1 text-[12px] font-medium text-chat-muted [transition:border-color_0.15s,color_0.15s,background_0.15s] hover:border-gold/35 hover:bg-gold/10 hover:text-gold"
+                title="Mevcut sohbeti Markdown (.md) dosyası olarak indir"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                <span className="mobile:hidden">.md İndir</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={handleOpenMemoryModal}

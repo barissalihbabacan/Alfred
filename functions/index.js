@@ -245,7 +245,7 @@ export const api = onRequest({
   // CORS Preflight
   if (req.method === "OPTIONS") {
     res.set("Access-Control-Allow-Origin", "*");
-    res.set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+    res.set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
     res.set("Access-Control-Allow-Headers", "Content-Type, Accept, Authorization, X-Firebase-AppCheck, x-recaptcha-token");
     res.status(204).send("");
     return;
@@ -429,6 +429,40 @@ export const api = onRequest({
     } catch (err) {
       console.error("Cloud Function conversation retrieval failed:", err);
       res.status(500).json({ error: "Failed to retrieve conversation." });
+      return;
+    }
+  }
+
+  // Conversation rename endpoint: POST /conversation or PATCH /chat
+  if (
+    (path.endsWith("/conversation") && (req.method === "POST" || req.method === "PATCH")) ||
+    (path.endsWith("/chat") && req.method === "PATCH")
+  ) {
+    try {
+      const { conversationId, id, title } = req.body || {};
+      const targetId = (conversationId || id || req.query?.conversationId || "").toString().trim();
+      const trimmedTitle = typeof title === "string" ? title.trim().slice(0, 120) : "";
+      if (!targetId || !trimmedTitle) {
+        res.status(400).json({ error: "conversationId ve yeni başlık (title) zorunludur." });
+        return;
+      }
+
+      const convRef = db.collection("conversations").doc(targetId);
+      const convSnap = await convRef.get();
+      if (!convSnap.exists || baskasinin(convSnap)) {
+        res.status(404).json({ error: "Conversation not found" });
+        return;
+      }
+
+      await convRef.update({
+        title: trimmedTitle,
+        updatedAt: Timestamp.now()
+      });
+      res.status(200).json({ success: true, conversationId: targetId, title: trimmedTitle });
+      return;
+    } catch (err) {
+      console.error("Cloud Function conversation rename failed:", err);
+      res.status(500).json({ error: "Failed to rename conversation." });
       return;
     }
   }

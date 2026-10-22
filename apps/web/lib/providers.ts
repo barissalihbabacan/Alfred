@@ -7,9 +7,6 @@
 const PROVIDER_NAMES: Record<string, string> = {
   groq: "Groq",
   gemini: "Gemini",
-  cerebras: "Cerebras",
-  cerebras_secondary: "Cerebras",
-  openrouter: "OpenRouter",
   ollama: "Ollama"
 };
 
@@ -19,9 +16,9 @@ export function providerDisplayName(id: unknown): string {
   return PROVIDER_NAMES[id.trim().toLowerCase()] ?? id.trim();
 }
 
-/** Yonelme eki (Gemini'ye, Cerebras'a, OpenRouter'a, Groq'a). */
+/** Yonelme eki (Gemini'ye, Groq'a). */
 function dativeOf(name: string): string {
-  const special: Record<string, string> = { OpenRouter: "'a", Groq: "'a" };
+  const special: Record<string, string> = { Groq: "'a" };
   if (special[name]) return name + special[name];
   const lower = name.toLocaleLowerCase("tr-TR");
   const vowels = lower.match(/[aeıioöuü]/g);
@@ -49,7 +46,7 @@ export function formatProviderFallbackStatus(from: unknown, to: unknown, reason:
   const toName = providerDisplayName(to);
   const what = (typeof reason === "string" && REASON_TEXT[reason]) || "kullanılamıyor";
   if (fromName === toName) {
-    // Ayni saglayicinin ikinci modeli (Cerebras gpt-oss-120b -> qwen).
+    // Ayni saglayicinin ikinci modeli.
     return `${fromName} ${what}, başka bir ${toName} modeli deneniyor…`;
   }
   return `${fromName} ${what}, ${dativeOf(toName)} geçiliyor…`;

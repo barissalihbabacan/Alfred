@@ -15,22 +15,20 @@ import {
   GEMINI_SIGNATURE,
   GROQ_TPD_429,
   GROQ_TPM_429,
-  cerebrasText,
   geminiText,
   geminiToolCalls,
   groqPartialThenError,
   groqStreamError,
   groqText,
   groqToolCall,
-  openRouterMidStreamError,
-  openRouterText,
+  midStreamError,
   sse
 } from "./fixtures/chat-provider-streams.js";
 
 // The whole production turn (functions/index.js -> runChatTurnWithFallback)
 // against mocked fetch responses. No network.
 
-const KEYS = { groq: "gsk_secret_groq", gemini: "AQ.secret_gemini", cerebras: "csk-secret", openrouter: "sk-or-secret" };
+const KEYS = { groq: "gsk_secret_groq", gemini: "AQ.secret_gemini" };
 const ALL_KEYS = Object.values(KEYS);
 
 type Reply = { status?: number; body?: string; headers?: Record<string, string> } | Error;
@@ -43,7 +41,6 @@ interface Call {
 }
 
 function harness(replies: Reply[], options: { keys?: Partial<typeof KEYS>; env?: ChatProviderEnv } = {}) {
-  // The Cerebras steps are tested explicitly; production's default order omits them.
   const { providers } = resolveChatProviders(options.keys ?? KEYS, { CHAT_FALLBACK_ORDER: CHAT_PROVIDER_ORDER.join(","), ...(options.env ?? {}) });
   const calls: Call[] = [];
   const events: Array<Record<string, unknown>> = [];
@@ -242,15 +239,15 @@ describe("runChatTurnWithFallback", () => {
   it("a tool call on the last round (no tools offered) fails over instead of ending with an empty answer", async () => {
     // Gemini keeps calling tools; on round 3 it was offered none.
     const h = harness(
-      [{ body: geminiToolCalls() }, { body: geminiToolCalls() }, { body: geminiToolCalls() }, { body: openRouterText("Tokyo'da 20:43.") }],
-      { keys: { gemini: KEYS.gemini, openrouter: KEYS.openrouter } }
+      [{ body: geminiToolCalls() }, { body: geminiToolCalls() }, { body: geminiToolCalls() }, { body: groqText("Tokyo'da 20:43.") }],
+      { env: { CHAT_FALLBACK_ORDER: "gemini,groq" } }
     );
     await h.run();
     expect(h.calls.map((c) => "tools" in c.body)).toEqual([true, true, false, true]);
     // The last-round calls are not run: two rounds of tool results only.
     expect(h.metrics).toMatchObject({ tool_rounds: 2 });
     expect(h.logs.find((l) => l.event === "llm_stream_error")?.fields).toMatchObject({ provider: "gemini", round: 3, code: "tool_call_without_tools" });
-    expect(h.events.find((e) => e.type === "provider_fallback")).toMatchObject({ from: "gemini", to: "openrouter" });
+    expect(h.events.find((e) => e.type === "provider_fallback")).toMatchObject({ from: "gemini", to: "groq" });
     expect(h.state.accumulatedText).toBe("Tokyo'da 20:43.");
   });
 
@@ -261,7 +258,7 @@ describe("runChatTurnWithFallback", () => {
     );
     const h = harness(
       [{ body: geminiToolCalls() }, { body: geminiToolCalls() }, { body: textThenCall }],
-      { keys: { gemini: KEYS.gemini, openrouter: KEYS.openrouter } }
+      { env: { CHAT_FALLBACK_ORDER: "gemini,groq" } }
     );
     await h.run();
     expect(h.calls).toHaveLength(3);
@@ -300,61 +297,36 @@ describe("runChatTurnWithFallback", () => {
     expect(h.metrics).toMatchObject({ tool_rounds: 1, tool_calls: 2, provider: "gemini" });
   });
 
-  it("Cerebras gpt-oss-120b 429 goes straight to Cerebras qwen without waiting", async () => {
-    const h = harness(
-      [{ status: 429, body: json({ error: { message: "Requests per minute limit exceeded" } }), headers: { "retry-after": "8" } }, { body: cerebrasText("Buyurun.") }],
-      { keys: { cerebras: KEYS.cerebras } }
-    );
-    await expect(h.run()).resolves.toEqual({ providerId: "cerebras_secondary", model: "qwen-3.8-27b" });
-    expect(h.sleeps).toEqual([]);
-    expect(h.types()).not.toContain("rate_limited");
-    expect(h.events[0]).toEqual({ type: "provider_fallback", from: "cerebras", to: "cerebras_secondary", model: "qwen-3.8-27b", reason: "rate_limited" });
-    expect(h.calls.map((c) => c.body.model)).toEqual(["gpt-oss-120b", "qwen-3.8-27b"]);
-    expect(h.calls[1].body).toMatchObject({ reasoning_effort: "low" });
-    expect(h.logs.find((l) => l.event === "llm_rate_limited")?.fields).toMatchObject({ provider: "cerebras", outcome: "fallback_preferred" });
-    expect(h.systemPromptOf(1)).toContain("reasoning via Cerebras (qwen-3.8-27b), standing in because Groq is unavailable,");
-  });
-
   it("the last provider waits out a waitable 429 instead of giving up", async () => {
     const h = harness(
-      [{ status: 429, body: json({ error: { message: "slow down" } }), headers: { "retry-after": "4" } }, { body: openRouterText("Buyurun.") }],
-      { keys: { openrouter: KEYS.openrouter } }
+      [{ status: 429, body: json({ error: { message: "slow down" } }), headers: { "retry-after": "4" } }, { body: geminiText("Buyurun.") }],
+      { keys: { gemini: KEYS.gemini } }
     );
     await h.run();
     expect(h.sleeps).toEqual([4000]);
-    expect(h.calls[0].headers).toMatchObject({ "HTTP-Referer": "https://butler-alfred.web.app", "X-Title": "B.U.T.L.E.R. Alfred" });
   });
 
   it("walks the whole chain and reports the first rate-limit error with a note when all fail", async () => {
     const h = harness([
       { status: 429, body: json(GROQ_TPD_429) },
-      { status: 500, body: json([{ error: { code: 500, message: "Internal error", status: "INTERNAL" } }]) },
-      { status: 429, body: json({ error: { message: "Requests per minute limit exceeded" } }) },
-      new TypeError("fetch failed"),
-      { body: openRouterMidStreamError() }
+      { body: midStreamError() }
     ]);
     const err = await h.run().catch((e: unknown) => e);
     expect(h.events.filter((e) => e.type === "provider_fallback").map((e) => [e.from, e.to, e.reason])).toEqual([
-      ["groq", "gemini", "rate_limited"],
-      ["gemini", "cerebras", "server_error"],
-      ["cerebras", "cerebras_secondary", "rate_limited"],
-      ["cerebras_secondary", "openrouter", "network_error"]
+      ["groq", "gemini", "rate_limited"]
     ]);
-    expect(h.metrics.attempted_providers).toEqual(["groq", "gemini", "cerebras", "cerebras_secondary", "openrouter"]);
-    expect(h.metrics.fallback_from).toEqual(["groq", "gemini", "cerebras", "cerebras_secondary"]);
+    expect(h.metrics.attempted_providers).toEqual(["groq", "gemini"]);
+    expect(h.metrics.fallback_from).toEqual(["groq"]);
     const event = toChatTurnErrorEvent(err);
     expect(event).toMatchObject({ code: "rate_limited", limitType: "tpd" });
     expect(event.error).toBe(`Groq'un günlük token limiti doldu. Lütfen yaklaşık 3 dakika sonra tekrar deneyin. ${FALLBACK_EXHAUSTED_NOTE}`);
-    expect(h.logs.find((l) => l.event === "llm_stream_error")?.fields).toMatchObject({ provider: "openrouter", code: "server_error" });
+    expect(h.logs.find((l) => l.event === "llm_stream_error")?.fields).toMatchObject({ provider: "gemini", code: "server_error" });
   });
 
   it("never logs or sends an API key", async () => {
     const h = harness([
       { status: 429, body: json(GROQ_TPD_429) },
-      { status: 401, body: "unauthorized" },
-      { status: 503, body: "" },
-      { status: 503, body: "" },
-      { body: openRouterText("Tamam.") }
+      { body: geminiText("Tamam.") }
     ]);
     await h.run();
     const visible = JSON.stringify({ logs: h.logs, events: h.events, metrics: h.metrics });
@@ -362,7 +334,7 @@ describe("runChatTurnWithFallback", () => {
   });
 
   it("Groq-only configuration keeps the former failure behaviour (no fallback, no note)", async () => {
-    const h = harness([{ status: 503, body: "over capacity" }], { keys: { groq: KEYS.groq, gemini: "unset", cerebras: "none", openrouter: "" } });
+    const h = harness([{ status: 503, body: "over capacity" }], { keys: { groq: KEYS.groq, gemini: "unset" } });
     const err = await h.run().catch((e: unknown) => e);
     expect(err).toMatchObject({ status: 503, message: "Groq API error (503): over capacity" });
     expect(toChatTurnErrorEvent(err)).toEqual({ type: "error", error: "Groq API error (503): over capacity" });

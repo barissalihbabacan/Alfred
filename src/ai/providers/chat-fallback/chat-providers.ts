@@ -5,47 +5,31 @@
  * "Functions bundle"), so nothing here may import config, dotenv or I/O.
  * Environment values and API keys are passed in by the caller.
  *
- * All four speak the OpenAI Chat Completions wire format (streaming SSE,
+ * Both speak the OpenAI Chat Completions wire format (streaming SSE,
  * `tools` in OpenAI function format), so one request builder and one stream
- * parser serve them all:
+ * parser serve them:
  *
  *   1. Groq       openai/gpt-oss-120b   (primary; request shape unchanged)
  *   2. Gemini     gemini-3.8-flash      (OpenAI-compatible endpoint, billed per token)
- *   3. Cerebras   gpt-oss-120b          (free tier: 5 requests/min, so a 429 moves on at once)
- *   4. Cerebras   qwen-3.8-27b          (same key; much higher request limits)
- *   5. OpenRouter openai/gpt-oss-120b   (paid model: needs OpenRouter credits)
  *
  * Docs (checked 24 Sep 2026):
  *   Groq       https://console.groq.com/docs/openai
  *   Gemini     https://ai.google.dev/gemini-api/docs/openai
- *   Cerebras   https://inference-docs.cerebras.ai/api-reference/chat-completions
- *              https://inference-docs.cerebras.ai/capabilities/tool-use (both models)
- *              https://inference-docs.cerebras.ai/capabilities/reasoning
- *   OpenRouter https://openrouter.ai/docs/api-reference/overview
  */
 
-export type ChatProviderId = "groq" | "gemini" | "cerebras" | "cerebras_secondary" | "openrouter";
+export type ChatProviderId = "groq" | "gemini";
 
 /** Every provider this module knows, in their natural fallback order. */
 export const CHAT_PROVIDER_ORDER: readonly ChatProviderId[] = [
   "groq",
-  "gemini",
-  "cerebras",
-  "cerebras_secondary",
-  "openrouter"
+  "gemini"
 ];
 
 /**
  * The order production uses when CHAT_FALLBACK_ORDER is unset. Groq stays
- * first; the others are only used when it is unavailable.
- *
- * Cerebras is left out (24 Sep 2026): the account answers every request with
- * 402 payment_required, so both Cerebras steps only added two failed calls and
- * two ERROR logs before OpenRouter. Its config, key binding and tests stay, so
- * putting "cerebras", "cerebras_secondary" back here (before "openrouter")
- * re-enables it once billing is set up.
+ * first; Gemini is only used when Groq is unavailable.
  */
-export const DEFAULT_CHAT_PROVIDER_ORDER: readonly ChatProviderId[] = ["groq", "gemini", "openrouter"];
+export const DEFAULT_CHAT_PROVIDER_ORDER: readonly ChatProviderId[] = ["groq", "gemini"];
 
 export const DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b";
 /**
@@ -55,19 +39,6 @@ export const DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b";
  * is the safe default. Override with GEMINI_CHAT_MODEL.
  */
 export const DEFAULT_GEMINI_CHAT_MODEL = "gemini-3.8-flash";
-/** Same family as the primary, so answers stay consistent. */
-export const DEFAULT_CEREBRAS_MODEL = "gpt-oss-120b";
-/**
- * Second Cerebras model, tried when the first one is rate-limited (gpt-oss-120b
- * allows 5 requests/min on the owner's plan; a tool question takes 2).
- * Cerebras documents tool calling for it; set CEREBRAS_SECONDARY_MODEL=none to skip it.
- */
-export const DEFAULT_CEREBRAS_SECONDARY_MODEL = "qwen-3.8-27b";
-export const DEFAULT_OPENROUTER_MODEL = "openai/gpt-oss-120b";
-
-/** Site and app name OpenRouter asks callers to send (attribution; not auth). */
-export const OPENROUTER_REFERER = "https://butler-alfred.web.app";
-export const OPENROUTER_APP_TITLE = "B.U.T.L.E.R. Alfred";
 
 export interface ChatProviderConfig {
   id: ChatProviderId;
@@ -89,8 +60,7 @@ export interface ChatProviderConfig {
   maxTokens: number;
   /**
    * Whether a 429 is waited out (within the per-turn budget) before moving on.
-   * False when the next provider is a better bet than waiting (Cerebras
-   * gpt-oss-120b, then Cerebras qwen).
+   * False when the next provider is a better bet than waiting.
    */
   waitOnRateLimit: boolean;
 }
@@ -146,62 +116,13 @@ export function getChatProviderConfig(id: ChatProviderId, env: ChatProviderEnv =
         maxTokens: 4096,
         waitOnRateLimit: true
       };
-    case "cerebras":
-      return {
-        id,
-        label: "Cerebras",
-        url: "https://api.cerebras.ai/v1/chat/completions",
-        model: envModel(env, "CEREBRAS_MODEL", DEFAULT_CEREBRAS_MODEL),
-        secretName: "CEREBRAS_API_KEY",
-        // stream_options is not documented for Cerebras; its streaming example
-        // already carries `usage` in the final chunk, so nothing extra is sent.
-        extraBody: {},
-        extraHeaders: {},
-        maxTokens: 1500,
-        // 5 requests/min: waiting ~12 s for the bucket is worse than the qwen step.
-        waitOnRateLimit: false
-      };
-    case "cerebras_secondary":
-      return {
-        id,
-        label: "Cerebras",
-        url: "https://api.cerebras.ai/v1/chat/completions",
-        model: envModel(env, "CEREBRAS_SECONDARY_MODEL", DEFAULT_CEREBRAS_SECONDARY_MODEL),
-        secretName: "CEREBRAS_API_KEY",
-        // qwen-3.8-27b reasons at "high" by default and reasoning counts toward
-        // max tokens; "low" keeps it quick. Reasoning arrives in delta.reasoning
-        // (ignored). gpt-oss accepts "low" too, if the model is overridden.
-        extraBody: { reasoning_effort: "low" },
-        extraHeaders: {},
-        maxTokens: 4096,
-        waitOnRateLimit: true
-      };
-    case "openrouter":
-      return {
-        id,
-        label: "OpenRouter",
-        url: "https://openrouter.ai/api/v1/chat/completions",
-        model: envModel(env, "OPENROUTER_MODEL", DEFAULT_OPENROUTER_MODEL),
-        secretName: "OPENROUTER_API_KEY",
-        // Route only to upstream providers that support every parameter sent
-        // (i.e. `tools`); usage is always in the final chunk on OpenRouter.
-        extraBody: { provider: { require_parameters: true } },
-        extraHeaders: {
-          "HTTP-Referer": OPENROUTER_REFERER,
-          "X-Title": OPENROUTER_APP_TITLE,
-          "X-OpenRouter-Title": OPENROUTER_APP_TITLE
-        },
-        maxTokens: 1500,
-        waitOnRateLimit: true
-      };
   }
 }
 
 /**
  * Parses CHAT_FALLBACK_ORDER (comma-separated provider ids). Unknown ids and
- * duplicates are dropped. Empty or unset → DEFAULT_CHAT_PROVIDER_ORDER. Any
- * known id (Cerebras included) may be listed explicitly. `"groq"` alone
- * disables fallback.
+ * duplicates are dropped. Empty or unset → DEFAULT_CHAT_PROVIDER_ORDER.
+ * `"groq"` alone disables fallback.
  */
 export function parseChatProviderOrder(value: string | null | undefined): ChatProviderId[] {
   if (typeof value !== "string" || !value.trim()) return [...DEFAULT_CHAT_PROVIDER_ORDER];
@@ -221,20 +142,19 @@ export interface ResolvedChatProvider extends ChatProviderConfig {
 /**
  * The providers to try for one chat turn, in order, with their keys. Providers
  * whose key is not usable ({@link isUsableApiKey}) are left out; `skipped`
- * lists them so the caller can log it. A model set to "none" / "unset" (e.g.
- * CEREBRAS_SECONDARY_MODEL=none) also skips its step. Keys never leave this object except in
- * the Authorization header.
+ * lists them so the caller can log it. A model set to "none" / "unset" also
+ * skips its step. Keys never leave this object except in the Authorization
+ * header.
  */
 export function resolveChatProviders(
-  keys: Partial<Record<Exclude<ChatProviderId, "cerebras_secondary">, string | null | undefined>>,
+  keys: Partial<Record<ChatProviderId, string | null | undefined>>,
   env: ChatProviderEnv = {}
 ): { providers: ResolvedChatProvider[]; skipped: ChatProviderId[] } {
   const providers: ResolvedChatProvider[] = [];
   const skipped: ChatProviderId[] = [];
   for (const id of parseChatProviderOrder(env.CHAT_FALLBACK_ORDER)) {
     const config = getChatProviderConfig(id, env);
-    // The secondary Cerebras model shares CEREBRAS_API_KEY.
-    const key = id === "cerebras_secondary" ? keys.cerebras : keys[id];
+    const key = keys[id];
     if (!isUsableApiKey(config.model)) {
       skipped.push(id);
       continue;

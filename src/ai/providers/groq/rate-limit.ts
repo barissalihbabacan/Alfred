@@ -199,18 +199,11 @@ export function formatTurkishDuration(ms: number): string {
 
 /**
  * Turkish genitive suffix for a provider name, with the apostrophe:
- * Groq'un, Gemini'nin, Cerebras'ın, OpenRouter'ın. Follows the last vowel as
+ * Groq'un, Gemini'nin. Follows the last vowel as
  * pronounced by Turkish speakers (vowel harmony); a final vowel takes "n".
  */
-const GENITIVE_OVERRIDES: Record<string, string> = {
-  // Said "ov-pın-ravtır": last spoken vowel ı.
-  openrouter: "'ın"
-};
-
 export function turkishGenitiveSuffix(name: string): string {
   const lower = name.toLocaleLowerCase("tr-TR");
-  const override = GENITIVE_OVERRIDES[lower];
-  if (override) return override;
   const vowels = lower.match(/[aeıioöuü]/g);
   const last = vowels ? vowels[vowels.length - 1] : "e";
   const harmony: Record<string, string> = { a: "ın", ı: "ın", e: "in", i: "in", o: "un", u: "un", ö: "ün", ü: "ün" };

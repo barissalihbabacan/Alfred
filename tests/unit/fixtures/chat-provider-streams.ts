@@ -7,10 +7,6 @@
  * - Gemini (OpenAI endpoint): each tool call whole, with `id` and no `index`,
  *   a thought signature in `extra_content.google.thought_signature`, usage in
  *   a final chunk with `choices: []` (stream_options.include_usage).
- * - Cerebras: `delta.reasoning`, usage on the final chunk.
- * - OpenRouter: `: OPENROUTER PROCESSING` comments, a final usage chunk with a
- *   content-free delta, mid-stream errors as a top-level `error` with
- *   `finish_reason: "error"`.
  */
 
 export function sse(...chunks: unknown[]): string {
@@ -92,35 +88,10 @@ export function geminiText(...parts: string[]): string {
   );
 }
 
-export function cerebrasText(...parts: string[]): string {
-  return sse(
-    choice({ role: "assistant", content: "" }),
-    choice({ reasoning: "Short greeting; answer briefly." }),
-    ...parts.map((p) => choice({ content: p })),
-    { ...choice({}, "stop"), usage: { prompt_tokens: 2000, completion_tokens: 20, total_tokens: 2020 } }
-  );
-}
-
-export function cerebrasToolCall(): string {
-  return sse(
-    choice({ tool_calls: [{ index: 0, id: "call_cb_1", type: "function", function: { name: "get_current_time", arguments: "{\"cities\":[\"Paris\"]}" } }] }),
-    { ...choice({}, "tool_calls"), usage: { prompt_tokens: 2000, completion_tokens: 15, total_tokens: 2015 } }
-  );
-}
-
-export function openRouterText(...parts: string[]): string {
-  const body = sse(
-    ...parts.map((p) => ({ id: "gen-1", provider: "Cerebras", model: "openai/gpt-oss-120b", ...choice({ content: p }) })),
-    { id: "gen-1", ...choice({ content: "" }, "stop"), usage: { prompt_tokens: 2010, completion_tokens: 22, total_tokens: 2032 } }
-  );
-  return `: OPENROUTER PROCESSING\n\n${body}`;
-}
-
-export function openRouterMidStreamError(): string {
-  return `: OPENROUTER PROCESSING\n\n` + sse({
+export function midStreamError(): string {
+  return `: keep-alive\n\n` + sse({
     id: "cmpl-abc123",
     object: "chat.completion.chunk",
-    provider: "openai",
     error: { code: "server_error", message: "Provider disconnected unexpectedly" },
     choices: [{ index: 0, delta: { content: "" }, finish_reason: "error" }]
   });

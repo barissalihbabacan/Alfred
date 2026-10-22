@@ -20,9 +20,7 @@ Firebase Hosting ── /api/** rewrite ──►  Cloud Function 2nd Gen `api` 
                                             ▼
                                         Groq API (openai/gpt-oss-120b)      ◄── default
                                           ↓ unavailable, nothing streamed yet
-                                        Gemini (gemini-3.8-flash) → OpenRouter (openai/gpt-oss-120b)
-                                          (Cerebras gpt-oss-120b / qwen-3.8-27b configured but not in
-                                           the default order: account returns 402 payment_required)
+                                        Gemini (gemini-3.8-flash)
                                         MacBook Ollama over Tailscale        ◄── only if ALFRED_LLM_PROVIDER=ollama
                                             │  tool calls: get_current_time (the only tool offered;
                                             │  server access over SSH is not connected)
@@ -33,7 +31,7 @@ Firebase Hosting ── /api/** rewrite ──►  Cloud Function 2nd Gen `api` 
 
 - **One HTTP entry point.** Everything server-side runs in the `api` function. The web app is a static export with no route handlers or SSR.
 - **`functions/index.js` is bundled with `src/`.** esbuild builds it into `functions/lib/index.js` together with the shared `src/` modules it imports: the system prompt and user profile, memory-extraction prompt and candidate validation, `PrivacyFilter`, cosine similarity, conversation titles, the `get_current_time` tool, the embedding calls (`src/ai/embedding/embedding-client.ts`), the memory extraction pipeline and its Groq → Gemini → Ollama calls (`extraction-pipeline.ts`, `extraction-providers.ts`, driven by `functions/memory-extraction.js`) and the memory write loop and decisions (`memory-write-loop.ts`, `memory-write-planner.ts`, driven by `functions/memory-persistence.js`). Only the Firestore storage layer and the logging around them are hand-written in `functions/`.
-- **Secrets** (`GROQ_API_KEY`, `GEMINI_API_KEY`, `CEREBRAS_API_KEY`, `OPENROUTER_API_KEY`) live only in Secret Manager and are bound to the function. The browser never sees or sends a key.
+- **Secrets** (`GROQ_API_KEY`, `GEMINI_API_KEY`) live only in Secret Manager and are bound to the function. The browser never sees or sends a key.
 
 ---
 
@@ -295,7 +293,7 @@ Alfred Cognitive Core
   - An optional local provider running `gemma4:12b-mlx` on the MacBook over the private Tailscale network.
   - Supports native chat completions, NDJSON streaming, parameter mapping and health diagnostics.
   - Only in the request path when `ALFRED_LLM_PROVIDER=ollama`.
-- **Production chat fallback** (`src/ai/providers/chat-fallback/`, bundled into `functions/index.js`): Groq, Gemini (OpenAI-compatible endpoint), Cerebras (gpt-oss-120b, then qwen-3.8-27b; not in the default order `DEFAULT_CHAT_PROVIDER_ORDER` until its billing is set up) and OpenRouter all speak the OpenAI Chat Completions streaming format, so one request builder, one SSE parser and one tool loop serve them. A turn moves to the next provider only while nothing has been streamed to the user; it then restarts from the user's message with a system prompt that names the new provider. Details and the failover matrix are in `docs/PRODUCTION_INTERNALS.md` (**Chat provider fallback**). This path does not go through `getAIProvider()`; the `src/` Groq/Ollama providers are unchanged.
+- **Production chat fallback** (`src/ai/providers/chat-fallback/`, bundled into `functions/index.js`): Groq and Gemini (OpenAI-compatible endpoint) both speak the OpenAI Chat Completions streaming format, so one request builder, one SSE parser and one tool loop serve them. A turn moves to the next provider only while nothing has been streamed to the user; it then restarts from the user's message with a system prompt that names the new provider. Details and the failover matrix are in `docs/PRODUCTION_INTERNALS.md` (**Chat provider fallback**). This path does not go through `getAIProvider()`; the `src/` Groq/Ollama providers are unchanged.
 - **Vendor Independence & Unified Factory**: Neither Alfred's persona nor its callers import a concrete provider directly; everything goes through `getAIProvider()`. The system prompt states whichever provider and model is actually answering.
 
 ### Real-Time Streaming & "Thinking..." Architecture

@@ -3,7 +3,7 @@
   "documentation": {
     "subject": "[Alfred] Sohbet yanıtı verilemedi",
     "mimeType": "text/markdown",
-    "content": "Bir `/chat` turu kullanıcıya hata ile bitti (`llm_request` `outcome=error`). Yedek zincir (Groq -> Gemini -> OpenRouter) tükendi ya da yedeğe geçilemeyen bir hata oldu.\n\nLog sorgusu: `jsonPayload.event=\"llm_request\" jsonPayload.outcome=\"error\"` (alanlar: `provider`, `attempted_providers`, `fallback_from`, `error`, `error_code`, `rate_limit_type`).\n\nRunbook: docs/OPERATIONS.md (Uyarılar ve runbook)."
+    "content": "Bir `/chat` turu kullanıcıya hata ile bitti (`llm_request` `outcome=error`). Yedek zincir (Groq -> Gemini) tükendi ya da yedeğe geçilemeyen bir hata oldu.\n\nLog sorgusu: `jsonPayload.event=\"llm_request\" jsonPayload.outcome=\"error\"` (alanlar: `provider`, `attempted_providers`, `fallback_from`, `error`, `error_code`, `rate_limit_type`).\n\nRunbook: docs/OPERATIONS.md (Uyarılar ve runbook)."
   },
   "userLabels": {
     "managed_by": "alfred-setup-alerts",

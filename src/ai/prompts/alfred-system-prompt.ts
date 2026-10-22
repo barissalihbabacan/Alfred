@@ -41,7 +41,7 @@ import type { UserProfileSources } from "../../alfred/cognitive/context/user-pro
 export interface AlfredRuntime {
   /**
    * The provider answering: "groq" or "ollama" (ALFRED_LLM_PROVIDER), or a chat
-   * fallback provider ("gemini", "cerebras", "cerebras_secondary", "openrouter").
+   * fallback provider ("gemini").
    */
   provider: string;
   /** The model id sent to that provider, e.g. "openai/gpt-oss-120b". */
@@ -56,10 +56,7 @@ export const DEFAULT_ALFRED_RUNTIME: AlfredRuntime = { provider: "groq", model: 
  * used when the turn is answered by one of them instead of Groq.
  */
 const FALLBACK_PROVIDER_NAMES: Record<string, string> = {
-  gemini: "Google Gemini",
-  cerebras: "Cerebras",
-  cerebras_secondary: "Cerebras",
-  openrouter: "OpenRouter"
+  gemini: "Google Gemini"
 };
 
 /** Human-readable reasoning backend for the persona's "Operational now" line. */

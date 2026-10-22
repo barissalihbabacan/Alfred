@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640" role="img" aria-labelledby="arch-title arch-desc">
   <title id="arch-title">Bir mesajın yolculuğu</title>
-  <desc id="arch-desc">Tarayıcıdaki Next.js uygulaması Google girişi ve App Check token'ıyla api Cloud Function'ına istek atar. Fonksiyon kimliği doğrular, istemi kurar, Groq, Gemini ve OpenRouter sırasıyla denenerek cevap SSE ile akıtılır. Arka planda saat aracı çalışır ve kalıcı bilgiler gizli bilgi filtresinden geçip Gemini embedding ile Firestore'a yazılır.</desc>
+  <desc id="arch-desc">Tarayıcıdaki Next.js uygulaması Google girişi ve App Check token'ıyla api Cloud Function'ına istek atar. Fonksiyon kimliği doğrular, istemi kurar, Groq ve Gemini sırasıyla denenerek cevap SSE ile akıtılır. Arka planda saat aracı çalışır ve kalıcı bilgiler gizli bilgi filtresinden geçip Gemini embedding ile Firestore'a yazılır.</desc>
 
   <rect width="1200" height="640" rx="24" fill="#0E1726"/>
 
@@ -33,7 +33,6 @@
       <text x="24" y="82" font-size="24" font-weight="600" fill="#F4EFE3">Model zinciri</text>
       <text x="24" y="120" font-size="20" fill="#F4EFE3">Groq gpt-oss-120b</text>
       <text x="24" y="150" font-size="20" fill="#C8CEDA">↓ Gemini 3.8 Flash</text>
-      <text x="24" y="180" font-size="20" fill="#C8CEDA">↓ OpenRouter</text>
     </g>
     <!-- 4 cevap -->
     <g transform="translate(900 96)">

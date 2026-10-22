@@ -35,7 +35,7 @@ All policies use a sliding window (`ALIGN_SUM` over the window, `COMPARISON_GT`)
 
 | Metric | Log filter (all on `resource.type="cloud_run_revision"` unless noted) | Labels |
 | --- | --- | --- |
-| `alfred_chat_failures` | `jsonPayload.event="llm_request"`, `outcome="error"`. One per turn, written after the whole fallback chain (Groq → Gemini → OpenRouter), so this is "the user got an error". Fields to read: `provider`, `attempted_providers`, `fallback_from`, `skipped_providers`, `error`, `error_code`, `rate_limit_reason`, `rate_limit_type`. | `provider`, `error_code` |
+| `alfred_chat_failures` | `jsonPayload.event="llm_request"`, `outcome="error"`. One per turn, written after the whole fallback chain (Groq → Gemini), so this is "the user got an error". Fields to read: `provider`, `attempted_providers`, `fallback_from`, `skipped_providers`, `error`, `error_code`, `rate_limit_reason`, `rate_limit_type`. | `provider`, `error_code` |
 | `alfred_provider_fallbacks` | `event="llm_provider_fallback"` (`from`, `from_model`, `to`, `to_model`, `reason`, `http_status`, `error`; `client_error` is logged at ERROR). | `from`, `to`, `reason` |
 | `alfred_llm_stream_errors` | `event="llm_stream_error"` (`provider`, `model`, `round`, `code`, `detail`). | `provider`, `code` |
 | `alfred_rate_limit_giveups` | `event="llm_rate_limited"` except `outcome="retry"` (a normal wait) and `outcome="fallback_preferred"` (deliberate skip to the next provider). | `provider`, `outcome`, `limit_type` |
@@ -49,7 +49,7 @@ All policies use a sliding window (`ALIGN_SUM` over the window, `COMPARISON_GT`)
 
 ### Baseline (logs of 10–24 Sep 2026)
 
-Checked with read-only `gcloud logging read` before choosing thresholds: 4 final chat failures (all Groq TPD 429s on 24 Sep, before the Gemini/OpenRouter fallback was deployed — each would have fired the CRITICAL alert, correctly), 15 App Check rejections (13 `missing`, 2 `invalid`; a burst of 9 between 13:58 and 14:03 on 24 Sep would have fired the App Check alert), 1 memory extraction failure, 4 function deploy failures (23 Sep, secret overlap), 3 × 5xx (2 on 11 Sep, 1 on 20 Sep — below the ≥ 3 threshold), no fallbacks, stream errors, embedding errors or startup failures.
+Checked with read-only `gcloud logging read` before choosing thresholds: 4 final chat failures (all Groq TPD 429s on 24 Sep, before the Gemini fallback was deployed — each would have fired the CRITICAL alert, correctly), 15 App Check rejections (13 `missing`, 2 `invalid`; a burst of 9 between 13:58 and 14:03 on 24 Sep would have fired the App Check alert), 1 memory extraction failure, 4 function deploy failures (23 Sep, secret overlap), 3 × 5xx (2 on 11 Sep, 1 on 20 Sep — below the ≥ 3 threshold), no fallbacks, stream errors, embedding errors or startup failures.
 
 **Tuning.** Traffic is one person, so thresholds are low. If the 5xx alert should fire on a single 500 (the billing outages above would then have been caught), set `thresholdValue` to `0` in `policies/api_5xx.json` and re-run the setup script. Local `npm run dev:web` against production without a registered App Check debug token produces bursts of `missing` and can trigger the App Check alert; that is expected.
 
@@ -138,9 +138,9 @@ gcloud logging read 'jsonPayload.event="llm_request" AND jsonPayload.outcome="er
 ```
 
 ### Sohbet yanıtı verilemedi (CRITICAL)
-Kullanıcı bir hata mesajı gördü; yedek zincir (Groq → Gemini → OpenRouter) tükendi ya da yedeğe geçilemeyen bir hata oldu.
+Kullanıcı bir hata mesajı gördü; yedek zincir (Groq → Gemini) tükendi ya da yedeğe geçilemeyen bir hata oldu.
 1. `llm_request` kaydında `attempted_providers`, `fallback_from`, `skipped_providers`, `error_code`, `rate_limit_type` ve `error` alanlarına bakın.
-2. `error_code="rate_limited"` ve `rate_limit_type="tpd"` ise Groq'un günlük kotası dolmuştur; `attempted_providers` içinde yalnızca `groq` varsa Gemini/OpenRouter anahtarları kullanılamıyor demektir (`skipped_providers`). Secret Manager'daki `GEMINI_API_KEY` / `OPENROUTER_API_KEY` değerlerini kontrol edin (`unset` ise o adım atlanır).
+2. `error_code="rate_limited"` ve `rate_limit_type="tpd"` ise Groq'un günlük kotası dolmuştur; `attempted_providers` içinde yalnızca `groq` varsa Gemini anahtarı kullanılamıyor demektir (`skipped_providers`). Secret Manager'daki `GEMINI_API_KEY` değerini kontrol edin (`unset` ise o adım atlanır).
 3. Aynı dakikalardaki `llm_provider_fallback` kayıtları her sağlayıcının neden düştüğünü (`reason`, `http_status`) gösterir. `client_error` (400/401/403/404) anahtar, model adı ya da istek gövdesi sorunudur; `server_error` / `network` sağlayıcı tarafındadır, genelde kendiliğinden düzelir.
 4. Kullanıcı tarafında deneyin: uygulamadan kısa bir mesaj gönderin. Sorun sürüyorsa geçici olarak `CHAT_FALLBACK_ORDER` ile çalışan sağlayıcıyı öne alıp deploy edin.
 

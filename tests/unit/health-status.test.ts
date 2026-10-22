@@ -2,11 +2,10 @@ import { describe, it, expect } from "vitest";
 import { buildHealthStatus } from "../../src/ai/providers/chat-fallback/health-status.js";
 import {
   DEFAULT_GEMINI_CHAT_MODEL,
-  DEFAULT_OPENROUTER_MODEL,
   getChatProviderConfig
 } from "../../src/ai/providers/chat-fallback/chat-providers.js";
 
-const KEYS = { groq: "gsk_test", gemini: "AQ.test", cerebras: "csk-test", openrouter: "sk-or-test" };
+const KEYS = { groq: "gsk_test", gemini: "AQ.test" };
 const GROQ_MODEL = getChatProviderConfig("groq").model;
 
 describe("buildHealthStatus (the /health answer)", () => {
@@ -28,19 +27,10 @@ describe("buildHealthStatus (the /health answer)", () => {
     }
   });
 
-  it("follows the default order past every missing key (Cerebras is not in it)", () => {
-    const health = buildHealthStatus({
-      llmProvider: "groq",
-      keys: { groq: "unset", gemini: "unset", cerebras: "csk-test", openrouter: "sk-or-test" }
-    });
-    expect(health.activeProvider).toBe("openrouter");
-    expect(health.model).toBe(DEFAULT_OPENROUTER_MODEL);
-  });
-
   it("is offline, with no model, when no provider of the chain has a key", () => {
     const health = buildHealthStatus({
       llmProvider: "groq",
-      keys: { groq: "unset", gemini: "", cerebras: "none", openrouter: undefined }
+      keys: { groq: "unset", gemini: "" }
     });
     expect(health).toEqual({
       status: "ok",

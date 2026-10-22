@@ -1,6 +1,6 @@
 /**
- * Parser for OpenAI-compatible chat-completions SSE streams (Groq, Gemini's
- * OpenAI endpoint, Cerebras, OpenRouter).
+ * Parser for OpenAI-compatible chat-completions SSE streams (Groq and Gemini's
+ * OpenAI endpoint).
  *
  * Pure and dependency-free (bundled into functions/index.js). It takes the
  * decoded text of the response body and reports content deltas; at the end it
@@ -8,7 +8,7 @@
  * provider sent inside the stream.
  *
  * Provider differences it absorbs:
- * - Tool-call deltas. Groq, Cerebras and OpenRouter send `index` on every
+ * - Tool-call deltas. Groq sends `index` on every
  *   fragment and `id` on the first. Gemini sends each call whole, with `id`
  *   but without `index` (several calls can arrive in one delta). Fragments are
  *   therefore keyed by `index` when present, else by `id`, else they continue
@@ -18,16 +18,16 @@
  *   call on the next request, or Gemini answers 400. `extra_content` is kept
  *   and returned on the call; other providers never send it.
  * - Usage. Groq puts `usage` and `x_groq.usage` (same values) on the final
- *   chunk; Gemini (with stream_options.include_usage) and OpenRouter send one
+ *   chunk; Gemini (with stream_options.include_usage) sends one
  *   final usage chunk with empty or content-free choices. Only the last usage
  *   seen is kept, so nothing is counted twice.
- * - Reasoning. `delta.reasoning` (Groq/Cerebras gpt-oss, OpenRouter) and
+ * - Reasoning. `delta.reasoning` (Groq gpt-oss) and
  *   `delta.reasoning_content` are ignored: reasoning is never shown or stored.
- * - Comments. OpenRouter sends `: OPENROUTER PROCESSING` keep-alives; every
- *   line that does not start with `data:` is skipped, as is `[DONE]`.
- * - In-stream errors. `{"error": {...}}` inside an HTTP 200 stream (Groq
- *   `tool_use_failed`, OpenRouter mid-stream errors with
- *   `finish_reason: "error"`) is recorded; the caller fails the call.
+ * - Comments. Every line that does not start with `data:` (such as SSE `:`
+ *   keep-alive comments) is skipped, as is `[DONE]`.
+ * - In-stream errors. `{"error": {...}}` inside an HTTP 200 stream (e.g. Groq
+ *   `tool_use_failed` or mid-stream errors with `finish_reason: "error"`) is
+ *   recorded; the caller fails the call.
  */
 
 export interface StreamedToolCall {

@@ -45,10 +45,7 @@ setGlobalOptions({ maxInstances: 10, timeoutSeconds: 120, memory: "512MiB" });
 //
 //   firebase functions:secrets:set GROQ_API_KEY
 //   firebase functions:secrets:set GEMINI_API_KEY
-//   firebase functions:secrets:set CEREBRAS_API_KEY
-//   firebase functions:secrets:set OPENROUTER_API_KEY
 //
-// Cerebras ve OpenRouter yalnizca sohbet yedegidir (Groq kullanilamazsa).
 // Degeri "unset" veya "none" olan anahtar yapilandirilmamis sayilir; o
 // saglayici atlanir (src/ai/providers/chat-fallback/chat-providers.ts).
 //
@@ -59,8 +56,6 @@ setGlobalOptions({ maxInstances: 10, timeoutSeconds: 120, memory: "512MiB" });
 // adlari olmali (tire kullanilamaz).
 const GROQ_API_KEY = defineSecret("GROQ_API_KEY");
 const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
-const CEREBRAS_API_KEY = defineSecret("CEREBRAS_API_KEY");
-const OPENROUTER_API_KEY = defineSecret("OPENROUTER_API_KEY");
 // web_search (Tavily). "unset" (or empty) leaves the tool out entirely.
 const TAVILY_API_KEY = defineSecret("TAVILY_API_KEY");
 
@@ -218,7 +213,7 @@ const extractAndPersistMemories = createExtractAndPersistMemories({
 
 export const api = onRequest({
   cors: true,
-  secrets: [GROQ_API_KEY, GEMINI_API_KEY, CEREBRAS_API_KEY, OPENROUTER_API_KEY, TAVILY_API_KEY]
+  secrets: [GROQ_API_KEY, GEMINI_API_KEY, TAVILY_API_KEY]
 }, async (req, res) => {
   // CORS Preflight
   if (req.method === "OPTIONS") {
@@ -270,9 +265,7 @@ export const api = onRequest({
     const llmProvider = (process.env.ALFRED_LLM_PROVIDER || process.env.AI_PROVIDER || "groq").trim().toLowerCase();
     const keys = {
       groq: gizliOku(GROQ_API_KEY, "GROQ_API_KEY"),
-      gemini: gizliOku(GEMINI_API_KEY, "GEMINI_API_KEY"),
-      cerebras: gizliOku(CEREBRAS_API_KEY, "CEREBRAS_API_KEY"),
-      openrouter: gizliOku(OPENROUTER_API_KEY, "OPENROUTER_API_KEY")
+      gemini: gizliOku(GEMINI_API_KEY, "GEMINI_API_KEY")
     };
 
     // Only the Ollama path probes Ollama; it has no fallback.
@@ -594,8 +587,8 @@ export const api = onRequest({
         });
     }
 
-    // Groq (varsayilan) ve yedekleri OpenAI uyumlu ayni akisla calisir:
-    // Groq -> Gemini -> Cerebras (gpt-oss-120b, sonra qwen) -> OpenRouter
+    // Groq (varsayilan) ve yedegi OpenAI uyumlu ayni akisla calisir:
+    // Groq -> Gemini
     // (src/ai/providers/chat-fallback/). Anahtari "unset"/"none"/bos olan
     // saglayici atlanir. ALFRED_LLM_PROVIDER=ollama ise eski Ollama yolu.
     const useOllama = activeProvider !== "groq";
@@ -603,9 +596,7 @@ export const api = onRequest({
       ? { providers: [], skipped: [] }
       : resolveChatProviders({
         groq: groqKey,
-        gemini: geminiKey,
-        cerebras: gizliOku(CEREBRAS_API_KEY, "CEREBRAS_API_KEY"),
-        openrouter: gizliOku(OPENROUTER_API_KEY, "OPENROUTER_API_KEY")
+        gemini: geminiKey
       }, process.env);
 
     // Persona states the provider/model actually answering this turn; the

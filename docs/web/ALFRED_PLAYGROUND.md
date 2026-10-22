@@ -35,7 +35,7 @@ Firebase Hosting rewrite  /api/**  →  Cloud Function `api` (functions/index.js
   │   DELETE /api/chat?conversationId=…          delete conversation
   │   POST   /api/chat  (SSE)                    chat turn
   ▼
-Groq openai/gpt-oss-120b → Gemini gemini-3.8-flash → OpenRouter  (fallback chain)
+Groq openai/gpt-oss-120b → Gemini gemini-3.8-flash  (fallback chain)
 Firestore (conversations, memory_vectors)
 ```
 

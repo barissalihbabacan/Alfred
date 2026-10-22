@@ -209,7 +209,7 @@ async function postWithRateLimit(
       // The wait budget is per turn, across tool rounds, retries and providers.
       // A wait that does not fit, or a daily limit: give up without sleeping.
       // A provider marked waitOnRateLimit: false moves on at once while
-      // another provider is left (Cerebras gpt-oss-120b: 5 requests/min).
+      // another provider is left.
       const decision: RateLimitWaitDecision = !provider.waitOnRateLimit && hasNextProvider
         ? { retry: false, decision: "give_up", reason: "fallback_preferred", waitMs: 0 }
         : computeRateLimitWait({
@@ -324,8 +324,8 @@ async function runOnProvider(deps: ChatTurnDeps, provider: ResolvedChatProvider,
 
     if (!tools) {
       // Tool calls on the round that offered no tools. Groq refuses them in
-      // the stream (tool_use_failed -> stream_error above); Gemini and
-      // OpenRouter send them, and running them would end the turn with no
+      // the stream (tool_use_failed -> stream_error above); Gemini sends
+      // them, and running them would end the turn with no
       // text ("empty_response", which never fails over). Text this round
       // already streamed is the answer; otherwise it is a stream error, so
       // the next provider is tried while nothing has reached the user.

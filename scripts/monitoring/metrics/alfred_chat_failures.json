@@ -1,5 +1,5 @@
 {
-  "description": "Chat turns that failed for the user: llm_request outcome=error, logged once per turn after the provider fallback chain (Groq -> Gemini -> OpenRouter) is exhausted or a non-failover error ends the turn.",
+  "description": "Chat turns that failed for the user: llm_request outcome=error, logged once per turn after the provider fallback chain (Groq -> Gemini) is exhausted or a non-failover error ends the turn.",
   "filter": "resource.type=\"cloud_run_revision\"\njsonPayload.event=\"llm_request\"\njsonPayload.outcome=\"error\"",
   "metricDescriptor": {
     "metricKind": "DELTA",

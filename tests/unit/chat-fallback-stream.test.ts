@@ -3,16 +3,13 @@ import { createOpenAIStreamParser, parseOpenAIStream } from "../../src/ai/provid
 import {
   GEMINI_SIGNATURE,
   GROQ_USAGE,
-  cerebrasText,
-  cerebrasToolCall,
   geminiText,
   geminiToolCalls,
   groqPartialThenError,
   groqStreamError,
   groqText,
   groqToolCall,
-  openRouterMidStreamError,
-  openRouterText
+  midStreamError
 } from "./fixtures/chat-provider-streams.js";
 
 describe("OpenAI-compatible stream parser", () => {
@@ -68,27 +65,9 @@ describe("OpenAI-compatible stream parser", () => {
     });
   });
 
-  describe("Cerebras", () => {
-    it("ignores delta.reasoning and reads usage from the final chunk", () => {
-      const out = parseOpenAIStream(cerebrasText("Buyurun, efendim."));
-      expect(out.text).toBe("Buyurun, efendim.");
-      expect(out.usage).toEqual({ prompt_tokens: 2000, completion_tokens: 20, total_tokens: 2020 });
-      expect(parseOpenAIStream(cerebrasToolCall()).toolCalls[0]).toEqual({
-        id: "call_cb_1", type: "function", function: { name: "get_current_time", arguments: "{\"cities\":[\"Paris\"]}" }
-      });
-    });
-  });
-
-  describe("OpenRouter", () => {
-    it("skips ': OPENROUTER PROCESSING' comments and reads the final usage chunk", () => {
-      const out = parseOpenAIStream(openRouterText("Hazırım, ", "efendim."));
-      expect(out.text).toBe("Hazırım, efendim.");
-      expect(out.usage?.total_tokens).toBe(2032);
-      expect(out.error).toBeNull();
-    });
-
-    it("records a mid-stream error (top-level error, finish_reason error)", () => {
-      const out = parseOpenAIStream(openRouterMidStreamError());
+  describe("SSE keep-alives and mid-stream errors", () => {
+    it("skips ':' keep-alive comments and records a mid-stream error (top-level error, finish_reason error)", () => {
+      const out = parseOpenAIStream(midStreamError());
       expect(out.error).toEqual({ code: "server_error", message: "Provider disconnected unexpectedly" });
       expect(out.text).toBe("");
     });

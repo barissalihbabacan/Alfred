@@ -37,12 +37,12 @@ Henüz **yapamadıkları**: takvim, e-posta ve ev sunucusuna erişim. Hangisinin
 ## Nasıl çalışır?
 
 <p align="center">
-  <img src="./assets/readme/architecture.svg" width="100%" alt="Bir mesajın yolculuğu: tarayıcı, api fonksiyonu, model zinciri (Groq, Gemini, OpenRouter) ve akışlı cevap; arka planda istem, saat ve web araması araçları ve bellek.">
+  <img src="./assets/readme/architecture.svg" width="100%" alt="Bir mesajın yolculuğu: tarayıcı, api fonksiyonu, model zinciri (Groq ve Gemini) ve akışlı cevap; arka planda istem, saat ve web araması araçları ve bellek.">
 </p>
 
 1. **Tarayıcı.** `apps/web` statik olarak derlenen bir Next.js uygulamasıdır; Firebase Hosting'den sunulur ve kendi sunucusu yoktur. Google ile girişten sonra her isteğe Firebase ID token'ı ve App Check token'ı ekler.
 2. **api fonksiyonu.** `functions/index.js` tek giriş noktasıdır. Geçerli bir ID token ve izinli tek UID olmadan, ya da App Check token'ı olmadan hiçbir isteği kabul etmez. API anahtarları yalnızca Secret Manager'dadır; tarayıcı hiçbir anahtar görmez.
-3. **Model zinciri.** Önce Groq `gpt-oss-120b` denenir. Groq sınıra çarparsa ya da hata verirse, kullanıcıya henüz metin gönderilmemişse, sırayla Gemini `gemini-3.8-flash` ve OpenRouter devreye girer. Cevap veren model istemde de adıyla belirtilir.
+3. **Model zinciri.** Önce Groq `gpt-oss-120b` denenir. Groq sınıra çarparsa ya da hata verirse, kullanıcıya henüz metin gönderilmemişse, Gemini `gemini-3.8-flash` devreye girer. Cevap veren model istemde de adıyla belirtilir.
 4. **Akışlı cevap.** Cevap Server-Sent Events ile parça parça gelir; web araması, beklemeler, sınıra çarpma ve sağlayıcı değişimi arayüzde görünür. Firebase Hosting yanıtları tamponladığı için sohbet isteği Hosting'i atlayıp doğrudan fonksiyona gider.
 
 Her mesajda arka planda:

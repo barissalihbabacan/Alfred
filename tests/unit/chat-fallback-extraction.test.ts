@@ -132,14 +132,11 @@ describe("capability line for a fallback provider", () => {
     expect(describeReasoningRuntime({ provider: "gemini", model: "gemini-3.8-flash" })).toBe(
       "Google Gemini (gemini-3.8-flash), standing in because Groq is unavailable"
     );
-    expect(describeReasoningRuntime({ provider: "cerebras_secondary", model: "qwen-3.8-27b" })).toBe(
-      "Cerebras (qwen-3.8-27b), standing in because Groq is unavailable"
+    expect(describeRequestPipeline({ provider: "gemini", model: "gemini-3.8-flash" })).toContain(
+      "→ Google Gemini API (gemini-3.8-flash) → SSE response."
     );
-    expect(describeRequestPipeline({ provider: "openrouter", model: "openai/gpt-oss-120b" })).toContain(
-      "→ OpenRouter API (openai/gpt-oss-120b) → SSE response."
-    );
-    const prompt = buildAlfredSystemPrompt({ runtime: { provider: "cerebras", model: "gpt-oss-120b" } });
-    expect(prompt).toContain("reasoning via Cerebras (gpt-oss-120b), standing in because Groq is unavailable,");
+    const prompt = buildAlfredSystemPrompt({ runtime: { provider: "gemini", model: "gemini-3.8-flash" } });
+    expect(prompt).toContain("reasoning via Google Gemini (gemini-3.8-flash), standing in because Groq is unavailable,");
     expect(prompt).toContain("Groq is the primary provider; this turn fell back because Groq was unavailable.");
     expect(prompt).not.toContain("Ollama on the MacBook over Tailscale is an optional alternative provider");
   });
@@ -148,12 +145,11 @@ describe("capability line for a fallback provider", () => {
 describe("functions/index.js secrets", () => {
   const index = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
 
-  it("binds the Cerebras and OpenRouter keys to the api function", () => {
-    expect(index).toContain('const CEREBRAS_API_KEY = defineSecret("CEREBRAS_API_KEY");');
-    expect(index).toContain('const OPENROUTER_API_KEY = defineSecret("OPENROUTER_API_KEY");');
-    expect(index).toContain("secrets: [GROQ_API_KEY, GEMINI_API_KEY, CEREBRAS_API_KEY, OPENROUTER_API_KEY, TAVILY_API_KEY]");
-    expect(index).toContain('cerebras: gizliOku(CEREBRAS_API_KEY, "CEREBRAS_API_KEY"),');
-    expect(index).toContain('openrouter: gizliOku(OPENROUTER_API_KEY, "OPENROUTER_API_KEY")');
+  it("binds the Groq, Gemini and Tavily keys to the api function", () => {
+    expect(index).toContain('const GROQ_API_KEY = defineSecret("GROQ_API_KEY");');
+    expect(index).toContain('const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");');
+    expect(index).toContain("secrets: [GROQ_API_KEY, GEMINI_API_KEY, TAVILY_API_KEY]");
+    expect(index).toContain('gemini: gizliOku(GEMINI_API_KEY, "GEMINI_API_KEY")');
   });
 
   it("announces the first provider in `start` and logs fallback fields on llm_request", () => {

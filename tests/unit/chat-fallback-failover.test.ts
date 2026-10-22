@@ -27,9 +27,9 @@ describe("classifyChatFailure", () => {
     ["500", createProviderHttpError("Groq", 500, "boom"), "server_error", 500],
     ["503", createProviderHttpError("Groq", 503, "over capacity"), "server_error", 503],
     ["400", createProviderHttpError("Gemini", 400, "bad request"), "client_error", 400],
-    ["401", createProviderHttpError("OpenRouter", 401, "no auth"), "client_error", 401],
-    ["402 (OpenRouter, no credits)", createProviderHttpError("OpenRouter", 402, "insufficient credits"), "client_error", 402],
-    ["404 (unknown model)", createProviderHttpError("Cerebras", 404, "model not found"), "client_error", 404],
+    ["401", createProviderHttpError("Gemini", 401, "no auth"), "client_error", 401],
+    ["402", createProviderHttpError("Gemini", 402, "payment_required"), "client_error", 402],
+    ["404 (unknown model)", createProviderHttpError("Gemini", 404, "model not found"), "client_error", 404],
     ["fetch failed", new TypeError("fetch failed"), "network_error", undefined],
     ["body terminated", new TypeError("terminated"), "network_error", undefined],
     ["ECONNRESET", Object.assign(new Error("socket hang up"), { code: "ECONNRESET" }), "network_error", undefined],
@@ -97,8 +97,8 @@ describe("failover decision matrix", () => {
 describe("final error of a turn", () => {
   it("prefers the first rate-limit error (it has a retry hint), else the last error", () => {
     const rl = createRateLimitedError("x", "daily_limit", { limitType: "tpd", retryAfterMs: 199_152 });
-    const e500 = createProviderHttpError("Gemini", 500, "");
-    const e401 = createProviderHttpError("OpenRouter", 401, "");
+    const e500 = createProviderHttpError("Groq", 500, "");
+    const e401 = createProviderHttpError("Gemini", 401, "");
     expect(pickFinalChatError([rl, e500, e401])).toBe(rl);
     expect(pickFinalChatError([e500, e401])).toBe(e401);
   });
@@ -107,7 +107,7 @@ describe("final error of a turn", () => {
     const rl = createRateLimitedError("x", "daily_limit", { limitType: "tpd", retryAfterMs: 199_152 });
     expect(toChatTurnErrorEvent(rl)).toEqual(toChatErrorEvent(rl));
     const exhausted = Object.assign(createRateLimitedError("x", "daily_limit", { limitType: "tpd", retryAfterMs: 199_152 }), {
-      attemptedProviders: ["groq", "gemini", "openrouter"]
+      attemptedProviders: ["groq", "gemini"]
     });
     expect(toChatTurnErrorEvent(exhausted)).toEqual({
       type: "error",
@@ -115,25 +115,25 @@ describe("final error of a turn", () => {
       code: "rate_limited",
       limitType: "tpd",
       retryAfterMs: 199_152,
-      attemptedProviders: ["groq", "gemini", "openrouter"]
+      attemptedProviders: ["groq", "gemini"]
     });
-    const plain = Object.assign(new Error("OpenRouter API error (401): x"), { attemptedProviders: ["groq", "openrouter"] });
-    expect(toChatTurnErrorEvent(plain).error).toBe(`OpenRouter API error (401): x ${FALLBACK_EXHAUSTED_NOTE}`);
+    const plain = Object.assign(new Error("Gemini API error (401): x"), { attemptedProviders: ["groq", "gemini"] });
+    expect(toChatTurnErrorEvent(plain).error).toBe(`Gemini API error (401): x ${FALLBACK_EXHAUSTED_NOTE}`);
     expect(toChatTurnErrorEvent(null)).toEqual({ type: "error", error: "LLM provider temporarily unavailable." });
   });
 
   it("names the provider in a non-Groq rate-limit message", () => {
-    const err = createRateLimitedError("x", "max_attempts", { limitType: "rpm", retryAfterMs: 12_000 }, "Cerebras");
-    expect(err.message).toBe("Cerebras API error (429): x");
-    expect(toChatErrorEvent(err).error).toBe("Cerebras'ın dakikalık istek limiti doldu. Lütfen ~12 sn sonra tekrar deneyin.");
+    const err = createRateLimitedError("x", "max_attempts", { limitType: "rpm", retryAfterMs: 12_000 }, "Gemini");
+    expect(err.message).toBe("Gemini API error (429): x");
+    expect(toChatErrorEvent(err).error).toBe("Gemini'nin dakikalık istek limiti doldu. Lütfen ~12 sn sonra tekrar deneyin.");
     expect(rateLimitUserMessage("unknown", null, "Gemini")).toBe("Gemini kullanım sınırına ulaşıldı. Lütfen biraz sonra tekrar deneyin.");
     expect(rateLimitUserMessage("tpd", null, "Gemini")).toBe("Gemini'nin günlük token limiti doldu. Lütfen biraz sonra tekrar deneyin.");
     expect(createRateLimitedError("x", "max_attempts", { limitType: "tpm", retryAfterMs: 1 })).not.toHaveProperty("providerLabel");
   });
 
   it("builds Turkish genitive suffixes for provider names", () => {
-    expect(["Groq", "Gemini", "Cerebras", "OpenRouter"].map((n) => n + turkishGenitiveSuffix(n))).toEqual([
-      "Groq'un", "Gemini'nin", "Cerebras'ın", "OpenRouter'ın"
+    expect(["Groq", "Gemini"].map((n) => n + turkishGenitiveSuffix(n))).toEqual([
+      "Groq'un", "Gemini'nin"
     ]);
   });
 });

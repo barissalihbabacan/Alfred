@@ -28,7 +28,7 @@ export interface HealthStatus {
 export interface HealthStatusInput {
   /** `ALFRED_LLM_PROVIDER`, trimmed and lower-cased; anything but "groq" is the Ollama path. */
   llmProvider: string;
-  keys: Partial<Record<Exclude<ChatProviderId, "cerebras_secondary">, string | null | undefined>>;
+  keys: Partial<Record<ChatProviderId, string | null | undefined>>;
   env?: ChatProviderEnv;
   /** Only probed on the Ollama path, which has no fallback. */
   ollamaReachable?: boolean;

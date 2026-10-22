@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "B.U.T.L.E.R. Alfred — AI Executive Butler",
-  description: "Barış's Unified Task, Logic, Execution & Reasoning — Executive Intelligence",
+  title: "B.U.T.L.E.R. Alfred — Yönetici Yapay Zeka Asistanı",
+  description: "Barış'ın Birleşik Görev, Mantık, Yürütme ve Muhakeme Asistanı — Yönetici Zekası",
 };
 
 export const viewport: Viewport = {

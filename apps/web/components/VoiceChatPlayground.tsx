@@ -23,6 +23,16 @@ export type AssistantState =
   | "Streaming"
   | "Error";
 
+/** Üst çubuktaki durum rozetinde gösterilen Türkçe etiketler. */
+const STATE_LABELS: Record<AssistantState, string> = {
+  Idle: "Hazır",
+  Listening: "Dinliyor",
+  Transcribing: "Çözümleniyor",
+  Thinking: "Düşünüyor",
+  Streaming: "Yanıtlıyor",
+  Error: "Hata"
+};
+
 interface Message {
   id: string;
   role: "user" | "assistant";
@@ -97,6 +107,12 @@ const MEMORY_TYPE_LABELS: Record<string, string> = {
 
 function memoryTypeLabel(type: string): string {
   return MEMORY_TYPE_LABELS[type] || type;
+}
+
+/** Sunucunun varsayılan İngilizce başlığını ("New Conversation") Türkçe gösterir. */
+function displayConversationTitle(title?: string | null): string {
+  if (!title || title === "New Conversation") return "Yeni Sohbet";
+  return title;
 }
 
 function sourceDomain(url?: string): string {
@@ -694,7 +710,7 @@ export default function VoiceChatPlayground() {
   const handleStartRenameConversation = (e: React.MouseEvent, conv: ConversationSummary) => {
     e.stopPropagation();
     setRenamingConvId(conv.id);
-    setRenamingTitle(conv.title || "Sohbet");
+    setRenamingTitle(displayConversationTitle(conv.title));
   };
 
   const handleSaveRenameConversation = async (id: string) => {
@@ -719,7 +735,9 @@ export default function VoiceChatPlayground() {
   const handleExportMarkdown = () => {
     if (messages.length === 0) return;
     const currentConv = conversations.find((c) => c.id === conversationId);
-    const title = currentConv?.title || "B.U.T.L.E.R. Alfred Sohbeti";
+    const title = currentConv?.title && currentConv.title !== "New Conversation"
+      ? currentConv.title
+      : "B.U.T.L.E.R. Alfred Sohbeti";
     const activeProj = activeProjectId ? projects.find((p) => p.id === activeProjectId) : null;
     const dateStr = new Date().toLocaleString("tr-TR");
     const lines: string[] = [
@@ -1137,7 +1155,7 @@ export default function VoiceChatPlayground() {
         ? { name: "Çevrimdışı", detail: "Kullanılabilir yapay zeka sağlayıcısı yok", active: false }
         : engineProvider && engineProvider !== "groq"
           ? { name: providerDisplayName(engineProvider), detail: modelLabel, active: true }
-          : { name: "Groq Cloud", detail: modelLabel, active: true };
+          : { name: "Groq Bulut", detail: modelLabel, active: true };
 
   return (
     <div className="flex h-screen-safe w-full overflow-hidden bg-chat-bg font-sans leading-[normal] text-chat-text">
@@ -1171,7 +1189,7 @@ export default function VoiceChatPlayground() {
                   <span className="text-[13px] font-bold tracking-[0.06em] text-chat-text">B.U.T.L.E.R.</span>
                   <span className="rounded-full border border-gold/35 bg-gold/15 px-[5px] py-px text-[9px] font-bold tracking-[0.04em] text-gold">ALFRED</span>
                 </div>
-                <span className="text-[10px] font-medium tracking-[0.02em] text-chat-faint">Executive Intelligence</span>
+                <span className="text-[10px] font-medium tracking-[0.02em] text-chat-faint">Yönetici Zekası</span>
               </div>
             </div>
           </div>
@@ -1355,7 +1373,7 @@ export default function VoiceChatPlayground() {
                     />
                   ) : (
                     <span className="truncate">
-                      {conv.title || "Sohbet"}
+                      {displayConversationTitle(conv.title)}
                     </span>
                   )}
                 </div>
@@ -1640,7 +1658,7 @@ export default function VoiceChatPlayground() {
                 state === "Error" ? "bg-danger" : "bg-success",
                 state !== "Idle" && "animate-alfred-pulse"
               )} />
-              <span className="mobile:hidden">{state === "Idle" ? "Ready" : state}</span>
+              <span className="mobile:hidden">{STATE_LABELS[state]}</span>
             </div>
           </div>
         </header>
@@ -1929,7 +1947,7 @@ export default function VoiceChatPlayground() {
           </div>
 
           <p className="pointer-events-auto mt-2 text-center text-[11px] text-chat-faint mobile:hidden">
-            B.U.T.L.E.R. Alfred — Barış's Unified Task, Logic, Execution &amp; Reasoning
+            B.U.T.L.E.R. Alfred — Barış&apos;ın Birleşik Görev, Mantık, Yürütme ve Muhakeme Asistanı
           </p>
         </div>
       </main>

@@ -67,7 +67,7 @@ export const CHAT_MODEL_OPTIONS: readonly ModelOption[] = [
     model: "openai/gpt-oss-120b",
     label: "GPT-OSS 120B",
     badge: "Groq · LPU",
-    description: "Groq Cloud · Çok yüksek hızlı çıkarım"
+    description: "Groq Bulut · Çok yüksek hızlı çıkarım"
   },
   {
     id: "groq:llama-3.3-70b-versatile",
@@ -75,7 +75,7 @@ export const CHAT_MODEL_OPTIONS: readonly ModelOption[] = [
     model: "llama-3.3-70b-versatile",
     label: "Llama 3.3 70B",
     badge: "Groq · 70B",
-    description: "Groq Cloud · Dengeli genel amaçlı model"
+    description: "Groq Bulut · Dengeli genel amaçlı model"
   },
   {
     id: "gemini:gemini-3.8-flash",

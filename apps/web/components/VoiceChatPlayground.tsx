@@ -1332,9 +1332,9 @@ export default function VoiceChatPlayground() {
                   >
                     {msg.isThinking || !renderMarkdown(msg.text) ? (
                       <div className="inline-flex items-center gap-1.5 px-0 py-1 text-[14px] text-chat-subtle">
-                        <span className="h-1.5 w-1.5 animate-dot-bounce rounded-full bg-gold" />
-                        <span className="h-1.5 w-1.5 animate-dot-bounce rounded-full bg-gold [animation-delay:-0.16s]" />
                         <span className="h-1.5 w-1.5 animate-dot-bounce rounded-full bg-gold [animation-delay:-0.32s]" />
+                        <span className="h-1.5 w-1.5 animate-dot-bounce rounded-full bg-gold [animation-delay:-0.16s]" />
+                        <span className="h-1.5 w-1.5 animate-dot-bounce rounded-full bg-gold" />
                         {msg.rateLimitUntil ? (
                           <RateLimitNotice until={msg.rateLimitUntil} provider={msg.rateLimitProvider} />
                         ) : msg.providerNotice ? (

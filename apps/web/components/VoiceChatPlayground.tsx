@@ -7,7 +7,7 @@ import { createSseParser, stripThinking, ChatStreamEvent } from "../lib/sse";
 import { errorMessage as messageOf, isAbortError } from "../lib/errors";
 import { formatRateLimitStatus, normalizeRateLimitWaitMs } from "../lib/rate-limit";
 import { formatProviderFallbackStatus, providerDisplayName } from "../lib/providers";
-import { renderMarkdown } from "../lib/markdown";
+import { linkCitationsInText, renderMarkdown, type WebSearchCitationSource } from "../lib/markdown";
 import { toolStatusText } from "../lib/tools";
 
 export type AssistantState =
@@ -444,6 +444,7 @@ export default function VoiceChatPlayground() {
     };
 
     let accumulatedText = "";
+    const searchSources: WebSearchCitationSource[] = [];
 
     try {
       // stream: SSE must bypass Hosting, which buffers the whole response.
@@ -491,15 +492,34 @@ export default function VoiceChatPlayground() {
             break;
           case "tool_call": {
             // A slow tool (web_search) says what it is doing instead of "Düşünüyor...".
+            // Any text emitted before a tool call in the same round is discarded, matching the server.
+            accumulatedText = "";
             const status = toolStatusText(event);
             setState("Thinking");
-            updateAssistant(status ? { rateLimitUntil: undefined, providerNotice: status } : { rateLimitUntil: undefined });
+            updateAssistant({
+              text: "",
+              isThinking: true,
+              rateLimitUntil: undefined,
+              ...(status ? { providerNotice: status } : {})
+            });
             break;
           }
-          case "tool_result":
+          case "tool_result": {
+            accumulatedText = "";
+            if (event.tool === "web_search" && event.result && typeof event.result === "object") {
+              const items = (event.result as { results?: unknown }).results;
+              if (Array.isArray(items)) {
+                for (const item of items) {
+                  if (item && typeof item === "object") {
+                    searchSources.push(item as WebSearchCitationSource);
+                  }
+                }
+              }
+            }
             setState("Thinking");
-            updateAssistant({ rateLimitUntil: undefined, providerNotice: undefined });
+            updateAssistant({ text: "", isThinking: true, rateLimitUntil: undefined, providerNotice: undefined });
             break;
+          }
           case "rate_limited":
             // Sunucu gercekten `waitMs` bekleyip yeniden deneyecek (sigmayan beklemede
             // bu olay gelmez, dogrudan `error` gelir); bekleme bitince "thinking" gelir.
@@ -512,28 +532,39 @@ export default function VoiceChatPlayground() {
             break;
           case "provider_fallback":
             // Sunucu turu bir sonraki saglayicida bastan calistiriyor.
+            accumulatedText = "";
             if (event.model) setModelLabel(event.model);
             if (event.to) setChatProvider(event.to);
             setState("Thinking");
             updateAssistant({
+              text: "",
+              isThinking: true,
               rateLimitUntil: undefined,
               providerNotice: formatProviderFallbackStatus(event.from, event.to, event.reason)
             });
             break;
-          case "chunk":
+          case "chunk": {
             accumulatedText += event.text || "";
+            const displayText = searchSources.length > 0
+              ? linkCitationsInText(accumulatedText, searchSources)
+              : accumulatedText;
             setState("Streaming");
             updateAssistant({
-              text: accumulatedText,
-              isThinking: !stripThinking(accumulatedText),
+              text: displayText,
+              isThinking: !stripThinking(displayText),
               rateLimitUntil: undefined,
               providerNotice: undefined
             });
             break;
-          case "done":
-            updateAssistant({ text: accumulatedText || "*(Yanıt boş)*", isThinking: false, rateLimitUntil: undefined, providerNotice: undefined });
+          }
+          case "done": {
+            const finalText = searchSources.length > 0
+              ? linkCitationsInText(accumulatedText, searchSources)
+              : accumulatedText;
+            updateAssistant({ text: finalText || "*(Yanıt boş)*", isThinking: false, rateLimitUntil: undefined, providerNotice: undefined });
             finishTurn();
             break;
+          }
           case "error":
             throw new ChatStreamError(
               event.error || "Akış sırasında bir hata oluştu.",
@@ -975,8 +1006,8 @@ export default function VoiceChatPlayground() {
                         )}
                       </div>
                     ) : (
-                      // Preflight strips list markers; the markdown lists had them.
-                      <div className="[&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }} />
+                      // Preflight strips list markers and paragraph margins; restore both here.
+                      <div className="[&_ol]:my-2 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-5 [&_p+p]:mt-2.5 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }} />
                     )}
                   </div>
 

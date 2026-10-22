@@ -9,7 +9,8 @@ import {
   parseWebSearchArgs,
   runWebSearchTool,
   shapeTavilyResponse,
-  citeLink
+  citeLink,
+  linkWebSearchCitations
 } from "../../src/ai/tools/web/web-search.js";
 import { renderMarkdown } from "../../apps/web/lib/markdown.js";
 
@@ -135,6 +136,44 @@ describe("web_search tool (src/ai/tools/web/web-search.ts)", () => {
     }
     expect(citeLink("a.test", "https://a.test/x(1)")).toBe("[a.test](https://a.test/x%281%29)");
     expect(WEB_SEARCH_TOOL_DEFINITION.function.description).toContain("`cite` field");
+  });
+
+  it("linkWebSearchCitations turns unlinked source mentions (【…】, (source), bare domains, [source]) into article links", () => {
+    const { results } = shapeTavilyResponse("q", {
+      results: [
+        { title: "Faiz", url: "https://www.bloomberght.com/faiz-karari-123", content: "x" },
+        { title: "Borsa", url: "https://www.ntv.com.tr/ekonomi/borsa-456", content: "y" },
+        { title: "Transfer", url: "https://www.aspor.com.tr/besiktas/2026/09/26/transfer", content: "z" }
+      ]
+    });
+
+    expect(
+      linkWebSearchCitations(
+        "Faiz sabit kaldı【bloomberght.com】 ve Borsa yükseldi【1†ntv.com.tr】.",
+        results
+      )
+    ).toBe(
+      "Faiz sabit kaldı([bloomberght.com](https://www.bloomberght.com/faiz-karari-123)) ve Borsa yükseldi([ntv.com.tr](https://www.ntv.com.tr/ekonomi/borsa-456))."
+    );
+
+    expect(
+      linkWebSearchCitations(
+        "Görüşmeler hızlandı (aspor.com.tr, 26 Eylül 2026). Kaynaklar: bloomberght.com, [ntv.com.tr]",
+        results
+      )
+    ).toBe(
+      "Görüşmeler hızlandı ([aspor.com.tr](https://www.aspor.com.tr/besiktas/2026/09/26/transfer), 26 Eylül 2026). Kaynaklar: [bloomberght.com](https://www.bloomberght.com/faiz-karari-123), [ntv.com.tr](https://www.ntv.com.tr/ekonomi/borsa-456)"
+    );
+
+    // Upgrades root-only link targets to the article URL, and never double-links already-linked sources.
+    expect(
+      linkWebSearchCitations(
+        "Kaynak: [aspor.com.tr](aspor.com.tr) ve [bloomberght.com](https://www.bloomberght.com/faiz-karari-123)",
+        results
+      )
+    ).toBe(
+      "Kaynak: [aspor.com.tr](https://www.aspor.com.tr/besiktas/2026/09/26/transfer) ve [bloomberght.com](https://www.bloomberght.com/faiz-karari-123)"
+    );
   });
 
   it("copes with an unexpected response shape", () => {

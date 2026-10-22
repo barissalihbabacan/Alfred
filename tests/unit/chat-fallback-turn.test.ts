@@ -218,6 +218,29 @@ describe("runChatTurnWithFallback", () => {
     expect(h.state.accumulatedText).toBe("Kaynaklara göre sakin bir gün.");
   });
 
+  it("links unlinked web_search source citations in state.accumulatedText", async () => {
+    const searchCall = sse(
+      { choices: [{ index: 0, delta: { role: "assistant", content: null } }] },
+      { choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: "ws_cite", type: "function", function: { name: "web_search", arguments: json({ query: "q" }) } }] }, finish_reason: "tool_calls" }] }
+    );
+    const h = harness(
+      [{ body: searchCall }, { body: groqText("Gelişmeler olumlu (aspor.com.tr, 26 Eylül 2026)【bloomberght.com】.") }],
+      { keys: { groq: KEYS.groq } }
+    );
+    h.deps.finalRoundAfter = ["web_search"];
+    h.deps.runTool = async () => ({
+      query: "q",
+      results: [
+        { title: "A", url: "https://www.aspor.com.tr/haber-1", source: "aspor.com.tr", content: "a", cite: "[aspor.com.tr](https://www.aspor.com.tr/haber-1)" },
+        { title: "B", url: "https://www.bloomberght.com/haber-2", source: "bloomberght.com", content: "b", cite: "[bloomberght.com](https://www.bloomberght.com/haber-2)" }
+      ]
+    });
+    await h.run();
+    expect(h.state.accumulatedText).toBe(
+      "Gelişmeler olumlu ([aspor.com.tr](https://www.aspor.com.tr/haber-1), 26 Eylül 2026)([bloomberght.com](https://www.bloomberght.com/haber-2))."
+    );
+  });
+
   it("finalRoundAfter: the round after a web_search offers no tools, so the model answers", async () => {
     const searchCall = sse(
       { choices: [{ index: 0, delta: { role: "assistant", content: null } }] },

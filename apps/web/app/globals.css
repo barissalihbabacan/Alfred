@@ -200,6 +200,21 @@
   .inline-code {
     @apply rounded-sm bg-white/10 px-1.5 py-0.5 font-[monospace] text-[13px] text-[#f6d899];
   }
+  .md-hr {
+    @apply my-3 border-t border-white/10;
+  }
+  .md-table-wrap {
+    @apply my-3 overflow-x-auto rounded-lg border border-white/10;
+  }
+  .md-table {
+    @apply w-full border-collapse text-left text-[13.5px];
+  }
+  .md-table th {
+    @apply border-b border-white/12 bg-white/6 px-3 py-2 font-semibold text-chat-text;
+  }
+  .md-table td {
+    @apply border-t border-white/8 px-3 py-2 text-chat-muted;
+  }
 }
 
 /* 100dvh with a 100vh fallback (Tailwind's h-dvh has no fallback for older browsers). */

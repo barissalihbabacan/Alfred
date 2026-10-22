@@ -129,6 +129,139 @@ export function citeLink(source: string, href: string): string {
   return `[${source}](${href.replace(/\(/g, "%28").replace(/\)/g, "%29")})`;
 }
 
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function hostKey(raw: string): string {
+  return raw.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+}
+
+/**
+ * Turns unlinked source mentions in `text` into markdown links using the
+ * `web_search` results of the turn.
+ *
+ * Models sometimes ignore the instruction to copy `cite` and instead write
+ * OpenAI browsing brackets (`【bloomberght.com】`, `【1†bloomberght.com】`,
+ * `【0†source】`), square brackets without a URL (`[aspor.com.tr]`), links
+ * whose target is only the bare domain (`[aspor.com.tr](aspor.com.tr)`), or
+ * plain site names in prose/parentheses (`(aspor.com.tr, 26 Eylül 2026)`,
+ * `Kaynak: aspor.com.tr`). Existing markdown links, bare http(s) URLs and code
+ * spans are left untouched.
+ */
+export function linkWebSearchCitations(text: string, results: readonly WebSearchResultItem[] | null | undefined): string {
+  if (!text || !results || results.length === 0) return text;
+
+  const bySource = new Map<string, WebSearchResultItem>();
+  for (const r of results) {
+    if (!r || typeof r.source !== "string" || typeof r.url !== "string") continue;
+    const key = hostKey(r.source);
+    if (key && !bySource.has(key)) {
+      bySource.set(key, {
+        ...r,
+        cite: r.cite || citeLink(r.source, r.url)
+      });
+    }
+  }
+  if (bySource.size === 0) return text;
+
+  let out = text;
+
+  // Unwrap backticked markdown links (`[site](https://...)`) before protecting inline code.
+  out = out.replace(/`(\[[^\]\n]+\]\((?:https?:\/\/|www\.)[^\s`]+\))`/g, "$1");
+  // Unwrap backticked bare source names (`aspor.com.tr`) when they match a search result.
+  out = out.replace(/`((?:www\.)?[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+)`/g, (full, domain: string) => {
+    const item = bySource.get(hostKey(domain));
+    return item ? item.cite : full;
+  });
+
+  const protectedSpans: string[] = [];
+  const protect = (span: string): string => {
+    const idx = protectedSpans.length;
+    protectedSpans.push(span);
+    return `§§WSCITE${idx}§§`;
+  };
+
+  // 1. Protect fenced code blocks and remaining inline code.
+  out = out.replace(/```[\s\S]*?```/g, (m) => protect(m));
+  out = out.replace(/`[^`\n]+`/g, (m) => protect(m));
+
+  // 2. Existing markdown links `[label](target)`: if `target` is only the bare
+  //    domain or root URL of a result (e.g. `[aspor.com.tr](aspor.com.tr)` or
+  //    `[aspor.com.tr](https://www.aspor.com.tr/)`), upgrade it to the result's
+  //    article URL; then protect the link so its text/URL are not touched below.
+  out = out.replace(
+    /\[((?:[^[\]\n]|\[[^\]\n]*\])+)\][ \t]*\(((?:[^\s()]|\([^\s()]*\))+)\)/g,
+    (full, label: string, rawTarget: string) => {
+      const target = rawTarget.replace(/^<|>$/g, "").trim();
+      const targetHost = hostKey(target);
+      const isRootOnly = /^(?:https?:\/\/)?(?:www\.)?[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+\/?$/i.test(target);
+      const matched = bySource.get(targetHost) ?? bySource.get(hostKey(label));
+      if (isRootOnly && matched) {
+        return protect(citeLink(label.trim(), matched.url));
+      }
+      if (/^(?:https?:\/\/|www\.)/i.test(target)) {
+        const href = /^www\./i.test(target) ? `https://${target}` : target;
+        return protect(citeLink(label.trim(), href));
+      }
+      return full;
+    }
+  );
+
+  // 3. Protect bare http(s) URLs so domains inside them are not matched again.
+  out = out.replace(/https?:\/\/[^\s)<>\]"']+/g, (m) => protect(m));
+
+  // 4. OpenAI-style lenticular brackets `【...】`.
+  out = out.replace(/【([^】\n]+)】/g, (full, inner: string) => {
+    const trimmed = inner.trim();
+    // Already a protected link inside `【...】`: drop the CJK brackets for parentheses.
+    if (/^§§WSCITE\d+§§$/.test(trimmed)) {
+      return `(${trimmed})`;
+    }
+    // Check if any known result sources are named inside `【...】` (e.g. `【bloomberght.com】`, `【1†bloomberght.com】`).
+    const matchedCites: string[] = [];
+    for (const [src, item] of bySource.entries()) {
+      const re = new RegExp(`(?:^|[^a-zA-Z0-9-])(?:www\\.)?${escapeRegExp(src)}(?=$|[^a-zA-Z0-9-])`, "i");
+      if (re.test(trimmed)) matchedCites.push(item.cite);
+    }
+    if (matchedCites.length > 0) {
+      return protect(`(${matchedCites.join(", ")})`);
+    }
+    // Numeric tool citation like `【1†source】`, `【0†L1-L4】`, `【1】`.
+    const numMatch = /^(?:ref_)?(\d+)(?:[†:][^\]]*)?$/i.exec(trimmed);
+    if (numMatch) {
+      const rawIdx = Number(numMatch[1]);
+      const item = (rawIdx >= 1 && rawIdx <= results.length ? results[rawIdx - 1] : undefined) ?? results[rawIdx];
+      if (item) {
+        const cite = bySource.get(hostKey(item.source))?.cite ?? citeLink(item.source, item.url);
+        return protect(`(${cite})`);
+      }
+    }
+    return full;
+  });
+
+  // 5. Square-bracketed source domain without `(url)`: `[aspor.com.tr]` -> `[aspor.com.tr](url)`.
+  for (const [src, item] of bySource.entries()) {
+    const bracketRe = new RegExp(`\\[\\s*(?:www\\.)?${escapeRegExp(src)}\\s*\\](?!\\s*\\()`, "gi");
+    out = out.replace(bracketRe, () => protect(item.cite));
+  }
+
+  // 6. Bare unlinked source domains in text or parentheses (e.g. `(aspor.com.tr)`,
+  //    `(aspor.com.tr, 26 Eylül 2026)`, `Kaynak: aspor.com.tr`, `aspor.com.tr'ye göre`).
+  const sourcesLongestFirst = [...bySource.entries()].sort((a, b) => b[0].length - a[0].length);
+  for (const [src, item] of sourcesLongestFirst) {
+    const bareRe = new RegExp(
+      `(^|[\\s([{"'«„,;:\u00a0\u202f])(?:www\\.)?${escapeRegExp(src)}(?=$|[\\s)\\]}"'»“.,;:!?\u00a0\u202f]|['’]\\w)`,
+      "gi"
+    );
+    out = out.replace(bareRe, (_m, prefix: string) => `${prefix}${protect(item.cite)}`);
+  }
+
+  // Restore protected spans.
+  out = out.replace(/§§WSCITE(\d+)§§/g, (_m, idx: string) => protectedSpans[Number(idx)] ?? "");
+  return out;
+}
+
 function sourceOf(url: URL): string {
   return url.hostname.replace(/^www\./i, "");
 }

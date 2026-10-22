@@ -91,6 +91,49 @@ describe("renderMarkdown (apps/web/lib/markdown.ts)", () => {
       expect(renderMarkdown("`https://a.test/x`")).toBe('<p><code class="inline-code">https://a.test/x</code></p>');
       expect(renderMarkdown("```\ncurl https://a.test/x\n```")).not.toContain("<a ");
     });
+
+    it("renders markdown links with parentheses in the URL, nested brackets, bold labels and backticks", () => {
+      const wiki = "https://tr.wikipedia.org/wiki/Be%C5%9Fikta%C5%9F_(futbol_tak%C4%B1m%C4%B1)";
+      expect(renderMarkdown(`Kaynak: [tr.wikipedia.org](${wiki})`)).toBe(
+        `<p>Kaynak: ${anchor(wiki, "tr.wikipedia.org")}</p>`
+      );
+      expect(renderMarkdown("[[1] Haber](https://a.test/1)")).toBe(
+        `<p>${anchor("https://a.test/1", "[1] Haber")}</p>`
+      );
+      expect(renderMarkdown("[**aspor.com.tr**](https://www.aspor.com.tr/x)")).toBe(
+        `<p>${anchor("https://www.aspor.com.tr/x", "<strong>aspor.com.tr</strong>")}</p>`
+      );
+      expect(renderMarkdown("`[aspor.com.tr](https://www.aspor.com.tr/x)`")).toBe(
+        `<p>${anchor("https://www.aspor.com.tr/x", "aspor.com.tr")}</p>`
+      );
+    });
+
+    it("auto-links unlinked citations in 【domain】, (domain, date) and Kaynaklar: lines", () => {
+      expect(renderMarkdown("Faiz sabit kaldı【bloomberght.com】.")).toBe(
+        `<p>Faiz sabit kaldı(${anchor("https://bloomberght.com", "bloomberght.com")}).</p>`
+      );
+      expect(renderMarkdown("Haber özeti (aspor.com.tr, 26 Eylül 2026).")).toBe(
+        `<p>Haber özeti (${anchor("https://aspor.com.tr", "aspor.com.tr")}, 26 Eylül 2026).</p>`
+      );
+      expect(renderMarkdown("Kaynaklar: aspor.com.tr, trtspor.com.tr")).toBe(
+        `<p>Kaynaklar: ${anchor("https://aspor.com.tr", "aspor.com.tr")}, ${anchor("https://trtspor.com.tr", "trtspor.com.tr")}</p>`
+      );
+    });
+  });
+
+  it("keeps loose ordered/unordered lists together, supports sub-bullets, headings and tables", () => {
+    expect(renderMarkdown("1. Birinci\n\n2. İkinci\n\n3. Üçüncü")).toBe(
+      "<ol><li>Birinci</li><li>İkinci</li><li>Üçüncü</li></ol>"
+    );
+    expect(renderMarkdown("1. Haber\n   - Kaynak: [a](https://a.test)")).toBe(
+      '<ol><li>Haber<br/>Kaynak: <a href="https://a.test" target="_blank" rel="noopener noreferrer" class="md-link">a</a></li></ol>'
+    );
+    expect(renderMarkdown("### Kaynaklar\n- [a](https://a.test)")).toBe(
+      '<p><strong>Kaynaklar</strong></p><ul><li><a href="https://a.test" target="_blank" rel="noopener noreferrer" class="md-link">a</a></li></ul>'
+    );
+    expect(renderMarkdown("| Konu | Kaynak |\n| --- | --- |\n| Faiz | [b](https://b.test) |")).toBe(
+      '<div class="md-table-wrap"><table class="md-table"><thead><tr><th>Konu</th><th>Kaynak</th></tr></thead><tbody><tr><td>Faiz</td><td><a href="https://b.test" target="_blank" rel="noopener noreferrer" class="md-link">b</a></td></tr></tbody></table></div>'
+    );
   });
 
   it("escapes HTML in ordinary text", () => {

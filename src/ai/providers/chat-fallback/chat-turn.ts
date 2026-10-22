@@ -43,6 +43,10 @@ import {
   parseRateLimitInfo,
   type RateLimitWaitDecision
 } from "../groq/rate-limit.js";
+import {
+  linkWebSearchCitations,
+  type WebSearchResultItem
+} from "../../tools/web/web-search.js";
 
 export type LogSeverity = "INFO" | "WARNING" | "ERROR";
 
@@ -260,6 +264,7 @@ async function runOnProvider(deps: ChatTurnDeps, provider: ResolvedChatProvider,
   const { state, metrics } = deps;
   const clock = deps.clock ?? (() => Date.now());
   const payload: unknown[] = [...deps.buildMessages({ id: provider.id, model: provider.model })];
+  const webSearchResults: WebSearchResultItem[] = [];
   let toolTurn = 0;
 
   let finalRound = false;
@@ -320,7 +325,12 @@ async function runOnProvider(deps: ChatTurnDeps, provider: ResolvedChatProvider,
     }
 
     const toolCalls = result.toolCalls;
-    if (toolCalls.length === 0) return;
+    if (toolCalls.length === 0) {
+      if (webSearchResults.length > 0 && state.accumulatedText) {
+        state.accumulatedText = linkWebSearchCitations(state.accumulatedText, webSearchResults);
+      }
+      return;
+    }
 
     if (!tools) {
       // Tool calls on the round that offered no tools. Groq refuses them in
@@ -329,7 +339,12 @@ async function runOnProvider(deps: ChatTurnDeps, provider: ResolvedChatProvider,
       // text ("empty_response", which never fails over). Text this round
       // already streamed is the answer; otherwise it is a stream error, so
       // the next provider is tried while nothing has reached the user.
-      if (state.accumulatedText.length > textBeforeRound) return;
+      if (state.accumulatedText.length > textBeforeRound) {
+        if (webSearchResults.length > 0 && state.accumulatedText) {
+          state.accumulatedText = linkWebSearchCitations(state.accumulatedText, webSearchResults);
+        }
+        return;
+      }
       deps.logEvent("WARNING", "llm_stream_error", `[${provider.label}] Tool call on the last round, where no tools were offered.`, {
         provider: provider.id,
         model: provider.model,
@@ -375,6 +390,14 @@ async function runOnProvider(deps: ChatTurnDeps, provider: ResolvedChatProvider,
         toolResult = { error: `Tool ${String(fnName)} failed.` };
       }
       const toolOk = !(toolResult && typeof toolResult === "object" && (toolResult as { error?: unknown }).error);
+      if (toolOk && fnName === "web_search" && toolResult && typeof toolResult === "object") {
+        const items = (toolResult as { results?: unknown }).results;
+        if (Array.isArray(items)) {
+          for (const item of items) {
+            if (item && typeof item === "object") webSearchResults.push(item as WebSearchResultItem);
+          }
+        }
+      }
       const toolName = typeof fnName === "string" ? fnName.slice(0, 64) : null;
       // Arguments are never logged; only the tool name.
       deps.logEvent(toolOk ? "INFO" : "WARNING", "tool_call", `Tool ${toolName} ${toolOk ? "ok" : "error"}`, {

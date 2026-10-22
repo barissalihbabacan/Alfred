@@ -39,6 +39,130 @@ function copyPayload(escapedCode: string): string {
  */
 const BARE_URL = /https?:\/\/(?:(?!&quot;|&#39;|&lt;|&gt;)[^\s])+/g;
 
+/** Common TLDs for auto-linking bare cited domains in `(domain.tld)` or `Kaynak: domain.tld`. */
+const KNOWN_DOMAIN_TLD =
+  "(?:[a-zA-Z0-9-]+\\.)+(?:com\\.tr|gov\\.tr|org\\.tr|edu\\.tr|net\\.tr|bel\\.tr|k12\\.tr|com|org|net|io|co\\.uk|org\\.uk|gov\\.uk|de|fr|eu|info|tv|me|ai|gg|dev|app|news)";
+
+export interface WebSearchCitationSource {
+  source: string;
+  url: string;
+  cite?: string;
+}
+
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function hostKey(raw: string): string {
+  return raw.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+}
+
+function citeMarkdownLink(source: string, href: string): string {
+  return `[${source}](${href.replace(/\(/g, "%28").replace(/\)/g, "%29")})`;
+}
+
+/**
+ * Turns unlinked source mentions in `text` into markdown links using the
+ * `web_search` results of the turn (same contract as `linkWebSearchCitations`
+ * in `src/ai/tools/web/web-search.ts`, kept local so `apps/web` stays
+ * self-contained).
+ */
+export function linkCitationsInText(
+  text: string,
+  results: readonly WebSearchCitationSource[] | null | undefined
+): string {
+  if (!text || !results || results.length === 0) return text;
+
+  const bySource = new Map<string, { source: string; url: string; cite: string }>();
+  for (const r of results) {
+    if (!r || typeof r.source !== "string" || typeof r.url !== "string") continue;
+    const key = hostKey(r.source);
+    if (key && !bySource.has(key)) {
+      bySource.set(key, {
+        source: r.source,
+        url: r.url,
+        cite: r.cite || citeMarkdownLink(r.source, r.url)
+      });
+    }
+  }
+  if (bySource.size === 0) return text;
+
+  let out = text;
+  out = out.replace(/`(\[[^\]\n]+\]\((?:https?:\/\/|www\.)[^\s`]+\))`/g, "$1");
+  out = out.replace(/`((?:www\.)?[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+)`/g, (full, domain: string) => {
+    const item = bySource.get(hostKey(domain));
+    return item ? item.cite : full;
+  });
+
+  const protectedSpans: string[] = [];
+  const protect = (span: string): string => {
+    const idx = protectedSpans.length;
+    protectedSpans.push(span);
+    return `§§WSCITE${idx}§§`;
+  };
+
+  out = out.replace(/```[\s\S]*?```/g, (m) => protect(m));
+  out = out.replace(/`[^`\n]+`/g, (m) => protect(m));
+
+  out = out.replace(
+    /\[((?:[^[\]\n]|\[[^\]\n]*\])+)\][ \t]*\(((?:[^\s()]|\([^\s()]*\))+)\)/g,
+    (full, label: string, rawTarget: string) => {
+      const target = rawTarget.replace(/^<|>$/g, "").trim();
+      const targetHost = hostKey(target);
+      const isRootOnly = /^(?:https?:\/\/)?(?:www\.)?[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+\/?$/i.test(target);
+      const matched = bySource.get(targetHost) ?? bySource.get(hostKey(label));
+      if (isRootOnly && matched) {
+        return protect(citeMarkdownLink(label.trim(), matched.url));
+      }
+      if (/^(?:https?:\/\/|www\.)/i.test(target)) {
+        const href = /^www\./i.test(target) ? `https://${target}` : target;
+        return protect(citeMarkdownLink(label.trim(), href));
+      }
+      return full;
+    }
+  );
+
+  out = out.replace(/https?:\/\/[^\s)<>\]"']+/g, (m) => protect(m));
+
+  out = out.replace(/【([^】\n]+)】/g, (full, inner: string) => {
+    const trimmed = inner.trim();
+    if (/^§§WSCITE\d+§§$/.test(trimmed)) return `(${trimmed})`;
+    const matchedCites: string[] = [];
+    for (const [src, item] of bySource.entries()) {
+      const re = new RegExp(`(?:^|[^a-zA-Z0-9-])(?:www\\.)?${escapeRegExp(src)}(?=$|[^a-zA-Z0-9-])`, "i");
+      if (re.test(trimmed)) matchedCites.push(item.cite);
+    }
+    if (matchedCites.length > 0) return protect(`(${matchedCites.join(", ")})`);
+    const numMatch = /^(?:ref_)?(\d+)(?:[†:][^\]]*)?$/i.exec(trimmed);
+    if (numMatch) {
+      const rawIdx = Number(numMatch[1]);
+      const item = (rawIdx >= 1 && rawIdx <= results.length ? results[rawIdx - 1] : undefined) ?? results[rawIdx];
+      if (item) {
+        const cite = bySource.get(hostKey(item.source))?.cite ?? citeMarkdownLink(item.source, item.url);
+        return protect(`(${cite})`);
+      }
+    }
+    return full;
+  });
+
+  for (const [src, item] of bySource.entries()) {
+    const bracketRe = new RegExp(`\\[\\s*(?:www\\.)?${escapeRegExp(src)}\\s*\\](?!\\s*\\()`, "gi");
+    out = out.replace(bracketRe, () => protect(item.cite));
+  }
+
+  const sourcesLongestFirst = [...bySource.entries()].sort((a, b) => b[0].length - a[0].length);
+  for (const [src, item] of sourcesLongestFirst) {
+    const bareRe = new RegExp(
+      `(^|[\\s([{"'«„,;:\u00a0\u202f])(?:www\\.)?${escapeRegExp(src)}(?=$|[\\s)\\]}"'»“.,;:!?\u00a0\u202f]|['’]\\w)`,
+      "gi"
+    );
+    out = out.replace(bareRe, (_m, prefix: string) => `${prefix}${protect(item.cite)}`);
+  }
+
+  out = out.replace(/§§WSCITE(\d+)§§/g, (_m, idx: string) => protectedSpans[Number(idx)] ?? "");
+  return out;
+}
+
 /** Punctuation after a URL ("see https://x.com/a." or "(https://x.com)") is not part of it. */
 function splitTrailing(match: string): { url: string; trailing: string } {
   let url = match;
@@ -57,14 +181,56 @@ function splitTrailing(match: string): { url: string; trailing: string } {
   }
 }
 
-export function renderMarkdown(text: string): string {
+function formatLinkLabel(label: string): string {
+  let formatted = label.trim();
+  formatted = formatted.replace(/\*\*\*([^*]+?)\*\*\*/g, "<strong><em>$1</em></strong>");
+  formatted = formatted.replace(/\*\*([^*]+?)\*\*/g, "<strong>$1</strong>");
+  formatted = formatted.replace(/^\*(?!\s)([^*\n]+?)(?<!\s)\*$/, "<em>$1</em>");
+  return formatted;
+}
+
+function isTableSeparatorLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed.includes("|")) return false;
+  const cells = trimmed.replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+  return cells.length >= 2 && cells.every((c) => /^:?-{3,}:?$/.test(c));
+}
+
+function parseTableCells(line: string): string[] {
+  return line.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+}
+
+function renderTableBlock(lines: string[]): string {
+  const headerCells = parseTableCells(lines[0] ?? "");
+  const bodyRows = lines.slice(2).filter((l) => l.trim().includes("|"));
+  const thead = `<thead><tr>${headerCells.map((c) => `<th>${c}</th>`).join("")}</tr></thead>`;
+  const tbody = bodyRows.length > 0
+    ? `<tbody>${bodyRows.map((row) => `<tr>${parseTableCells(row).map((c) => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody>`
+    : "";
+  return `<div class="md-table-wrap"><table class="md-table">${thead}${tbody}</table></div>`;
+}
+
+export function renderMarkdown(text: string, sources?: readonly WebSearchCitationSource[] | null): string {
   if (!text) return "";
 
   // Completely remove <think>...</think> or unclosed <think>... from display
-  const cleanText = text.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
+  let cleanText = text.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
   if (!cleanText) {
     return "";
   }
+
+  if (sources && sources.length > 0) {
+    cleanText = linkCitationsInText(cleanText, sources);
+  }
+
+  // Unwrap backticked markdown links (`[site](https://...)`) so they render as clickable links.
+  cleanText = cleanText.replace(/`(\[(?:[^[\]\n]|\[[^\]\n]*\])+\][ \t]*\((?:https?:\/\/|www\.)[^\s`]+\))`/g, "$1");
+  // Convert OpenAI-style `【[label](url)】` or `【domain.tld】` brackets into standard markdown links.
+  cleanText = cleanText.replace(/【\s*(\[(?:[^[\]\n]|\[[^\]\n]*\])+\]\([^\n)]+\))\s*】/g, "($1)");
+  cleanText = cleanText.replace(
+    new RegExp(`【\\s*(?:\\d+[†:])?(?:www\\.)?(${KNOWN_DOMAIN_TLD})\\s*】`, "gi"),
+    (_m, domain: string) => `([${domain}](https://${domain}))`
+  );
 
   let html = escapeHtml(cleanText);
 
@@ -95,16 +261,42 @@ export function renderMarkdown(text: string): string {
   });
 
   // Links: [label](https://…) and bare http(s) URLs. Protected like code, so
-  // bold/italic rules never touch a URL. Only http(s) becomes a link (no
-  // javascript: or data:), and the text is already HTML-escaped, so the URL
-  // cannot leave the href attribute.
+  // bold/italic rules never touch a URL. Only http(s) (or www., upgraded to
+  // https://) becomes a link (no javascript: or data:), and the text is
+  // already HTML-escaped, so the URL cannot leave the href attribute.
   const links: string[] = [];
-  const protectLink = (label: string, url: string) => {
+  const protectLink = (label: string, rawUrl: string) => {
     const idx = links.length;
-    links.push(`<a href="${url}" target="_blank" rel="noopener noreferrer" class="md-link">${label}</a>`);
+    const url = /^www\./i.test(rawUrl) ? `https://${rawUrl}` : rawUrl;
+    links.push(`<a href="${url}" target="_blank" rel="noopener noreferrer" class="md-link">${formatLinkLabel(label)}</a>`);
     return `§§LINK${idx}§§`;
   };
-  html = html.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, (_m, label: string, url: string) => protectLink(label, url));
+  // [label](<https://...>)
+  html = html.replace(
+    /\[((?:[^[\]\n]|\[[^\]\n]*\])+)\][ \t\u00a0\u202f]*\(&lt;((?:https?:\/\/|www\.)(?:(?!&quot;|&#39;|&lt;|&gt;)[^\s])+)&gt;\)/g,
+    (_m, label: string, url: string) => protectLink(label, url)
+  );
+  // [label](https://...) with support for balanced parentheses in the URL and nested brackets in the label.
+  html = html.replace(
+    /\[((?:[^[\]\n]|\[[^\]\n]*\])+)\][ \t\u00a0\u202f]*\(((?:https?:\/\/|www\.)(?:(?!&quot;|&#39;|&lt;|&gt;)[^\s()]|\((?:(?!&quot;|&#39;|&lt;|&gt;)[^\s()])*\))+)\)/g,
+    (_m, label: string, url: string) => protectLink(label, url)
+  );
+  // Unlinked domain in parentheses: `(aspor.com.tr)` or `(aspor.com.tr, 26 Eylül 2026)`
+  html = html.replace(
+    new RegExp(`(\\(\\s*)(?:www\\.)?(${KNOWN_DOMAIN_TLD})(?=\\s*(?:[,;)\\]]|\\s+\\d))`, "gi"),
+    (_m, open: string, domain: string) => `${open}${protectLink(domain, `https://${domain}`)}`
+  );
+  // Unlinked domain on a `Kaynak:` / `Kaynaklar:` / `Source:` / `Sources:` line.
+  html = html.replace(
+    /^([ \t]*(?:[-*•\u2011\u2013][ \t]+)?(?:\*\*|\*)?(?:Kaynak(?:lar)?|Sources?)(?:\*\*|\*)?[ \t]*:[ \t\u00a0\u202f]*)(.+)$/gim,
+    (_m, prefix: string, rest: string) => {
+      const linkedRest = rest.replace(
+        new RegExp(`(^|[\\s([,;:\u00a0\u202f])(?:www\\.)?(${KNOWN_DOMAIN_TLD})(?=$|[\\s)\\].,;:!?\u00a0\u202f])`, "gi"),
+        (_m2, lead: string, domain: string) => `${lead}${protectLink(domain, `https://${domain}`)}`
+      );
+      return `${prefix}${linkedRest}`;
+    }
+  );
   html = html.replace(BARE_URL, (match: string) => {
     const { url, trailing } = splitTrailing(match);
     return protectLink(url, url) + trailing;
@@ -120,48 +312,84 @@ export function renderMarkdown(text: string): string {
   // Strikethrough: ~~text~~
   html = html.replace(/~~([^~]+?)~~/g, "<del>$1</del>");
 
-  // Paragraphs & Lists
+  // Ensure code blocks are always isolated in their own paragraph block.
+  html = html.replace(/[ \t]*\n?(§§CODEBLOCK\d+§§)\n?[ \t]*/g, "\n\n$1\n\n");
+  // Collapse blank lines between consecutive list items so loose lists stay in one <ul>/<ol>.
+  html = html.replace(/^([ \t]*[-*•\u2011\u2013][ \t\u00a0\u202f]+[^\n]+)\n\n+(?=[ \t]*[-*•\u2011\u2013][ \t\u00a0\u202f]+)/gm, "$1\n");
+  html = html.replace(/^([ \t]*\d+[.)][ \t\u00a0\u202f]+[^\n]+)\n\n+(?=[ \t]*(?:\d+[.)]|[-*•\u2011\u2013])[ \t\u00a0\u202f]+)/gm, "$1\n");
+
+  // Paragraphs, Lists, Headings & Tables
   html = html.split("\n\n").map(para => {
     const trimmed = para.trim();
     if (!trimmed) return "";
-    if (trimmed.startsWith("§§CODEBLOCK")) return trimmed;
+    if (/^§§CODEBLOCK\d+§§$/.test(trimmed)) return trimmed;
 
-    // Check if paragraph is an unordered list
-    if (/^[-*]\s+/m.test(trimmed)) {
-      const lines = trimmed.split("\n");
-      let listHtml = "";
-      let inUl = false;
-      for (const line of lines) {
-        const m = line.match(/^[-*]\s+(.*)$/);
-        if (m) {
-          if (!inUl) { listHtml += "<ul>"; inUl = true; }
-          listHtml += `<li>${m[1]}</li>`;
-        } else {
-          if (inUl) { listHtml += "</ul>"; inUl = false; }
-          if (line.trim()) listHtml += `<p>${line.trim()}</p>`;
-        }
-      }
-      if (inUl) listHtml += "</ul>";
-      return listHtml;
+    const lines = trimmed.split("\n");
+    if (lines.length >= 2 && lines[0].includes("|") && isTableSeparatorLine(lines[1])) {
+      return renderTableBlock(lines);
     }
 
-    // Check if paragraph is an ordered list
-    if (/^\d+\.\s+/m.test(trimmed)) {
-      const lines = trimmed.split("\n");
-      let listHtml = "";
-      let inOl = false;
-      for (const line of lines) {
-        const m = line.match(/^\d+\.\s+(.*)$/);
-        if (m) {
-          if (!inOl) { listHtml += "<ol>"; inOl = true; }
-          listHtml += `<li>${m[1]}</li>`;
-        } else {
-          if (inOl) { listHtml += "</ol>"; inOl = false; }
-          if (line.trim()) listHtml += `<p>${line.trim()}</p>`;
+    const hasBlockStructure = lines.some((l) =>
+      /^[ \t]*(?:[-*•\u2011\u2013]|\d+[.)])[ \t\u00a0\u202f]+/.test(l) ||
+      /^[ \t]*#{1,6}[ \t]+/.test(l) ||
+      /^[ \t]*(?:---+|\*\*\*+)[ \t]*$/.test(l)
+    );
+
+    if (hasBlockStructure) {
+      let blockHtml = "";
+      let openList: "ul" | "ol" | null = null;
+      let hasOpenLi = false;
+      const closeList = () => {
+        if (hasOpenLi) {
+          blockHtml += "</li>";
+          hasOpenLi = false;
         }
+        if (openList) {
+          blockHtml += `</${openList}>`;
+          openList = null;
+        }
+      };
+
+      for (const line of lines) {
+        const subBulletMatch = line.match(/^[ \t]{2,}[-*•\u2011\u2013][ \t\u00a0\u202f]+(.*)$/);
+        if (subBulletMatch && openList && hasOpenLi) {
+          blockHtml += `<br/>${subBulletMatch[1]}`;
+          continue;
+        }
+        const ulMatch = line.match(/^[ \t]*[-*•\u2011\u2013][ \t\u00a0\u202f]+(.*)$/);
+        if (ulMatch) {
+          if (hasOpenLi) { blockHtml += "</li>"; hasOpenLi = false; }
+          if (openList === "ol") { blockHtml += "</ol>"; openList = null; }
+          if (!openList) { blockHtml += "<ul>"; openList = "ul"; }
+          blockHtml += `<li>${ulMatch[1]}`;
+          hasOpenLi = true;
+          continue;
+        }
+        const olMatch = line.match(/^[ \t]*\d+[.)][ \t\u00a0\u202f]+(.*)$/);
+        if (olMatch) {
+          if (hasOpenLi) { blockHtml += "</li>"; hasOpenLi = false; }
+          if (openList === "ul") { blockHtml += "</ul>"; openList = null; }
+          if (!openList) { blockHtml += "<ol>"; openList = "ol"; }
+          blockHtml += `<li>${olMatch[1]}`;
+          hasOpenLi = true;
+          continue;
+        }
+        const headingMatch = line.match(/^[ \t]*#{1,6}[ \t]+(.*)$/);
+        if (headingMatch) {
+          closeList();
+          blockHtml += `<p><strong>${headingMatch[1].trim()}</strong></p>`;
+          continue;
+        }
+        if (/^[ \t]*(?:---+|\*\*\*+)[ \t]*$/.test(line)) {
+          closeList();
+          blockHtml += "<hr class=\"md-hr\"/>";
+          continue;
+        }
+        closeList();
+        if (line.trim()) blockHtml += `<p>${line.trim()}</p>`;
       }
-      if (inOl) listHtml += "</ol>";
-      return listHtml;
+      closeList();
+      return blockHtml;
     }
 
     return `<p>${trimmed.replace(/\n/g, "<br/>")}</p>`;

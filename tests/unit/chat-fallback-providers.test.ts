@@ -43,7 +43,7 @@ describe("provider configuration", () => {
       ["groq", "https://api.groq.com/openai/v1/chat/completions", "openai/gpt-oss-120b", "GROQ_API_KEY"],
       ["gemini", "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", "gemini-3.8-flash", "GEMINI_API_KEY"]
     ]);
-    expect(DEFAULT_EVREN_MODEL).toBe("deepseek-v4.1-flash-tr");
+    expect(DEFAULT_EVREN_MODEL).toBe("deepseek-v4.1-flash");
     expect(DEFAULT_GEMINI_CHAT_MODEL).toBe("gemini-3.8-flash");
   });
 

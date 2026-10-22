@@ -9,7 +9,7 @@
  * `tools` in OpenAI function format), so one request builder and one stream
  * parser serve them:
  *
- *   1. EVREN      deepseek-v4.1-flash-tr (primary when EVREN_API_KEY is set; 15M tokens/day)
+ *   1. EVREN      deepseek-v4.1-flash    (primary when EVREN_API_KEY is set; 15M tokens/day)
  *   2. Groq       openai/gpt-oss-120b    (fallback; request shape unchanged)
  *   3. Gemini     gemini-3.8-flash       (OpenAI-compatible endpoint, billed per token)
  *
@@ -34,7 +34,7 @@ export const CHAT_PROVIDER_ORDER: readonly ChatProviderId[] = [
  */
 export const DEFAULT_CHAT_PROVIDER_ORDER: readonly ChatProviderId[] = ["evren", "groq", "gemini"];
 
-export const DEFAULT_EVREN_MODEL = "deepseek-v4.1-flash-tr";
+export const DEFAULT_EVREN_MODEL = "deepseek-v4.1-flash";
 export const EVREN_CHAT_COMPLETIONS_URL = "https://evren-llmapi.ssyz.org.tr/v1/chat/completions";
 export const DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b";
 /**
@@ -101,9 +101,9 @@ export function getChatProviderConfig(id: ChatProviderId, env: ChatProviderEnv =
         url: EVREN_CHAT_COMPLETIONS_URL,
         model: envModel(env, "EVREN_MODEL", DEFAULT_EVREN_MODEL),
         secretName: "EVREN_API_KEY",
-        extraBody: {},
+        extraBody: { reasoning_effort: "low", stream_options: { include_usage: true } },
         extraHeaders: {},
-        maxTokens: 1500,
+        maxTokens: 4096,
         waitOnRateLimit: true
       };
     case "groq":

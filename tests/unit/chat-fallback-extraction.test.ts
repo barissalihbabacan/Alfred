@@ -112,7 +112,7 @@ describe("memory extraction: Groq, then Gemini", () => {
     expect(planExtractionRequests({ ...base, groqKey: "gsk_k", geminiKey: "" }).map((r) => r.provider)).toEqual(["groq"]);
     expect(planExtractionRequests({ ...base, groqKey: "gsk_k", geminiKey: "AQ.k", geminiModel: "none" }).map((r) => r.provider)).toEqual(["groq"]);
     expect(planExtractionRequests({ ...base, evrenKey: "evren_llm_k", groqKey: "gsk_k", geminiKey: "AQ.k" }).map((r) => [r.provider, r.model]))
-      .toEqual([["evren", "deepseek-v4.1-flash-tr"], ["groq", "openai/gpt-oss-20b"], ["gemini", "gemini-3.1-flash-lite"]]);
+      .toEqual([["evren", "deepseek-v4.1-flash"], ["groq", "openai/gpt-oss-20b"], ["gemini", "gemini-3.1-flash-lite"]]);
   });
 
   it("is wired into production through functions/memory-extraction.js, Ollama included", () => {
@@ -130,9 +130,9 @@ describe("memory extraction: Groq, then Gemini", () => {
 
 describe("capability line for a fallback provider", () => {
   it("names the provider actually answering", () => {
-    expect(describeReasoningRuntime({ provider: "evren", model: "deepseek-v4.1-flash-tr" })).toBe("EVREN (deepseek-v4.1-flash-tr)");
-    expect(describeRequestPipeline({ provider: "evren", model: "deepseek-v4.1-flash-tr" })).toContain(
-      "→ EVREN API (deepseek-v4.1-flash-tr) → SSE response."
+    expect(describeReasoningRuntime({ provider: "evren", model: "deepseek-v4.1-flash" })).toBe("EVREN (deepseek-v4.1-flash)");
+    expect(describeRequestPipeline({ provider: "evren", model: "deepseek-v4.1-flash" })).toContain(
+      "→ EVREN API (deepseek-v4.1-flash) → SSE response."
     );
     expect(describeReasoningRuntime({ provider: "groq", model: "openai/gpt-oss-120b" })).toBe("Groq (openai/gpt-oss-120b)");
     expect(describeReasoningRuntime({ provider: "gemini", model: "gemini-3.8-flash" })).toBe(

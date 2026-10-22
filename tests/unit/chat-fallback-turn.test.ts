@@ -373,10 +373,10 @@ describe("runChatTurnWithFallback", () => {
     const ok = harness([{ body: groqText("Merhaba!") }], {
       keys: { evren: "evren_llm_secret", ...KEYS } as Partial<typeof KEYS>
     });
-    await expect(ok.run()).resolves.toEqual({ providerId: "evren", model: "deepseek-v4.1-flash-tr" });
+    await expect(ok.run()).resolves.toEqual({ providerId: "evren", model: "deepseek-v4.1-flash" });
     expect(ok.calls[0].url).toBe("https://evren-llmapi.ssyz.org.tr/v1/chat/completions");
     expect(ok.calls[0].headers.Authorization).toBe("Bearer evren_llm_secret");
-    expect(ok.systemPromptOf(0)).toContain("reasoning via EVREN (deepseek-v4.1-flash-tr),");
+    expect(ok.systemPromptOf(0)).toContain("reasoning via EVREN (deepseek-v4.1-flash),");
 
     const fb = harness([{ status: 503, body: "busy" }, { body: groqText("Yedek yanıt.") }], {
       keys: { evren: "evren_llm_secret", ...KEYS } as Partial<typeof KEYS>

@@ -194,6 +194,7 @@ const MEMORY_EXTRACTION_MODEL = process.env.MEMORY_EXTRACTION_MODEL || DEFAULT_G
 const GEMINI_EXTRACTION_MODEL = process.env.GEMINI_EXTRACTION_MODEL || DEFAULT_GEMINI_EXTRACTION_MODEL;
 
 function extractorModelFor(provider) {
+  if (provider === "evren") return process.env.EVREN_MODEL || "deepseek-v4.1-flash";
   if (provider === "groq") return MEMORY_EXTRACTION_MODEL;
   if (provider === "gemini") return GEMINI_EXTRACTION_MODEL;
   return undefined;
@@ -704,6 +705,7 @@ export const api = onRequest({
           db,
           ollamaUrl,
           ollamaModel,
+          evrenKey,
           groqKey,
           geminiKey,
           userMessage: trimmedMessage,

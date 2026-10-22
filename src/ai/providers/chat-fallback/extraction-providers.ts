@@ -51,7 +51,8 @@ export function buildEvrenExtractionRequest(apiKey: string, model: string, syste
           { role: "system", content: system },
           { role: "user", content: user }
         ],
-        temperature: 0.1
+        temperature: 0.1,
+        reasoning_effort: "low"
       })
     },
     timeoutMs: 15_000

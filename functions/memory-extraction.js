@@ -67,6 +67,7 @@ export function createExtractAndPersistMemories({
     db,
     ollamaUrl,
     ollamaModel,
+    evrenKey,
     groqKey,
     geminiKey,
     userMessage,
@@ -86,6 +87,7 @@ export function createExtractAndPersistMemories({
       turn: { currentMessage: userMessage, assistantResponse, recentMessages: recentHistory },
       call: (system, user) => callMemoryExtractionProviders({
         fetch: (url, init) => fetch(url, init),
+        evrenKey,
         groqKey,
         groqModel: memoryExtractionModel,
         geminiKey,

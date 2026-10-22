@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640" role="img" aria-labelledby="arch-title arch-desc">
   <title id="arch-title">Bir mesajın yolculuğu</title>
-  <desc id="arch-desc">Tarayıcıdaki Next.js uygulaması Google girişi ve App Check token'ıyla api Cloud Function'ına istek atar. Fonksiyon kimliği doğrular, istemi kurar, Groq ve Gemini sırasıyla denenerek cevap SSE ile akıtılır. Arka planda saat aracı çalışır ve kalıcı bilgiler gizli bilgi filtresinden geçip Gemini embedding ile Firestore'a yazılır.</desc>
+  <desc id="arch-desc">Tarayıcıdaki Next.js uygulaması Google girişi ve App Check token'ıyla api Cloud Function'ına istek atar. Fonksiyon kimliği doğrular, yalın istemi kurar, Groq ve Gemini sırasıyla denenerek cevap SSE ile akıtılır. Arka planda saat ve Tavily web arama araçları çalışır; kalıcı bilgiler gizli bilgi filtresinden geçip Gemini embedding ile Firestore'a yazılır.</desc>
 
   <rect width="1200" height="640" rx="24" fill="#0E1726"/>
 
@@ -33,6 +33,7 @@
       <text x="24" y="82" font-size="24" font-weight="600" fill="#F4EFE3">Model zinciri</text>
       <text x="24" y="120" font-size="20" fill="#F4EFE3">Groq gpt-oss-120b</text>
       <text x="24" y="150" font-size="20" fill="#C8CEDA">↓ Gemini 3.8 Flash</text>
+      <text x="24" y="180" font-size="18" fill="#8A94A6">otomatik devretme</text>
     </g>
     <!-- 4 cevap -->
     <g transform="translate(900 96)">
@@ -40,7 +41,7 @@
       <text x="24" y="44" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#C9A45C">04</text>
       <text x="24" y="82" font-size="24" font-weight="600" fill="#F4EFE3">Akışlı cevap</text>
       <text x="24" y="120" font-size="20" fill="#C8CEDA">SSE: thinking · chunk</text>
-      <text x="24" y="150" font-size="20" fill="#C8CEDA">markdown görünüm</text>
+      <text x="24" y="150" font-size="20" fill="#C8CEDA">kaynak linkli markdown</text>
       <text x="24" y="180" font-size="20" fill="#C8CEDA">Türkçe / İngilizce</text>
     </g>
     <!-- oklar -->
@@ -56,17 +57,17 @@
   <g id="background-work" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
     <g transform="translate(48 408)">
       <rect width="348" height="184" rx="16" fill="#131F33" stroke="#26344D"/>
-      <text x="24" y="44" font-size="22" font-weight="600" fill="#F4EFE3">İstem</text>
-      <text x="24" y="82" font-size="20" fill="#C8CEDA">Alfred personası</text>
+      <text x="24" y="44" font-size="22" font-weight="600" fill="#F4EFE3">İstem (~1.540 token)</text>
+      <text x="24" y="82" font-size="20" fill="#C8CEDA">Yalın asistan kuralları</text>
       <text x="24" y="112" font-size="20" fill="#C8CEDA">+ profil özeti (users/*.md)</text>
-      <text x="24" y="142" font-size="20" fill="#C8CEDA">+ ilgili anılar · ~2.400 token</text>
+      <text x="24" y="142" font-size="20" fill="#C8CEDA">+ ilgili uzun süreli anılar</text>
     </g>
     <g transform="translate(426 408)">
       <rect width="348" height="184" rx="16" fill="#131F33" stroke="#26344D"/>
       <text x="24" y="44" font-size="22" font-weight="600" fill="#F4EFE3">Araçlar</text>
       <text x="24" y="82" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="19" fill="#C9A45C">get_current_time</text>
       <text x="24" y="112" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="19" fill="#C9A45C">web_search</text>
-      <text x="24" y="142" font-size="20" fill="#C8CEDA">Tavily · soru başına 1 arama</text>
+      <text x="24" y="142" font-size="20" fill="#C8CEDA">Tavily · güncel haber + link</text>
     </g>
     <g transform="translate(804 408)">
       <rect width="348" height="184" rx="16" fill="#131F33" stroke="#26344D"/>
@@ -77,7 +78,7 @@
     </g>
     <!-- ince bağlantılar: fonksiyondan arka plana -->
     <g stroke="#26344D" stroke-width="2" fill="none">
-      <path d="M458 318 V352 H330 V404"/>
+      <path d="M458 318 V352 H222 V404"/>
       <path d="M742 318 V352 H600 V404"/>
       <path d="M742 352 H978 V404"/>
     </g>

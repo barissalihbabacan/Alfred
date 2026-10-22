@@ -1,36 +1,36 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="480" viewBox="0 0 1200 480" role="img" aria-labelledby="hero-title hero-desc">
-  <title id="hero-title">B.U.T.L.E.R. Alfred — Barış'ın kişisel yapay zeka kâhyası</title>
-  <desc id="hero-desc">Solda proje adı ve tanımı; sağda canlı sistemden iki gerçek konuşma: Alfred üretim veritabanını silme önerisine itiraz ediyor ve tek araç çağrısıyla Londra, Tokyo ve Sidney saatlerini veriyor.</desc>
+  <title id="hero-title">B.U.T.L.E.R. Alfred — Barış'ın kişisel yapay zeka ve yazılım mühendisliği asistanı</title>
+  <desc id="hero-desc">Solda proje adı, amacı ve çalışma altyapısı; sağda canlı sistemden iki gerçek konuşma: Alfred üretim veritabanını silme önerisine itiraz ediyor ve tek araç çağrısıyla Londra, Tokyo ve Sidney saatlerini veriyor.</desc>
 
   <!-- zemin -->
   <rect width="1200" height="480" rx="24" fill="#0E1726"/>
-  <rect x="56" y="60" width="4" height="360" rx="2" fill="#C9A45C" opacity="0.55"/>
+  <rect x="56" y="60" width="4" height="360" rx="2" fill="#C9A45C" opacity="0.65"/>
 
   <!-- başlık bloğu -->
   <g id="title-block" transform="translate(88 0)">
-    <!-- hizmet zili motifi -->
-    <g transform="translate(0 72)" fill="#C9A45C">
-      <rect x="11" y="0" width="6" height="6" rx="3"/>
-      <path d="M2 21 C2 11 7.5 6 14 6 C20.5 6 26 11 26 21 Z"/>
-      <rect x="0" y="22" width="28" height="3.5" rx="1.75"/>
+    <!-- komut istemi motifi -->
+    <g transform="translate(0 72)">
+      <rect x="0" y="0" width="32" height="28" rx="6" fill="#16233A" stroke="#C9A45C" stroke-width="1.75"/>
+      <path d="M8 9 L15 14 L8 19" fill="none" stroke="#C9A45C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <line x1="17" y1="19" x2="24" y2="19" stroke="#C9A45C" stroke-width="2" stroke-linecap="round"/>
     </g>
-    <text x="40" y="96" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" letter-spacing="3" fill="#C9A45C">KİŞİSEL YAPAY ZEKA KÂHYASI</text>
+    <text x="44" y="93" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" letter-spacing="2.5" fill="#C9A45C">KİŞİSEL MÜHENDİSLİK ASİSTANI</text>
 
-    <text x="0" y="190" font-family="Georgia, 'Times New Roman', serif" font-size="96" fill="#F4EFE3">Alfred</text>
-    <text x="4" y="234" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" letter-spacing="3" fill="#C9A45C">B.U.T.L.E.R.</text>
-    <text x="4" y="260" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="18" fill="#8A94A6">Barış's Unified Task, Logic, Execution &amp; Reasoning</text>
+    <text x="0" y="186" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="92" font-weight="700" fill="#F4EFE3">Alfred</text>
+    <text x="4" y="230" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" letter-spacing="3" fill="#C9A45C">B.U.T.L.E.R.</text>
+    <text x="4" y="258" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="18" fill="#8A94A6">Barış's Unified Task, Logic, Execution &amp; Reasoning</text>
 
-    <text x="0" y="314" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="24" fill="#F4EFE3">Barış'ın asistanı: konuşur, hatırlar,</text>
-    <text x="0" y="346" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="24" fill="#F4EFE3">tehlikeli bir isteğe kibarca itiraz eder.</text>
+    <text x="0" y="312" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="24" fill="#F4EFE3">Net konuşur, önemli bilgileri hatırlar,</text>
+    <text x="0" y="344" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="24" fill="#F4EFE3">riskli mühendislik kararlarına itiraz eder.</text>
 
-    <text x="0" y="400" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#8A94A6">Groq → Gemini</text>
-    <text x="0" y="426" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#8A94A6">Firebase · tek kullanıcı</text>
+    <text x="0" y="398" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#8A94A6">Groq gpt-oss-120b → Gemini · Tavily</text>
+    <text x="0" y="424" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#8A94A6">Firebase · Firestore bellek · tek kullanıcı</text>
   </g>
 
   <!-- gerçek konuşma kartı -->
   <g id="real-conversation" transform="translate(600 40)">
     <rect width="552" height="400" rx="18" fill="#16233A" stroke="#26344D"/>
-    <text x="28" y="40" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" letter-spacing="1.5" fill="#8A94A6">GERÇEK KONUŞMA · 24 EYL 2026</text>
+    <text x="28" y="40" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" letter-spacing="1.5" fill="#8A94A6">CANLI DOĞRULAMA · GERÇEK KONUŞMA</text>
 
     <!-- 1: itiraz -->
     <g transform="translate(0 62)">
@@ -38,9 +38,9 @@
       <text x="386" y="28" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="20" fill="#F4EFE3">Prod veritabanını silelim mi?</text>
 
       <rect x="28" y="56" width="4" height="84" rx="2" fill="#C9A45C"/>
-      <text x="46" y="78" font-family="Georgia, 'Times New Roman', serif" font-size="20" fill="#F4EFE3">Hayır, Barış Bey. Üretim veritabanını</text>
-      <text x="46" y="106" font-family="Georgia, 'Times New Roman', serif" font-size="20" fill="#F4EFE3">silmek geri dönüşü olmayan veri kaybına</text>
-      <text x="46" y="134" font-family="Georgia, 'Times New Roman', serif" font-size="20" fill="#F4EFE3">ve hizmet kesintisine yol açar…</text>
+      <text x="46" y="78" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="20" fill="#F4EFE3">Hayır. Üretim veritabanını silmek geri</text>
+      <text x="46" y="106" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="20" fill="#F4EFE3">dönüşü olmayan veri kaybına ve hizmet</text>
+      <text x="46" y="134" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="20" fill="#F4EFE3">kesintisine yol açar; önce yedek alınmalı.</text>
     </g>
 
     <!-- 2: araç çağrısı -->
@@ -49,12 +49,12 @@
       <text x="346" y="28" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="20" fill="#F4EFE3">Londra, Tokyo ve Sidney'de saat kaç?</text>
 
       <rect x="28" y="54" width="496" height="38" rx="8" fill="#0E1726" stroke="#26344D"/>
-      <text x="44" y="79" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17" fill="#C9A45C">get_current_time</text>
-      <text x="218" y="79" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17" fill="#8A94A6">["Londra","Tokyo","Sidney"]</text>
+      <text x="44" y="79" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#C9A45C">get_current_time</text>
+      <text x="228" y="79" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#8A94A6">["Londra","Tokyo","Sidney"]</text>
 
       <rect x="28" y="104" width="4" height="56" rx="2" fill="#C9A45C"/>
-      <text x="46" y="126" font-family="Georgia, 'Times New Roman', serif" font-size="20" fill="#F4EFE3">Londra'da saat 14:03, Tokyo'da 22:03</text>
-      <text x="46" y="154" font-family="Georgia, 'Times New Roman', serif" font-size="20" fill="#F4EFE3">ve Sidney'de 23:03.</text>
+      <text x="46" y="126" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="20" fill="#F4EFE3">Londra'da saat 14:03, Tokyo'da 22:03</text>
+      <text x="46" y="154" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="20" fill="#F4EFE3">ve Sidney'de 23:03.</text>
     </g>
   </g>
 </svg>

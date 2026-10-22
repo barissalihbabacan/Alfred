@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="B.U.T.L.E.R. Alfred: Barış'ın kişisel yapay zeka kâhyası. Yanında iki gerçek konuşma: üretim veritabanını silme önerisine itiraz ve tek araç çağrısıyla Londra, Tokyo, Sidney saatleri.">
+  <img src="./assets/readme/hero.svg" width="100%" alt="B.U.T.L.E.R. Alfred: Barış'ın kişisel yapay zeka ve yazılım mühendisliği asistanı. Yanında iki gerçek konuşma: üretim veritabanını silme önerisine itiraz ve tek araç çağrısıyla Londra, Tokyo, Sidney saatleri.">
 </p>
 
 <p align="center">
@@ -10,27 +10,27 @@
   <a href="docs/FEATURE_ROADMAP.md">Yol haritası</a>
 </p>
 
-**Alfred**, Barış için yazılmış kişisel bir yapay zeka asistanıdır. Sakin ve kibar, eşit bir çalışma arkadaşı gibi konuşur, önemli bilgileri hatırlar ve riskli bir isteğe kibarca ama net bir şekilde itiraz eder. Tek kullanıcılıdır: yalnızca Barış'ın Google hesabıyla açılır.
+**Alfred**, Barış için yazılmış kişisel bir yapay zeka ve yazılım mühendisliği asistanıdır. Eşit bir mühendislik ortağı gibi net konuşur, önemli bilgileri hatırlar ve riskli bir isteğe gerekçesiyle birlikte açıkça itiraz eder. Tek kullanıcılıdır: yalnızca Barış'ın Google hesabıyla açılır.
 
 ## Alfred ne yapar?
 
 - **Türkçe ya da İngilizce konuşur**, hangi dilde sorulduysa o dilde cevap verir. Soru mikrofonla da sorulabilir.
 - **Hatırlar.** "Yeşil elma suyunu severim" gibi kalıcı bilgileri kendiliğinden kaydeder ve sonraki konuşmalarda kullanır. API anahtarı ya da şifre içeren bilgileri kaydetmez.
-- **İtiraz eder.** Üretim veritabanını silmek gibi geri dönüşü olmayan bir öneriye "Hayır, Barış Bey" der ve nedenini açıklar.
+- **İtiraz eder.** Üretim veritabanını silmek veya testleri atlamak gibi geri dönüşü olmayan bir öneriye doğrudan "Hayır." der, somut riski açıklar ve güvenli bir alternatif sunar.
 - **Saati bilir.** Tek soruda altı şehre kadar yerel saati söyler; "Londra", "Sidney" gibi Türkçe adları anlar.
-- **Web'de arar.** Güncel haberler ve değişen bilgiler için Tavily ile arar; soru başına bir arama yapar ve kullandığı kaynakları bağlantı olarak verir.
+- **Web'de arar.** Güncel haberler, transfer gelişmeleri ve değişen bilgiler için Tavily ile arar; haber sorgularında otomatik olarak haber indeksini (`topic: "news"`) seçer, eski yıllara ait veya düşük kaliteli/sosyal medya sonuçlarını eler ve kullandığı her kaynağı tıklanabilir bağlantı (`[kaynak](url)`) olarak verir.
 - **Uydurmaz.** Henüz bağlı olmayan bir şey sorulursa (sunucu, takvim, e-posta) bunu açıkça söyler.
 
 ### Canlıda doğrulanan davranışlar
 
-Aşağıdakiler canlı sistemde, gerçek konuşmalarla ve loglarla doğrulandı (24 ve 28 Eylül 2026):
+Aşağıdakiler canlı sistemde, gerçek konuşmalarla ve loglarla doğrulandı:
 
 | Barış'ın mesajı | Alfred'in cevabı |
 | :--- | :--- |
-| *Prod veritabanını silelim mi?* | "Hayır, Barış Bey. Üretim veritabanını silmek, geri dönüşü olmayan veri kaybına ve hizmet kesintilerine yol açar…" |
+| *Prod veritabanını silelim mi?* | "Hayır. Üretim veritabanını silmek geri dönüşü olmayan veri kaybına ve hizmet kesintisine yol açar; önce yedek alınmalı…" |
 | *Londra, Tokyo ve Sidney'de saat kaç?* | Tek araç çağrısı (`["Londra","Tokyo","Sidney"]`) → "Londra'da saat 14:03, Tokyo'da 22:03 ve Sidney'de 23:03." |
 | *Remember that I love the green apple juice* | Bellek kaydı: `"Barış loves green apple juice" (user_preference)` |
-| *Bu hafta teknoloji dünyasında öne çıkan üç haber ne? Kısaca, kaynaklarıyla.* | Tek web araması (Tavily, 5 sonuç) → "Meta ve Microsoft'un hisse performansı yükseldi – CNBC…" ve iki haber daha; her birinin kaynağı bağlantı olarak. ~4,7 sn, cevap akarak geldi. |
+| *Beşiktaş transfer haberleri.* | Tek web araması (Tavily, güncel haber indeksi) → eski sezon haberleri ve clickbait siteler elenerek güncel kaynaklar tıklanabilir Markdown bağlantılarıyla listelenir. |
 
 Henüz **yapamadıkları**: takvim, e-posta ve ev sunucusuna erişim. Hangisinin ne gerektirdiği [yol haritasında](docs/FEATURE_ROADMAP.md) yazıyor.
 
@@ -47,8 +47,8 @@ Henüz **yapamadıkları**: takvim, e-posta ve ev sunucusuna erişim. Hangisinin
 
 Her mesajda arka planda:
 
-- **İstem** Alfred personasından, `users/*.md` profilinin gözden geçirilmiş bir özetinden ve konuyla ilgili anılardan kurulur (~2.200 token).
-- **Web araması:** Model gerektiğinde `web_search` aracını çağırır. Tavily'den en fazla 5 sonuç gelir, soru başına tek arama yapılır ve sonuçlar güvenilmeyen veri olarak işlenir: içlerindeki talimatlar uygulanmaz.
+- **İstem** yalın asistan yönergelerinden, `users/*.md` profilinin gözden geçirilmiş bir özetinden ve konuyla ilgili anılardan kurulur (~1.540 token).
+- **Web araması:** Model gerektiğinde `web_search` aracını çağırır. Tavily'den en fazla 5 sonuç gelir, soru başına tek arama yapılır, sonuçlar güvenilmeyen veri olarak işlenir ve modelin metin içinde bıraktığı kaynaksız alan adları otomatik olarak makale bağlantısına dönüştürülür.
 - **Bellek:** Konuşmadan kalıcı bilgiler ayrı bir modelle (`gpt-oss-20b`, gerekirse Gemini) çıkarılır, gizli bilgi filtresinden geçer, `gemini-embedding-001` ile vektöre çevrilir ve Firestore'a yazılır.
 
 `functions/` kodu, `src/` altındaki TypeScript çekirdeğini esbuild ile paketleyerek kullanır. İstem, bellek kuralları, saat ve web araması araçları ve sağlayıcı zinciri tek yerde yazılır ve testlerle sabitlenir. Ayrıntılar: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
@@ -96,7 +96,7 @@ Kod tabanında çalışırken önce [CLAUDE.md](CLAUDE.md) dosyasını okuyun: k
 
 ## Belgeler
 
-- [Alfred'in persona kılavuzu](docs/persona/ALFRED_PERSONA.md): üslup, hitap, itiraz ve cevap uzunluğu kuralları.
+- [Asistan ve yanıt kılavuzu](docs/persona/ALFRED_PERSONA.md): üslup, itiraz ve cevap uzunluğu kuralları.
 - [Mimari](docs/ARCHITECTURE.md): katmanlar, veri akışı ve bellek modeli.
 - [Yol haritası](docs/FEATURE_ROADMAP.md): sıradaki yetenekler ve her birinin gerektirdikleri.
 - [Web uygulaması](docs/web/ALFRED_PLAYGROUND.md): arayüz, API uç noktaları ve durum yönetimi.

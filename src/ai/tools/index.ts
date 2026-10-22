@@ -5,3 +5,6 @@ export * from "./ssh/ssh-connect.tool.js";
 export * from "./ssh/ssh-list-directory.tool.js";
 export * from "./ssh/ssh-execute.tool.js";
 export * from "./ssh/ssh-tool-definitions.js";
+export * from "./web/web-search.js";
+export * from "./web/read-url.js";
+export * from "./github/github.js";

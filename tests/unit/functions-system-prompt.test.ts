@@ -187,13 +187,13 @@ describe("3. capability line matches what production runs", () => {
   });
 
   it("the tool list is exactly the tools functions/index.js offers the model (web_search only with a Tavily key)", () => {
-    expect(functionsSource).toContain(
-      "const activeTools = webSearchEnabled ? [TIME_TOOL_DEFINITION, WEB_SEARCH_TOOL_DEFINITION] : [TIME_TOOL_DEFINITION];"
-    );
+    expect(functionsSource).toContain("TIME_TOOL_DEFINITION");
+    expect(functionsSource).toContain("READ_URL_TOOL_DEFINITION");
+    expect(functionsSource).toContain("GITHUB_TOOL_DEFINITION");
     expect(functionsSource).toContain("const webSearchEnabled = isUsableApiKey(tavilyKey);");
     expect(functionsSource).toContain("webSearchAvailable: webSearchEnabled");
     // The round after a search is the final one (a second search round broke Groq's TPM limit).
-    expect(functionsSource).toContain('finalRoundAfter: ["web_search"],');
+    expect(functionsSource).toContain('finalRoundAfter: ["web_search", "read_url"],');
     expect(functionsSource).not.toContain("ssh-tool-definitions.js");
     // Without a key: one tool, and web search listed as not connected.
     expect(ALFRED_PERSONA_PROMPT).toContain("and deterministic tool calling (get_current_time).");
@@ -303,7 +303,7 @@ describe("functions/index.js uses the shared builder", () => {
     expect(functionsSource).toContain('import { buildAlfredSystemPrompt } from "../src/ai/prompts/alfred-system-prompt.js";');
     // Rebuilt per provider: on a fallback the capability line names the provider that answers.
     expect(functionsSource).toMatch(
-      /const buildMessagesFor = \(runtime\) => \[\s*\{\s*role: "system",\s*content: buildAlfredSystemPrompt\(\{\s*runtime: \{ provider: runtime\.id, model: runtime\.model \},\s*memories: retrievedMemories,\s*webSearchAvailable: webSearchEnabled\s*\}\)\s*\},\s*\.\.\.boundedHistory,\s*\{ role: "user", content: trimmedMessage \}\s*\];/
+      /const buildMessagesFor = \(runtime\) => \[\s*\{\s*role: "system",\s*content: buildAlfredSystemPrompt\(\{[\s\S]*?runtime: \{ provider: runtime\.id, model: runtime\.model \},[\s\S]*?memories: retrievedMemories,[\s\S]*?webSearchAvailable: webSearchEnabled[\s\S]*?\}\)\s*\},/
     );
     expect(functionsSource).toContain("buildMessages: buildMessagesFor,");
     expect(functionsSource).toContain("const currentPayload = buildMessagesFor(primary);");

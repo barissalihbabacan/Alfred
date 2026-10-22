@@ -13,6 +13,9 @@ import {
   resolveChatProviders
 } from "../src/ai/providers/chat-fallback/chat-providers.js";
 import { WEB_SEARCH_TOOL_DEFINITION, createTurnWebSearch } from "../src/ai/tools/web/web-search.js";
+import { READ_URL_TOOL_DEFINITION, createTurnReadUrl } from "../src/ai/tools/web/read-url.js";
+import { GITHUB_TOOL_DEFINITION, createTurnGitHub } from "../src/ai/tools/github/github.js";
+import { lookup } from "node:dns/promises";
 import { buildHealthStatus } from "../src/ai/providers/chat-fallback/health-status.js";
 import {
   addUsageToMetrics,
@@ -68,6 +71,8 @@ const GROQ_API_KEY = defineSecret("GROQ_API_KEY");
 const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
 // web_search (Tavily). "unset" (or empty) leaves the tool out entirely.
 const TAVILY_API_KEY = defineSecret("TAVILY_API_KEY");
+// github token (optional; unauthenticated calls still work for public repos up to 60/hr)
+const GITHUB_TOKEN = defineSecret("GITHUB_TOKEN");
 
 const ALLOWED_UID = process.env.ALLOWED_UID || "test-owner-uid-123456";
 
@@ -240,7 +245,7 @@ const extractAndPersistMemories = createExtractAndPersistMemories({
 
 export const api = onRequest({
   cors: true,
-  secrets: [EVREN_API_KEY, GROQ_API_KEY, GEMINI_API_KEY, TAVILY_API_KEY]
+  secrets: [EVREN_API_KEY, GROQ_API_KEY, GEMINI_API_KEY, TAVILY_API_KEY, GITHUB_TOKEN]
 }, async (req, res) => {
   // CORS Preflight
   if (req.method === "OPTIONS") {
@@ -832,6 +837,7 @@ export const api = onRequest({
     const geminiKey = gizliOku(GEMINI_API_KEY, "GEMINI_API_KEY");
     const tavilyKey = gizliOku(TAVILY_API_KEY, "TAVILY_API_KEY");
     const webSearchEnabled = isUsableApiKey(tavilyKey);
+    const githubToken = gizliOku(GITHUB_TOKEN, "GITHUB_TOKEN");
     const ollamaUrl = process.env.OLLAMA_BASE_URL || "https://ollama.example.invalid";
     const ollamaModel = process.env.OLLAMA_MODEL || "gemma4:12b-mlx";
 
@@ -1018,7 +1024,9 @@ export const api = onRequest({
           runtime: { provider: runtime.id, model: runtime.model },
           memories: retrievedMemories,
           project: activeProjectContext,
-          webSearchAvailable: webSearchEnabled
+          webSearchAvailable: webSearchEnabled,
+          readUrlAvailable: true,
+          githubAvailable: true
         })
       },
       ...boundedHistory,
@@ -1175,13 +1183,27 @@ export const api = onRequest({
     // sunucu erisiminin henuz bagli olmadigini soyluyor.
     // web_search yalnizca Tavily anahtari varsa sunulur; persona da buna gore
     // kurulur (buildMessagesFor), sunulmayan bir araci vaat etmez.
-    const activeTools = webSearchEnabled ? [TIME_TOOL_DEFINITION, WEB_SEARCH_TOOL_DEFINITION] : [TIME_TOOL_DEFINITION];
+    const activeTools = [TIME_TOOL_DEFINITION, READ_URL_TOOL_DEFINITION, GITHUB_TOOL_DEFINITION, ...(webSearchEnabled ? [WEB_SEARCH_TOOL_DEFINITION] : [])];
     const MAX_TURNS = 3;
     // Tur basina bir arama oturumu: ayni sorgu tekrar aranmaz, en fazla 1 arama;
     // yedek saglayiciya gecilince tur bastan baslasa da yeni kredi harcanmaz.
     const webSearch = webSearchEnabled
       ? createTurnWebSearch({ apiKey: tavilyKey, fetch: (url, init) => fetch(url, init) })
       : null;
+    const readUrl = createTurnReadUrl({
+      fetch: (url, init) => fetch(url, init),
+      lookup: async (hostname) => {
+        const res = await lookup(hostname, { all: true });
+        return res.map((r) => r.address);
+      }
+    });
+    const defaultRepo = activeProjectContext?.githubRepo || null;
+    const gitHub = createTurnGitHub({
+      token: githubToken || null,
+      defaultRepo,
+      fetch: (url, init) => fetch(url, init)
+    });
+
     const runTool = async (fnName, fnArgs) => {
       if (fnName === "get_current_time") {
         usedToolsSet.add("get_current_time");
@@ -1204,6 +1226,23 @@ export const api = onRequest({
         }
         return result;
       }
+      if (fnName === "read_url" && readUrl) {
+        usedToolsSet.add("read_url");
+        const result = await readUrl(fnArgs);
+        if (result && typeof result === "object" && typeof result.url === "string" && !usedSourcesList.some((s) => s.url === result.url)) {
+          usedSourcesList.push({
+            source: typeof result.source === "string" ? result.source : "",
+            title: typeof result.title === "string" ? result.title : result.url,
+            url: result.url,
+            cite: typeof result.cite === "string" ? result.cite : ""
+          });
+        }
+        return result;
+      }
+      if (fnName === "github" && gitHub) {
+        usedToolsSet.add("github");
+        return gitHub(fnArgs);
+      }
       return { error: `Tool ${fnName} not recognized.` };
     };
 
@@ -1218,7 +1257,7 @@ export const api = onRequest({
           maxTurns: MAX_TURNS,
           // Arama sonrasi tur aracsiz: model elindeki sonucla cevap verir
           // (ikinci arama turu Groq'un dakikalik token sinirini asiyordu).
-          finalRoundAfter: ["web_search"],
+          finalRoundAfter: ["web_search", "read_url"],
           runTool,
           fetch: (url, init) => fetch(url, init),
           sendEvent,

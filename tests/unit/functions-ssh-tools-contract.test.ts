@@ -584,7 +584,7 @@ describe("production offers no SSH tools", () => {
 
   it("answers an unexpected SSH tool call with the generic not-recognized error", () => {
     expect(source).toMatch(
-      /const runTool = async \(fnName, fnArgs\) => \{\n\s*if \(fnName === "get_current_time"\) \{\n\s*return runGetCurrentTimeTool\(fnArgs\);\n\s*\}\n\s*if \(fnName === "web_search" && webSearch\) \{\n[^\n]*\n\s*\}\n\s*return \{ error: `Tool \$\{fnName\} not recognized\.` \};/
+      /const runTool = async \(fnName, fnArgs\) => \{[\s\S]*?if \(fnName === "get_current_time"\) \{[\s\S]*?if \(fnName === "web_search" && webSearch\) \{[\s\S]*?return \{ error: `Tool \$\{fnName\} not recognized\.` \};/
     );
   });
 

@@ -21,7 +21,7 @@ describe("User Profile Behavioral Context Influence", () => {
     expect(prompt).toMatch(/security and privacy hazards/i);
     expect(prompt).toMatch(/architectural regressions/i);
     expect(prompt).toMatch(/force-pushes or deploys that skip typechecks and tests/);
-    expect(prompt).toContain("first principles");
+    expect(prompt).toContain("name the concrete risk and offer a viable alternative");
   });
 
   it("should formulate user facts without robotic meta-commentary", () => {

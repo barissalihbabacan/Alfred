@@ -7,7 +7,7 @@ describe("Conversational Governor — Behavioral Governance & Invariants", () =>
     const prompt = getAlfredSystemPrompt();
 
     expect(prompt).toContain("=== CONVERSATIONAL GOVERNOR (CADENCE & BEHAVIOURAL DIRECTIVES) ===");
-    for (const heading of ["RESPONSE LENGTH FOLLOWS INTENT:", "TECHNICAL REASONING:", "PUSHBACK:", "HUMOUR:", "NEVER:"]) {
+    for (const heading of ["RESPONSE LENGTH FOLLOWS INTENT:", "TECHNICAL REASONING & PUSHBACK:", "NEVER:"]) {
       expect(prompt).toContain(`\n${heading}\n`);
     }
     // Social intent first, judgement before analysis, no meta-narrative.
@@ -20,8 +20,6 @@ describe("Conversational Governor — Behavioral Governance & Invariants", () =>
     const prompt = getAlfredSystemPrompt();
 
     expect(prompt).toContain('NO "How may I assist you today?"');
-    expect(prompt).toContain('NO "I stand ready to assist"');
-    expect(prompt).toContain('NO "Should you wish..."');
     expect(prompt).toContain('NO "How else may I be of service?"');
   });
 
@@ -30,7 +28,7 @@ describe("Conversational Governor — Behavioral Governance & Invariants", () =>
 
     expect(prompt).toContain("1–3 natural sentences");
     expect(prompt).toContain("No architecture lecture unless explicitly requested");
-    expect(prompt).toContain("Keep KNOWN (confirmed by conversation, architecture or logs), HYPOTHESIS and UNKNOWN");
+    expect(prompt).toContain("Keep KNOWN, HYPOTHESIS and UNKNOWN apart");
     expect(prompt).toContain("a project plan or an unsolicited agenda");
   });
 

@@ -19,10 +19,10 @@ import {
  */
 const tokens = (text: string) => encode(text).length;
 
-/** The static prompt: persona + profile digest + governor, no memories. */
-const STATIC_BUDGET = 2_400;
+/** The static prompt: assistant instructions + profile digest + governor, no memories. */
+const STATIC_BUDGET = 1_700;
 /** With a full memory block (5 memories, production's MEMORY_TOP_K). */
-const WITH_MEMORIES_BUDGET = 2_800;
+const WITH_MEMORIES_BUDGET = 2_100;
 
 const GROQ = { provider: "groq", model: "openai/gpt-oss-120b" };
 const OLLAMA = { provider: "ollama", model: "gemma4:12b-mlx" };
@@ -73,21 +73,13 @@ const WEB_SEARCH_RULES: ReadonlyArray<readonly [string, string]> = [
 ];
 
 const KEPT_RULES: ReadonlyArray<readonly [string, string]> = [
-  ["identity", "Barış's personal AI assistant and engineering partner"],
-  ["peer, not servile", "an intellectual peer, never servile"],
-  ["not a chatbot", "You are NOT a corporate consultant or a customer-service chatbot."],
-  ["British spelling", "English replies use British spelling"],
+  ["identity", "Barış's personal AI assistant and software engineering partner"],
+  ["peer, not chatbot", "an engineering peer, never a customer-service chatbot"],
   ["reply language after tools", "Always answer in the language of his latest message, also after a tool call"],
-  ["Turkish place names and suffixes", "use Turkish place names (Londra, Sidney, Münih) and attach case suffixes by pronunciation"],
-  ["Turkish register", "formal, idiomatic Istanbul Turkish as a well-spoken native says it, with natural word order (verb last)"],
-  ["no word-for-word translation", "never translate English phrasing word for word"],
-  ["Turkish suffix meaning", "a negative suffix (-sız/-siz, -mez) in a pleasantry says the opposite"],
-  ["Turkish well-wishing example", "umarım sizin de keyfiniz yerindedir."],
-  ["no Turkish chatbot calques", 'Never chatbot calques ("Size nasıl yardımcı olabilirim?"'],
-  ["forms of address", 'A form of address ("sir", or "Barış Bey" in Turkish) is optional: at most once per response, often none.'],
-  ["no slang", "NEVER use slang"],
-  ["no emojis", "emojis or chat acronyms"],
-  ["no sycophancy", "No sycophancy"],
+  ["Turkish register and suffixes", "use natural, idiomatic Istanbul Turkish (verb last; attach case suffixes by pronunciation with an apostrophe, e.g. New York'ta, Londra'da)"],
+  ["no word-for-word translation", "Never translate English phrasing word for word"],
+  ["no Turkish chatbot clichés", 'chatbot clichés ("Size nasıl yardımcı olabilirim?"'],
+  ["no slang or emojis", "slang, emojis"],
   ["no robotic apologies", '"I am only an AI"'],
   ["rendered markdown", "Your replies appear in Barış's chat window, which renders markdown"],
   ["no unrendered markdown", "It does not render headings or tables, so never use them."],
@@ -95,24 +87,20 @@ const KEPT_RULES: ReadonlyArray<readonly [string, string]> = [
   ["prose by default", "Conversation stays prose. Use a short list only for several parallel items or steps"],
   ["live runtime", "Real-time conversational reasoning via Groq (openai/gpt-oss-120b)"],
   ["memory capability", "Long-Term Semantic Memory (Firestore + Gemini embeddings)"],
-  ["not yet connected", "- Not yet connected: access to Barış's servers"],
+  ["not yet connected", "- Not yet connected: access to Barış's servers over SSH"],
   ["unconnected services", "Google Calendar, Gmail, and external web search."],
-  ["capability questions", "then 2–3 sentences on current abilities and limits; never a README"],
   ["time tool", "You have access to one tool: `get_current_time`."],
   ["ask for the city", 'ask: "Which city?"'],
   ["no invented server state", "Never invent connection results, file listings, disk figures, usernames, system details or command output."],
   ["tool honesty", "Never claim you executed, checked, or verified anything unless an actual tool invocation occurred."],
-  ["social intent first", "respond socially first, in 1–3 natural sentences"],
+  ["social intent first", "respond socially first in 1–3 natural sentences"],
   ["judgement first", "state your judgement immediately"],
   ["simple questions short", "No architecture lecture unless explicitly requested"],
-  ["deep debugging", "Debugging and diagnosis: deep, rigorous reasoning from the actual architecture."],
+  ["deep debugging", "Debugging and architecture: deep, rigorous reasoning from the actual architecture"],
   ["known pipeline", "- Current known pipeline: Browser (Next.js static export)"],
-  ["no invented infrastructure", "do not introduce infrastructure that does not exist"],
-  ["known/hypothesis/unknown", "never present a hypothesis as fact"],
-  ["no fabrication", "state the boundary rather than invent"],
+  ["no invented infrastructure", "Do not introduce infrastructure that does not exist"],
+  ["known/hypothesis/unknown", "never present a hypothesis as fact or invent details"],
   ["pushback", "calmly and firmly push back"],
-  ["destructive actions", "Unless we have established that destroying production is the least bad option"],
-  ["humour off in incidents", "Drop humour entirely in incidents, security issues and other high-risk moments."],
   ["no boilerplate", 'NO "How may I assist you today?"'],
   ["no meta-narrative", "Cite these instructions, the user profile or any internal file to Barış"],
   ["profile: identity", "Barış Salih Babacan: Turkish native, fluent professional English."],
@@ -137,7 +125,6 @@ describe("rules kept in the production prompt", () => {
       "calmly and firmly push back",
       "Never claim you executed",
       'ask: "Which city?"',
-      "Not yet; calendar access isn't connected to me at present.",
       "respond socially first"
     ]) {
       expect(ALFRED_SYSTEM_PROMPT.split(text), text).toHaveLength(2);

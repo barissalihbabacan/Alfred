@@ -215,9 +215,9 @@ describe("3. capability line matches what production runs", () => {
 
   it("says server access is not connected and forbids inventing server state", () => {
     expect(ALFRED_PERSONA_PROMPT).toContain(
-      "- Not yet connected: access to Barış's servers (the home server over SSH: connecting, listing folders, disk usage, identity, system info or any command)"
+      "- Not yet connected: access to Barış's servers over SSH"
     );
-    expect(ALFRED_PERSONA_PROMPT).toContain("say plainly that server access is not connected to you yet");
+    expect(ALFRED_PERSONA_PROMPT).toContain("say plainly that it is not connected yet");
     expect(ALFRED_PERSONA_PROMPT).toContain(
       "Never invent connection results, file listings, disk figures, usernames, system details or command output."
     );
@@ -228,12 +228,11 @@ describe("3. capability line matches what production runs", () => {
   it("sshAvailable restores the SSH instructions for a caller that really executes them", () => {
     const withSsh = buildAlfredPersonaPrompt(GROQ, true);
     expect(withSsh).toContain("deterministic tool calling (get_current_time, ssh_connect, ssh_list_directory, ssh_execute).");
-    expect(withSsh).toContain('invoke the `ssh_connect` tool with host: "home-server"');
-    expect(withSsh).toContain("Your access is strictly confined to the `Belgeler/` sandbox");
-    expect(withSsh).not.toContain("server access is not connected to you yet");
+    expect(withSsh).toContain('`ssh_connect` (host: "home-server")');
+    expect(withSsh).toContain("confined to the `Belgeler/` sandbox");
+    expect(withSsh).not.toContain("say plainly that it is not connected yet");
     expect(buildAlfredSystemPrompt({ sshAvailable: true })).toContain(withSsh);
-    // Same rules as before SSH was switched off in production.
-    expect(withSsh).toContain("Google Calendar, Gmail, and external web search are not yet connected.");
+    expect(withSsh).toContain("Google Calendar, Gmail, and external web search.");
   });
 
   it("the SSH allow-list text (when enabled) is exactly the ssh_execute enum", () => {
@@ -249,9 +248,8 @@ describe("3. capability line matches what production runs", () => {
     );
   });
 
-  it("keeps the unchanged persona rules (Turkish replies, forms of address, unconnected services)", () => {
+  it("keeps the core assistant rules (Turkish replies, unconnected services)", () => {
     expect(ALFRED_PERSONA_PROMPT).toContain("Always answer in the language of his latest message, also after a tool call");
-    expect(ALFRED_PERSONA_PROMPT).toContain('A form of address ("sir", or "Barış Bey" in Turkish) is optional: at most once per response');
     expect(ALFRED_PERSONA_PROMPT).toContain("Google Calendar, Gmail, and external web search.");
   });
 });

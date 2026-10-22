@@ -26,12 +26,16 @@ import {
   DEFAULT_GROQ_EXTRACTION_MODEL
 } from "../src/ai/providers/chat-fallback/extraction-providers.js";
 import { MEMORY_EXTRACTION_BUDGET_MS } from "../src/alfred/cognitive/memory/extractor/extraction-pipeline.js";
-import { buildMemoryRetractionUpdate } from "../src/alfred/cognitive/memory/memory-write-planner.js";
+import {
+  buildMemoryRetractionUpdate,
+  createMemoryWriteTally
+} from "../src/alfred/cognitive/memory/memory-write-planner.js";
 import {
   generateEmbedding,
   isComparableEmbedding
 } from "../src/ai/embedding/embedding-client.js";
 import { createExtractAndPersistMemories } from "./memory-extraction.js";
+import { persistMemoryCandidates } from "./memory-persistence.js";
 import { buildAlfredSystemPrompt } from "../src/ai/prompts/alfred-system-prompt.js";
 import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { setGlobalOptions } from "firebase-functions/v2";
@@ -444,7 +448,7 @@ export const api = onRequest({
     }
   }
 
-  // Long-term memory management endpoints: GET /memories and DELETE /memories
+  // Long-term memory management endpoints: GET, POST, and DELETE /memories
   if (path.endsWith("/memories")) {
     if (req.method === "GET") {
       try {
@@ -478,6 +482,75 @@ export const api = onRequest({
       } catch (err) {
         console.error("Cloud Function memories retrieval failed:", err);
         res.status(500).json({ error: "Failed to retrieve memories." });
+        return;
+      }
+    }
+
+    if (req.method === "POST") {
+      try {
+        const { content, memoryType, action } = req.body || {};
+        const trimmedContent = typeof content === "string" ? content.trim() : "";
+        if (trimmedContent.length < 5 || trimmedContent.length > 600) {
+          res.status(400).json({
+            error: "Bellek kaydı en az 5, en fazla 600 karakter olmalıdır."
+          });
+          return;
+        }
+
+        const geminiKey = gizliOku(GEMINI_API_KEY, "GEMINI_API_KEY");
+        const ollamaUrl = process.env.OLLAMA_BASE_URL || "https://ollama.example.invalid";
+        const tally = createMemoryWriteTally();
+        const normalizedAction = action === "supersede" ? "supersede" : "create";
+        const normalizedType = typeof memoryType === "string" && memoryType.trim()
+          ? memoryType.trim()
+          : "user_preference";
+
+        await persistMemoryCandidates({
+          db,
+          memories: [
+            {
+              content: trimmedContent,
+              memoryType: normalizedType,
+              confidence: 1.0,
+              action: normalizedAction
+            }
+          ],
+          userId,
+          conversationId: "manual_ui",
+          sourceMessageIds: [],
+          embed: (text) => getEmbedding(text, ollamaUrl, geminiKey),
+          logger,
+          now: () => Timestamp.now(),
+          errMessage,
+          tally
+        });
+
+        if (tally.rejected > 0) {
+          res.status(400).json({
+            error: "Gizli bilgi (API anahtarı, şifre vb.) içeren kayıtlar güvenlik nedeniyle reddedildi."
+          });
+          return;
+        }
+        if (tally.invalid > 0 || tally.failed > 0) {
+          res.status(500).json({
+            error: "Bellek kaydı vektörleştirilirken bir hata oluştu."
+          });
+          return;
+        }
+
+        const outcome = tally.superseded > 0
+          ? "superseded"
+          : tally.stored > 0
+            ? "stored"
+            : tally.duplicate > 0
+              ? "duplicate"
+              : "noop";
+
+        res.status(200).json({ success: true, outcome, tally });
+        return;
+      } catch (err) {
+        console.error("Cloud Function manual memory creation failed:", err);
+        res.status(500).json({ error: "Failed to create memory." });
         return;
       }
     }
@@ -738,6 +811,8 @@ export const api = onRequest({
     turnState.providerId = primary.id;
     turnState.model = primary.model;
     let isFinalized = false;
+    const usedToolsSet = new Set();
+    const usedSourcesList = [];
 
     // The assistant message takes the next sequence and raises messageCount in
     // one transaction, for a completed and an interrupted reply alike, so the
@@ -759,6 +834,8 @@ export const api = onRequest({
             status,
             provider: turnState.providerId,
             model: turnState.model,
+            ...(usedToolsSet.size > 0 ? { usedTools: [...usedToolsSet] } : {}),
+            ...(usedSourcesList.length > 0 ? { sources: usedSourcesList.slice(0, 8) } : {}),
             createdAt: asstNow
           });
 
@@ -860,10 +937,25 @@ export const api = onRequest({
       : null;
     const runTool = async (fnName, fnArgs) => {
       if (fnName === "get_current_time") {
+        usedToolsSet.add("get_current_time");
         return runGetCurrentTimeTool(fnArgs);
       }
       if (fnName === "web_search" && webSearch) {
-        return webSearch(fnArgs);
+        usedToolsSet.add("web_search");
+        const result = await webSearch(fnArgs);
+        if (result && typeof result === "object" && Array.isArray(result.results)) {
+          for (const item of result.results) {
+            if (item && typeof item.url === "string" && !usedSourcesList.some((s) => s.url === item.url)) {
+              usedSourcesList.push({
+                source: typeof item.source === "string" ? item.source : "",
+                title: typeof item.title === "string" ? item.title : item.url,
+                url: item.url,
+                ...(typeof item.cite === "string" ? { cite: item.cite } : {})
+              });
+            }
+          }
+        }
+        return result;
       }
       return { error: `Tool ${fnName} not recognized.` };
     };

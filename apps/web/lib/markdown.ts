@@ -47,6 +47,7 @@ export interface WebSearchCitationSource {
   source: string;
   url: string;
   cite?: string;
+  title?: string;
 }
 
 function escapeRegExp(str: string): string {

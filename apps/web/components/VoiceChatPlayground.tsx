@@ -13,7 +13,7 @@ import {
   type ModelOption
 } from "../lib/providers";
 import { linkCitationsInText, renderMarkdown, type WebSearchCitationSource } from "../lib/markdown";
-import { toolStatusText } from "../lib/tools";
+import { extractToolNames, toolBadgeLabel, toolStatusText } from "../lib/tools";
 
 export type AssistantState =
   | "Idle"
@@ -36,6 +36,10 @@ interface Message {
   rateLimitProvider?: string;
   /** Saglayici degisimi durumu, or. "Groq sınıra ulaştı, Gemini'ye geçiliyor…". */
   providerNotice?: string;
+  /** Bu turda calistirilan araclar (`web_search`, `get_current_time`). */
+  usedTools?: string[];
+  /** Web aramasindan donen kaynaklar (baslik + URL). */
+  sources?: WebSearchCitationSource[];
 }
 
 interface ConversationSummary {
@@ -51,6 +55,8 @@ interface StoredMessageDto {
   role: string;
   content: string;
   createdAt?: string | number | Date;
+  usedTools?: string[];
+  sources?: WebSearchCitationSource[];
 }
 
 interface MemoryItem {
@@ -64,15 +70,30 @@ interface MemoryItem {
 
 const MEMORY_TYPE_LABELS: Record<string, string> = {
   user_preference: "Tercih",
+  technical_preference: "Teknik Tercih",
   project_fact: "Proje",
+  architectural_decision: "Mimari Karar",
+  user_fact: "Kişisel",
   personal_fact: "Kişisel",
   decision: "Karar",
+  workflow: "İş Akışı",
   workflow_rule: "İş Akışı",
+  constraint: "Kısıt",
+  relationship: "İlişki",
   general: "Genel"
 };
 
 function memoryTypeLabel(type: string): string {
   return MEMORY_TYPE_LABELS[type] || type;
+}
+
+function sourceDomain(url?: string): string {
+  if (!url) return "Kaynak";
+  try {
+    return new URL(url).hostname.replace(/^www\./i, "");
+  } catch {
+    return "Kaynak";
+  }
 }
 
 function formatDateShort(iso?: string | null): string {
@@ -213,6 +234,12 @@ export default function VoiceChatPlayground() {
   const [memorySearch, setMemorySearch] = useState("");
   const [memoryTypeFilter, setMemoryTypeFilter] = useState<string>("all");
   const [deletingMemoryId, setDeletingMemoryId] = useState<string | null>(null);
+  const [newMemoryOpen, setNewMemoryOpen] = useState(false);
+  const [newMemoryContent, setNewMemoryContent] = useState("");
+  const [newMemoryType, setNewMemoryType] = useState("user_preference");
+  const [newMemorySupersede, setNewMemorySupersede] = useState(false);
+  const [creatingMemory, setCreatingMemory] = useState(false);
+  const [memoryFeedback, setMemoryFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
@@ -329,7 +356,9 @@ export default function VoiceChatPlayground() {
               id: m.id || "msg-" + m.sequence,
               role: m.role,
               text: m.content,
-              timestamp: formatTime(m.createdAt)
+              timestamp: formatTime(m.createdAt),
+              ...(Array.isArray(m.usedTools) && m.usedTools.length > 0 ? { usedTools: m.usedTools } : {}),
+              ...(Array.isArray(m.sources) && m.sources.length > 0 ? { sources: m.sources } : {})
             }));
           setMessages(loaded);
         }
@@ -412,8 +441,50 @@ export default function VoiceChatPlayground() {
 
   const handleOpenMemoryModal = useCallback(() => {
     setShowMemoryModal(true);
+    setMemoryFeedback(null);
     void fetchMemories();
   }, [fetchMemories]);
+
+  const handleCreateMemory = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = newMemoryContent.trim();
+    if (trimmed.length < 5 || creatingMemory) return;
+    setCreatingMemory(true);
+    setMemoryFeedback(null);
+    try {
+      const res = await apiFetch("/memories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: trimmed,
+          memoryType: newMemoryType,
+          action: newMemorySupersede ? "supersede" : "create"
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMemoryFeedback({
+          kind: "err",
+          text: typeof data?.error === "string" ? data.error : "Anı kaydedilirken hata oluştu."
+        });
+        return;
+      }
+      setNewMemoryContent("");
+      setNewMemoryOpen(false);
+      const outcomeText =
+        data?.outcome === "superseded"
+          ? "Benzer eski anı güncellenerek yeni anı kaydedildi."
+          : data?.outcome === "duplicate"
+            ? "Bu bilgi zaten uzun süreli bellekte mevcut."
+            : "Yeni anı vektörleştirilip belleğe kaydedildi.";
+      setMemoryFeedback({ kind: "ok", text: outcomeText });
+      await fetchMemories();
+    } catch {
+      setMemoryFeedback({ kind: "err", text: "Sunucuya bağlanılamadı." });
+    } finally {
+      setCreatingMemory(false);
+    }
+  }, [newMemoryContent, newMemoryType, newMemorySupersede, creatingMemory, fetchMemories]);
 
   const handleDeleteMemory = useCallback(async (docId: string) => {
     setDeletingMemoryId(docId);
@@ -555,6 +626,7 @@ export default function VoiceChatPlayground() {
 
     let accumulatedText = "";
     const searchSources: WebSearchCitationSource[] = [];
+    const usedTools: string[] = [];
 
     try {
       const selectedOption = selectedModelId
@@ -608,30 +680,47 @@ export default function VoiceChatPlayground() {
             // A slow tool (web_search) says what it is doing instead of "Düşünüyor...".
             // Any text emitted before a tool call in the same round is discarded, matching the server.
             accumulatedText = "";
+            for (const tName of extractToolNames(event)) {
+              if (!usedTools.includes(tName)) usedTools.push(tName);
+            }
             const status = toolStatusText(event);
             setState("Thinking");
             updateAssistant({
               text: "",
               isThinking: true,
               rateLimitUntil: undefined,
+              usedTools: [...usedTools],
               ...(status ? { providerNotice: status } : {})
             });
             break;
           }
           case "tool_result": {
             accumulatedText = "";
+            if (typeof event.tool === "string" && event.tool && !usedTools.includes(event.tool)) {
+              usedTools.push(event.tool);
+            }
             if (event.tool === "web_search" && event.result && typeof event.result === "object") {
               const items = (event.result as { results?: unknown }).results;
               if (Array.isArray(items)) {
                 for (const item of items) {
                   if (item && typeof item === "object") {
-                    searchSources.push(item as WebSearchCitationSource);
+                    const src = item as WebSearchCitationSource;
+                    if (src.url && !searchSources.some((s) => s.url === src.url)) {
+                      searchSources.push(src);
+                    }
                   }
                 }
               }
             }
             setState("Thinking");
-            updateAssistant({ text: "", isThinking: true, rateLimitUntil: undefined, providerNotice: undefined });
+            updateAssistant({
+              text: "",
+              isThinking: true,
+              rateLimitUntil: undefined,
+              providerNotice: undefined,
+              usedTools: [...usedTools],
+              sources: searchSources.length > 0 ? [...searchSources] : undefined
+            });
             break;
           }
           case "rate_limited":
@@ -1203,10 +1292,34 @@ export default function VoiceChatPlayground() {
 
                 <div className={msg.role === "user" ? "max-w-[78%]" : "max-w-full flex-1"}>
                   {msg.role === "assistant" && (
-                    <div className="mb-1 flex items-center gap-2 text-[12px] font-semibold text-gold">
+                    <div className="mb-1 flex flex-wrap items-center gap-2 text-[12px] font-semibold text-gold">
                       <span>ALFRED</span>
                       <span className="font-normal text-chat-faint">•</span>
                       <span className="font-normal text-chat-faint">{msg.timestamp}</span>
+                      {msg.usedTools && msg.usedTools.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {msg.usedTools.map((toolName) => (
+                            <span
+                              key={toolName}
+                              className="inline-flex items-center gap-1 rounded-full border border-gold/30 bg-gold/10 px-2 py-0.5 text-[10.5px] font-medium text-gold"
+                            >
+                              {toolName === "web_search" ? (
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <circle cx="12" cy="12" r="10" />
+                                  <line x1="2" y1="12" x2="22" y2="12" />
+                                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                                </svg>
+                              ) : (
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <circle cx="12" cy="12" r="10" />
+                                  <polyline points="12 6 12 12 16 14" />
+                                </svg>
+                              )}
+                              <span>{toolBadgeLabel(toolName)}</span>
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -1235,6 +1348,25 @@ export default function VoiceChatPlayground() {
                       <div className="[&_ol]:my-2 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-5 [&_p+p]:mt-2.5 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }} />
                     )}
                   </div>
+
+                  {msg.role === "assistant" && !msg.isThinking && msg.sources && msg.sources.length > 0 && (
+                    <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                      <span className="text-[11px] font-semibold text-chat-subtle">Kaynaklar:</span>
+                      {msg.sources.slice(0, 6).map((src, idx) => (
+                        <a
+                          key={(src.url || "") + idx}
+                          href={src.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={src.title || src.source || src.url}
+                          className="inline-flex max-w-[220px] items-center gap-1.5 rounded-full border border-white/10 bg-white/4 px-2.5 py-0.5 text-[11px] text-chat-muted no-underline [transition:border-color_0.15s,background_0.15s,color_0.15s] hover:border-gold/40 hover:bg-gold/10 hover:text-gold"
+                        >
+                          <span className="font-semibold text-gold">[{idx + 1}]</span>
+                          <span className="truncate">{src.title || src.source || sourceDomain(src.url)}</span>
+                        </a>
+                      ))}
+                    </div>
+                  )}
 
                   {msg.role === "assistant" && !msg.isThinking && renderMarkdown(msg.text) && (
                     <div className="mt-1.5 flex items-center gap-2 opacity-80">
@@ -1506,6 +1638,26 @@ export default function VoiceChatPlayground() {
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
+                  onClick={() => {
+                    setNewMemoryOpen((prev) => !prev);
+                    setMemoryFeedback(null);
+                  }}
+                  className={cx(
+                    "flex cursor-pointer items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[12px] font-semibold [transition:all_0.15s]",
+                    newMemoryOpen
+                      ? "border-gold bg-gold/20 text-gold"
+                      : "border-gold/40 bg-gold/12 text-gold hover:bg-gold/20"
+                  )}
+                  title="Manuel olarak yeni bellek kaydı ekle"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  <span>Anı Ekle</span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => void fetchMemories()}
                   disabled={memoriesLoading}
                   className="flex cursor-pointer items-center gap-1 rounded-lg border border-white/10 bg-white/4 px-2.5 py-1.5 text-[12px] text-chat-muted hover:bg-white/8 hover:text-chat-text"
@@ -1541,6 +1693,100 @@ export default function VoiceChatPlayground() {
               </div>
             </div>
 
+            {memoryFeedback && (
+              <div
+                className={cx(
+                  "mb-3 flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-[12.5px]",
+                  memoryFeedback.kind === "ok"
+                    ? "border-success/35 bg-success/12 text-emerald-300"
+                    : "border-danger/40 bg-danger/15 text-red-300"
+                )}
+              >
+                <span>{memoryFeedback.text}</span>
+                <button
+                  type="button"
+                  onClick={() => setMemoryFeedback(null)}
+                  className="cursor-pointer border-none bg-transparent p-0.5 text-current opacity-75 hover:opacity-100"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            {newMemoryOpen && (
+              <form
+                onSubmit={handleCreateMemory}
+                className="mb-3.5 flex flex-col gap-2.5 rounded-xl border border-gold/30 bg-white/4 p-3.5"
+              >
+                <div className="flex items-center justify-between">
+                  <label htmlFor="new-memory-content-input" className="text-[12px] font-semibold text-gold">
+                    Yeni Bellek Kaydı (Doğrudan Vektörleştirilir)
+                  </label>
+                  <span className="text-[11px] text-chat-faint">
+                    {newMemoryContent.trim().length}/600
+                  </span>
+                </div>
+                <textarea
+                  id="new-memory-content-input"
+                  name="newMemoryContent"
+                  rows={2}
+                  maxLength={600}
+                  value={newMemoryContent}
+                  onChange={(e) => setNewMemoryContent(e.target.value)}
+                  placeholder="Ör: Barış yeni TypeScript projelerinde paket yöneticisi olarak pnpm kullanmayı tercih ediyor."
+                  className="w-full resize-none rounded-lg border border-white/12 bg-black/25 px-3 py-2 text-[13px] leading-normal text-chat-text outline-hidden focus:border-gold/50"
+                />
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      id="new-memory-type-select"
+                      name="newMemoryType"
+                      aria-label="Bellek kategorisi"
+                      value={newMemoryType}
+                      onChange={(e) => setNewMemoryType(e.target.value)}
+                      className="cursor-pointer rounded-lg border border-white/12 bg-chat-surface px-2.5 py-1.5 text-[12px] text-chat-text outline-hidden"
+                    >
+                      <option value="user_preference">Tercih</option>
+                      <option value="technical_preference">Teknik Tercih</option>
+                      <option value="project_fact">Proje Bilgisi</option>
+                      <option value="architectural_decision">Mimari Karar</option>
+                      <option value="user_fact">Kişisel Bilgi</option>
+                      <option value="workflow">İş Akışı</option>
+                      <option value="constraint">Kısıt</option>
+                      <option value="general">Genel</option>
+                    </select>
+                    <label className="flex cursor-pointer select-none items-center gap-1.5 text-[11.5px] text-chat-muted">
+                      <input
+                        id="new-memory-supersede-checkbox"
+                        name="newMemorySupersede"
+                        type="checkbox"
+                        checked={newMemorySupersede}
+                        onChange={(e) => setNewMemorySupersede(e.target.checked)}
+                        className="accent-gold"
+                      />
+                      <span>Benzer eski anıyı güncelle</span>
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setNewMemoryOpen(false)}
+                      className="cursor-pointer rounded-lg border border-white/10 bg-transparent px-2.5 py-1.5 text-[12px] text-chat-muted hover:text-chat-text"
+                    >
+                      İptal
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={creatingMemory || newMemoryContent.trim().length < 5}
+                      className="cursor-pointer rounded-lg border-none bg-gold px-3 py-1.5 text-[12px] font-semibold text-black disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {creatingMemory ? "Kaydediliyor..." : "Belleğe Kaydet"}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            )}
+
             {/* Search + Category Filters */}
             <div className="mb-3 flex flex-col gap-2">
               <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/4 px-3 py-2">
@@ -1564,9 +1810,11 @@ export default function VoiceChatPlayground() {
                 {[
                   { id: "all", label: "Tümü" },
                   { id: "user_preference", label: "Tercih" },
+                  { id: "technical_preference", label: "Teknik" },
                   { id: "project_fact", label: "Proje" },
-                  { id: "personal_fact", label: "Kişisel" },
-                  { id: "decision", label: "Karar" },
+                  { id: "architectural_decision", label: "Mimari" },
+                  { id: "user_fact", label: "Kişisel" },
+                  { id: "workflow", label: "İş Akışı" },
                   { id: "general", label: "Genel" }
                 ].map((tab) => (
                   <button

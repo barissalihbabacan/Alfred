@@ -4,17 +4,39 @@
  * before running the calls and `{ tool }` per call afterwards.
  */
 const TOOL_STATUS: Record<string, string> = {
-  web_search: "Web'de aranıyor…"
+  web_search: "Web'de aranıyor…",
+  get_current_time: "Sistem zamanı kontrol ediliyor…"
 };
 
-export function toolStatusText(event: { tool?: unknown; toolCalls?: unknown }): string | undefined {
-  const names: unknown[] = [];
+const TOOL_BADGE_LABELS: Record<string, string> = {
+  web_search: "Web Araması",
+  get_current_time: "Sistem Zamanı"
+};
+
+export function extractToolNames(event: { tool?: unknown; toolCalls?: unknown }): string[] {
+  const names: string[] = [];
   if (Array.isArray(event.toolCalls)) {
-    for (const call of event.toolCalls) names.push((call as { name?: unknown } | null)?.name);
+    for (const call of event.toolCalls) {
+      const name = (call as { name?: unknown } | null)?.name;
+      if (typeof name === "string" && name && !names.includes(name)) {
+        names.push(name);
+      }
+    }
   }
-  names.push(event.tool);
-  for (const name of names) {
-    if (typeof name === "string" && TOOL_STATUS[name]) return TOOL_STATUS[name];
+  if (typeof event.tool === "string" && event.tool && !names.includes(event.tool)) {
+    names.push(event.tool);
+  }
+  return names;
+}
+
+export function toolStatusText(event: { tool?: unknown; toolCalls?: unknown }): string | undefined {
+  for (const name of extractToolNames(event)) {
+    if (TOOL_STATUS[name]) return TOOL_STATUS[name];
   }
   return undefined;
 }
+
+export function toolBadgeLabel(toolName: string): string {
+  return TOOL_BADGE_LABELS[toolName] || toolName;
+}
+

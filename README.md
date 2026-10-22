@@ -23,6 +23,10 @@
 
 ### Canlıda doğrulanan davranışlar
 
+<p align="center">
+  <img src="./assets/readme/playground-ui.svg" width="100%" alt="B.U.T.L.E.R. Alfred sohbet arayüzü: solda geçmiş sohbetler ve Google ile doğrulanmış kullanıcı bilgisi; sağda Groq gpt-oss-120b modeli, çoklu şehir saati ve kaynak bağlantılı güncel transfer haberleri.">
+</p>
+
 Aşağıdakiler canlı sistemde, gerçek konuşmalarla ve loglarla doğrulandı:
 
 | Barış'ın mesajı | Alfred'in cevabı |

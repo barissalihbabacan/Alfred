@@ -1612,55 +1612,35 @@ export default function VoiceChatPlayground() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="flex max-h-[82vh] w-full max-w-[600px] flex-col rounded-2xl border border-white/10 bg-chat-modal p-6 shadow-[0_20px_50px_rgba(0,0,0,0.65)] mobile:p-4"
+            className="flex max-h-[82vh] w-full max-w-[760px] flex-col rounded-2xl border border-white/10 bg-chat-modal p-6 shadow-[0_20px_50px_rgba(0,0,0,0.65)] mobile:p-4"
           >
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-gold/35 bg-gold/12 text-gold">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-gold/35 bg-gold/12 text-gold">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <ellipse cx="12" cy="5" rx="9" ry="3" />
                     <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
                     <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
                   </svg>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <h3 className="text-[16px] font-semibold text-chat-text">Uzun Süreli Bellek</h3>
-                    <span className="rounded-full border border-gold/35 bg-gold/12 px-2 py-0.5 text-[11px] font-semibold text-gold">
+                    <span className="shrink-0 whitespace-nowrap rounded-full border border-gold/35 bg-gold/12 px-2 py-0.5 text-[11px] font-semibold text-gold">
                       {memoryItems.length} kayıt
                     </span>
                   </div>
-                  <p className="text-[11.5px] text-chat-subtle">
+                  <p className="truncate text-[11.5px] text-chat-subtle">
                     Firestore + Gemini semantik vektör belleğinde saklanan aktif bilgiler
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNewMemoryOpen((prev) => !prev);
-                    setMemoryFeedback(null);
-                  }}
-                  className={cx(
-                    "flex cursor-pointer items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[12px] font-semibold [transition:all_0.15s]",
-                    newMemoryOpen
-                      ? "border-gold bg-gold/20 text-gold"
-                      : "border-gold/40 bg-gold/12 text-gold hover:bg-gold/20"
-                  )}
-                  title="Manuel olarak yeni bellek kaydı ekle"
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                  <span>Anı Ekle</span>
-                </button>
+              <div className="flex shrink-0 items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => void fetchMemories()}
                   disabled={memoriesLoading}
-                  className="flex cursor-pointer items-center gap-1 rounded-lg border border-white/10 bg-white/4 px-2.5 py-1.5 text-[12px] text-chat-muted hover:bg-white/8 hover:text-chat-text"
+                  className="flex shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded-lg border border-white/10 bg-white/4 px-2.5 py-1.5 text-[12px] text-chat-muted hover:bg-white/8 hover:text-chat-text"
                   title="Yenile"
                 >
                   <svg
@@ -1672,7 +1652,7 @@ export default function VoiceChatPlayground() {
                     strokeWidth="2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    className={cx(memoriesLoading && "animate-spin-fast")}
+                    className={cx("shrink-0", memoriesLoading && "animate-spin-fast")}
                   >
                     <polyline points="23 4 23 10 17 10" />
                     <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
@@ -1681,8 +1661,28 @@ export default function VoiceChatPlayground() {
                 </button>
                 <button
                   type="button"
+                  onClick={() => {
+                    setNewMemoryOpen((prev) => !prev);
+                    setMemoryFeedback(null);
+                  }}
+                  className={cx(
+                    "flex shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[12px] font-semibold [transition:all_0.15s]",
+                    newMemoryOpen
+                      ? "border-gold bg-gold/20 text-gold"
+                      : "border-gold/40 bg-gold/12 text-gold hover:bg-gold/20"
+                  )}
+                  title="Manuel olarak yeni bellek kaydı ekle"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  <span>Anı Ekle</span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => setShowMemoryModal(false)}
-                  className="flex cursor-pointer items-center rounded-lg border-none bg-transparent p-1.5 text-chat-subtle hover:text-chat-text"
+                  className="flex shrink-0 cursor-pointer items-center rounded-lg border-none bg-transparent p-1.5 text-chat-subtle hover:text-chat-text"
                   title="Kapat"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

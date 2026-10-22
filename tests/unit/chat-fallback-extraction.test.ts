@@ -112,7 +112,7 @@ describe("memory extraction: Groq, then Gemini", () => {
     expect(planExtractionRequests({ ...base, groqKey: "gsk_k", geminiKey: "" }).map((r) => r.provider)).toEqual(["groq"]);
     expect(planExtractionRequests({ ...base, groqKey: "gsk_k", geminiKey: "AQ.k", geminiModel: "none" }).map((r) => r.provider)).toEqual(["groq"]);
     expect(planExtractionRequests({ ...base, evrenKey: "evren_llm_k", groqKey: "gsk_k", geminiKey: "AQ.k" }).map((r) => [r.provider, r.model]))
-      .toEqual([["evren", "deepseek-v4.1-flash"], ["groq", "openai/gpt-oss-20b"], ["gemini", "gemini-3.1-flash-lite"]]);
+      .toEqual([["evren", "qwen3.8-flash-next"], ["groq", "openai/gpt-oss-20b"], ["gemini", "gemini-3.1-flash-lite"]]);
   });
 
   it("is wired into production through functions/memory-extraction.js, Ollama included", () => {

@@ -186,7 +186,7 @@ function fallbackCopy(text: string) {
   document.body.removeChild(ta);
 }
 
-const DEFAULT_MODEL_LABEL = "deepseek-v4.1-flash";
+const DEFAULT_MODEL_LABEL = "qwen3.8-flash-next";
 const CONVERSATION_KEY = "alfred_conversation_id";
 const MODEL_SELECTION_KEY = "alfred_model_selection";
 const ACTIVE_PROJECT_KEY = "alfred_active_project_id";
@@ -1924,7 +1924,7 @@ export default function VoiceChatPlayground() {
                   <button
                     type="button"
                     onClick={() => {
-                      insertPrompt("Lütfen şu bağlantıyı inceleyip özetler misin: https://");
+                      insertPrompt("Lütfen şu bağlantıyı inceleyip özetler misin: ");
                       setToolsMenuOpen(false);
                     }}
                     className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl border border-transparent p-2 text-left [transition:all_0.15s] hover:border-white/10 hover:bg-white/5"

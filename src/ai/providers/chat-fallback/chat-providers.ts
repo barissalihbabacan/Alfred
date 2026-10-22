@@ -34,7 +34,7 @@ export const CHAT_PROVIDER_ORDER: readonly ChatProviderId[] = [
  */
 export const DEFAULT_CHAT_PROVIDER_ORDER: readonly ChatProviderId[] = ["evren", "groq", "gemini"];
 
-export const DEFAULT_EVREN_MODEL = "deepseek-v4.1-flash";
+export const DEFAULT_EVREN_MODEL = "qwen3.8-flash-next";
 export const EVREN_CHAT_COMPLETIONS_URL = "https://evren-llmapi.ssyz.org.tr/v1/chat/completions";
 export const DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b";
 /**

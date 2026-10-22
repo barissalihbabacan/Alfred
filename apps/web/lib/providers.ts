@@ -22,12 +22,20 @@ export interface ModelOption {
 
 export const CHAT_MODEL_OPTIONS: readonly ModelOption[] = [
   {
+    id: "evren:qwen3.8-flash-next",
+    provider: "evren",
+    model: "qwen3.8-flash-next",
+    label: "Qwen 3.8 Flash Next",
+    badge: "256K · Varsayılan",
+    description: "EVREN 15M/gün kota · Düşük gecikmeli çok dilli yanıtlar"
+  },
+  {
     id: "evren:deepseek-v4.1-flash",
     provider: "evren",
     model: "deepseek-v4.1-flash",
     label: "DeepSeek V4.1 Flash",
-    badge: "1M · Varsayılan",
-    description: "EVREN 15M/gün kota · Hızlı muhakeme ve araç kullanımı"
+    badge: "1M · Muhakeme",
+    description: "EVREN · Derin muhakeme ve araç kullanımı"
   },
   {
     id: "evren:glm-5.3",
@@ -44,14 +52,6 @@ export const CHAT_MODEL_OPTIONS: readonly ModelOption[] = [
     label: "MiMo V2.6 Pro",
     badge: "1M · Pro",
     description: "EVREN · Uzun bağlam ve kapsamlı muhakeme"
-  },
-  {
-    id: "evren:qwen3.8-flash-next",
-    provider: "evren",
-    model: "qwen3.8-flash-next",
-    label: "Qwen 3.8 Flash Next",
-    badge: "256K · Hızlı",
-    description: "EVREN · Düşük gecikmeli çok dilli yanıtlar"
   },
   {
     id: "evren:gemma-4-31b",

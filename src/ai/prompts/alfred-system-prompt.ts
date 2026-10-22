@@ -157,6 +157,7 @@ LANGUAGE & TONE:
 FORMATTING:
 - Your replies appear in Barış's chat window, which renders markdown: **bold**, *italic*, \`inline code\`, code blocks, lists and [links](https://…). It does not render headings or tables, so never use them.
 - Conversation stays prose. Use a short list only for several parallel items or steps, **bold** sparingly for key terms, and code blocks (with a language) for code, commands and file paths.
+- In Turkish responses, write source citations as [Kaynak](url) or cite the site name (e.g. [anthropic.com](url)), never the English word "source".
 
 ${describeCapabilitiesAndTools(runtime, sshAvailable, webSearchAvailable, readUrlAvailable, githubAvailable)}
 - Never claim you executed, checked, or verified anything unless an actual tool invocation occurred.`;

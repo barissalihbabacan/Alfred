@@ -44,7 +44,7 @@ describe("provider configuration", () => {
       ["groq", "https://api.groq.com/openai/v1/chat/completions", "openai/gpt-oss-120b", "GROQ_API_KEY"],
       ["gemini", "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", "gemini-3.8-flash", "GEMINI_API_KEY"]
     ]);
-    expect(DEFAULT_EVREN_MODEL).toBe("deepseek-v4.1-flash");
+    expect(DEFAULT_EVREN_MODEL).toBe("qwen3.8-flash-next");
     expect(DEFAULT_GEMINI_CHAT_MODEL).toBe("gemini-3.8-flash");
   });
 
@@ -143,7 +143,7 @@ describe("request shape", () => {
     expect(gemini).toMatchObject({ model: "gemini-3.8-flash", max_tokens: 4096, reasoning_effort: "low", stream_options: { include_usage: true } });
 
     const evrenDefault = buildChatRequestBody(getChatProviderConfig("evren"), { messages });
-    expect(evrenDefault).toMatchObject({ model: "deepseek-v4.1-flash", max_tokens: 4096, reasoning_effort: "low", stream_options: { include_usage: true } });
+    expect(evrenDefault).toMatchObject({ model: "qwen3.8-flash-next", max_tokens: 4096, reasoning_effort: "low", stream_options: { include_usage: true } });
 
     // gemma-4-31b rejects reasoning_effort on EVREN API, so it must be omitted.
     const evrenGemma = buildChatRequestBody(getChatProviderConfig("evren", { EVREN_MODEL: "gemma-4-31b" }), { messages });
@@ -155,7 +155,7 @@ describe("request shape", () => {
     const envGroq = applyChatModelPreference({}, { provider: "groq", model: "llama-3.3-70b-versatile" });
     expect(resolveChatProviders(KEYS, envGroq).providers.map((p) => [p.id, p.model])).toEqual([
       ["groq", "llama-3.3-70b-versatile"],
-      ["evren", "deepseek-v4.1-flash"],
+      ["evren", "qwen3.8-flash-next"],
       ["gemini", "gemini-3.8-flash"]
     ]);
 
@@ -170,7 +170,7 @@ describe("request shape", () => {
     const envUnknownModel = applyChatModelPreference({}, { provider: "groq", model: "not-allowed-model" });
     expect(resolveChatProviders(KEYS, envUnknownModel).providers.map((p) => [p.id, p.model])).toEqual([
       ["groq", "openai/gpt-oss-120b"],
-      ["evren", "deepseek-v4.1-flash"],
+      ["evren", "qwen3.8-flash-next"],
       ["gemini", "gemini-3.8-flash"]
     ]);
   });

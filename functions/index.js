@@ -147,7 +147,10 @@ async function getEmbedding(text, ollamaUrl, geminiKey) {
 }
 
 // `stats` verilirse metrik alanlariyla doldurulur (memory_retrieval olayi icin).
-async function retrieveRelevantMemories(db, query, userId, topK = 5, minScore = 0.35, stats = null) {
+// `activeProjectId` doluysa hem o projeye ait anilar hem de genel (`projectId: null`)
+// anilar degerlendirilir (proje anilarina +0.04 oncelik puani verilir); baska
+// projelerin anilari karistirilmaz. `activeProjectId` bossa yalnizca genel anilar doner.
+async function retrieveRelevantMemories(db, query, userId, topK = 5, minScore = 0.35, stats = null, activeProjectId = null) {
   const memSnap = await db.collection("memory_vectors")
     .where("userId", "==", userId)
     .where("status", "==", "active")
@@ -156,18 +159,31 @@ async function retrieveRelevantMemories(db, query, userId, topK = 5, minScore = 
   const scored = [];
   let candidateCount = 0;
   let topScore = null;
+  const targetProject = typeof activeProjectId === "string" && activeProjectId.trim()
+    ? activeProjectId.trim()
+    : null;
+
   for (const doc of memSnap.docs) {
     const d = doc.data();
+    const docProject = typeof d.projectId === "string" && d.projectId.trim() ? d.projectId.trim() : null;
+    if (targetProject) {
+      if (docProject !== null && docProject !== targetProject) continue;
+    } else if (docProject !== null) {
+      continue;
+    }
+
     if (isComparableEmbedding(d, query.model)) {
       candidateCount++;
-      const score = cosineSimilarity(query.values, d.embedding);
-      if (topScore === null || score > topScore) topScore = score;
-      if (score >= minScore) {
+      const rawScore = cosineSimilarity(query.values, d.embedding);
+      if (topScore === null || rawScore > topScore) topScore = rawScore;
+      if (rawScore >= minScore) {
+        const boost = targetProject && docProject === targetProject ? 0.04 : 0;
         scored.push({
           memoryId: d.memoryId || doc.id,
           content: d.content,
           memoryType: d.memoryType || "general",
-          score
+          projectId: docProject,
+          score: rawScore + boost
         });
       }
     }
@@ -448,6 +464,162 @@ export const api = onRequest({
     }
   }
 
+  // Projects management endpoints: GET, POST, and DELETE /projects
+  if (path.endsWith("/projects")) {
+    if (req.method === "GET") {
+      try {
+        const projSnap = await db
+          .collection("projects")
+          .where("userId", "==", userId)
+          .get();
+
+        const projects = projSnap.docs
+          .map((doc) => {
+            const d = doc.data() || {};
+            const createdDate = d.createdAt?.toDate ? d.createdAt.toDate() : null;
+            const updatedDate = d.updatedAt?.toDate ? d.updatedAt.toDate() : null;
+            return {
+              id: doc.id,
+              name: typeof d.name === "string" ? d.name : "Proje",
+              description: typeof d.description === "string" ? d.description : "",
+              githubRepo: typeof d.githubRepo === "string" ? d.githubRepo : "",
+              color: typeof d.color === "string" ? d.color : "#c5a059",
+              createdAt: createdDate ? createdDate.toISOString() : null,
+              updatedAt: updatedDate ? updatedDate.toISOString() : null,
+              sortMs: updatedDate ? updatedDate.getTime() : (createdDate ? createdDate.getTime() : 0)
+            };
+          })
+          .sort((a, b) => b.sortMs - a.sortMs)
+          .map(({ sortMs: _s, ...rest }) => rest);
+
+        res.status(200).json({ success: true, projects });
+        return;
+      } catch (err) {
+        console.error("Cloud Function projects retrieval failed:", err);
+        res.status(500).json({ error: "Failed to retrieve projects." });
+        return;
+      }
+    }
+
+    if (req.method === "POST") {
+      try {
+        const { id, name, description, githubRepo, color } = req.body || {};
+        const trimmedName = typeof name === "string" ? name.trim() : "";
+        if (trimmedName.length < 2 || trimmedName.length > 80) {
+          res.status(400).json({ error: "Proje adı en az 2, en fazla 80 karakter olmalıdır." });
+          return;
+        }
+        const trimmedDesc = typeof description === "string" ? description.trim().slice(0, 1500) : "";
+        const trimmedRepo = typeof githubRepo === "string"
+          ? githubRepo.trim().replace(/^https?:\/\/github\.com\//i, "").replace(/\/+$/, "").slice(0, 140)
+          : "";
+        const safeColor = typeof color === "string" && /^#[0-9a-fA-F]{6}$/.test(color.trim())
+          ? color.trim()
+          : "#c5a059";
+        const now = Timestamp.now();
+
+        if (id && typeof id === "string") {
+          const projRef = db.collection("projects").doc(id.trim());
+          const existing = await projRef.get();
+          if (!existing.exists || baskasinin(existing)) {
+            res.status(404).json({ error: "Project not found." });
+            return;
+          }
+          await projRef.update({
+            name: trimmedName,
+            description: trimmedDesc,
+            githubRepo: trimmedRepo,
+            color: safeColor,
+            updatedAt: now
+          });
+          res.status(200).json({
+            success: true,
+            project: {
+              id: projRef.id,
+              name: trimmedName,
+              description: trimmedDesc,
+              githubRepo: trimmedRepo,
+              color: safeColor
+            }
+          });
+          return;
+        }
+
+        const newId = `proj_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        const newRef = db.collection("projects").doc(newId);
+        await newRef.set({
+          userId,
+          name: trimmedName,
+          description: trimmedDesc,
+          githubRepo: trimmedRepo,
+          color: safeColor,
+          createdAt: now,
+          updatedAt: now
+        });
+
+        res.status(200).json({
+          success: true,
+          project: {
+            id: newId,
+            name: trimmedName,
+            description: trimmedDesc,
+            githubRepo: trimmedRepo,
+            color: safeColor
+          }
+        });
+        return;
+      } catch (err) {
+        console.error("Cloud Function project save failed:", err);
+        res.status(500).json({ error: "Failed to save project." });
+        return;
+      }
+    }
+
+    if (req.method === "DELETE") {
+      try {
+        const projectId = (req.query?.projectId || req.query?.id || "").toString().trim();
+        if (!projectId) {
+          res.status(400).json({ error: "projectId is required." });
+          return;
+        }
+
+        const projRef = db.collection("projects").doc(projectId);
+        const projSnap = await projRef.get();
+        if (!projSnap.exists || baskasinin(projSnap)) {
+          res.status(404).json({ error: "Project not found." });
+          return;
+        }
+
+        // Retract active memories scoped to this project
+        const memSnap = await db
+          .collection("memory_vectors")
+          .where("userId", "==", userId)
+          .where("status", "==", "active")
+          .get();
+        const projectMems = memSnap.docs.filter((d) => d.data()?.projectId === projectId);
+        if (projectMems.length > 0) {
+          const batch = db.batch();
+          const now = Timestamp.now();
+          for (const doc of projectMems) {
+            batch.update(doc.ref, buildMemoryRetractionUpdate(now));
+          }
+          await batch.commit();
+        }
+
+        await projRef.delete();
+        res.status(200).json({ success: true, deletedProjectId: projectId });
+        return;
+      } catch (err) {
+        console.error("Cloud Function project deletion failed:", err);
+        res.status(500).json({ error: "Failed to delete project." });
+        return;
+      }
+    }
+
+    res.status(405).json({ error: "Method not allowed." });
+    return;
+  }
+
   // Long-term memory management endpoints: GET, POST, and DELETE /memories
   if (path.endsWith("/memories")) {
     if (req.method === "GET") {
@@ -468,6 +640,7 @@ export const api = onRequest({
               docId: doc.id,
               content: typeof d.content === "string" ? d.content : "",
               memoryType: typeof d.memoryType === "string" ? d.memoryType : "general",
+              projectId: typeof d.projectId === "string" && d.projectId.trim() ? d.projectId.trim() : null,
               createdAt: createdDate ? createdDate.toISOString() : null,
               updatedAt: updatedDate ? updatedDate.toISOString() : null,
               sortMs: createdDate ? createdDate.getTime() : 0
@@ -488,7 +661,7 @@ export const api = onRequest({
 
     if (req.method === "POST") {
       try {
-        const { content, memoryType, action } = req.body || {};
+        const { content, memoryType, action, projectId } = req.body || {};
         const trimmedContent = typeof content === "string" ? content.trim() : "";
         if (trimmedContent.length < 5 || trimmedContent.length > 600) {
           res.status(400).json({
@@ -504,6 +677,9 @@ export const api = onRequest({
         const normalizedType = typeof memoryType === "string" && memoryType.trim()
           ? memoryType.trim()
           : "user_preference";
+        const normalizedProjectId = typeof projectId === "string" && projectId.trim()
+          ? projectId.trim()
+          : null;
 
         await persistMemoryCandidates({
           db,
@@ -516,6 +692,7 @@ export const api = onRequest({
             }
           ],
           userId,
+          projectId: normalizedProjectId,
           conversationId: "manual_ui",
           sourceMessageIds: [],
           embed: (text) => getEmbedding(text, ollamaUrl, geminiKey),
@@ -601,6 +778,7 @@ export const api = onRequest({
     const {
       message,
       conversationId: requestedConvId,
+      projectId: requestedProjectId,
       provider: requestedProvider,
       model: requestedModel
     } = req.body || {};
@@ -621,6 +799,9 @@ export const api = onRequest({
     const ollamaModel = process.env.OLLAMA_MODEL || "gemma4:12b-mlx";
 
     let convId = requestedConvId;
+    let effectiveProjectId = typeof requestedProjectId === "string" && requestedProjectId.trim()
+      ? requestedProjectId.trim()
+      : null;
     const now = Timestamp.now();
 
     // 1. Resolve or create conversation
@@ -631,10 +812,16 @@ export const api = onRequest({
           res.status(404).json({ error: "Conversation not found" });
           return;
         }
-        if (!cSnap.exists) {
+        if (cSnap.exists) {
+          const existingProjId = cSnap.data()?.projectId;
+          if (!effectiveProjectId && typeof existingProjId === "string" && existingProjId.trim()) {
+            effectiveProjectId = existingProjId.trim();
+          }
+        } else {
           await db.collection("conversations").doc(convId).set({
             userId,
             title: "New Conversation",
+            ...(effectiveProjectId ? { projectId: effectiveProjectId } : {}),
             createdAt: now,
             updatedAt: now,
             lastMessageAt: now,
@@ -647,6 +834,7 @@ export const api = onRequest({
         await newConvRef.set({
           userId,
           title: "New Conversation",
+          ...(effectiveProjectId ? { projectId: effectiveProjectId } : {}),
           createdAt: now,
           updatedAt: now,
           lastMessageAt: now,
@@ -656,6 +844,26 @@ export const api = onRequest({
     } catch (convErr) {
       console.error("Failed to initialize conversation doc:", convErr);
       if (!convId) convId = "conv_" + Date.now();
+    }
+
+    // Load active project metadata if this conversation belongs to a project
+    let activeProjectContext = null;
+    if (effectiveProjectId) {
+      try {
+        const projSnap = await db.collection("projects").doc(effectiveProjectId).get();
+        if (projSnap.exists && !baskasinin(projSnap)) {
+          const pd = projSnap.data() || {};
+          activeProjectContext = {
+            name: typeof pd.name === "string" ? pd.name : "",
+            description: typeof pd.description === "string" ? pd.description : "",
+            githubRepo: typeof pd.githubRepo === "string" ? pd.githubRepo : ""
+          };
+        } else {
+          effectiveProjectId = null;
+        }
+      } catch (projErr) {
+        console.warn("Could not load project context:", projErr);
+      }
     }
 
     // 2. Transactionally append user message
@@ -723,7 +931,7 @@ export const api = onRequest({
       embeddingModel = queryEmbedding.model;
       const embeddingMs = msSince(retrievalStart);
       const retrievalStats = {};
-      retrievedMemories = await retrieveRelevantMemories(db, queryEmbedding, userId, MEMORY_TOP_K, MEMORY_MIN_SCORE, retrievalStats);
+      retrievedMemories = await retrieveRelevantMemories(db, queryEmbedding, userId, MEMORY_TOP_K, MEMORY_MIN_SCORE, retrievalStats, effectiveProjectId);
       logEvent("INFO", "memory_retrieval",
         `[Memory] Retrieved ${retrievedMemories.length} relevant memories for user ${userId}`, {
           outcome: "ok",
@@ -772,6 +980,7 @@ export const api = onRequest({
         content: buildAlfredSystemPrompt({
           runtime: { provider: runtime.id, model: runtime.model },
           memories: retrievedMemories,
+          project: activeProjectContext,
           webSearchAvailable: webSearchEnabled
         })
       },
@@ -873,6 +1082,7 @@ export const api = onRequest({
           userMessage: trimmedMessage,
           assistantResponse: content,
           userId,
+          projectId: effectiveProjectId,
           conversationId: convId,
           sourceMessageIds: [userMsgRef.id, asstMsgDocId].filter(Boolean),
           recentHistory: boundedHistory

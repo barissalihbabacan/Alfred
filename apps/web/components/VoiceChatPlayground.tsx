@@ -45,7 +45,18 @@ interface Message {
 interface ConversationSummary {
   id: string;
   title: string;
+  projectId?: string | null;
   lastMessageAt?: string;
+}
+
+interface ProjectItem {
+  id: string;
+  name: string;
+  description: string;
+  githubRepo?: string;
+  color: string;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 }
 
 /** A message as returned by `GET /chat?conversationId=...` (functions/index.js). */
@@ -64,6 +75,7 @@ interface MemoryItem {
   docId: string;
   content: string;
   memoryType: string;
+  projectId?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
 }
@@ -161,6 +173,8 @@ function fallbackCopy(text: string) {
 const DEFAULT_MODEL_LABEL = "deepseek-v4.1-flash";
 const CONVERSATION_KEY = "alfred_conversation_id";
 const MODEL_SELECTION_KEY = "alfred_model_selection";
+const ACTIVE_PROJECT_KEY = "alfred_active_project_id";
+const PROJECT_COLORS = ["#c5a059", "#3b82f6", "#10b981", "#a855f7", "#f97316", "#ec4899"];
 // Must match the `mobile` custom variant in apps/web/app/globals.css.
 const MOBILE_QUERY = "(max-width: 768px)";
 // Voice input (SpeechRecognition) listens for Turkish; there is no language picker.
@@ -233,13 +247,25 @@ export default function VoiceChatPlayground() {
   const [memoriesLoading, setMemoriesLoading] = useState(false);
   const [memorySearch, setMemorySearch] = useState("");
   const [memoryTypeFilter, setMemoryTypeFilter] = useState<string>("all");
+  const [memoryProjectFilter, setMemoryProjectFilter] = useState<string>("all");
   const [deletingMemoryId, setDeletingMemoryId] = useState<string | null>(null);
   const [newMemoryOpen, setNewMemoryOpen] = useState(false);
   const [newMemoryContent, setNewMemoryContent] = useState("");
   const [newMemoryType, setNewMemoryType] = useState("user_preference");
+  const [newMemoryProjectId, setNewMemoryProjectId] = useState("");
   const [newMemorySupersede, setNewMemorySupersede] = useState(false);
   const [creatingMemory, setCreatingMemory] = useState(false);
   const [memoryFeedback, setMemoryFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [projects, setProjects] = useState<ProjectItem[]>([]);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [showProjectModal, setShowProjectModal] = useState(false);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [projectFormName, setProjectFormName] = useState("");
+  const [projectFormDesc, setProjectFormDesc] = useState("");
+  const [projectFormRepo, setProjectFormRepo] = useState("");
+  const [projectFormColor, setProjectFormColor] = useState(PROJECT_COLORS[0]);
+  const [savingProject, setSavingProject] = useState(false);
+  const [projectFormError, setProjectFormError] = useState<string | null>(null);
   const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
@@ -376,6 +402,22 @@ export default function VoiceChatPlayground() {
     for (const key of LEGACY_STORAGE_KEYS) storageSet(key, null);
 
     const savedConvId = storageGet(CONVERSATION_KEY);
+    const savedProjId = storageGet(ACTIVE_PROJECT_KEY);
+    void apiFetch("/projects")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.success && Array.isArray(data.projects)) {
+          const loadedProjects = data.projects as ProjectItem[];
+          setProjects(loadedProjects);
+          if (savedProjId && loadedProjects.some((p) => p.id === savedProjId)) {
+            setActiveProjectId(savedProjId);
+          } else if (savedProjId) {
+            storageSet(ACTIVE_PROJECT_KEY, null);
+          }
+        }
+      })
+      .catch(() => {});
+
     void fetchConversations(true).then((list) => {
       if (!savedConvId) return;
       if (list && !list.some((c) => c.id === savedConvId)) {
@@ -439,11 +481,112 @@ export default function VoiceChatPlayground() {
     }
   }, [currentUserId]);
 
+  const fetchProjects = useCallback(async () => {
+    if (!currentUserId) return;
+    try {
+      const res = await apiFetch("/projects");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.projects)) {
+          setProjects(data.projects as ProjectItem[]);
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to fetch projects:", err);
+    }
+  }, [currentUserId]);
+
+  const handleSelectProject = useCallback((projId: string | null) => {
+    setActiveProjectId(projId);
+    storageSet(ACTIVE_PROJECT_KEY, projId);
+    handleNewConversation();
+  }, [handleNewConversation]);
+
+  const handleOpenNewProjectModal = useCallback(() => {
+    setEditingProjectId(null);
+    setProjectFormName("");
+    setProjectFormDesc("");
+    setProjectFormRepo("");
+    setProjectFormColor(PROJECT_COLORS[0]);
+    setProjectFormError(null);
+    setShowProjectModal(true);
+  }, []);
+
+  const handleOpenEditProjectModal = useCallback((e: React.MouseEvent, proj: ProjectItem) => {
+    e.stopPropagation();
+    setEditingProjectId(proj.id);
+    setProjectFormName(proj.name);
+    setProjectFormDesc(proj.description || "");
+    setProjectFormRepo(proj.githubRepo || "");
+    setProjectFormColor(proj.color || PROJECT_COLORS[0]);
+    setProjectFormError(null);
+    setShowProjectModal(true);
+  }, []);
+
+  const handleSaveProject = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedName = projectFormName.trim();
+    if (trimmedName.length < 2 || savingProject) return;
+    setSavingProject(true);
+    setProjectFormError(null);
+    try {
+      const res = await apiFetch("/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...(editingProjectId ? { id: editingProjectId } : {}),
+          name: trimmedName,
+          description: projectFormDesc.trim(),
+          githubRepo: projectFormRepo.trim(),
+          color: projectFormColor
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setProjectFormError(typeof data?.error === "string" ? data.error : "Proje kaydedilemedi.");
+        return;
+      }
+      await fetchProjects();
+      if (data?.project?.id && !editingProjectId) {
+        setActiveProjectId(data.project.id);
+        storageSet(ACTIVE_PROJECT_KEY, data.project.id);
+        handleNewConversation();
+      }
+      setShowProjectModal(false);
+    } catch {
+      setProjectFormError("Sunucuya bağlanılamadı.");
+    } finally {
+      setSavingProject(false);
+    }
+  }, [projectFormName, projectFormDesc, projectFormRepo, projectFormColor, editingProjectId, savingProject, fetchProjects, handleNewConversation]);
+
+  const handleDeleteProject = useCallback(async (e: React.MouseEvent, proj: ProjectItem) => {
+    e.stopPropagation();
+    if (!window.confirm(`"${proj.name}" projesini ve bu projeye özel anıları silmek istediğinizden emin misiniz?`)) return;
+    try {
+      const res = await apiFetch(`/projects?projectId=${encodeURIComponent(proj.id)}`, {
+        method: "DELETE"
+      });
+      if (res.ok) {
+        setProjects((prev) => prev.filter((p) => p.id !== proj.id));
+        if (activeProjectId === proj.id) {
+          setActiveProjectId(null);
+          storageSet(ACTIVE_PROJECT_KEY, null);
+          handleNewConversation();
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to delete project:", err);
+    }
+  }, [activeProjectId, handleNewConversation]);
+
   const handleOpenMemoryModal = useCallback(() => {
     setShowMemoryModal(true);
     setMemoryFeedback(null);
+    setNewMemoryProjectId(activeProjectId || "");
+    setMemoryProjectFilter(activeProjectId || "all");
     void fetchMemories();
-  }, [fetchMemories]);
+  }, [fetchMemories, activeProjectId]);
 
   const handleCreateMemory = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -458,6 +601,7 @@ export default function VoiceChatPlayground() {
         body: JSON.stringify({
           content: trimmed,
           memoryType: newMemoryType,
+          projectId: newMemoryProjectId || null,
           action: newMemorySupersede ? "supersede" : "create"
         })
       });
@@ -484,7 +628,7 @@ export default function VoiceChatPlayground() {
     } finally {
       setCreatingMemory(false);
     }
-  }, [newMemoryContent, newMemoryType, newMemorySupersede, creatingMemory, fetchMemories]);
+  }, [newMemoryContent, newMemoryType, newMemoryProjectId, newMemorySupersede, creatingMemory, fetchMemories]);
 
   const handleDeleteMemory = useCallback(async (docId: string) => {
     setDeletingMemoryId(docId);
@@ -643,6 +787,7 @@ export default function VoiceChatPlayground() {
         body: JSON.stringify({
           message: text,
           conversationId: conversationId || undefined,
+          projectId: activeProjectId || undefined,
           userId: currentUserId || undefined,
           ...(selectedOption ? { provider: selectedOption.provider, model: selectedOption.model } : {}),
           stream: true
@@ -977,10 +1122,92 @@ export default function VoiceChatPlayground() {
           </div>
         </div>
 
-        {/* Conversations List */}
+        {/* Projects & Conversations List */}
         <div className="flex flex-1 flex-col gap-1 overflow-y-auto px-2.5 py-2">
-          <div className="px-2 pb-1 pt-2.5 text-[11px] font-semibold uppercase tracking-wider text-chat-faint">
-            Geçmiş Sohbetler
+          {/* Projects Section */}
+          <div className="flex items-center justify-between px-2 pb-1 pt-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-chat-faint">
+              Projeler
+            </span>
+            <button
+              type="button"
+              onClick={handleOpenNewProjectModal}
+              className="flex h-5 w-5 cursor-pointer items-center justify-center rounded-md border border-white/10 bg-white/5 text-gold hover:bg-gold/15"
+              title="Yeni Proje Oluştur"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </button>
+          </div>
+
+          <div
+            onClick={() => {
+              handleSelectProject(null);
+              closeSidebarOnMobile();
+            }}
+            className={cx(
+              "box-border flex h-8.5 cursor-pointer select-none items-center justify-between rounded-lg px-2.5 py-1.5 text-[12.5px]",
+              activeProjectId === null ? "bg-chat-active font-medium text-white" : "bg-transparent text-chat-muted hover:bg-white/4"
+            )}
+          >
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <span className="h-2 w-2 shrink-0 rounded-full bg-gold/70" />
+              <span className="truncate">Genel Çalışma Alanı</span>
+            </div>
+          </div>
+
+          {projects.map((proj) => (
+            <div
+              key={proj.id}
+              onClick={() => {
+                handleSelectProject(proj.id);
+                closeSidebarOnMobile();
+              }}
+              className={cx(
+                "group box-border flex h-8.5 cursor-pointer select-none items-center justify-between rounded-lg px-2.5 py-1.5 text-[12.5px]",
+                activeProjectId === proj.id ? "bg-chat-active font-medium text-white" : "bg-transparent text-chat-muted hover:bg-white/4"
+              )}
+            >
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <span
+                  className="h-2 w-2 shrink-0 rounded-full"
+                  style={{ backgroundColor: proj.color || "#c5a059" }}
+                />
+                <span className="truncate">{proj.name}</span>
+              </div>
+              <div className="ml-1 flex shrink-0 items-center gap-0.5 opacity-0 group-hover:opacity-80 touch:opacity-80">
+                <button
+                  type="button"
+                  onClick={(e) => handleOpenEditProjectModal(e, proj)}
+                  className="flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-chat-subtle hover:bg-white/10 hover:text-chat-text"
+                  title="Projeyi Düzenle"
+                >
+                  <svg width="11.5" height="11.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 20h9" />
+                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => handleDeleteProject(e, proj)}
+                  className="flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-chat-subtle hover:bg-danger/15 hover:text-danger"
+                  title="Projeyi Sil"
+                >
+                  <svg width="11.5" height="11.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 6h18" />
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          ))}
+
+          <div className="px-2 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wider text-chat-faint">
+            {activeProjectId
+              ? `${projects.find((p) => p.id === activeProjectId)?.name || "Proje"} Sohbetleri`
+              : "Geçmiş Sohbetler"}
           </div>
 
           {conversationsLoading ? (
@@ -995,12 +1222,20 @@ export default function VoiceChatPlayground() {
                 </div>
               ))}
             </>
-          ) : conversations.length === 0 ? (
-            <div className="px-2 py-3 text-[12px] text-chat-faint">
-              Henüz kayıtlı sohbet bulunmuyor.
-            </div>
-          ) : (
-            conversations.map((conv) => (
+          ) : (() => {
+            const visibleConvs = activeProjectId
+              ? conversations.filter((c) => c.projectId === activeProjectId)
+              : conversations.filter((c) => !c.projectId);
+            if (visibleConvs.length === 0) {
+              return (
+                <div className="px-2 py-3 text-[12px] text-chat-faint">
+                  {activeProjectId
+                    ? "Bu projede henüz kayıtlı sohbet bulunmuyor."
+                    : "Henüz kayıtlı sohbet bulunmuyor."}
+                </div>
+              );
+            }
+            return visibleConvs.map((conv) => (
               <div
                 key={conv.id}
                 onClick={() => {
@@ -1035,8 +1270,8 @@ export default function VoiceChatPlayground() {
                   </svg>
                 </button>
               </div>
-            ))
-          )}
+            ));
+          })()}
         </div>
 
         {/* Sidebar Footer */}
@@ -1211,6 +1446,24 @@ export default function VoiceChatPlayground() {
           </div>
 
           <div className="flex shrink-0 items-center gap-2 mobile:gap-1.5">
+            {activeProjectId && (() => {
+              const activeProj = projects.find((p) => p.id === activeProjectId);
+              if (!activeProj) return null;
+              return (
+                <button
+                  type="button"
+                  onClick={(e) => handleOpenEditProjectModal(e, activeProj)}
+                  className="flex max-w-[180px] cursor-pointer items-center gap-1.5 rounded-full border border-gold/35 bg-gold/12 px-2.5 py-1 text-[12px] font-medium text-gold"
+                  title={`Aktif Proje: ${activeProj.name} (Düzenlemek için tıklayın)`}
+                >
+                  <span
+                    className="h-2 w-2 shrink-0 rounded-full"
+                    style={{ backgroundColor: activeProj.color || "#c5a059" }}
+                  />
+                  <span className="truncate">{activeProj.name}</span>
+                </button>
+              );
+            })()}
             <button
               type="button"
               onClick={handleOpenMemoryModal}
@@ -1739,6 +1992,21 @@ export default function VoiceChatPlayground() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <select
+                      id="new-memory-project-select"
+                      name="newMemoryProjectId"
+                      aria-label="Bellek kapsamı (proje)"
+                      value={newMemoryProjectId}
+                      onChange={(e) => setNewMemoryProjectId(e.target.value)}
+                      className="cursor-pointer rounded-lg border border-white/12 bg-chat-surface px-2.5 py-1.5 text-[12px] text-chat-text outline-hidden"
+                    >
+                      <option value="">🌐 Genel Bellek</option>
+                      {projects.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          📁 {p.name}
+                        </option>
+                      ))}
+                    </select>
+                    <select
                       id="new-memory-type-select"
                       name="newMemoryType"
                       aria-label="Bellek kategorisi"
@@ -1806,6 +2074,31 @@ export default function VoiceChatPlayground() {
                 />
               </div>
 
+              {projects.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="mr-1 text-[11px] font-semibold text-chat-faint">Kapsam:</span>
+                  {[
+                    { id: "all", label: "Tüm Kapsamlar" },
+                    { id: "global", label: "🌐 Genel Bellek" },
+                    ...projects.map((p) => ({ id: p.id, label: `📁 ${p.name}` }))
+                  ].map((scope) => (
+                    <button
+                      key={scope.id}
+                      type="button"
+                      onClick={() => setMemoryProjectFilter(scope.id)}
+                      className={cx(
+                        "cursor-pointer rounded-full border px-2.5 py-0.5 text-[11px] font-medium [transition:all_0.15s]",
+                        memoryProjectFilter === scope.id
+                          ? "border-gold/50 bg-gold/15 text-gold"
+                          : "border-white/10 bg-white/4 text-chat-muted hover:bg-white/8"
+                      )}
+                    >
+                      {scope.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <div className="flex flex-wrap items-center gap-1.5">
                 {[
                   { id: "all", label: "Tümü" },
@@ -1848,6 +2141,8 @@ export default function VoiceChatPlayground() {
               ) : (() => {
                 const q = memorySearch.trim().toLocaleLowerCase("tr-TR");
                 const filtered = memoryItems.filter((item) => {
+                  if (memoryProjectFilter === "global" && item.projectId) return false;
+                  if (memoryProjectFilter !== "all" && memoryProjectFilter !== "global" && item.projectId !== memoryProjectFilter) return false;
                   if (memoryTypeFilter !== "all" && item.memoryType !== memoryTypeFilter) return false;
                   if (!q) return true;
                   return (
@@ -1864,7 +2159,11 @@ export default function VoiceChatPlayground() {
                     </div>
                   );
                 }
-                return filtered.map((item) => (
+                return filtered.map((item) => {
+                  const projName = item.projectId
+                    ? projects.find((p) => p.id === item.projectId)?.name || "Proje"
+                    : null;
+                  return (
                   <div
                     key={item.docId}
                     className="group flex items-start justify-between gap-3 rounded-xl border border-white/8 bg-white/3 p-3.5 [transition:border-color_0.15s,background_0.15s] hover:border-white/14 hover:bg-white/5"
@@ -1873,6 +2172,9 @@ export default function VoiceChatPlayground() {
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="rounded-sm border border-gold/30 bg-gold/12 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-gold">
                           {memoryTypeLabel(item.memoryType)}
+                        </span>
+                        <span className="rounded-sm border border-white/12 bg-white/6 px-1.5 py-0.5 text-[10px] font-medium text-chat-muted">
+                          {projName ? `📁 ${projName}` : "🌐 Genel"}
                         </span>
                         {item.createdAt && (
                           <span className="text-[11px] text-chat-faint">
@@ -1901,10 +2203,137 @@ export default function VoiceChatPlayground() {
                       </span>
                     </button>
                   </div>
-                ));
+                  );
+                });
               })()}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Project Create / Edit Modal */}
+      {showProjectModal && (
+        <div
+          onClick={() => setShowProjectModal(false)}
+          className="fixed inset-0 z-1000 flex items-center justify-center bg-black/75 p-4 backdrop-blur-[6px]"
+        >
+          <form
+            onSubmit={handleSaveProject}
+            onClick={(e) => e.stopPropagation()}
+            className="flex w-full max-w-[520px] flex-col gap-3.5 rounded-2xl border border-white/10 bg-chat-modal p-6 shadow-[0_20px_50px_rgba(0,0,0,0.65)] mobile:p-4"
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-[16px] font-semibold text-chat-text">
+                {editingProjectId ? "Projeyi Düzenle" : "Yeni Proje Oluştur"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowProjectModal(false)}
+                className="flex cursor-pointer items-center border-none bg-transparent p-1 text-chat-subtle hover:text-chat-text"
+                title="Kapat"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+
+            <p className="m-0 text-[12.5px] leading-normal text-chat-subtle">
+              Her projenin kendine özel sohbet geçmişi, mimari bağlamı ve diğer projelerden izole uzun süreli semantik belleği bulunur.
+            </p>
+
+            {projectFormError && (
+              <div className="rounded-xl border border-danger/40 bg-danger/15 px-3 py-2 text-[12.5px] text-red-300">
+                {projectFormError}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="project-name-input" className="text-[12px] font-semibold text-chat-muted">
+                Proje Adı
+              </label>
+              <input
+                id="project-name-input"
+                name="projectName"
+                type="text"
+                required
+                maxLength={80}
+                value={projectFormName}
+                onChange={(e) => setProjectFormName(e.target.value)}
+                placeholder="Ör: B.U.T.L.E.R. Alfred, Otonom İHA, Finans API..."
+                className="w-full rounded-xl border border-white/12 bg-black/25 px-3 py-2 text-[13.5px] text-chat-text outline-hidden focus:border-gold/50"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="project-repo-input" className="text-[12px] font-semibold text-chat-muted">
+                GitHub Deposu (İsteğe Bağlı)
+              </label>
+              <input
+                id="project-repo-input"
+                name="projectRepo"
+                type="text"
+                maxLength={140}
+                value={projectFormRepo}
+                onChange={(e) => setProjectFormRepo(e.target.value)}
+                placeholder="Ör: barissalihbabacan/B.U.T.L.E.R.-Alfred"
+                className="w-full rounded-xl border border-white/12 bg-black/25 px-3 py-2 text-[13px] text-chat-text outline-hidden focus:border-gold/50"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="project-desc-input" className="text-[12px] font-semibold text-chat-muted">
+                Proje Talimatları &amp; Mimari Bağlam (İsteğe Bağlı)
+              </label>
+              <textarea
+                id="project-desc-input"
+                name="projectDescription"
+                rows={3}
+                maxLength={1500}
+                value={projectFormDesc}
+                onChange={(e) => setProjectFormDesc(e.target.value)}
+                placeholder="Ör: Next.js 16 + Firebase Cloud Functions + Firestore tabanlı proje. Kod örneklerinde TypeScript ve ESM kullan..."
+                className="w-full resize-none rounded-xl border border-white/12 bg-black/25 px-3 py-2 text-[13px] leading-normal text-chat-text outline-hidden focus:border-gold/50"
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[12px] font-semibold text-chat-muted">Renk Etiketi:</span>
+              <div className="flex items-center gap-2">
+                {PROJECT_COLORS.map((col) => (
+                  <button
+                    key={col}
+                    type="button"
+                    onClick={() => setProjectFormColor(col)}
+                    className={cx(
+                      "h-6 w-6 cursor-pointer rounded-full border-2 [transition:transform_0.15s]",
+                      projectFormColor === col ? "scale-110 border-white" : "border-transparent opacity-70 hover:opacity-100"
+                    )}
+                    style={{ backgroundColor: col }}
+                    aria-label={`Renk ${col}`}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-2 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowProjectModal(false)}
+                className="cursor-pointer rounded-xl border border-white/12 bg-transparent px-4 py-2 text-[13px] text-chat-muted hover:text-chat-text"
+              >
+                İptal
+              </button>
+              <button
+                type="submit"
+                disabled={savingProject || projectFormName.trim().length < 2}
+                className="cursor-pointer rounded-xl border-none bg-gold px-4 py-2 text-[13px] font-semibold text-black disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {savingProject ? "Kaydediliyor..." : editingProjectId ? "Güncelle" : "Projeyi Oluştur"}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 

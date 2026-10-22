@@ -227,11 +227,39 @@ export function formatRetrievedMemoriesBlock(memories: readonly PromptMemory[] |
   ].join("\n");
 }
 
+export interface PromptProjectContext {
+  name: string;
+  description?: string | null;
+  githubRepo?: string | null;
+}
+
+export function formatActiveProjectBlock(project: PromptProjectContext | null | undefined): string {
+  const name = String(project?.name ?? "").trim();
+  if (!name) return "";
+  const lines = [
+    "=== ACTIVE PROJECT WORKSPACE ===",
+    `Active Project: ${name}`
+  ];
+  const repo = String(project?.githubRepo ?? "").trim();
+  if (repo) {
+    lines.push(`GitHub Repository: ${repo}`);
+  }
+  const desc = String(project?.description ?? "").trim();
+  if (desc) {
+    lines.push(`Project Context & Instructions:\n${desc}`);
+  }
+  lines.push("Prioritize this project's architecture, conventions, and goals in your answers.");
+  lines.push("=".repeat(32));
+  return lines.join("\n");
+}
+
 export interface BuildAlfredSystemPromptOptions {
   /** The provider/model answering this turn; defaults to DEFAULT_ALFRED_RUNTIME. */
   runtime?: AlfredRuntime;
   /** Long-term memories retrieved for this turn. */
   memories?: readonly PromptMemory[];
+  /** Optional active project workspace context for this turn. */
+  project?: PromptProjectContext | null;
   /** Describe the ssh_* tools. Production has no SSH connection, so it leaves this false. */
   sshAvailable?: boolean;
   /** Describe the web_search tool. Production sets it when the Tavily key is configured. */
@@ -249,6 +277,8 @@ export function buildAlfredSystemPrompt(options: BuildAlfredSystemPromptOptions 
     ALFRED_USER_PROFILE_BLOCK,
     buildConversationalGovernorBlock(options.runtime)
   ];
+  const projectBlock = formatActiveProjectBlock(options.project);
+  if (projectBlock) sections.push(projectBlock);
   const memories = formatRetrievedMemoriesBlock(options.memories);
   if (memories) sections.push(memories);
   return sections.join("\n\n");

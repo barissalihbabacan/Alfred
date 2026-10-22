@@ -191,6 +191,7 @@ export interface MemoryVectorRecordInput<TTime> {
   userId: string;
   content: string;
   memoryType: MemoryType;
+  projectId?: string | null;
   sourceConversationId?: string | null;
   sourceMessageIds?: string[] | null;
   embedding: EmbeddingResult;
@@ -212,6 +213,7 @@ export function buildMemoryVectorRecord<TTime>(input: MemoryVectorRecordInput<TT
     userId: input.userId,
     content: input.content,
     memoryType: input.memoryType,
+    ...(input.projectId ? { projectId: input.projectId } : {}),
     sourceConversationId: input.sourceConversationId,
     sourceMessageIds: input.sourceMessageIds || [],
     embeddingProvider: embedding.model === GEMINI_EMBEDDING_MODEL ? "gemini" : "ollama",

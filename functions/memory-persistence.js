@@ -24,12 +24,14 @@ import { runMemoryWriteLoop } from "../src/alfred/cognitive/memory/memory-write-
 
 // Aktif bellekler her aday icin yeniden okunur: ayni turda once yazilan,
 // supersede ya da retract edilen kayit sonraki adayin kararina yansir.
-async function readActiveMemories(db, userId) {
+async function readActiveMemories(db, userId, projectId) {
   const snap = await db.collection("memory_vectors")
     .where("userId", "==", userId)
     .where("status", "==", "active")
     .get();
-  return snap.docs;
+  if (projectId === undefined) return snap.docs;
+  const targetProject = projectId || null;
+  return snap.docs.filter((doc) => (doc.data()?.projectId || null) === targetProject);
 }
 
 const docData = (doc) => doc.data();
@@ -41,6 +43,7 @@ const docData = (doc) => doc.data();
  * @param {object} p.db Firestore (collection/where/get/doc/set, doc.ref.update, batch)
  * @param {unknown[]} p.memories cikarim modelinin ham adaylari
  * @param {string} p.userId
+ * @param {string | null} [p.projectId]
  * @param {string} p.conversationId
  * @param {string[]} [p.sourceMessageIds]
  * @param {(text: string) => Promise<{ values: number[], model: string }>} p.embed
@@ -53,6 +56,7 @@ export async function persistMemoryCandidates({
   db,
   memories,
   userId,
+  projectId,
   conversationId,
   sourceMessageIds,
   embed,
@@ -66,7 +70,7 @@ export async function persistMemoryCandidates({
     tally,
     ports: {
       embed,
-      readActive: () => readActiveMemories(db, userId),
+      readActive: () => readActiveMemories(db, userId, projectId),
       recordOf: docData,
 
       async retract(target) {
@@ -88,6 +92,7 @@ export async function persistMemoryCandidates({
           userId,
           content: candidate.content,
           memoryType: candidate.memoryType,
+          ...(projectId ? { projectId } : {}),
           sourceConversationId: conversationId,
           sourceMessageIds,
           embedding,

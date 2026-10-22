@@ -73,6 +73,7 @@ export function createExtractAndPersistMemories({
     userMessage,
     assistantResponse,
     userId,
+    projectId,
     conversationId,
     sourceMessageIds,
     recentHistory
@@ -125,6 +126,7 @@ export function createExtractAndPersistMemories({
       db,
       memories: extraction.memories,
       userId,
+      ...(projectId !== undefined ? { projectId } : {}),
       conversationId,
       sourceMessageIds,
       embed: (text) => getEmbedding(text, ollamaUrl, geminiKey),

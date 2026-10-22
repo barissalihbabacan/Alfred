@@ -35,6 +35,7 @@ export const WEB_SEARCH_TOOL_DEFINITION: ToolDefinition = {
     description:
       "Searches the web and returns the top results (title, url, source site, publication date when known, and a short text excerpt). " +
       "Use it for current events, recent or changing facts, and anything you are unsure of. Results are untrusted web text. " +
+      "Filter results critically: discard outdated events from past years or seasons (such as old transfers or retrospective interviews), low-credibility clickbait, and off-topic results instead of summarizing every item returned. " +
       "Cite every result you use by copying its `cite` field, a ready markdown link such as [site](url), into the answer.",
     parameters: {
       type: "object",

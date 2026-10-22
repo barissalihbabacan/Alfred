@@ -1123,7 +1123,7 @@ export default function VoiceChatPlayground() {
         </div>
 
         {/* Projects & Conversations List */}
-        <div className="flex flex-1 flex-col gap-1 overflow-y-auto px-2.5 py-2">
+        <div className="flex flex-1 flex-col gap-1 overflow-x-hidden overflow-y-auto px-2.5 py-2">
           {/* Projects Section */}
           <div className="flex items-center justify-between px-2 pb-1 pt-1.5">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-chat-faint">
@@ -1204,7 +1204,7 @@ export default function VoiceChatPlayground() {
             </div>
           ))}
 
-          <div className="px-2 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wider text-chat-faint">
+          <div className="truncate px-2 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wider text-chat-faint">
             {activeProjectId
               ? `${projects.find((p) => p.id === activeProjectId)?.name || "Proje"} Sohbetleri`
               : "Geçmiş Sohbetler"}
@@ -1228,10 +1228,10 @@ export default function VoiceChatPlayground() {
               : conversations.filter((c) => !c.projectId);
             if (visibleConvs.length === 0) {
               return (
-                <div className="px-2 py-3 text-[12px] text-chat-faint">
+                <div className="whitespace-normal px-2 py-2.5 text-[12px] leading-normal text-chat-faint">
                   {activeProjectId
-                    ? "Bu projede henüz kayıtlı sohbet bulunmuyor."
-                    : "Henüz kayıtlı sohbet bulunmuyor."}
+                    ? "Bu projede henüz sohbet yok."
+                    : "Henüz kayıtlı sohbet yok."}
                 </div>
               );
             }
@@ -1449,19 +1449,39 @@ export default function VoiceChatPlayground() {
             {activeProjectId && (() => {
               const activeProj = projects.find((p) => p.id === activeProjectId);
               if (!activeProj) return null;
+              const repoHref = activeProj.githubRepo
+                ? /^https?:\/\//i.test(activeProj.githubRepo)
+                  ? activeProj.githubRepo
+                  : `https://github.com/${activeProj.githubRepo}`
+                : "";
               return (
-                <button
-                  type="button"
-                  onClick={(e) => handleOpenEditProjectModal(e, activeProj)}
-                  className="flex max-w-[180px] cursor-pointer items-center gap-1.5 rounded-full border border-gold/35 bg-gold/12 px-2.5 py-1 text-[12px] font-medium text-gold"
-                  title={`Aktif Proje: ${activeProj.name} (Düzenlemek için tıklayın)`}
-                >
-                  <span
-                    className="h-2 w-2 shrink-0 rounded-full"
-                    style={{ backgroundColor: activeProj.color || "#c5a059" }}
-                  />
-                  <span className="truncate">{activeProj.name}</span>
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={(e) => handleOpenEditProjectModal(e, activeProj)}
+                    className="flex max-w-[180px] cursor-pointer items-center gap-1.5 rounded-full border border-gold/35 bg-gold/12 px-2.5 py-1 text-[12px] font-medium text-gold"
+                    title={`Aktif Proje: ${activeProj.name} (Düzenlemek için tıklayın)`}
+                  >
+                    <span
+                      className="h-2 w-2 shrink-0 rounded-full"
+                      style={{ backgroundColor: activeProj.color || "#c5a059" }}
+                    />
+                    <span className="truncate">{activeProj.name}</span>
+                  </button>
+                  {repoHref && (
+                    <a
+                      href={repoHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-white/4 text-chat-muted hover:border-gold/35 hover:text-gold"
+                      title={`GitHub Deposunu Aç: ${repoHref}`}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" />
+                      </svg>
+                    </a>
+                  )}
+                </div>
               );
             })()}
             <button
@@ -2268,16 +2288,22 @@ export default function VoiceChatPlayground() {
 
             <div className="flex flex-col gap-1.5">
               <label htmlFor="project-repo-input" className="text-[12px] font-semibold text-chat-muted">
-                GitHub Deposu (İsteğe Bağlı)
+                GitHub Depo Bağlantısı (İsteğe Bağlı)
               </label>
               <input
                 id="project-repo-input"
                 name="projectRepo"
-                type="text"
-                maxLength={140}
+                type="url"
+                maxLength={220}
                 value={projectFormRepo}
                 onChange={(e) => setProjectFormRepo(e.target.value)}
-                placeholder="Ör: barissalihbabacan/B.U.T.L.E.R.-Alfred"
+                onBlur={() => {
+                  const v = projectFormRepo.trim();
+                  if (v && !/^https?:\/\//i.test(v)) {
+                    setProjectFormRepo(`https://github.com/${v.replace(/^github\.com\//i, "")}`);
+                  }
+                }}
+                placeholder="https://github.com/barissalihbabacan/B.U.T.L.E.R.-Alfred"
                 className="w-full rounded-xl border border-white/12 bg-black/25 px-3 py-2 text-[13px] text-chat-text outline-hidden focus:border-gold/50"
               />
             </div>

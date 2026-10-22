@@ -510,9 +510,12 @@ export const api = onRequest({
           return;
         }
         const trimmedDesc = typeof description === "string" ? description.trim().slice(0, 1500) : "";
-        const trimmedRepo = typeof githubRepo === "string"
-          ? githubRepo.trim().replace(/^https?:\/\/github\.com\//i, "").replace(/\/+$/, "").slice(0, 140)
-          : "";
+        const rawRepo = typeof githubRepo === "string" ? githubRepo.trim().replace(/\/+$/, "") : "";
+        const trimmedRepo = !rawRepo
+          ? ""
+          : /^https?:\/\//i.test(rawRepo)
+            ? rawRepo.slice(0, 220)
+            : `https://github.com/${rawRepo.replace(/^github\.com\//i, "")}`.slice(0, 220);
         const safeColor = typeof color === "string" && /^#[0-9a-fA-F]{6}$/.test(color.trim())
           ? color.trim()
           : "#c5a059";

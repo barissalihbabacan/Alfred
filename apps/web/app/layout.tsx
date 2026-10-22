@@ -10,8 +10,6 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  // Android Chrome: shrink the layout (and dvh) when the keyboard opens, so the composer stays visible.
-  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({

@@ -71,8 +71,6 @@ const GROQ_API_KEY = defineSecret("GROQ_API_KEY");
 const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
 // web_search (Tavily). "unset" (or empty) leaves the tool out entirely.
 const TAVILY_API_KEY = defineSecret("TAVILY_API_KEY");
-// github token (optional; unauthenticated calls still work for public repos up to 60/hr)
-const GITHUB_TOKEN = defineSecret("GITHUB_TOKEN");
 
 const ALLOWED_UID = process.env.ALLOWED_UID || "test-owner-uid-123456";
 
@@ -245,7 +243,7 @@ const extractAndPersistMemories = createExtractAndPersistMemories({
 
 export const api = onRequest({
   cors: true,
-  secrets: [EVREN_API_KEY, GROQ_API_KEY, GEMINI_API_KEY, TAVILY_API_KEY, GITHUB_TOKEN]
+  secrets: [EVREN_API_KEY, GROQ_API_KEY, GEMINI_API_KEY, TAVILY_API_KEY]
 }, async (req, res) => {
   // CORS Preflight
   if (req.method === "OPTIONS") {
@@ -837,7 +835,7 @@ export const api = onRequest({
     const geminiKey = gizliOku(GEMINI_API_KEY, "GEMINI_API_KEY");
     const tavilyKey = gizliOku(TAVILY_API_KEY, "TAVILY_API_KEY");
     const webSearchEnabled = isUsableApiKey(tavilyKey);
-    const githubToken = gizliOku(GITHUB_TOKEN, "GITHUB_TOKEN");
+    const githubToken = process.env.GITHUB_TOKEN || "";
     const ollamaUrl = process.env.OLLAMA_BASE_URL || "https://ollama.example.invalid";
     const ollamaModel = process.env.OLLAMA_MODEL || "gemma4:12b-mlx";
 

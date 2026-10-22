@@ -208,8 +208,8 @@ export default function VoiceChatPlayground() {
 
   // Load conversations list (authenticated; this component only mounts once
   // Firebase has restored an allowed session).
-  const fetchConversations = useCallback(async (showSkeleton = false) => {
-    if (!currentUserId) return;
+  const fetchConversations = useCallback(async (showSkeleton = false): Promise<ConversationSummary[] | null> => {
+    if (!currentUserId) return null;
     if (showSkeleton) setConversationsLoading(true);
     try {
       const res = await apiFetch(`/chat?userId=${encodeURIComponent(currentUserId)}`);
@@ -217,6 +217,7 @@ export default function VoiceChatPlayground() {
         const data = await res.json();
         if (data.success && Array.isArray(data.conversations)) {
           setConversations(data.conversations);
+          return data.conversations as ConversationSummary[];
         }
       } else {
         console.warn("Failed to fetch conversation list:", res.status);
@@ -226,6 +227,7 @@ export default function VoiceChatPlayground() {
     } finally {
       setConversationsLoading(false);
     }
+    return null;
   }, [currentUserId]);
 
   // Phones: the sidebar is a drawer over the chat, so it starts closed and
@@ -300,11 +302,15 @@ export default function VoiceChatPlayground() {
     if (!currentUserId) return;
     for (const key of LEGACY_STORAGE_KEYS) storageSet(key, null);
 
-    fetchConversations(true);
     const savedConvId = storageGet(CONVERSATION_KEY);
-    if (savedConvId) {
-      loadConversation(savedConvId);
-    }
+    void fetchConversations(true).then((list) => {
+      if (!savedConvId) return;
+      if (list && !list.some((c) => c.id === savedConvId)) {
+        storageSet(CONVERSATION_KEY, null);
+        return;
+      }
+      void loadConversation(savedConvId);
+    });
   }, [currentUserId, fetchConversations, loadConversation]);
 
   // Active provider (public /health endpoint, no token needed).
@@ -1109,6 +1115,9 @@ export default function VoiceChatPlayground() {
 
             {/* 16px on phones stops iOS Safari from zooming in when the composer is focused. */}
             <textarea
+              id="chat-message-input"
+              name="message"
+              aria-label="Alfred'e mesaj yazın"
               ref={textareaRef}
               value={inputText}
               onChange={handleTextareaInput}

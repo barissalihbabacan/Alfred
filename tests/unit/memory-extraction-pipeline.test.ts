@@ -247,11 +247,13 @@ async function run(runner: Runner, s: Scenario) {
       db: { fake: "db" },
       ollamaUrl: s.ollamaUrl,
       ollamaModel: s.ollamaModel,
+      evrenKey: undefined,
       groqKey: s.groqKey,
       geminiKey: s.geminiKey,
       userMessage: s.userMessage,
       assistantResponse: s.assistantResponse,
       userId: "user_1",
+      projectId: null,
       conversationId: "conv_1",
       sourceMessageIds: ["m_u", "m_a"],
       recentHistory: structuredClone(s.recentHistory)
@@ -545,8 +547,8 @@ describe("production extraction module", () => {
       persist: async (p: { memories: unknown[] }) => { persisted.push(p.memories); }
     });
     const summary = await extract({
-      db: {}, ollamaUrl: "http://o", ollamaModel: "m", groqKey: "gsk_k", geminiKey: "AQ.k",
-      userMessage, assistantResponse: "Noted, sir.", userId: "u", conversationId: "c", sourceMessageIds: [], recentHistory: []
+      db: {}, ollamaUrl: "http://o", ollamaModel: "m", evrenKey: undefined, groqKey: "gsk_k", geminiKey: "AQ.k",
+      userMessage, assistantResponse: "Noted, sir.", userId: "u", projectId: null, conversationId: "c", sourceMessageIds: [], recentHistory: []
     });
     return { summary, logs, persisted, fetch };
   }

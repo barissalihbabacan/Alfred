@@ -64,6 +64,7 @@ export function describeReasoningRuntime(runtime: AlfredRuntime = DEFAULT_ALFRED
   const provider = (runtime.provider ?? "").trim().toLowerCase();
   const model = (runtime.model ?? "").trim();
   const withModel = (name: string) => (model ? `${name} (${model})` : name);
+  if (provider === "evren") return withModel("EVREN");
   if (provider === "groq") return withModel("Groq");
   if (provider === "ollama") return `${withModel("Ollama")} over the private network`;
   const fallbackName = FALLBACK_PROVIDER_NAMES[provider];
@@ -157,7 +158,7 @@ export function describeRequestPipeline(runtime: AlfredRuntime = DEFAULT_ALFRED_
   if (fallbackName) {
     return `${front} → ${fallbackName} API${model ? ` (${model})` : ""} → SSE response. ${memory} Groq is the primary provider; this turn fell back because Groq was unavailable.`;
   }
-  const llm = provider === "groq" || !provider ? "Groq API" : provider;
+  const llm = provider === "evren" ? "EVREN API" : provider === "groq" || !provider ? "Groq API" : provider;
   return `${front} → ${llm}${model ? ` (${model})` : ""} → SSE response. ${memory} Ollama on the MacBook over Tailscale is an optional alternative provider, not in the default path.`;
 }
 

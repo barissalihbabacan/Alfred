@@ -21,7 +21,7 @@ import {
 } from "../src/alfred/cognitive/memory/memory-write-planner.js";
 import { persistMemoryCandidates as defaultPersist } from "./memory-persistence.js";
 
-const PROVIDER_LABELS = { groq: "Groq", gemini: "Gemini" };
+const PROVIDER_LABELS = { evren: "EVREN", groq: "Groq", gemini: "Gemini" };
 
 /**
  * @param {object} deps

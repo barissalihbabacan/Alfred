@@ -26,9 +26,9 @@ const WITH_MEMORIES_BUDGET = 2_100;
 
 const GROQ = { provider: "groq", model: "openai/gpt-oss-120b" };
 const OLLAMA = { provider: "ollama", model: "gemma4:12b-mlx" };
-// Every fallback provider: their capability line ("… standing in because Groq is unavailable") is longer.
+// Every non-Groq provider: their capability line must also stay within budget.
 const FALLBACK_RUNTIMES = resolveChatProviders(
-  { groq: "k", gemini: "k" },
+  { evren: "k", groq: "k", gemini: "k" },
   { CHAT_FALLBACK_ORDER: CHAT_PROVIDER_ORDER.join(",") }
 ).providers.filter((p) => p.id !== "groq").map((p) => ({ provider: p.id, model: p.model }));
 

@@ -106,11 +106,13 @@ describe("memory extraction: Groq, then Gemini", () => {
     ]);
   });
 
-  it("honours GEMINI_EXTRACTION_MODEL and skips unconfigured providers", () => {
+  it("honours GEMINI_EXTRACTION_MODEL and EVREN and skips unconfigured providers", () => {
     expect(planExtractionRequests({ ...base, groqKey: "unset", geminiKey: "AQ.k", geminiModel: "gemini-3.5-flash-lite" }).map((r) => [r.provider, r.model]))
       .toEqual([["gemini", "gemini-3.5-flash-lite"]]);
     expect(planExtractionRequests({ ...base, groqKey: "gsk_k", geminiKey: "" }).map((r) => r.provider)).toEqual(["groq"]);
     expect(planExtractionRequests({ ...base, groqKey: "gsk_k", geminiKey: "AQ.k", geminiModel: "none" }).map((r) => r.provider)).toEqual(["groq"]);
+    expect(planExtractionRequests({ ...base, evrenKey: "evren_llm_k", groqKey: "gsk_k", geminiKey: "AQ.k" }).map((r) => [r.provider, r.model]))
+      .toEqual([["evren", "deepseek-v4.1-flash-tr"], ["groq", "openai/gpt-oss-20b"], ["gemini", "gemini-3.1-flash-lite"]]);
   });
 
   it("is wired into production through functions/memory-extraction.js, Ollama included", () => {
@@ -128,6 +130,10 @@ describe("memory extraction: Groq, then Gemini", () => {
 
 describe("capability line for a fallback provider", () => {
   it("names the provider actually answering", () => {
+    expect(describeReasoningRuntime({ provider: "evren", model: "deepseek-v4.1-flash-tr" })).toBe("EVREN (deepseek-v4.1-flash-tr)");
+    expect(describeRequestPipeline({ provider: "evren", model: "deepseek-v4.1-flash-tr" })).toContain(
+      "→ EVREN API (deepseek-v4.1-flash-tr) → SSE response."
+    );
     expect(describeReasoningRuntime({ provider: "groq", model: "openai/gpt-oss-120b" })).toBe("Groq (openai/gpt-oss-120b)");
     expect(describeReasoningRuntime({ provider: "gemini", model: "gemini-3.8-flash" })).toBe(
       "Google Gemini (gemini-3.8-flash), standing in because Groq is unavailable"
@@ -145,10 +151,12 @@ describe("capability line for a fallback provider", () => {
 describe("functions/index.js secrets", () => {
   const index = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
 
-  it("binds the Groq, Gemini and Tavily keys to the api function", () => {
+  it("binds the EVREN, Groq, Gemini and Tavily keys to the api function", () => {
+    expect(index).toContain('const EVREN_API_KEY = defineSecret("EVREN_API_KEY");');
     expect(index).toContain('const GROQ_API_KEY = defineSecret("GROQ_API_KEY");');
     expect(index).toContain('const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");');
-    expect(index).toContain("secrets: [GROQ_API_KEY, GEMINI_API_KEY, TAVILY_API_KEY]");
+    expect(index).toContain("secrets: [EVREN_API_KEY, GROQ_API_KEY, GEMINI_API_KEY, TAVILY_API_KEY]");
+    expect(index).toContain('evren: gizliOku(EVREN_API_KEY, "EVREN_API_KEY")');
     expect(index).toContain('gemini: gizliOku(GEMINI_API_KEY, "GEMINI_API_KEY")');
   });
 

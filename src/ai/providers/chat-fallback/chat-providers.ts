@@ -5,32 +5,37 @@
  * "Functions bundle"), so nothing here may import config, dotenv or I/O.
  * Environment values and API keys are passed in by the caller.
  *
- * Both speak the OpenAI Chat Completions wire format (streaming SSE,
+ * All speak the OpenAI Chat Completions wire format (streaming SSE,
  * `tools` in OpenAI function format), so one request builder and one stream
  * parser serve them:
  *
- *   1. Groq       openai/gpt-oss-120b   (primary; request shape unchanged)
- *   2. Gemini     gemini-3.8-flash      (OpenAI-compatible endpoint, billed per token)
+ *   1. EVREN      deepseek-v4.1-flash-tr (primary when EVREN_API_KEY is set; 15M tokens/day)
+ *   2. Groq       openai/gpt-oss-120b    (fallback; request shape unchanged)
+ *   3. Gemini     gemini-3.8-flash       (OpenAI-compatible endpoint, billed per token)
  *
  * Docs (checked 24 Sep 2026):
+ *   EVREN      https://evren-llmapi.ssyz.org.tr/v1/chat/completions
  *   Groq       https://console.groq.com/docs/openai
  *   Gemini     https://ai.google.dev/gemini-api/docs/openai
  */
 
-export type ChatProviderId = "groq" | "gemini";
+export type ChatProviderId = "evren" | "groq" | "gemini";
 
 /** Every provider this module knows, in their natural fallback order. */
 export const CHAT_PROVIDER_ORDER: readonly ChatProviderId[] = [
+  "evren",
   "groq",
   "gemini"
 ];
 
 /**
- * The order production uses when CHAT_FALLBACK_ORDER is unset. Groq stays
- * first; Gemini is only used when Groq is unavailable.
+ * The order production uses when CHAT_FALLBACK_ORDER is unset. EVREN is first
+ * (skipped automatically when EVREN_API_KEY is unset), then Groq, then Gemini.
  */
-export const DEFAULT_CHAT_PROVIDER_ORDER: readonly ChatProviderId[] = ["groq", "gemini"];
+export const DEFAULT_CHAT_PROVIDER_ORDER: readonly ChatProviderId[] = ["evren", "groq", "gemini"];
 
+export const DEFAULT_EVREN_MODEL = "deepseek-v4.1-flash-tr";
+export const EVREN_CHAT_COMPLETIONS_URL = "https://evren-llmapi.ssyz.org.tr/v1/chat/completions";
 export const DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b";
 /**
  * Gemini's current Flash model. The 2.5 models are limited to projects that
@@ -89,6 +94,18 @@ function envModel(env: ChatProviderEnv, name: string, fallback: string): string 
 /** Configuration of one provider, with models taken from `env` when set. */
 export function getChatProviderConfig(id: ChatProviderId, env: ChatProviderEnv = {}): ChatProviderConfig {
   switch (id) {
+    case "evren":
+      return {
+        id,
+        label: "EVREN",
+        url: EVREN_CHAT_COMPLETIONS_URL,
+        model: envModel(env, "EVREN_MODEL", DEFAULT_EVREN_MODEL),
+        secretName: "EVREN_API_KEY",
+        extraBody: {},
+        extraHeaders: {},
+        maxTokens: 1500,
+        waitOnRateLimit: true
+      };
     case "groq":
       return {
         id,

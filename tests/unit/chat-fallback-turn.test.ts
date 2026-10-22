@@ -369,6 +369,28 @@ describe("runChatTurnWithFallback", () => {
     await expect(h.run()).rejects.toThrow(NO_PROVIDER_CONFIGURED_MESSAGE);
   });
 
+  it("EVREN primary happy path and fallback to Groq when EVREN is configured", async () => {
+    const ok = harness([{ body: groqText("Merhaba!") }], {
+      keys: { evren: "evren_llm_secret", ...KEYS } as Partial<typeof KEYS>
+    });
+    await expect(ok.run()).resolves.toEqual({ providerId: "evren", model: "deepseek-v4.1-flash-tr" });
+    expect(ok.calls[0].url).toBe("https://evren-llmapi.ssyz.org.tr/v1/chat/completions");
+    expect(ok.calls[0].headers.Authorization).toBe("Bearer evren_llm_secret");
+    expect(ok.systemPromptOf(0)).toContain("reasoning via EVREN (deepseek-v4.1-flash-tr),");
+
+    const fb = harness([{ status: 503, body: "busy" }, { body: groqText("Yedek yanıt.") }], {
+      keys: { evren: "evren_llm_secret", ...KEYS } as Partial<typeof KEYS>
+    });
+    await expect(fb.run()).resolves.toEqual({ providerId: "groq", model: "openai/gpt-oss-120b" });
+    expect(fb.events[0]).toEqual({
+      type: "provider_fallback",
+      from: "evren",
+      to: "groq",
+      model: "openai/gpt-oss-120b",
+      reason: "server_error"
+    });
+  });
+
   it("an empty answer is an error for the caller, not a reason to switch", async () => {
     const h = harness([{ body: groqText() }, { body: geminiText("never used") }]);
     await h.run();

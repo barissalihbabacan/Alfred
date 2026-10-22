@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { buildHealthStatus } from "../../src/ai/providers/chat-fallback/health-status.js";
 import {
+  DEFAULT_EVREN_MODEL,
   DEFAULT_GEMINI_CHAT_MODEL,
   getChatProviderConfig
 } from "../../src/ai/providers/chat-fallback/chat-providers.js";
@@ -9,7 +10,16 @@ const KEYS = { groq: "gsk_test", gemini: "AQ.test" };
 const GROQ_MODEL = getChatProviderConfig("groq").model;
 
 describe("buildHealthStatus (the /health answer)", () => {
-  it("reports Groq and its model when Groq has a key", () => {
+  it("reports EVREN and its model when EVREN has a key", () => {
+    expect(buildHealthStatus({ llmProvider: "groq", keys: { evren: "evren_llm_test", ...KEYS } })).toEqual({
+      status: "ok",
+      activeProvider: "evren",
+      model: DEFAULT_EVREN_MODEL,
+      providerStatus: { groqConfigured: true, ollamaReachable: false, modelReady: true }
+    });
+  });
+
+  it("reports Groq and its model when EVREN is unset and Groq has a key", () => {
     expect(buildHealthStatus({ llmProvider: "groq", keys: KEYS })).toEqual({
       status: "ok",
       activeProvider: "groq",

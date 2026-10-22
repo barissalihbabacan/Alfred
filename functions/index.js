@@ -54,6 +54,7 @@ setGlobalOptions({ maxInstances: 10, timeoutSeconds: 120, memory: "512MiB" });
 //
 // Secret adlari defineSecret'in kisitlamasi geregi gecerli ortam degiskeni
 // adlari olmali (tire kullanilamaz).
+const EVREN_API_KEY = defineSecret("EVREN_API_KEY");
 const GROQ_API_KEY = defineSecret("GROQ_API_KEY");
 const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
 // web_search (Tavily). "unset" (or empty) leaves the tool out entirely.
@@ -213,7 +214,7 @@ const extractAndPersistMemories = createExtractAndPersistMemories({
 
 export const api = onRequest({
   cors: true,
-  secrets: [GROQ_API_KEY, GEMINI_API_KEY, TAVILY_API_KEY]
+  secrets: [EVREN_API_KEY, GROQ_API_KEY, GEMINI_API_KEY, TAVILY_API_KEY]
 }, async (req, res) => {
   // CORS Preflight
   if (req.method === "OPTIONS") {
@@ -264,6 +265,7 @@ export const api = onRequest({
   if (path.endsWith("/health")) {
     const llmProvider = (process.env.ALFRED_LLM_PROVIDER || process.env.AI_PROVIDER || "groq").trim().toLowerCase();
     const keys = {
+      evren: gizliOku(EVREN_API_KEY, "EVREN_API_KEY"),
       groq: gizliOku(GROQ_API_KEY, "GROQ_API_KEY"),
       gemini: gizliOku(GEMINI_API_KEY, "GEMINI_API_KEY")
     };
@@ -454,6 +456,7 @@ export const api = onRequest({
 
     const trimmedMessage = message.trim();
     const activeProvider = (process.env.ALFRED_LLM_PROVIDER || process.env.AI_PROVIDER || "groq").trim().toLowerCase();
+    const evrenKey = gizliOku(EVREN_API_KEY, "EVREN_API_KEY");
     const groqKey = gizliOku(GROQ_API_KEY, "GROQ_API_KEY");
     const groqModel = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
     const geminiKey = gizliOku(GEMINI_API_KEY, "GEMINI_API_KEY");
@@ -587,14 +590,14 @@ export const api = onRequest({
         });
     }
 
-    // Groq (varsayilan) ve yedegi OpenAI uyumlu ayni akisla calisir:
-    // Groq -> Gemini
+    // EVREN -> Groq -> Gemini OpenAI uyumlu ayni akisla calisir
     // (src/ai/providers/chat-fallback/). Anahtari "unset"/"none"/bos olan
     // saglayici atlanir. ALFRED_LLM_PROVIDER=ollama ise eski Ollama yolu.
     const useOllama = activeProvider !== "groq";
     const { providers: chatProviders, skipped: skippedProviders } = useOllama
       ? { providers: [], skipped: [] }
       : resolveChatProviders({
+        evren: evrenKey,
         groq: groqKey,
         gemini: geminiKey
       }, process.env);

@@ -41,6 +41,10 @@ export const SENSITIVE_PATTERNS: ReadonlyArray<{ name: string; pattern: RegExp }
     pattern: /\bgsk_[a-zA-Z0-9]{20,}/
   },
   {
+    name: "EVREN API Key",
+    pattern: /\bevren_(?:llm_)?[a-zA-Z0-9_-]{16,}/
+  },
+  {
     name: "Google API Key",
     pattern: /\bAIza[0-9A-Za-z_-]{35}\b/
   },

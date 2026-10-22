@@ -37,6 +37,7 @@ const SECRETS: Record<string, string> = {
   "secret_key assignment": "secret_key = 'abcdef123456'",
   // Formats neither old filter caught.
   "Groq key": "My Groq key is gsk_6NCMoMOHBDlGcMdVz339WGdyb3FYYVGo",
+  "EVREN key": "My EVREN key is evren_llm_6NCMoMOHBDlGcMdVz339WGdyb3FYYVGo",
   "Google AQ. key": "Gemini key AQ.Ab8RN6KObwTEDssGWU5Ayf9yR022GGak5rdVkzif0xwG",
   "api key assignment": "api_key: 9f8e7d6c5b4a",
   "password in prose": "my password is hunter22",

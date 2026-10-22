@@ -11,7 +11,7 @@
  * job to the next one.
  */
 
-import { isUsableApiKey } from "./chat-providers.js";
+import { DEFAULT_EVREN_MODEL, EVREN_CHAT_COMPLETIONS_URL, isUsableApiKey } from "./chat-providers.js";
 import { parseRateLimitInfo, type RateLimitType } from "../groq/rate-limit.js";
 
 /**
@@ -20,19 +20,42 @@ import { parseRateLimitInfo, type RateLimitType } from "../groq/rate-limit.js";
  */
 export const DEFAULT_GEMINI_EXTRACTION_MODEL = "gemini-3.1-flash-lite";
 export const DEFAULT_GROQ_EXTRACTION_MODEL = "openai/gpt-oss-20b";
+export const DEFAULT_EVREN_EXTRACTION_MODEL = DEFAULT_EVREN_MODEL;
 
-export type ExtractionProviderId = "groq" | "gemini" | "ollama";
+export type ExtractionProviderId = "evren" | "groq" | "gemini" | "ollama";
 
 /** Ollama's extraction timeout (it runs on Barış's own machine, over Tailscale). */
 export const OLLAMA_EXTRACTION_TIMEOUT_MS = 30_000;
 
-/** An OpenAI-compatible extraction request (Groq or Gemini). */
+/** An OpenAI-compatible extraction request (EVREN, Groq or Gemini). */
 export interface ExtractionRequest {
-  provider: "groq" | "gemini";
+  provider: "evren" | "groq" | "gemini";
   model: string;
   url: string;
   init: { method: "POST"; headers: Record<string, string>; body: string };
   timeoutMs: number;
+}
+
+/** EVREN request via the OpenAI-compatible endpoint. */
+export function buildEvrenExtractionRequest(apiKey: string, model: string, system: string, user: string): ExtractionRequest {
+  return {
+    provider: "evren",
+    model,
+    url: EVREN_CHAT_COMPLETIONS_URL,
+    init: {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user }
+        ],
+        temperature: 0.1
+      })
+    },
+    timeoutMs: 15_000
+  };
 }
 
 /** Groq request: exactly the former production call (model, messages, temperature 0.1, json_object). */
@@ -104,6 +127,8 @@ export interface ExtractionProviderError {
 
 export interface ExtractionCallOptions {
   fetch: (url: string, init: RequestInit) => Promise<Response>;
+  evrenKey?: string | null;
+  evrenModel?: string;
   groqKey?: string | null;
   groqModel?: string;
   geminiKey?: string | null;
@@ -122,9 +147,13 @@ export interface ExtractionCallResult {
   model: string;
 }
 
-/** The OpenAI-compatible extraction requests (Groq, Gemini) to try, in order, for the configured keys. */
+/** The OpenAI-compatible extraction requests (EVREN, Groq, Gemini) to try, in order, for the configured keys. */
 export function planExtractionRequests(options: Omit<ExtractionCallOptions, "fetch" | "onProviderError">): ExtractionRequest[] {
   const requests: ExtractionRequest[] = [];
+  const evrenModel = options.evrenModel || DEFAULT_EVREN_EXTRACTION_MODEL;
+  if (isUsableApiKey(options.evrenKey) && isUsableApiKey(evrenModel)) {
+    requests.push(buildEvrenExtractionRequest(String(options.evrenKey), evrenModel, options.system, options.user));
+  }
   if (isUsableApiKey(options.groqKey)) {
     requests.push(buildGroqExtractionRequest(String(options.groqKey), options.groqModel || DEFAULT_GROQ_EXTRACTION_MODEL, options.system, options.user));
   }

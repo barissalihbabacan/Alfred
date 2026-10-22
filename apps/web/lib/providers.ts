@@ -5,6 +5,7 @@
  */
 
 const PROVIDER_NAMES: Record<string, string> = {
+  evren: "EVREN",
   groq: "Groq",
   gemini: "Gemini",
   ollama: "Ollama"

@@ -15,6 +15,20 @@ import {
 import { WEB_SEARCH_TOOL_DEFINITION, createTurnWebSearch } from "../src/ai/tools/web/web-search.js";
 import { READ_URL_TOOL_DEFINITION, createTurnReadUrl } from "../src/ai/tools/web/read-url.js";
 import { GITHUB_TOOL_DEFINITION, createTurnGitHub } from "../src/ai/tools/github/github.js";
+import {
+  GOOGLE_CALENDAR_TOOL_DEFINITION,
+  createGoogleCalendarTool
+} from "../src/ai/tools/google/calendar.js";
+import {
+  GOOGLE_TASKS_TOOL_DEFINITION,
+  createGoogleTasksTool
+} from "../src/ai/tools/google/tasks.js";
+import {
+  buildGoogleAuthUrl,
+  exchangeCodeForTokens,
+  refreshAccessToken,
+  fetchGoogleUserEmail
+} from "../src/ai/tools/google/google-auth.js";
 import { lookup } from "node:dns/promises";
 import { buildHealthStatus } from "../src/ai/providers/chat-fallback/health-status.js";
 import {
@@ -71,6 +85,8 @@ const GROQ_API_KEY = defineSecret("GROQ_API_KEY");
 const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
 // web_search (Tavily). "unset" (or empty) leaves the tool out entirely.
 const TAVILY_API_KEY = defineSecret("TAVILY_API_KEY");
+const GOOGLE_OAUTH_CLIENT_ID = defineSecret("GOOGLE_OAUTH_CLIENT_ID");
+const GOOGLE_OAUTH_CLIENT_SECRET = defineSecret("GOOGLE_OAUTH_CLIENT_SECRET");
 
 const ALLOWED_UID = process.env.ALLOWED_UID || "test-owner-uid-123456";
 
@@ -243,7 +259,7 @@ const extractAndPersistMemories = createExtractAndPersistMemories({
 
 export const api = onRequest({
   cors: true,
-  secrets: [EVREN_API_KEY, GROQ_API_KEY, GEMINI_API_KEY, TAVILY_API_KEY]
+  secrets: [EVREN_API_KEY, GROQ_API_KEY, GEMINI_API_KEY, TAVILY_API_KEY, GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET]
 }, async (req, res) => {
   // CORS Preflight
   if (req.method === "OPTIONS") {
@@ -498,6 +514,104 @@ export const api = onRequest({
       console.error("Cloud Function conversation deletion failed:", err);
       res.status(500).json({ error: "Failed to delete conversation." });
       return;
+    }
+  }
+
+  // Google OAuth2 integration endpoints
+  if (path.includes("/auth/google/")) {
+    const googleClientId = gizliOku(GOOGLE_OAUTH_CLIENT_ID, "GOOGLE_OAUTH_CLIENT_ID");
+    const googleClientSecret = gizliOku(GOOGLE_OAUTH_CLIENT_SECRET, "GOOGLE_OAUTH_CLIENT_SECRET");
+
+    // GET /api/auth/google/url - generate OAuth authorization URL
+    if (path.endsWith("/auth/google/url") && req.method === "GET") {
+      if (!googleClientId || !googleClientSecret) {
+        res.status(503).json({ error: "Google OAuth is not configured on the server." });
+        return;
+      }
+      const redirectUri = (req.query?.redirectUri || "https://butler-alfred.web.app/auth/google/callback").toString();
+      const state = Buffer.from(JSON.stringify({ userId, redirectUri, timestamp: Date.now() })).toString("base64url");
+      const url = buildGoogleAuthUrl(googleClientId, redirectUri, state);
+      res.status(200).json({ success: true, url });
+      return;
+    }
+
+    // POST /api/auth/google/callback - exchange authorization code for tokens
+    if (path.endsWith("/auth/google/callback") && req.method === "POST") {
+      try {
+        const { code, redirectUri } = req.body || {};
+        if (!code) {
+          res.status(400).json({ error: "Authorization 'code' is required." });
+          return;
+        }
+
+        const safeRedirectUri = redirectUri || "https://butler-alfred.web.app/auth/google/callback";
+        const tokens = await exchangeCodeForTokens({
+          code,
+          clientId: googleClientId,
+          clientSecret: googleClientSecret,
+          redirectUri: safeRedirectUri
+        });
+
+        const email = await fetchGoogleUserEmail(tokens.accessToken);
+        const expiresAt = Date.now() + (tokens.expiresIn * 1000);
+
+        const googleDocRef = db.collection("users").doc(userId).collection("integrations").doc("google");
+        await googleDocRef.set({
+          accessToken: tokens.accessToken,
+          ...(tokens.refreshToken ? { refreshToken: tokens.refreshToken } : {}),
+          expiresAt,
+          email: email || undefined,
+          scope: tokens.scope || undefined,
+          connectedAt: Timestamp.now(),
+          updatedAt: Timestamp.now()
+        }, { merge: true });
+
+        res.status(200).json({
+          success: true,
+          email: email || undefined,
+          connected: true
+        });
+        return;
+      } catch (err) {
+        console.error("Google OAuth token exchange failed:", err);
+        res.status(500).json({ error: `OAuth token exchange failed: ${err?.message || String(err)}` });
+        return;
+      }
+    }
+
+    // GET /api/auth/google/status - get integration connection status
+    if (path.endsWith("/auth/google/status") && req.method === "GET") {
+      try {
+        const googleDoc = await db.collection("users").doc(userId).collection("integrations").doc("google").get();
+        if (!googleDoc.exists) {
+          res.status(200).json({ connected: false });
+          return;
+        }
+        const data = googleDoc.data() || {};
+        res.status(200).json({
+          connected: Boolean(data.accessToken || data.refreshToken),
+          email: data.email || null,
+          connectedAt: data.connectedAt?.toDate ? data.connectedAt.toDate().toISOString() : null
+        });
+        return;
+      } catch (err) {
+        console.error("Google integration status check failed:", err);
+        res.status(500).json({ error: "Failed to check Google integration status." });
+        return;
+      }
+    }
+
+    // DELETE /api/auth/google/disconnect - remove stored tokens
+    if (path.endsWith("/auth/google/disconnect") && req.method === "DELETE") {
+      try {
+        await db.collection("users").doc(userId).collection("integrations").doc("google").delete();
+        res.status(200).json({ success: true, disconnected: true });
+        return;
+      } catch (err) {
+        console.error("Google integration disconnect failed:", err);
+        res.status(500).json({ error: "Failed to disconnect Google integration." });
+        return;
+      }
     }
   }
 
@@ -1010,6 +1124,64 @@ export const api = onRequest({
         gemini: geminiKey
       }, turnEnv);
 
+    // Google Integration: Fetch token and auto-refresh if needed
+    const googleClientId = gizliOku(GOOGLE_OAUTH_CLIENT_ID, "GOOGLE_OAUTH_CLIENT_ID");
+    const googleClientSecret = gizliOku(GOOGLE_OAUTH_CLIENT_SECRET, "GOOGLE_OAUTH_CLIENT_SECRET");
+    let googleAccessToken = null;
+
+    const getGoogleAccessToken = async () => {
+      if (googleAccessToken) return googleAccessToken;
+      try {
+        const gDocRef = db.collection("users").doc(userId).collection("integrations").doc("google");
+        const gSnap = await gDocRef.get();
+        if (!gSnap.exists) return null;
+        const gData = gSnap.data() || {};
+        const { accessToken, refreshToken, expiresAt } = gData;
+
+        // If access token is still valid (with 60s buffer), use it
+        if (accessToken && typeof expiresAt === "number" && Date.now() < (expiresAt - 60_000)) {
+          googleAccessToken = accessToken;
+          return googleAccessToken;
+        }
+
+        // Try refreshing using refreshToken
+        if (refreshToken && googleClientId && googleClientSecret) {
+          try {
+            const refreshed = await refreshAccessToken({
+              refreshToken,
+              clientId: googleClientId,
+              clientSecret: googleClientSecret
+            });
+            const newExpiresAt = Date.now() + (refreshed.expiresIn * 1000);
+            await gDocRef.set({
+              accessToken: refreshed.accessToken,
+              expiresAt: newExpiresAt,
+              updatedAt: Timestamp.now()
+            }, { merge: true });
+            googleAccessToken = refreshed.accessToken;
+            return googleAccessToken;
+          } catch (rErr) {
+            console.error("Google token auto-refresh failed in turn:", rErr);
+            return accessToken || null;
+          }
+        }
+
+        return accessToken || null;
+      } catch (err) {
+        console.error("Failed to read user Google tokens:", err);
+        return null;
+      }
+    };
+
+    // Check if user has connected Google
+    let googleConnected = false;
+    try {
+      const gSnap = await db.collection("users").doc(userId).collection("integrations").doc("google").get();
+      if (gSnap.exists && (gSnap.data()?.refreshToken || gSnap.data()?.accessToken)) {
+        googleConnected = true;
+      }
+    } catch {}
+
     // Persona states the provider/model actually answering this turn; the
     // profile is the reviewed digest of users/*.md embedded at build time
     // (functions/build.js). The prompt is re-sent on every tool round, so it
@@ -1024,7 +1196,9 @@ export const api = onRequest({
           project: activeProjectContext,
           webSearchAvailable: webSearchEnabled,
           readUrlAvailable: true,
-          githubAvailable: true
+          githubAvailable: true,
+          googleCalendarAvailable: googleConnected,
+          googleTasksAvailable: googleConnected
         })
       },
       ...boundedHistory,
@@ -1181,7 +1355,7 @@ export const api = onRequest({
     // sunucu erisiminin henuz bagli olmadigini soyluyor.
     // web_search yalnizca Tavily anahtari varsa sunulur; persona da buna gore
     // kurulur (buildMessagesFor), sunulmayan bir araci vaat etmez.
-    const activeTools = [TIME_TOOL_DEFINITION, READ_URL_TOOL_DEFINITION, GITHUB_TOOL_DEFINITION, ...(webSearchEnabled ? [WEB_SEARCH_TOOL_DEFINITION] : [])];
+    const activeTools = [TIME_TOOL_DEFINITION, READ_URL_TOOL_DEFINITION, GITHUB_TOOL_DEFINITION, ...(googleConnected ? [GOOGLE_CALENDAR_TOOL_DEFINITION, GOOGLE_TASKS_TOOL_DEFINITION] : []), ...(webSearchEnabled ? [WEB_SEARCH_TOOL_DEFINITION] : [])];
     const MAX_TURNS = 3;
     // Tur basina bir arama oturumu: ayni sorgu tekrar aranmaz, en fazla 1 arama;
     // yedek saglayiciya gecilince tur bastan baslasa da yeni kredi harcanmaz.
@@ -1201,11 +1375,27 @@ export const api = onRequest({
       defaultRepo,
       fetch: (url, init) => fetch(url, init)
     });
+    const googleCalendar = createGoogleCalendarTool({
+      getAccessToken: getGoogleAccessToken,
+      fetchFn: (url, init) => fetch(url, init)
+    });
+    const googleTasks = createGoogleTasksTool({
+      getAccessToken: getGoogleAccessToken,
+      fetchFn: (url, init) => fetch(url, init)
+    });
 
     const runTool = async (fnName, fnArgs) => {
       if (fnName === "get_current_time") {
         usedToolsSet.add("get_current_time");
         return runGetCurrentTimeTool(fnArgs);
+      }
+      if (fnName === "google_calendar") {
+        usedToolsSet.add("google_calendar");
+        return googleCalendar(fnArgs);
+      }
+      if (fnName === "google_tasks") {
+        usedToolsSet.add("google_tasks");
+        return googleTasks(fnArgs);
       }
       if (fnName === "web_search" && webSearch) {
         usedToolsSet.add("web_search");

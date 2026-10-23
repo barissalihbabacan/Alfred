@@ -6,13 +6,17 @@
 const TOOL_STATUS: Record<string, string> = {
   web_search: "Web'de aranıyor…",
   read_url: "Sayfa okunuyor…",
-  github: "GitHub inceleniyor…"
+  github: "GitHub inceleniyor…",
+  google_calendar: "Takvim inceleniyor…",
+  google_tasks: "Görevler güncelleniyor…"
 };
 
 const TOOL_BADGE_LABELS: Record<string, string> = {
   web_search: "Web Araması",
   read_url: "Bağlantı",
   github: "GitHub",
+  google_calendar: "Google Takvim",
+  google_tasks: "Google Görevler",
   get_current_time: "Sistem Zamanı"
 };
 

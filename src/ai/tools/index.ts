@@ -8,3 +8,6 @@ export * from "./ssh/ssh-tool-definitions.js";
 export * from "./web/web-search.js";
 export * from "./web/read-url.js";
 export * from "./github/github.js";
+export * from "./google/google-auth.js";
+export * from "./google/calendar.js";
+export * from "./google/tasks.js";

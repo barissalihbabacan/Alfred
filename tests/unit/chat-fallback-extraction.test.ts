@@ -155,7 +155,7 @@ describe("functions/index.js secrets", () => {
     expect(index).toContain('const EVREN_API_KEY = defineSecret("EVREN_API_KEY");');
     expect(index).toContain('const GROQ_API_KEY = defineSecret("GROQ_API_KEY");');
     expect(index).toContain('const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");');
-    expect(index).toContain("secrets: [EVREN_API_KEY, GROQ_API_KEY, GEMINI_API_KEY, TAVILY_API_KEY]");
+    expect(index).toContain("secrets: [EVREN_API_KEY, GROQ_API_KEY, GEMINI_API_KEY, TAVILY_API_KEY, GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET]");
     expect(index).toContain('evren: gizliOku(EVREN_API_KEY, "EVREN_API_KEY")');
     expect(index).toContain('gemini: gizliOku(GEMINI_API_KEY, "GEMINI_API_KEY")');
   });

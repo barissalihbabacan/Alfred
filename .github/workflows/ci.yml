@@ -2,6 +2,19 @@ name: CI (Typecheck & Unit Tests)
 
 on:
   pull_request:
+  # Pushes to main that deploy.yml's path filter ignores (tests, scripts,
+  # tooling config) are still verified here; deploy.yml covers the rest.
+  push:
+    branches:
+      - main
+    paths:
+      - "tests/**"
+      - "scripts/**"
+      - "users/**"
+      - "tsconfig.json"
+      - "tsconfig.tests.json"
+      - "vitest.config.ts"
+      - "eslint.config.js"
   workflow_call:
   workflow_dispatch:
 

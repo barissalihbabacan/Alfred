@@ -15,7 +15,8 @@ import {
 } from "../../src/ai/tools/google/tasks.js";
 import {
   GMAIL_TOOL_DEFINITION,
-  createGmailTool
+  createGmailTool,
+  buildRawEmail
 } from "../../src/ai/tools/google/gmail.js";
 
 describe("Google Auth Helper", () => {
@@ -314,5 +315,105 @@ describe("Gmail Tool", () => {
     expect(res.message.subject).toBe("Proje Durumu");
     expect(res.message.from).toBe("can@example.com");
     expect(res.message.body).toBe(sampleBody);
+  });
+
+  it("buildRawEmail encodes headers, non-ASCII Turkish characters, and body cleanly", () => {
+    const raw = buildRawEmail({
+      to: "colleague@example.com",
+      subject: "Tebrikler: Guess the City Onaylandı!",
+      body: "Merhaba Fatih,\nApp Store onayı harika bir haber. Eline sağlık!",
+      cc: "team@example.com"
+    });
+    expect(typeof raw).toBe("string");
+    expect(raw.length).toBeGreaterThan(0);
+    // Decode base64url to verify RFC 2822 structure
+    const decoded = Buffer.from(raw, "base64url").toString("utf-8");
+    expect(decoded).toContain("To: colleague@example.com");
+    expect(decoded).toContain("Cc: team@example.com");
+    expect(decoded).toContain("Subject: =?UTF-8?B?");
+    expect(decoded).toContain("Content-Type: text/plain; charset=\"UTF-8\"");
+    expect(decoded).toContain("Merhaba Fatih,\nApp Store onayı harika bir haber. Eline sağlık!");
+  });
+
+  it("creates a draft in Gmail successfully", async () => {
+    let capturedBody: { message?: { raw?: string } } | undefined;
+    const mockFetch = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
+      capturedBody = JSON.parse(init?.body as string) as { message?: { raw?: string } };
+      return {
+        ok: true,
+        json: async () => ({
+          id: "draft_123",
+          message: { id: "msg_draft_123", threadId: "th_draft_123" }
+        })
+      };
+    });
+
+    const tool = createGmailTool({
+      getAccessToken: async () => "token_123",
+      fetchFn: mockFetch as unknown as typeof fetch
+    });
+
+    const res = (await tool({
+      action: "create_draft",
+      to: "colleague@example.com",
+      subject: "Guess the City Tebrik",
+      body: "Uygulama yayına hazır."
+    })) as {
+      status: string;
+      action: string;
+      draftId: string;
+      to: string;
+      subject: string;
+    };
+
+    expect(res.status).toBe("success");
+    expect(res.action).toBe("create_draft");
+    expect(res.draftId).toBe("draft_123");
+    expect(res.to).toBe("colleague@example.com");
+    expect(capturedBody?.message?.raw).toBeDefined();
+  });
+
+  it("sends an email directly in Gmail successfully", async () => {
+    let capturedBody: { raw?: string } | undefined;
+    const mockFetch = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
+      capturedBody = JSON.parse(init?.body as string) as { raw?: string };
+      return {
+        ok: true,
+        json: async () => ({
+          id: "sent_msg_456",
+          threadId: "th_sent_456"
+        })
+      };
+    });
+
+    const tool = createGmailTool({
+      getAccessToken: async () => "token_123",
+      fetchFn: mockFetch as unknown as typeof fetch
+    });
+
+    const res = (await tool({
+      action: "send_message",
+      to: "colleague@example.com",
+      subject: "Canlı Yayında",
+      body: "Tüm öğeler App Store Connect üzerinde aktif."
+    })) as {
+      status: string;
+      action: string;
+      messageId: string;
+      to: string;
+    };
+
+    expect(res.status).toBe("success");
+    expect(res.action).toBe("send_message");
+    expect(res.messageId).toBe("sent_msg_456");
+    expect(capturedBody?.raw).toBeDefined();
+  });
+
+  it("returns error if body is missing for draft creation", async () => {
+    const tool = createGmailTool({
+      getAccessToken: async () => "token_123"
+    });
+    const res = (await tool({ action: "create_draft", to: "test@example.com" })) as { error?: string };
+    expect(res.error).toContain("body");
   });
 });

@@ -48,16 +48,18 @@ export const GMAIL_TOOL_DEFINITION: ToolDefinition = {
   function: {
     name: GMAIL_TOOL_NAME,
     description:
-      "Access Barış's Gmail account (read-only). Search or list recent/unread emails (list_messages), " +
-      "or retrieve the detailed body and headers of a specific email (get_message). " +
-      "Always respect user privacy: summarize succinctly and do not dump raw headers.",
+      "Access Barış's Gmail account. Search or list recent/unread emails (list_messages), " +
+      "retrieve the detailed body and headers of a specific email (get_message), " +
+      "compose and create an email draft in Gmail (create_draft), " +
+      "or send an email directly (send_message). " +
+      "Always respect user privacy and prefer creating drafts when drafting responses for Barış to review.",
     parameters: {
       type: "object",
       properties: {
         action: {
           type: "string",
-          enum: ["list_messages", "get_message"],
-          description: "Action to perform: 'list_messages' to query/list emails, 'get_message' to read a specific email."
+          enum: ["list_messages", "get_message", "create_draft", "send_message"],
+          description: "Action to perform: 'list_messages' to query/list emails, 'get_message' to read a specific email, 'create_draft' to create an email draft in Gmail, 'send_message' to send an email directly."
         },
         query: {
           type: "string",
@@ -70,6 +72,26 @@ export const GMAIL_TOOL_DEFINITION: ToolDefinition = {
         messageId: {
           type: "string",
           description: "The unique message ID required for get_message."
+        },
+        to: {
+          type: "string",
+          description: "Recipient email address for create_draft or send_message (e.g. 'colleague@example.com')."
+        },
+        subject: {
+          type: "string",
+          description: "Subject line of the email for create_draft or send_message."
+        },
+        body: {
+          type: "string",
+          description: "Body text / content of the email for create_draft or send_message."
+        },
+        cc: {
+          type: "string",
+          description: "Optional CC email address."
+        },
+        bcc: {
+          type: "string",
+          description: "Optional BCC email address."
         }
       },
       required: ["action"]
@@ -117,6 +139,47 @@ function decodeBase64Url(data: string): string {
   } catch {
     return "";
   }
+}
+
+export function buildRawEmail({
+  to,
+  subject,
+  body,
+  cc,
+  bcc
+}: {
+  to?: string;
+  subject?: string;
+  body: string;
+  cc?: string;
+  bcc?: string;
+}): string {
+  const headers: string[] = [
+    `Content-Type: text/plain; charset="UTF-8"`,
+    `MIME-Version: 1.0`,
+    `Content-Transfer-Encoding: 8bit`
+  ];
+
+  if (to && to.trim()) headers.push(`To: ${to.trim()}`);
+  if (cc && cc.trim()) headers.push(`Cc: ${cc.trim()}`);
+  if (bcc && bcc.trim()) headers.push(`Bcc: ${bcc.trim()}`);
+  if (subject && subject.trim()) {
+    const s = subject.trim();
+    if (/^[\x20-\x7E]*$/.test(s)) {
+      headers.push(`Subject: ${s}`);
+    } else {
+      const b64 = Buffer.from(s, "utf-8").toString("base64");
+      headers.push(`Subject: =?UTF-8?B?${b64}?=`);
+    }
+  }
+
+  const rawMime = `${headers.join("\r\n")}\r\n\r\n${body}`;
+
+  return Buffer.from(rawMime, "utf-8")
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
 }
 
 function extractTextBody(part: RawMessagePart | undefined): string {
@@ -297,7 +360,104 @@ export function createGmailTool(ctx: GmailContext) {
         };
       }
 
-      return { error: `Bilinmeyen action: '${action}'. Geçerli eylemler: 'list_messages', 'get_message'.` };
+      if (action === "create_draft") {
+        const bodyText = typeof args.body === "string" ? args.body.trim() : "";
+        if (!bodyText) {
+          return { error: "create_draft işlemi için 'body' (e-posta metni) zorunludur." };
+        }
+        const to = typeof args.to === "string" ? args.to.trim() : undefined;
+        const subject = typeof args.subject === "string" ? args.subject.trim() : "";
+        const cc = typeof args.cc === "string" ? args.cc.trim() : undefined;
+        const bcc = typeof args.bcc === "string" ? args.bcc.trim() : undefined;
+
+        const raw = buildRawEmail({ to, subject, body: bodyText, cc, bcc });
+
+        const draftRes = await fetcher("https://gmail.googleapis.com/gmail/v1/users/me/drafts", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+            Accept: "application/json"
+          },
+          body: JSON.stringify({
+            message: {
+              raw
+            }
+          })
+        });
+
+        if (!draftRes.ok) {
+          const err = await draftRes.text().catch(() => "");
+          if (draftRes.status === 403 && (err.includes("ACCESS_TOKEN_SCOPE_INSUFFICIENT") || err.includes("insufficientPermissions"))) {
+            return {
+              error: "Gmail taslak oluşturma izni (gmail.compose) henüz onaylanmamış. Lütfen Hesap Bilgileri penceresinden Google hesabınızı yeniden bağlayıp Gmail iznini onaylayın."
+            };
+          }
+          return { error: `E-posta taslağı oluşturulamadı (HTTP ${draftRes.status}): ${err}` };
+        }
+
+        const draftData = (await draftRes.json()) as { id?: string; message?: { id?: string; threadId?: string } };
+        return {
+          status: "success",
+          action: "create_draft",
+          draftId: draftData.id,
+          messageId: draftData.message?.id,
+          to: to || "(Alıcı belirtilmedi)",
+          subject: subject || "(Konusuz)",
+          snippet: bodyText.slice(0, 160),
+          message: "E-posta taslağı Gmail hesabınızda başarıyla oluşturuldu."
+        };
+      }
+
+      if (action === "send_message") {
+        const bodyText = typeof args.body === "string" ? args.body.trim() : "";
+        if (!bodyText) {
+          return { error: "send_message işlemi için 'body' (e-posta metni) zorunludur." };
+        }
+        const to = typeof args.to === "string" ? args.to.trim() : "";
+        if (!to) {
+          return { error: "send_message işlemi için 'to' (alıcı e-posta adresi) zorunludur." };
+        }
+        const subject = typeof args.subject === "string" ? args.subject.trim() : "";
+        const cc = typeof args.cc === "string" ? args.cc.trim() : undefined;
+        const bcc = typeof args.bcc === "string" ? args.bcc.trim() : undefined;
+
+        const raw = buildRawEmail({ to, subject, body: bodyText, cc, bcc });
+
+        const sendRes = await fetcher("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+            Accept: "application/json"
+          },
+          body: JSON.stringify({
+            raw
+          })
+        });
+
+        if (!sendRes.ok) {
+          const err = await sendRes.text().catch(() => "");
+          if (sendRes.status === 403 && (err.includes("ACCESS_TOKEN_SCOPE_INSUFFICIENT") || err.includes("insufficientPermissions"))) {
+            return {
+              error: "Gmail e-posta gönderme izni (gmail.compose) henüz onaylanmamış. Lütfen Hesap Bilgileri penceresinden Google hesabınızı yeniden bağlayıp Gmail iznini onaylayın."
+            };
+          }
+          return { error: `E-posta gönderilemedi (HTTP ${sendRes.status}): ${err}` };
+        }
+
+        const sendData = (await sendRes.json()) as { id?: string; threadId?: string };
+        return {
+          status: "success",
+          action: "send_message",
+          messageId: sendData.id,
+          to,
+          subject: subject || "(Konusuz)",
+          message: "E-posta başarıyla gönderildi."
+        };
+      }
+
+      return { error: `Bilinmeyen action: '${action}'. Geçerli eylemler: 'list_messages', 'get_message', 'create_draft', 'send_message'.` };
     } catch (err: unknown) {
       return { error: `Gmail işlemi sırasında beklenmeyen hata: ${(err as Error)?.message || String(err)}` };
     }

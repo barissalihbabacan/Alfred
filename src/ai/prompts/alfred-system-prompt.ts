@@ -99,7 +99,7 @@ const GOOGLE_TASKS_TOOL_RULES = `
 
 /** gmail rules. */
 const GMAIL_TOOL_RULES = `
-- \`gmail\`: read-only access to Barış's Gmail account to search/list emails (\`list_messages\`) or inspect a specific email's body (\`get_message\`). Summarize key points succinctly and respect privacy; never dump raw headers or unformatted content.`;
+- \`gmail\`: access to Barış's Gmail account to search/list emails (\`list_messages\`), inspect a specific email's body (\`get_message\`), create email drafts in Gmail (\`create_draft\`), or send emails (\`send_message\`). Prefer creating drafts when drafting responses for Barış's review. Summarize key points succinctly and respect privacy; never dump raw headers or unformatted content.`;
 
 /**
  * Capability boundaries and tool-use rules.

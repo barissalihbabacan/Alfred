@@ -861,11 +861,13 @@ export default function VoiceChatPlayground() {
 
   const adjustTextareaHeight = (el: HTMLTextAreaElement | null) => {
     if (!el) return;
-    el.style.height = "auto";
+    el.style.height = "0px";
+    const minHeight = 36;
     const maxHeight = typeof window !== "undefined" ? Math.max(window.innerHeight * 0.55, 360) : 360;
-    const targetHeight = Math.min(el.scrollHeight, maxHeight);
+    const scrollH = el.scrollHeight;
+    const targetHeight = Math.max(minHeight, Math.min(scrollH, maxHeight));
     el.style.height = `${targetHeight}px`;
-    el.style.overflowY = el.scrollHeight > maxHeight ? "auto" : "hidden";
+    el.style.overflowY = scrollH > maxHeight ? "auto" : "hidden";
   };
 
   useEffect(() => {
@@ -900,7 +902,7 @@ export default function VoiceChatPlayground() {
     setErrorMessage(null);
     setInputText("");
     if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
+      adjustTextareaHeight(textareaRef.current);
     }
 
     const now = Date.now();
@@ -2164,9 +2166,9 @@ export default function VoiceChatPlayground() {
               value={inputText}
               onChange={handleTextareaInput}
               onKeyDown={handleKeyDown}
-              rows={1}
+              onFocus={() => adjustTextareaHeight(textareaRef.current)}
               placeholder="Alfred'e mesaj yazın..."
-              className="max-h-[55vh] min-h-[24px] min-w-0 flex-1 resize-none overflow-hidden border-none bg-transparent px-0 py-1.5 text-[15px] leading-relaxed text-chat-text outline-hidden placeholder:text-[#757575] mobile:max-h-[55vh] mobile:w-full mobile:px-1 mobile:text-[16px] mobile:leading-normal"
+              className="max-h-[55vh] min-h-[36px] min-w-0 flex-1 resize-none overflow-hidden border-none bg-transparent px-0 py-1.5 text-[15px] leading-relaxed text-chat-text outline-hidden placeholder:text-[#757575] [field-sizing:content] mobile:max-h-[55vh] mobile:min-h-[36px] mobile:w-full mobile:flex-none mobile:px-1 mobile:text-[16px] mobile:leading-normal"
             />
 
             <div className="flex shrink-0 items-center gap-1.5 mobile:w-full mobile:items-center mobile:justify-between mobile:pt-1">

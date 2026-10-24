@@ -39,6 +39,17 @@ export function buildGoogleAuthUrl(clientId: string, redirectUri: string, state:
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 }
 
+interface GoogleTokenResponse {
+  access_token: string;
+  refresh_token?: string;
+  expires_in?: number;
+  scope?: string;
+}
+
+interface GoogleUserInfoResponse {
+  email?: string;
+}
+
 export async function exchangeCodeForTokens(params: {
   code: string;
   clientId: string;
@@ -71,7 +82,7 @@ export async function exchangeCodeForTokens(params: {
     throw new Error(`Google token exchange failed (${res.status}): ${errText}`);
   }
 
-  const data = (await res.json()) as Record<string, any>;
+  const data = (await res.json()) as GoogleTokenResponse;
   return {
     accessToken: data.access_token,
     refreshToken: data.refresh_token,
@@ -109,7 +120,7 @@ export async function refreshAccessToken(params: {
     throw new Error(`Google token refresh failed (${res.status}): ${errText}`);
   }
 
-  const data = (await res.json()) as Record<string, any>;
+  const data = (await res.json()) as GoogleTokenResponse;
   return {
     accessToken: data.access_token,
     expiresIn: data.expires_in || 3600,
@@ -124,7 +135,7 @@ export async function fetchGoogleUserEmail(accessToken: string, fetchFn?: typeof
       headers: { Authorization: `Bearer ${accessToken}` }
     });
     if (!res.ok) return null;
-    const data = (await res.json()) as Record<string, any>;
+    const data = (await res.json()) as GoogleUserInfoResponse;
     return typeof data.email === "string" ? data.email : null;
   } catch {
     return null;

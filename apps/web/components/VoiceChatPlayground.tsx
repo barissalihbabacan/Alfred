@@ -2796,7 +2796,7 @@ export default function VoiceChatPlayground() {
                         await apiFetch("/auth/google/disconnect", { method: "DELETE" });
                         setGoogleConnected(false);
                         setGoogleEmail(null);
-                      } catch (err) {
+                      } catch (_err) {
                         alert("Bağlantı kesilemedi.");
                       }
                     }}

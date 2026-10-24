@@ -7,6 +7,20 @@
 
 import type { ToolDefinition } from "../types.js";
 
+interface RawCalendarEvent {
+  id?: string;
+  summary?: string;
+  description?: string;
+  location?: string;
+  start?: { dateTime?: string; date?: string };
+  end?: { dateTime?: string; date?: string };
+  htmlLink?: string;
+}
+
+interface RawCalendarListResponse {
+  items?: RawCalendarEvent[];
+}
+
 export const GOOGLE_CALENDAR_TOOL_NAME = "google_calendar";
 
 export const GOOGLE_CALENDAR_TOOL_DEFINITION: ToolDefinition = {
@@ -132,10 +146,10 @@ export function createGoogleCalendarTool(ctx: GoogleCalendarContext) {
           return { error: `Takvim etkinlikleri alınamadı (HTTP ${res.status}): ${err}` };
         }
 
-        const data = (await res.json()) as Record<string, any>;
+        const data = (await res.json()) as RawCalendarListResponse;
         const items = Array.isArray(data.items) ? data.items : [];
-        const events: GoogleCalendarEvent[] = items.map((item: any) => ({
-          id: item.id,
+        const events: GoogleCalendarEvent[] = items.map((item: RawCalendarEvent) => ({
+          id: item.id || "",
           summary: item.summary || "(Başlıksız Etkinlik)",
           description: item.description,
           location: item.location,
@@ -186,7 +200,7 @@ export function createGoogleCalendarTool(ctx: GoogleCalendarContext) {
           return { error: `Etkinlik oluşturulamadı (HTTP ${res.status}): ${err}` };
         }
 
-        const created = (await res.json()) as Record<string, any>;
+        const created = (await res.json()) as RawCalendarEvent;
         return {
           status: "created",
           id: created.id,

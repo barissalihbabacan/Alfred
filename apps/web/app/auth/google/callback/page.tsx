@@ -1,12 +1,11 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { apiFetch, ensureOk } from "../../../../lib/api";
 import { getFirebaseAuth, subscribeAuthState } from "../../../../lib/auth";
 
 function GoogleAuthCallbackContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<"processing" | "success" | "error">("processing");
   const [errorMessage, setErrorMessage] = useState<string>("");

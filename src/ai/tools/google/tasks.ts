@@ -7,6 +7,19 @@
 
 import type { ToolDefinition } from "../types.js";
 
+interface RawTaskItem {
+  id?: string;
+  title?: string;
+  notes?: string;
+  status?: string;
+  due?: string;
+  completed?: string;
+}
+
+interface RawTaskListResponse {
+  items?: RawTaskItem[];
+}
+
 export const GOOGLE_TASKS_TOOL_NAME = "google_tasks";
 
 export const GOOGLE_TASKS_TOOL_DEFINITION: ToolDefinition = {
@@ -108,10 +121,10 @@ export function createGoogleTasksTool(ctx: GoogleTasksContext) {
           return { error: `Görevler alınamadı (HTTP ${res.status}): ${err}` };
         }
 
-        const data = (await res.json()) as Record<string, any>;
+        const data = (await res.json()) as RawTaskListResponse;
         const items = Array.isArray(data.items) ? data.items : [];
-        const tasks: GoogleTaskItem[] = items.map((t: any) => ({
-          id: t.id,
+        const tasks: GoogleTaskItem[] = items.map((t: RawTaskItem) => ({
+          id: t.id || "",
           title: t.title || "(Başlıksız Görev)",
           notes: t.notes,
           status: t.status === "completed" ? "completed" : "needsAction",
@@ -152,7 +165,7 @@ export function createGoogleTasksTool(ctx: GoogleTasksContext) {
           return { error: `Görev oluşturulamadı (HTTP ${res.status}): ${err}` };
         }
 
-        const created = (await res.json()) as Record<string, any>;
+        const created = (await res.json()) as RawTaskItem;
         return {
           status: "created",
           id: created.id,

@@ -3,7 +3,6 @@ import {
   buildGoogleAuthUrl,
   exchangeCodeForTokens,
   refreshAccessToken,
-  fetchGoogleUserEmail,
   GOOGLE_SCOPES
 } from "../../src/ai/tools/google/google-auth.js";
 import {
@@ -43,7 +42,7 @@ describe("Google Auth Helper", () => {
       clientId: "client_id",
       clientSecret: "client_secret",
       redirectUri: "https://app.com/callback",
-      fetchFn: mockFetch as any
+      fetchFn: mockFetch as unknown as typeof fetch
     });
 
     expect(res.accessToken).toBe("ya29.mock");
@@ -64,7 +63,7 @@ describe("Google Auth Helper", () => {
       refreshToken: "1//mock_refresh",
       clientId: "client_id",
       clientSecret: "client_secret",
-      fetchFn: mockFetch as any
+      fetchFn: mockFetch as unknown as typeof fetch
     });
 
     expect(res.accessToken).toBe("ya29.new_mock");
@@ -104,10 +103,10 @@ describe("Google Calendar Tool", () => {
 
     const tool = createGoogleCalendarTool({
       getAccessToken: async () => "token_123",
-      fetchFn: mockFetch as any
+      fetchFn: mockFetch as unknown as typeof fetch
     });
 
-    const res = (await tool({ action: "list_events" })) as { total: number; events: any[] };
+    const res = (await tool({ action: "list_events" })) as { total: number; events: Array<{ summary: string }> };
     expect(res.total).toBe(1);
     expect(res.events[0].summary).toBe("Sprint Planning");
   });
@@ -125,7 +124,7 @@ describe("Google Calendar Tool", () => {
 
     const tool = createGoogleCalendarTool({
       getAccessToken: async () => "token_123",
-      fetchFn: mockFetch as any
+      fetchFn: mockFetch as unknown as typeof fetch
     });
 
     const res = (await tool({
@@ -162,10 +161,10 @@ describe("Google Tasks Tool", () => {
 
     const tool = createGoogleTasksTool({
       getAccessToken: async () => "token_123",
-      fetchFn: mockFetch as any
+      fetchFn: mockFetch as unknown as typeof fetch
     });
 
-    const res = (await tool({ action: "list_tasks" })) as { total: number; tasks: any[] };
+    const res = (await tool({ action: "list_tasks" })) as { total: number; tasks: Array<{ title: string; status: string }> };
     expect(res.total).toBe(1);
     expect(res.tasks[0].title).toBe("Raporu hazırla");
     expect(res.tasks[0].status).toBe("needsAction");
@@ -183,7 +182,7 @@ describe("Google Tasks Tool", () => {
 
     const tool = createGoogleTasksTool({
       getAccessToken: async () => "token_123",
-      fetchFn: mockFetch as any
+      fetchFn: mockFetch as unknown as typeof fetch
     });
 
     const res = (await tool({ action: "create_task", title: "Test görevi" })) as { status: string; id: string };

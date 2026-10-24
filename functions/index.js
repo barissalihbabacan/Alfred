@@ -938,7 +938,8 @@ export const api = onRequest({
       conversationId: requestedConvId,
       projectId: requestedProjectId,
       provider: requestedProvider,
-      model: requestedModel
+      model: requestedModel,
+      truncateFromSequence
     } = req.body || {};
     if (!message || typeof message !== "string") {
       res.status(400).json({ error: "Message is required." });
@@ -1031,10 +1032,29 @@ export const api = onRequest({
     let userSeq = 1;
 
     try {
+      const truncateSeq = typeof truncateFromSequence === "number" && truncateFromSequence > 0
+        ? truncateFromSequence
+        : null;
+
+      if (truncateSeq !== null) {
+        const toDeleteSnap = await convRef
+          .collection("messages")
+          .where("sequence", ">=", truncateSeq)
+          .get();
+
+        if (!toDeleteSnap.empty) {
+          const batch = db.batch();
+          toDeleteSnap.docs.forEach((doc) => batch.delete(doc.ref));
+          await batch.commit();
+        }
+      }
+
       await db.runTransaction(async (tx) => {
         const cSnap = await tx.get(convRef);
         const cData = cSnap.exists ? cSnap.data() : { messageCount: 0 };
-        const currentCount = (cData.messageCount || 0);
+        const currentCount = truncateSeq !== null
+          ? truncateSeq - 1
+          : (cData.messageCount || 0);
         userSeq = currentCount + 1;
         const txNow = Timestamp.now();
 
@@ -1052,7 +1072,7 @@ export const api = onRequest({
           lastMessageAt: txNow
         };
 
-        if (userSeq === 1 && (!cData.title || cData.title === "New Conversation")) {
+        if (userSeq === 1) {
           updatePayload.title = generateDeterministicTitle(trimmedMessage);
         }
 

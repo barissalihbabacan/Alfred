@@ -39,6 +39,7 @@ interface Message {
   text: string;
   audioUrl?: string;
   timestamp: string;
+  sequence?: number;
   isThinking?: boolean;
   /** 429 beklemesi: sunucunun yeniden deneyecegi an (Date.now() cinsinden). */
   rateLimitUntil?: number;
@@ -256,6 +257,8 @@ export default function VoiceChatPlayground() {
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState("");
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [showMemoryModal, setShowMemoryModal] = useState(false);
@@ -405,6 +408,7 @@ export default function VoiceChatPlayground() {
               role: m.role,
               text: m.content,
               timestamp: formatTime(m.createdAt),
+              sequence: typeof m.sequence === "number" ? m.sequence : undefined,
               ...(Array.isArray(m.usedTools) && m.usedTools.length > 0 ? { usedTools: m.usedTools } : {}),
               ...(Array.isArray(m.sources) && m.sources.length > 0 ? { sources: m.sources } : {})
             }));
@@ -883,8 +887,14 @@ export default function VoiceChatPlayground() {
     }
   };
 
-  const handleSendMessage = async (textToSend?: string) => {
-    const text = (textToSend ?? inputText).trim();
+  const executeChatTurn = async (
+    textToSend: string,
+    options?: {
+      truncateFromSequence?: number;
+      priorMessages?: Message[];
+    }
+  ) => {
+    const text = textToSend.trim();
     // While a conversation loads, its messages would replace this turn's.
     if (!text || messagesLoading || state === "Thinking" || state === "Streaming" || state === "Transcribing") {
       return;
@@ -897,17 +907,28 @@ export default function VoiceChatPlayground() {
     }
 
     const now = Date.now();
-    const userMsg: Message = { id: "user-" + now, role: "user", text, timestamp: formatTime(now) };
+    const userMsg: Message = {
+      id: "user-" + now,
+      role: "user",
+      text,
+      timestamp: formatTime(now),
+      sequence: options?.truncateFromSequence
+    };
     const asstId = "asst-" + now;
     const placeholderAsst: Message = {
       id: asstId,
       role: "assistant",
       text: "",
       isThinking: true,
-      timestamp: formatTime(now)
+      timestamp: formatTime(now),
+      sequence: options?.truncateFromSequence ? options.truncateFromSequence + 1 : undefined
     };
 
-    setMessages((prev) => [...prev, userMsg, placeholderAsst]);
+    if (options?.priorMessages) {
+      setMessages([...options.priorMessages, userMsg, placeholderAsst]);
+    } else {
+      setMessages((prev) => [...prev, userMsg, placeholderAsst]);
+    }
     setState("Thinking");
 
     // Onceki turun (done sonrasi hala acik) baglantisi varsa ona dokunulmaz; o
@@ -949,7 +970,8 @@ export default function VoiceChatPlayground() {
           projectId: activeProjectId || undefined,
           userId: currentUserId || undefined,
           ...(selectedOption ? { provider: selectedOption.provider, model: selectedOption.model } : {}),
-          stream: true
+          stream: true,
+          truncateFromSequence: options?.truncateFromSequence
         }),
         signal: turn.controller.signal
       });
@@ -1137,6 +1159,25 @@ export default function VoiceChatPlayground() {
         setState((s) => (s === "Error" ? s : "Idle"));
       }
     }
+  };
+
+  const handleSendMessage = (textToSend?: string) => {
+    void executeChatTurn(textToSend ?? inputText);
+  };
+
+  const handleEditAndResend = (messageId: string, newText: string) => {
+    const trimmed = newText.trim();
+    if (!trimmed) return;
+    const msgIndex = messages.findIndex((m) => m.id === messageId);
+    if (msgIndex === -1) return;
+    const prior = messages.slice(0, msgIndex);
+    const targetSeq = messages[msgIndex]?.sequence ?? (msgIndex + 1);
+    setEditingMessageId(null);
+    setEditingText("");
+    void executeChatTurn(trimmed, {
+      truncateFromSequence: targetSeq,
+      priorMessages: prior
+    });
   };
 
   const handleStopStreaming = () => {
@@ -1821,31 +1862,92 @@ export default function VoiceChatPlayground() {
                     </div>
                   )}
 
-                  <div
-                    className={
-                      msg.role === "user"
-                        ? "rounded-[20px_20px_4px_20px] bg-chat-surface px-[18px] py-3 text-[15px] leading-[1.55] text-chat-text [word-break:break-word]"
-                        : "text-[15px] leading-[1.68] text-chat-text [word-break:break-word]"
-                    }
-                  >
-                    {msg.isThinking || !renderMarkdown(msg.text) ? (
-                      <div className="inline-flex items-center gap-1.5 px-0 py-1 text-[14px] text-chat-subtle">
-                        <span className="h-1.5 w-1.5 animate-dot-bounce rounded-full bg-gold [animation-delay:-0.32s]" />
-                        <span className="h-1.5 w-1.5 animate-dot-bounce rounded-full bg-gold [animation-delay:-0.16s]" />
-                        <span className="h-1.5 w-1.5 animate-dot-bounce rounded-full bg-gold" />
-                        {msg.rateLimitUntil ? (
-                          <RateLimitNotice until={msg.rateLimitUntil} provider={msg.rateLimitProvider} />
-                        ) : msg.providerNotice ? (
-                          <span role="status">{msg.providerNotice}</span>
-                        ) : (
-                          <span>Düşünüyor...</span>
-                        )}
+                  {msg.role === "user" ? (
+                    editingMessageId === msg.id ? (
+                      <div className="w-full min-w-[280px] rounded-[18px] border border-gold/40 bg-chat-surface p-3 shadow-lg">
+                        <textarea
+                          value={editingText}
+                          onChange={(e) => setEditingText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              handleEditAndResend(msg.id, editingText);
+                            } else if (e.key === "Escape") {
+                              e.preventDefault();
+                              setEditingMessageId(null);
+                              setEditingText("");
+                            }
+                          }}
+                          rows={Math.min(6, Math.max(2, editingText.split("\n").length))}
+                          className="w-full resize-none bg-transparent text-[15px] leading-[1.55] text-chat-text outline-none placeholder:text-chat-muted"
+                          autoFocus
+                        />
+                        <div className="mt-2 flex items-center justify-end gap-2 text-[12px]">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingMessageId(null);
+                              setEditingText("");
+                            }}
+                            className="rounded-md px-2.5 py-1 text-chat-muted transition hover:bg-white/5 hover:text-chat-text"
+                          >
+                            İptal
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!editingText.trim() || state === "Thinking" || state === "Streaming"}
+                            onClick={() => handleEditAndResend(msg.id, editingText)}
+                            className="rounded-md bg-gold px-3 py-1 font-medium text-chat-ink transition hover:bg-gold-light disabled:opacity-50"
+                          >
+                            Kaydet ve Gönder
+                          </button>
+                        </div>
                       </div>
                     ) : (
-                      // Preflight strips list markers and paragraph margins; restore both here.
-                      <div className="[&_ol]:my-2 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-5 [&_p+p]:mt-2.5 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }} />
-                    )}
-                  </div>
+                      <div className="group/user-msg flex items-center gap-2 justify-end">
+                        {state !== "Thinking" && state !== "Streaming" && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingMessageId(msg.id);
+                              setEditingText(msg.text);
+                            }}
+                            title="Mesajı Düzenle"
+                            aria-label="Mesajı Düzenle"
+                            className="opacity-0 group-hover/user-msg:opacity-100 transition-opacity p-1.5 rounded-full text-chat-muted hover:text-gold hover:bg-white/5"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M12 20h9" />
+                              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                            </svg>
+                          </button>
+                        )}
+                        <div className="rounded-[20px_20px_4px_20px] bg-chat-surface px-[18px] py-3 text-[15px] leading-[1.55] text-chat-text [word-break:break-word]">
+                          <div className="[&_ol]:my-2 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-5 [&_p+p]:mt-2.5 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }} />
+                        </div>
+                      </div>
+                    )
+                  ) : (
+                    <div className="text-[15px] leading-[1.68] text-chat-text [word-break:break-word]">
+                      {msg.isThinking || !renderMarkdown(msg.text) ? (
+                        <div className="inline-flex items-center gap-1.5 px-0 py-1 text-[14px] text-chat-subtle">
+                          <span className="h-1.5 w-1.5 animate-dot-bounce rounded-full bg-gold [animation-delay:-0.32s]" />
+                          <span className="h-1.5 w-1.5 animate-dot-bounce rounded-full bg-gold [animation-delay:-0.16s]" />
+                          <span className="h-1.5 w-1.5 animate-dot-bounce rounded-full bg-gold" />
+                          {msg.rateLimitUntil ? (
+                            <RateLimitNotice until={msg.rateLimitUntil} provider={msg.rateLimitProvider} />
+                          ) : msg.providerNotice ? (
+                            <span role="status">{msg.providerNotice}</span>
+                          ) : (
+                            <span>Düşünüyor...</span>
+                          )}
+                        </div>
+                      ) : (
+                        // Preflight strips list markers and paragraph margins; restore both here.
+                        <div className="[&_ol]:my-2 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-5 [&_p+p]:mt-2.5 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }} />
+                      )}
+                    </div>
+                  )}
 
                   {msg.role === "assistant" && !msg.isThinking && msg.sources && msg.sources.length > 0 && (
                     <div className="mt-2.5 flex flex-wrap items-center gap-1.5">

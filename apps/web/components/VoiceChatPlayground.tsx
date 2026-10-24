@@ -256,6 +256,7 @@ export default function VoiceChatPlayground() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [conversationsLoading, setConversationsLoading] = useState(true);
+  const [conversationSearch, setConversationSearch] = useState("");
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -1426,6 +1427,45 @@ export default function VoiceChatPlayground() {
               : "Geçmiş Sohbetler"}
           </div>
 
+          {conversations.length > 3 && (
+            <div className="relative mb-2 mt-1 px-1">
+              <input
+                type="text"
+                value={conversationSearch}
+                onChange={(e) => setConversationSearch(e.target.value)}
+                placeholder="Sohbetlerde ara..."
+                className="w-full rounded-lg border border-white/10 bg-black/30 py-1.5 pl-7 pr-6 text-[12px] text-chat-text placeholder:text-chat-subtle outline-none transition focus:border-gold/50 focus:bg-black/50"
+              />
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-chat-subtle"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              {conversationSearch && (
+                <button
+                  type="button"
+                  onClick={() => setConversationSearch("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-chat-subtle hover:text-chat-text"
+                  title="Aramayı temizle"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          )}
+
           {conversationsLoading ? (
             <>
               {[75, 60, 85, 70].map((w, idx) => (
@@ -1439,15 +1479,33 @@ export default function VoiceChatPlayground() {
               ))}
             </>
           ) : (() => {
-            const visibleConvs = activeProjectId
+            const q = conversationSearch.trim().toLowerCase();
+            const projectFiltered = activeProjectId
               ? conversations.filter((c) => c.projectId === activeProjectId)
               : conversations.filter((c) => !c.projectId);
+            const visibleConvs = q
+              ? projectFiltered.filter((c) => (c.title || "").toLowerCase().includes(q))
+              : projectFiltered;
+
             if (visibleConvs.length === 0) {
               return (
-                <div className="truncate px-2 py-2.5 text-[12px] text-chat-faint">
-                  {activeProjectId
-                    ? "Bu projede henüz sohbet yok."
-                    : "Henüz kayıtlı sohbet yok."}
+                <div className="px-2 py-3 text-center">
+                  <p className="truncate text-[12px] text-chat-faint">
+                    {q
+                      ? "Eşleşen sohbet bulunamadı."
+                      : activeProjectId
+                      ? "Bu projede henüz sohbet yok."
+                      : "Henüz kayıtlı sohbet yok."}
+                  </p>
+                  {q && (
+                    <button
+                      type="button"
+                      onClick={() => setConversationSearch("")}
+                      className="mt-1.5 text-[11px] text-gold hover:underline"
+                    >
+                      Aramayı temizle
+                    </button>
+                  )}
                 </div>
               );
             }
@@ -1814,7 +1872,7 @@ export default function VoiceChatPlayground() {
                 <p className="text-[14px] text-chat-muted">
                   B.U.T.L.E.R. Alfred hizmetinizde. Bugün ne üzerinde çalışıyoruz?
                 </p>
-                <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+                <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
                   <button
                     type="button"
                     onClick={() => handleSendMessage("Günaydın Alfred, bugünün sabah brifingini hazırlar mısın?")}
@@ -1832,6 +1890,17 @@ export default function VoiceChatPlayground() {
                       <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
                     </svg>
                     <span>Sabah Brifingi Al</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSendMessage("Günü kapatalım Alfred, bugünün özetini, tamamlananları ve yarına kalanları çıkarır mısın?")}
+                    className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-indigo-400/30 bg-indigo-500/10 px-4 py-2 text-[13px] font-medium text-indigo-300 shadow-sm transition hover:border-indigo-400/60 hover:bg-indigo-500/20 hover:text-indigo-200"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                    </svg>
+                    <span>Günü Kapat</span>
                   </button>
                 </div>
               </div>

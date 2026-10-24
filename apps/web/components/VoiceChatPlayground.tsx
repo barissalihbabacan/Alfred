@@ -1800,7 +1800,7 @@ export default function VoiceChatPlayground() {
               <button
                 type="button"
                 onClick={handleExportMarkdown}
-                className="flex cursor-pointer items-center gap-1.5 rounded-full border border-white/8 bg-white/4 px-2.5 py-1 text-[12px] font-medium text-chat-muted [transition:border-color_0.15s,color_0.15s,background_0.15s] hover:border-gold/35 hover:bg-gold/10 hover:text-gold"
+                className="flex h-7 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-white/8 bg-white/4 px-2.5 text-[12px] font-medium text-chat-muted [transition:border-color_0.15s,color_0.15s,background_0.15s] hover:border-gold/35 hover:bg-gold/10 hover:text-gold mobile:w-7 mobile:px-0"
                 title="Mevcut sohbeti Markdown (.md) dosyası olarak indir"
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1812,9 +1812,12 @@ export default function VoiceChatPlayground() {
               </button>
             )}
 
-            <div className="flex items-center gap-1.5 rounded-full border border-white/8 bg-white/4 px-2.5 py-1 text-[12px] text-chat-muted">
+            <div
+              className="flex h-7 items-center justify-center gap-1.5 rounded-full border border-white/8 bg-white/4 px-2.5 text-[12px] text-chat-muted mobile:w-7 mobile:px-0"
+              title={`Durum: ${STATE_LABELS[state]}`}
+            >
               <span className={cx(
-                "h-[7px] w-[7px] rounded-full",
+                "h-2 w-2 rounded-full",
                 state === "Listening" ? "bg-danger" :
                 state === "Thinking" ? "bg-status-thinking" :
                 state === "Streaming" ? "bg-gold" :

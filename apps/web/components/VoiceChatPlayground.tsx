@@ -459,6 +459,29 @@ export default function VoiceChatPlayground() {
         }
       })
       .catch(() => {});
+
+    // Fallback: If URL has Google OAuth code (e.g. redirected or rewrite), exchange it directly
+    const urlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    const authCode = urlParams?.get("code");
+    if (authCode) {
+      const redirectUri = window.location.origin + "/auth/google/callback";
+      void apiFetch("/auth/google/callback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: authCode, redirectUri })
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (data?.connected) {
+            setGoogleConnected(true);
+            if (data.email) setGoogleEmail(data.email);
+            if (typeof window !== "undefined") {
+              window.history.replaceState({}, document.title, window.location.pathname);
+            }
+          }
+        })
+        .catch(() => {});
+    }
   }, [currentUserId, fetchConversations, loadConversation]);
 
   // Re-fetch Google Integration Status when account modal is opened

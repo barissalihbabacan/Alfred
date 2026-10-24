@@ -136,6 +136,32 @@ describe("renderMarkdown (apps/web/lib/markdown.ts)", () => {
     );
   });
 
+  describe("blockquotes & rich text boxes", () => {
+    it("renders email draft blockquotes with header and copy button, without raw > markers", () => {
+      const draft = "Gövde:\n> Selam Fatih,\n>\n> Guess the City App Store onayını aldı!\n>\n> Barış";
+      const html = renderMarkdown(draft);
+
+      expect(html).toContain('<blockquote class="md-blockquote">');
+      expect(html).toContain("md-blockquote-header");
+      expect(html).toContain("Taslak / Alıntı");
+      expect(html).toContain("md-blockquote-body");
+      expect(html).toContain("<p>Selam Fatih,</p>");
+      expect(html).toContain("<p>Guess the City App Store onayını aldı!</p>");
+      expect(html).toContain("<p>Barış</p>");
+      expect(html).not.toContain("&gt; Selam");
+
+      // Verify the copy payload copies clean text without `>`
+      expect(copiedText(html)).toBe("Selam Fatih,\n\nGuess the City App Store onayını aldı!\n\nBarış");
+    });
+
+    it("renders single-line quote cleanly without redundant header", () => {
+      const html = renderMarkdown("> Sadeliğin zarafeti.");
+      expect(html).toContain('<blockquote class="md-blockquote">');
+      expect(html).not.toContain("md-blockquote-header");
+      expect(html).toContain("<p>Sadeliğin zarafeti.</p>");
+    });
+  });
+
   it("escapes HTML in ordinary text", () => {
     expect(renderMarkdown("<script>alert(1)</script>")).toBe("<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>");
   });

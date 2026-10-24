@@ -313,8 +313,40 @@ export function renderMarkdown(text: string, sources?: readonly WebSearchCitatio
   // Strikethrough: ~~text~~
   html = html.replace(/~~([^~]+?)~~/g, "<del>$1</del>");
 
-  // Ensure code blocks are always isolated in their own paragraph block.
-  html = html.replace(/[ \t]*\n?(§§CODEBLOCK\d+§§)\n?[ \t]*/g, "\n\n$1\n\n");
+  // Blockquotes / Rich callout textboxes: lines starting with &gt;
+  const blockquotes: string[] = [];
+  html = html.replace(/(?:^[ \t]*&gt;[^\n]*(?:\n[ \t]*&gt;[^\n]*)*)/gm, (match) => {
+    const rawLines = match.split("\n");
+    const idx = blockquotes.length;
+    const unescapedLines = rawLines.map((l) => l.replace(/^[ \t]*&gt;[ \t\u00a0\u202f]?/, ""));
+    const plainQuoteText = unescapeHtml(unescapedLines.join("\n").trim());
+
+    const paras = unescapedLines.join("\n").split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+    const bodyHtml = paras.map((p) => {
+      const pLines = p.split("\n");
+      if (pLines.every((l) => /^[ \t]*[-*•\u2011\u2013][ \t\u00a0\u202f]+/.test(l))) {
+        const lis = pLines.map((l) => `<li>${l.replace(/^[ \t]*[-*•\u2011\u2013][ \t\u00a0\u202f]+/, "")}</li>`).join("");
+        return `<ul>${lis}</ul>`;
+      }
+      return `<p>${pLines.join("<br/>")}</p>`;
+    }).join("");
+
+    const isMultiLine = rawLines.length >= 2 || plainQuoteText.length > 80;
+    const headerHtml = isMultiLine
+      ? `<div class="md-blockquote-header"><span class="md-blockquote-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block mr-1 text-gold"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Taslak / Alıntı</span><button type="button" class="copy-code-btn" onclick="navigator.clipboard.writeText(decodeURIComponent('${copyPayload(plainQuoteText)}')).then(()=>this.innerHTML='<span style=\\'color:#10b981;\\'>Kopyalandı</span>')"><svg width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' style='display:inline-block;margin-right:4px;'><rect x='9' y='9' width='13' height='13' rx='2' ry='2'/><path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/></svg>Kopyala</button></div>`
+      : "";
+
+    blockquotes.push(`
+      <blockquote class="md-blockquote">
+        ${headerHtml}
+        <div class="md-blockquote-body">${bodyHtml}</div>
+      </blockquote>
+    `);
+    return `§§BLOCKQUOTE${idx}§§`;
+  });
+
+  // Ensure code blocks and blockquotes are always isolated in their own paragraph block.
+  html = html.replace(/[ \t]*\n?(§§CODEBLOCK\d+§§|§§BLOCKQUOTE\d+§§)\n?[ \t]*/g, "\n\n$1\n\n");
   // Collapse blank lines between consecutive list items so loose lists stay in one <ul>/<ol>.
   html = html.replace(/^([ \t]*[-*•\u2011\u2013][ \t\u00a0\u202f]+[^\n]+)\n\n+(?=[ \t]*[-*•\u2011\u2013][ \t\u00a0\u202f]+)/gm, "$1\n");
   html = html.replace(/^([ \t]*\d+[.)][ \t\u00a0\u202f]+[^\n]+)\n\n+(?=[ \t]*(?:\d+[.)]|[-*•\u2011\u2013])[ \t\u00a0\u202f]+)/gm, "$1\n");
@@ -323,7 +355,7 @@ export function renderMarkdown(text: string, sources?: readonly WebSearchCitatio
   html = html.split("\n\n").map(para => {
     const trimmed = para.trim();
     if (!trimmed) return "";
-    if (/^§§CODEBLOCK\d+§§$/.test(trimmed)) return trimmed;
+    if (/^§§CODEBLOCK\d+§§$/.test(trimmed) || /^§§BLOCKQUOTE\d+§§$/.test(trimmed)) return trimmed;
 
     const lines = trimmed.split("\n");
     if (lines.length >= 2 && lines[0].includes("|") && isTableSeparatorLine(lines[1])) {
@@ -396,7 +428,8 @@ export function renderMarkdown(text: string, sources?: readonly WebSearchCitatio
     return `<p>${trimmed.replace(/\n/g, "<br/>")}</p>`;
   }).join("");
 
-  // Restore protected code blocks, inline codes and links
+  // Restore protected blockquotes, code blocks, inline codes and links
+  html = html.replace(/§§BLOCKQUOTE(\d+)§§/g, (_m, idx) => blockquotes[Number(idx)]);
   html = html.replace(/§§LINK(\d+)§§/g, (_m, idx) => links[Number(idx)]);
   html = html.replace(/§§INLINECODE(\d+)§§/g, (_m, idx) => inlineCodes[Number(idx)]);
   html = html.replace(/§§CODEBLOCK(\d+)§§/g, (_m, idx) => codeBlocks[Number(idx)]);

@@ -215,6 +215,28 @@
   .md-table td {
     @apply border-t border-white/8 px-3 py-2 text-chat-muted;
   }
+  /* Blockquote / Rich callout text box in renderMarkdown() */
+  .md-blockquote {
+    @apply my-3.5 overflow-hidden rounded-lg border-l-[3px] border-gold/75 bg-white/[0.04] p-3.5 shadow-sm;
+  }
+  .md-blockquote-header {
+    @apply mb-2.5 flex items-center justify-between border-b border-white/8 pb-1.5 font-sans text-[11px] font-semibold text-chat-subtle;
+  }
+  .md-blockquote-title {
+    @apply flex items-center gap-1.5 text-gold/90;
+  }
+  .md-blockquote-body {
+    @apply text-[14.5px] leading-[1.65] text-chat-text/95;
+  }
+  .md-blockquote-body p + p {
+    @apply mt-2;
+  }
+  .md-blockquote-body ul {
+    @apply my-1.5 list-disc space-y-1 pl-5;
+  }
+  .md-blockquote-body ol {
+    @apply my-1.5 list-decimal space-y-1 pl-5;
+  }
 }
 
 /* 100dvh with a 100vh fallback (Tailwind's h-dvh has no fallback for older browsers). */

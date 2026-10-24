@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch, ensureOk } from "../../../../lib/api";
+import { getFirebaseAuth, subscribeAuthState } from "../../../../lib/auth";
 
 function GoogleAuthCallbackContent() {
   const router = useRouter();
@@ -11,6 +12,8 @@ function GoogleAuthCallbackContent() {
   const [errorMessage, setErrorMessage] = useState<string>("");
 
   useEffect(() => {
+    let cancelled = false;
+    let exchanged = false;
     const code = searchParams.get("code");
     const error = searchParams.get("error");
 
@@ -26,7 +29,10 @@ function GoogleAuthCallbackContent() {
       return;
     }
 
-    const exchange = async () => {
+    const runExchange = async () => {
+      if (exchanged || cancelled) return;
+      exchanged = true;
+
       try {
         const redirectUri = window.location.origin + "/auth/google/callback";
         const res = await apiFetch("/auth/google/callback", {
@@ -35,18 +41,43 @@ function GoogleAuthCallbackContent() {
           body: JSON.stringify({ code, redirectUri })
         });
         await ensureOk(res);
+        if (cancelled) return;
         setStatus("success");
         setTimeout(() => {
-          router.replace("/");
-        }, 1500);
+          window.location.href = "/";
+        }, 1200);
       } catch (err: unknown) {
+        if (cancelled) return;
         setStatus("error");
         setErrorMessage((err as Error)?.message || "Google hesabı bağlanırken bir hata oluştu.");
       }
     };
 
-    exchange();
-  }, [searchParams, router]);
+    // Firebase Auth oturumu sayfa ilk yuklendiginde asenkron olarak geri yuklenir.
+    // Oturum hazir oldugunda code takasini baslatiyoruz.
+    const unsub = subscribeAuthState((user) => {
+      if (cancelled || exchanged) return;
+      if (user) {
+        void runExchange();
+      }
+    });
+
+    // Oturum 6 saniye icinde bulunamazsa hata goster.
+    const timer = setTimeout(() => {
+      if (cancelled || exchanged) return;
+      const auth = getFirebaseAuth();
+      if (!auth.currentUser) {
+        setStatus("error");
+        setErrorMessage("Butler Alfred oturumunuz bulunamadı. Lütfen önce uygulamaya giriş yapın.");
+      }
+    }, 6000);
+
+    return () => {
+      cancelled = true;
+      unsub();
+      clearTimeout(timer);
+    };
+  }, [searchParams]);
 
   return (
     <div className="w-full max-w-[400px] rounded-2xl border border-white/10 bg-chat-modal p-6 text-center shadow-[0_20px_50px_rgba(0,0,0,0.6)] backdrop-blur-md">
@@ -86,7 +117,7 @@ function GoogleAuthCallbackContent() {
           <h2 className="text-[16px] font-semibold text-red-300">Bağlantı Kurulamadı</h2>
           <p className="text-[12px] text-red-200/80">{errorMessage}</p>
           <button
-            onClick={() => router.replace("/")}
+            onClick={() => { window.location.href = "/"; }}
             className="mt-2 cursor-pointer rounded-xl border border-white/12 bg-white/5 px-4 py-2 text-[13px] text-chat-text hover:bg-white/10"
           >
             Ana Sayfaya Dön

@@ -461,6 +461,20 @@ export default function VoiceChatPlayground() {
       .catch(() => {});
   }, [currentUserId, fetchConversations, loadConversation]);
 
+  // Re-fetch Google Integration Status when account modal is opened
+  useEffect(() => {
+    if (!showAccountModal || !currentUserId) return;
+    void apiFetch("/auth/google/status")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data && typeof data.connected === "boolean") {
+          setGoogleConnected(data.connected);
+          setGoogleEmail(data.email || null);
+        }
+      })
+      .catch(() => {});
+  }, [showAccountModal, currentUserId]);
+
   // Active provider (public /health endpoint, no token needed) + saved model preference.
   useEffect(() => {
     const savedId = storageGet(MODEL_SELECTION_KEY);

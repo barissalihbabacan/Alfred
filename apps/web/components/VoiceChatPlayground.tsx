@@ -289,7 +289,6 @@ export default function VoiceChatPlayground() {
   const [projectFormError, setProjectFormError] = useState<string | null>(null);
   const [renamingConvId, setRenamingConvId] = useState<string | null>(null);
   const [renamingTitle, setRenamingTitle] = useState("");
-  const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [health, setHealth] = useState<HealthInfo | null>(null);
@@ -301,7 +300,6 @@ export default function VoiceChatPlayground() {
   const [googleEmail, setGoogleEmail] = useState<string | null>(null);
   const [googleConnecting, setGoogleConnecting] = useState<boolean>(false);
 
-  const toolsBtnRef = useRef<HTMLButtonElement | null>(null);
   const modelMenuRef = useRef<HTMLDivElement | null>(null);
   const turnSeqRef = useRef(0);
   const activeTurnRef = useRef<ActiveTurn | null>(null);
@@ -750,20 +748,17 @@ export default function VoiceChatPlayground() {
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
       const target = e.target as Node;
-      if (toolsBtnRef.current && !toolsBtnRef.current.contains(target)) {
-        setToolsMenuOpen(false);
-      }
       if (modelMenuRef.current && !modelMenuRef.current.contains(target)) {
         setModelMenuOpen(false);
       }
     };
-    if (toolsMenuOpen || modelMenuOpen) {
+    if (modelMenuOpen) {
       document.addEventListener("click", handleOutsideClick);
     }
     return () => {
       document.removeEventListener("click", handleOutsideClick);
     };
-  }, [toolsMenuOpen, modelMenuOpen]);
+  }, [modelMenuOpen]);
 
   const handleStartRenameConversation = (e: React.MouseEvent, conv: ConversationSummary) => {
     e.stopPropagation();
@@ -867,19 +862,6 @@ export default function VoiceChatPlayground() {
     setInputText(e.target.value);
     e.target.style.height = "auto";
     e.target.style.height = Math.min(e.target.scrollHeight, 160) + "px";
-  };
-
-  const insertPrompt = (promptText: string) => {
-    setInputText((prev) => (prev ? `${prev} ${promptText}` : promptText));
-    requestAnimationFrame(() => {
-      const ta = textareaRef.current;
-      if (ta) {
-        ta.style.height = "auto";
-        ta.style.height = Math.min(ta.scrollHeight, 160) + "px";
-        ta.focus();
-        ta.setSelectionRange(ta.value.length, ta.value.length);
-      }
-    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -2074,204 +2056,7 @@ export default function VoiceChatPlayground() {
 
         {/* Floating Bottom Input Dock */}
         <div className="pointer-events-none absolute bottom-0 left-0 right-0 flex flex-col items-center bg-[linear-gradient(180deg,rgba(33,33,33,0)_0%,rgba(33,33,33,0.95)_25%,#212121_100%)] px-5 pb-[calc(20px+env(safe-area-inset-bottom,0px))] pt-4 mobile:px-2.5 mobile:pb-[calc(10px+env(safe-area-inset-bottom,0px))] mobile:pt-2.5">
-          <div className="pointer-events-auto flex w-full items-end gap-2.5 rounded-[26px] border border-white/12 bg-chat-surface py-2.5 pl-4 pr-3.5 shadow-[0_10px_30px_rgba(0,0,0,0.4)]">
-            <div className="relative mb-0.5">
-              <button
-                ref={toolsBtnRef}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setToolsMenuOpen((prev) => !prev);
-                }}
-                className={cx(
-                  "flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-[17px] [transition:background_0.15s,color_0.15s]",
-                  toolsMenuOpen ? "text-chat-text" : "text-chat-muted"
-                )}
-                title="Araçlar"
-              >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className={cx(
-                    "origin-center [transition:transform_0.25s_cubic-bezier(0.4,0,0.2,1),color_0.2s_ease]",
-                    toolsMenuOpen ? "rotate-45" : "rotate-0"
-                  )}
-                >
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-              </button>
-
-              {toolsMenuOpen && (
-                <div
-                  onClick={(e) => e.stopPropagation()}
-                  className="absolute bottom-[calc(100%+10px)] left-0 z-80 flex w-[300px] flex-col gap-1 rounded-2xl border border-white/12 bg-chat-modal p-2 shadow-[0_16px_40px_rgba(0,0,0,0.7)] backdrop-blur-md"
-                >
-                  <div className="px-2.5 pb-1 pt-1.5 text-[10px] font-bold uppercase tracking-wider text-chat-faint">
-                    Hızlı Araç İşlemleri
-                  </div>
-
-                  {/* read_url action */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      insertPrompt("Lütfen şu bağlantıyı inceleyip özetler misin: ");
-                      setToolsMenuOpen(false);
-                    }}
-                    className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl border border-transparent p-2 text-left [transition:all_0.15s] hover:border-white/10 hover:bg-white/5"
-                  >
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-gold/30 bg-gold/10 text-gold">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                      </svg>
-                    </div>
-                    <div className="flex min-w-0 flex-1 flex-col">
-                      <span className="text-[12.5px] font-semibold text-chat-text">Bağlantı Oku (read_url)</span>
-                      <span className="truncate text-[11px] text-chat-subtle">Web sayfası veya makale içeriğini aktar</span>
-                    </div>
-                  </button>
-
-                  {/* github action */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const activeProj = activeProjectId ? projects.find((p) => p.id === activeProjectId) : null;
-                      if (activeProj?.githubRepo) {
-                        insertPrompt(`${activeProj.githubRepo} deposundaki son açık issue ve pull request'leri inceler misin?`);
-                      } else {
-                        insertPrompt("Şu GitHub deposunun açık issue ve pull request'lerini inceler misin: ");
-                      }
-                      setToolsMenuOpen(false);
-                    }}
-                    className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl border border-transparent p-2 text-left [transition:all_0.15s] hover:border-white/10 hover:bg-white/5"
-                  >
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-gold/30 bg-gold/10 text-gold">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" />
-                      </svg>
-                    </div>
-                    <div className="flex min-w-0 flex-1 flex-col">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[12.5px] font-semibold text-chat-text">GitHub Deposu</span>
-                        {activeProjectId && projects.find((p) => p.id === activeProjectId)?.githubRepo && (
-                          <span className="rounded-sm border border-gold/40 bg-gold/15 px-1 py-px text-[9px] font-bold text-gold">PROJE</span>
-                        )}
-                      </div>
-                      <span className="truncate text-[11px] text-chat-subtle">Issue, PR, commit ve dosya inceleme</span>
-                    </div>
-                  </button>
-
-                  {/* web_search action */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      insertPrompt("Web'de en güncel bilgileri araştır: ");
-                      setToolsMenuOpen(false);
-                    }}
-                    className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl border border-transparent p-2 text-left [transition:all_0.15s] hover:border-white/10 hover:bg-white/5"
-                  >
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-gold/30 bg-gold/10 text-gold">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="12" cy="12" r="10" />
-                        <line x1="2" y1="12" x2="22" y2="12" />
-                        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-                      </svg>
-                    </div>
-                    <div className="flex min-w-0 flex-1 flex-col">
-                      <span className="text-[12.5px] font-semibold text-chat-text">Web Araması (Tavily)</span>
-                      <span className="truncate text-[11px] text-chat-subtle">Haber ve güncel bilgi taraması</span>
-                    </div>
-                  </button>
-
-                  {/* Google Calendar action */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      insertPrompt("Bugünkü takvimimi ve yaklaşan etkinliklerimi kontrol eder misin?");
-                      setToolsMenuOpen(false);
-                    }}
-                    className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl border border-transparent p-2 text-left [transition:all_0.15s] hover:border-white/10 hover:bg-white/5"
-                  >
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-gold/30 bg-gold/10 text-gold">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                        <line x1="16" y1="2" x2="16" y2="6" />
-                        <line x1="8" y1="2" x2="8" y2="6" />
-                        <line x1="3" y1="10" x2="21" y2="10" />
-                      </svg>
-                    </div>
-                    <div className="flex min-w-0 flex-1 flex-col">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[12.5px] font-semibold text-chat-text">Google Takvim</span>
-                        {googleConnected && (
-                          <span className="rounded-sm border border-emerald-500/40 bg-emerald-500/15 px-1 py-px text-[9px] font-bold text-emerald-400">BAĞLI</span>
-                        )}
-                      </div>
-                      <span className="truncate text-[11px] text-chat-subtle">Etkinlik listeleme ve planlama</span>
-                    </div>
-                  </button>
-
-                  {/* Google Tasks action */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      insertPrompt("Google Görevler listemdeki bekleyen yapılacakları listeler misin?");
-                      setToolsMenuOpen(false);
-                    }}
-                    className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl border border-transparent p-2 text-left [transition:all_0.15s] hover:border-white/10 hover:bg-white/5"
-                  >
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-gold/30 bg-gold/10 text-gold">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
-                        <path d="m9 12 2 2 4-4" />
-                      </svg>
-                    </div>
-                    <div className="flex min-w-0 flex-1 flex-col">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[12.5px] font-semibold text-chat-text">Google Görevler (Tasks)</span>
-                        {googleConnected && (
-                          <span className="rounded-sm border border-emerald-500/40 bg-emerald-500/15 px-1 py-px text-[9px] font-bold text-emerald-400">BAĞLI</span>
-                        )}
-                      </div>
-                      <span className="truncate text-[11px] text-chat-subtle">Yapılacaklar listesi ve tamamlama</span>
-                    </div>
-                  </button>
-
-                  {/* Gmail action */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      insertPrompt("Gelen kutumdaki okunmamış son e-postaları özetler misin?");
-                      setToolsMenuOpen(false);
-                    }}
-                    className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl border border-transparent p-2 text-left [transition:all_0.15s] hover:border-white/10 hover:bg-white/5"
-                  >
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-gold/30 bg-gold/10 text-gold">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                        <polyline points="22,6 12,13 2,6" />
-                      </svg>
-                    </div>
-                    <div className="flex min-w-0 flex-1 flex-col">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[12.5px] font-semibold text-chat-text">Gmail E-postalar</span>
-                        {googleConnected && (
-                          <span className="rounded-sm border border-emerald-500/40 bg-emerald-500/15 px-1 py-px text-[9px] font-bold text-emerald-400">BAĞLI</span>
-                        )}
-                      </div>
-                      <span className="truncate text-[11px] text-chat-subtle">Okunmamış e-postaları listeleme ve özet</span>
-                    </div>
-                  </button>
-                </div>
-              )}
-            </div>
-
+          <div className="pointer-events-auto flex w-full items-end gap-2.5 rounded-[26px] border border-white/12 bg-chat-surface py-2.5 pl-5 pr-3.5 shadow-[0_10px_30px_rgba(0,0,0,0.4)]">
             {/* 16px on phones stops iOS Safari from zooming in when the composer is focused. */}
             <textarea
               id="chat-message-input"

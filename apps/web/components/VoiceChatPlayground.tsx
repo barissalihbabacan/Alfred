@@ -859,10 +859,16 @@ export default function VoiceChatPlayground() {
     }
   };
 
+  const adjustTextareaHeight = (el: HTMLTextAreaElement | null) => {
+    if (!el) return;
+    el.style.height = "auto";
+    const maxHeight = typeof window !== "undefined" ? Math.max(window.innerHeight * 0.55, 360) : 360;
+    el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
+  };
+
   const handleTextareaInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputText(e.target.value);
-    e.target.style.height = "auto";
-    e.target.style.height = Math.min(e.target.scrollHeight, 160) + "px";
+    adjustTextareaHeight(e.target);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1235,8 +1241,7 @@ export default function VoiceChatPlayground() {
       requestAnimationFrame(() => {
         const ta = textareaRef.current;
         if (ta) {
-          ta.style.height = "auto";
-          ta.style.height = Math.min(ta.scrollHeight, 160) + "px";
+          adjustTextareaHeight(ta);
           ta.focus();
         }
       });
@@ -2155,7 +2160,7 @@ export default function VoiceChatPlayground() {
               onKeyDown={handleKeyDown}
               rows={1}
               placeholder="Alfred'e mesaj yazın..."
-              className="max-h-[160px] min-h-[24px] min-w-0 flex-1 resize-none border-none bg-transparent px-0 py-1.5 text-[15px] leading-relaxed text-chat-text outline-hidden placeholder:text-[#757575] mobile:max-h-[180px] mobile:w-full mobile:px-1 mobile:text-[16px] mobile:leading-normal"
+              className="max-h-[55vh] min-h-[24px] min-w-0 flex-1 resize-none border-none bg-transparent px-0 py-1.5 text-[15px] leading-relaxed text-chat-text outline-hidden placeholder:text-[#757575] mobile:max-h-[55vh] mobile:w-full mobile:px-1 mobile:text-[16px] mobile:leading-normal"
             />
 
             <div className="flex shrink-0 items-center gap-1.5 mobile:w-full mobile:items-center mobile:justify-between mobile:pt-1">

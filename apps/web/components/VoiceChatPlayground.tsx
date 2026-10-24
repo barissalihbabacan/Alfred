@@ -1853,7 +1853,7 @@ export default function VoiceChatPlayground() {
                   </div>
                 )}
 
-                <div className={msg.role === "user" ? "max-w-[78%]" : "max-w-full flex-1"}>
+                <div className={msg.role === "user" ? (editingMessageId === msg.id ? "w-full max-w-[85%]" : "max-w-[78%]") : "max-w-full flex-1"}>
                   {msg.role === "assistant" && (
                     <div className="mb-1 flex flex-wrap items-center gap-2 text-[12px] font-semibold text-gold">
                       <span>ALFRED</span>
@@ -1908,10 +1908,20 @@ export default function VoiceChatPlayground() {
 
                   {msg.role === "user" ? (
                     editingMessageId === msg.id ? (
-                      <div className="w-full min-w-[280px] rounded-[18px] border border-gold/40 bg-chat-surface p-3 shadow-lg">
+                      <div className="w-full min-w-[300px] rounded-[18px] border border-gold/40 bg-chat-surface p-3.5 shadow-lg">
                         <textarea
+                          ref={(el) => {
+                            if (el) {
+                              el.style.height = "auto";
+                              el.style.height = `${Math.max(el.scrollHeight, 44)}px`;
+                            }
+                          }}
                           value={editingText}
-                          onChange={(e) => setEditingText(e.target.value)}
+                          onChange={(e) => {
+                            setEditingText(e.target.value);
+                            e.target.style.height = "auto";
+                            e.target.style.height = `${Math.max(e.target.scrollHeight, 44)}px`;
+                          }}
                           onKeyDown={(e) => {
                             if (e.key === "Enter" && !e.shiftKey) {
                               e.preventDefault();
@@ -1922,18 +1932,17 @@ export default function VoiceChatPlayground() {
                               setEditingText("");
                             }
                           }}
-                          rows={Math.min(6, Math.max(2, editingText.split("\n").length))}
-                          className="w-full resize-none bg-transparent text-[15px] leading-[1.55] text-chat-text outline-none placeholder:text-chat-muted"
+                          className="w-full resize-none overflow-hidden bg-transparent text-[15px] leading-[1.55] text-chat-text outline-none placeholder:text-chat-muted"
                           autoFocus
                         />
-                        <div className="mt-2 flex items-center justify-end gap-2 text-[12px]">
+                        <div className="mt-2.5 flex items-center justify-end gap-2 text-[12px]">
                           <button
                             type="button"
                             onClick={() => {
                               setEditingMessageId(null);
                               setEditingText("");
                             }}
-                            className="rounded-md px-2.5 py-1 text-chat-muted transition hover:bg-white/5 hover:text-chat-text"
+                            className="cursor-pointer rounded-md px-2.5 py-1 text-chat-muted transition hover:bg-white/5 hover:text-chat-text"
                           >
                             İptal
                           </button>
@@ -1941,7 +1950,7 @@ export default function VoiceChatPlayground() {
                             type="button"
                             disabled={!editingText.trim() || state === "Thinking" || state === "Streaming"}
                             onClick={() => handleEditAndResend(msg.id, editingText)}
-                            className="rounded-md bg-gold px-3 py-1 font-medium text-chat-ink transition hover:bg-gold-light disabled:opacity-50"
+                            className="cursor-pointer rounded-md bg-gold px-3 py-1 font-medium text-chat-ink transition hover:bg-gold-light disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             Kaydet ve Gönder
                           </button>

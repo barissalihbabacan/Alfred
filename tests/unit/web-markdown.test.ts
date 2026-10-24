@@ -162,6 +162,56 @@ describe("renderMarkdown (apps/web/lib/markdown.ts)", () => {
     });
   });
 
+  describe("comprehensive markdown standards", () => {
+    it("renders images safely with loading=lazy", () => {
+      const html = renderMarkdown("![Logo](https://example.com/logo.png)");
+      expect(html).toContain('<img src="https://example.com/logo.png" alt="Logo" class="md-image" loading="lazy" />');
+    });
+
+    it("renders GFM task lists with checkboxes", () => {
+      const markdown = "- [ ] Görev 1\n- [x] Görev 2 tamamlandı";
+      const html = renderMarkdown(markdown);
+      expect(html).toContain('<ul class="task-list">');
+      expect(html).toContain('<li class="task-list-item"><input type="checkbox" disabled class="task-checkbox mr-2"/>Görev 1');
+      expect(html).toContain('<li class="task-list-item"><input type="checkbox" checked disabled class="task-checkbox mr-2"/>Görev 2 tamamlandı');
+    });
+
+    it("supports underscore emphasis without corrupting snake_case identifiers", () => {
+      expect(renderMarkdown("__kalın__ ve _italik_")).toBe("<p><strong>kalın</strong> ve <em>italik</em></p>");
+      expect(renderMarkdown("let user_id_test = 42;")).toBe("<p>let user_id_test = 42;</p>");
+    });
+
+    it("supports GFM table column alignments", () => {
+      const table = "| Sol | Orta | Sağ |\n| :--- | :---: | ---: |\n| 1 | 2 | 3 |";
+      const html = renderMarkdown(table);
+      expect(html).toContain('<th style="text-align: left;">Sol</th>');
+      expect(html).toContain('<th style="text-align: center;">Orta</th>');
+      expect(html).toContain('<th style="text-align: right;">Sağ</th>');
+      expect(html).toContain('<td style="text-align: left;">1</td>');
+      expect(html).toContain('<td style="text-align: center;">2</td>');
+      expect(html).toContain('<td style="text-align: right;">3</td>');
+    });
+
+    it("supports autolinks for emails and urls", () => {
+      expect(renderMarkdown("<colleague@example.com>")).toBe(
+        '<p><a href="mailto:colleague@example.com" target="_blank" rel="noopener noreferrer" class="md-link">colleague@example.com</a></p>'
+      );
+      expect(renderMarkdown("<https://example.com>")).toBe(
+        '<p><a href="https://example.com" target="_blank" rel="noopener noreferrer" class="md-link">https://example.com</a></p>'
+      );
+    });
+
+    it("supports highlights, subscript and superscript", () => {
+      expect(renderMarkdown("==önemli==")).toBe('<p><mark class="md-highlight">önemli</mark></p>');
+      expect(renderMarkdown("H~2~O")).toBe("<p>H<sub>2</sub>O</p>");
+      expect(renderMarkdown("X^2^")).toBe("<p>X<sup>2</sup></p>");
+    });
+
+    it("supports horizontal rule with underscores", () => {
+      expect(renderMarkdown("___")).toBe('<hr class="md-hr"/>');
+    });
+  });
+
   it("escapes HTML in ordinary text", () => {
     expect(renderMarkdown("<script>alert(1)</script>")).toBe("<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>");
   });

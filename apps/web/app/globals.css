@@ -237,6 +237,24 @@
   .md-blockquote-body ol {
     @apply my-1.5 list-decimal space-y-1 pl-5;
   }
+  /* Images in Markdown */
+  .md-image {
+    @apply my-3 max-h-[460px] max-w-full rounded-lg border border-white/10 object-contain shadow-md;
+  }
+  /* Task List / Checkboxes in Markdown */
+  .task-list {
+    @apply my-2 list-none space-y-1.5 pl-0.5;
+  }
+  .task-list-item {
+    @apply flex items-start gap-2 text-chat-text;
+  }
+  .task-checkbox {
+    @apply mt-1 h-3.5 w-3.5 shrink-0 rounded border-white/25 bg-black/40 text-gold accent-gold;
+  }
+  /* Highlight in Markdown */
+  .md-highlight {
+    @apply rounded-[3px] bg-gold/25 px-1 py-0.5 text-gold-light;
+  }
 }
 
 /* 100dvh with a 100vh fallback (Tailwind's h-dvh has no fallback for older browsers). */

@@ -201,12 +201,30 @@ function parseTableCells(line: string): string[] {
   return line.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
 }
 
+function parseAlignments(separatorLine: string): Array<"left" | "center" | "right" | ""> {
+  return parseTableCells(separatorLine).map((cell) => {
+    const hasLeft = cell.startsWith(":");
+    const hasRight = cell.endsWith(":");
+    if (hasLeft && hasRight) return "center";
+    if (hasRight) return "right";
+    if (hasLeft) return "left";
+    return "";
+  });
+}
+
 function renderTableBlock(lines: string[]): string {
   const headerCells = parseTableCells(lines[0] ?? "");
+  const alignments = parseAlignments(lines[1] ?? "");
   const bodyRows = lines.slice(2).filter((l) => l.trim().includes("|"));
-  const thead = `<thead><tr>${headerCells.map((c) => `<th>${c}</th>`).join("")}</tr></thead>`;
+
+  const getAlignAttr = (colIdx: number) => {
+    const align = alignments[colIdx];
+    return align ? ` style="text-align: ${align};"` : "";
+  };
+
+  const thead = `<thead><tr>${headerCells.map((c, idx) => `<th${getAlignAttr(idx)}>${c}</th>`).join("")}</tr></thead>`;
   const tbody = bodyRows.length > 0
-    ? `<tbody>${bodyRows.map((row) => `<tr>${parseTableCells(row).map((c) => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody>`
+    ? `<tbody>${bodyRows.map((row) => `<tr>${parseTableCells(row).map((c, idx) => `<td${getAlignAttr(idx)}>${c}</td>`).join("")}</tr>`).join("")}</tbody>`
     : "";
   return `<div class="md-table-wrap"><table class="md-table">${thead}${tbody}</table></div>`;
 }
@@ -261,6 +279,23 @@ export function renderMarkdown(text: string, sources?: readonly WebSearchCitatio
     return `§§INLINECODE${idx}§§`;
   });
 
+  // Images: ![alt](https://...)
+  const images: string[] = [];
+  const protectImage = (alt: string, rawUrl: string) => {
+    const idx = images.length;
+    const url = /^www\./i.test(rawUrl) ? `https://${rawUrl}` : rawUrl;
+    images.push(`<img src="${url}" alt="${alt}" class="md-image" loading="lazy" />`);
+    return `§§IMAGE${idx}§§`;
+  };
+  html = html.replace(
+    /!\[((?:[^[\]\n]|\[[^\]\n]*\])*)\][ \t\u00a0\u202f]*\(&lt;((?:https?:\/\/|www\.)(?:(?!&quot;|&#39;|&lt;|&gt;)[^\s])+)&gt;\)/g,
+    (_m, alt: string, url: string) => protectImage(alt, url)
+  );
+  html = html.replace(
+    /!\[((?:[^[\]\n]|\[[^\]\n]*\])*)\][ \t\u00a0\u202f]*\(((?:https?:\/\/|www\.)(?:(?!&quot;|&#39;|&lt;|&gt;)[^\s()]|\((?:(?!&quot;|&#39;|&lt;|&gt;)[^\s()])*\))+)\)/g,
+    (_m, alt: string, url: string) => protectImage(alt, url)
+  );
+
   // Links: [label](https://…) and bare http(s) URLs. Protected like code, so
   // bold/italic rules never touch a URL. Only http(s) (or www., upgraded to
   // https://) becomes a link (no javascript: or data:), and the text is
@@ -272,6 +307,16 @@ export function renderMarkdown(text: string, sources?: readonly WebSearchCitatio
     links.push(`<a href="${url}" target="_blank" rel="noopener noreferrer" class="md-link">${formatLinkLabel(label)}</a>`);
     return `§§LINK${idx}§§`;
   };
+  // Autolink email: &lt;user@domain.com&gt;
+  html = html.replace(
+    /&lt;([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})&gt;/g,
+    (_m, email: string) => protectLink(email, `mailto:${email}`)
+  );
+  // Autolink URL: &lt;https://...&gt;
+  html = html.replace(
+    /&lt;((?:https?:\/\/|www\.)[^\s&<>]+)&gt;/g,
+    (_m, url: string) => protectLink(url, url)
+  );
   // [label](<https://...>)
   html = html.replace(
     /\[((?:[^[\]\n]|\[[^\]\n]*\])+)\][ \t\u00a0\u202f]*\(&lt;((?:https?:\/\/|www\.)(?:(?!&quot;|&#39;|&lt;|&gt;)[^\s])+)&gt;\)/g,
@@ -303,15 +348,37 @@ export function renderMarkdown(text: string, sources?: readonly WebSearchCitatio
     return protectLink(url, url) + trailing;
   });
 
-  // Bold + Italic: ***text***
+  // Highlight: ==text==
+  html = html.replace(/==([^=\n]+?)==/g, '<mark class="md-highlight">$1</mark>');
+
+  // Bold + Italic: ***text*** or ___text___
   html = html.replace(/\*\*\*([^*]+?)\*\*\*/g, "<strong><em>$1</em></strong>");
-  // Bold: **text**
+  html = html.replace(
+    /(^|[\s([{"'«„,;:\u00a0\u202f])___(?![\s_])([^_]+?)(?<![\s_])___(?=$|[\s)\]}"'»“.,;:!?\u00a0\u202f])/g,
+    "$1<strong><em>$2</em></strong>"
+  );
+
+  // Bold: **text** or __text__
   html = html.replace(/\*\*([^*]+?)\*\*/g, "<strong>$1</strong>");
-  // Italic: *text*. Not after "* " and not across a line break, so a "* item"
-  // list line is left for the list rule below.
+  html = html.replace(
+    /(^|[\s([{"'«„,;:\u00a0\u202f])__(?![\s_])([^_]+?)(?<![\s_])__(?=$|[\s)\]}"'»“.,;:!?\u00a0\u202f])/g,
+    "$1<strong>$2</strong>"
+  );
+
+  // Italic: *text* or _text_
   html = html.replace(/\*(?!\s)([^*\n]+?)(?<!\s)\*/g, "<em>$1</em>");
+  html = html.replace(
+    /(^|[\s([{"'«„,;:\u00a0\u202f])_(?![\s_])([^_]+?)(?<![\s_])_(?=$|[\s)\]}"'»“.,;:!?\u00a0\u202f])/g,
+    "$1<em>$2</em>"
+  );
+
   // Strikethrough: ~~text~~
   html = html.replace(/~~([^~]+?)~~/g, "<del>$1</del>");
+
+  // Subscript: ~sub~
+  html = html.replace(/(?<!~)~([^~\s]+?)~(?!~)/g, "<sub>$1</sub>");
+  // Superscript: ^sup^
+  html = html.replace(/\^([^^\s]+?)\^/g, "<sup>$1</sup>");
 
   // Blockquotes / Rich callout textboxes: lines starting with &gt;
   const blockquotes: string[] = [];
@@ -348,8 +415,8 @@ export function renderMarkdown(text: string, sources?: readonly WebSearchCitatio
   // Ensure code blocks and blockquotes are always isolated in their own paragraph block.
   html = html.replace(/[ \t]*\n?(§§CODEBLOCK\d+§§|§§BLOCKQUOTE\d+§§)\n?[ \t]*/g, "\n\n$1\n\n");
   // Collapse blank lines between consecutive list items so loose lists stay in one <ul>/<ol>.
-  html = html.replace(/^([ \t]*[-*•\u2011\u2013][ \t\u00a0\u202f]+[^\n]+)\n\n+(?=[ \t]*[-*•\u2011\u2013][ \t\u00a0\u202f]+)/gm, "$1\n");
-  html = html.replace(/^([ \t]*\d+[.)][ \t\u00a0\u202f]+[^\n]+)\n\n+(?=[ \t]*(?:\d+[.)]|[-*•\u2011\u2013])[ \t\u00a0\u202f]+)/gm, "$1\n");
+  html = html.replace(/^([ \t]*[-*+•\u2011\u2013][ \t\u00a0\u202f]+[^\n]+)\n\n+(?=[ \t]*[-*+•\u2011\u2013][ \t\u00a0\u202f]+)/gm, "$1\n");
+  html = html.replace(/^([ \t]*\d+[.)][ \t\u00a0\u202f]+[^\n]+)\n\n+(?=[ \t]*(?:\d+[.)]|[-*+•\u2011\u2013])[ \t\u00a0\u202f]+)/gm, "$1\n");
 
   // Paragraphs, Lists, Headings & Tables
   html = html.split("\n\n").map(para => {
@@ -363,9 +430,9 @@ export function renderMarkdown(text: string, sources?: readonly WebSearchCitatio
     }
 
     const hasBlockStructure = lines.some((l) =>
-      /^[ \t]*(?:[-*•\u2011\u2013]|\d+[.)])[ \t\u00a0\u202f]+/.test(l) ||
+      /^[ \t]*(?:[-*+•\u2011\u2013]|\d+[.)])[ \t\u00a0\u202f]+/.test(l) ||
       /^[ \t]*#{1,6}[ \t]+/.test(l) ||
-      /^[ \t]*(?:---+|\*\*\*+)[ \t]*$/.test(l)
+      /^[ \t]*(?:---+|\*\*\*+|___+)[ \t]*$/.test(l)
     );
 
     if (hasBlockStructure) {
@@ -384,12 +451,22 @@ export function renderMarkdown(text: string, sources?: readonly WebSearchCitatio
       };
 
       for (const line of lines) {
-        const subBulletMatch = line.match(/^[ \t]{2,}[-*•\u2011\u2013][ \t\u00a0\u202f]+(.*)$/);
+        const taskMatch = line.match(/^[ \t]*[-*+•\u2011\u2013][ \t\u00a0\u202f]+\[([ xX])\][ \t\u00a0\u202f]+(.*)$/);
+        if (taskMatch) {
+          if (hasOpenLi) { blockHtml += "</li>"; hasOpenLi = false; }
+          if (openList === "ol") { blockHtml += "</ol>"; openList = null; }
+          if (!openList) { blockHtml += '<ul class="task-list">'; openList = "ul"; }
+          const checked = taskMatch[1].toLowerCase() === "x";
+          blockHtml += `<li class="task-list-item"><input type="checkbox" ${checked ? "checked " : ""}disabled class="task-checkbox mr-2"/>${taskMatch[2]}`;
+          hasOpenLi = true;
+          continue;
+        }
+        const subBulletMatch = line.match(/^[ \t]{2,}[-*+•\u2011\u2013][ \t\u00a0\u202f]+(.*)$/);
         if (subBulletMatch && openList && hasOpenLi) {
           blockHtml += `<br/>${subBulletMatch[1]}`;
           continue;
         }
-        const ulMatch = line.match(/^[ \t]*[-*•\u2011\u2013][ \t\u00a0\u202f]+(.*)$/);
+        const ulMatch = line.match(/^[ \t]*[-*+•\u2011\u2013][ \t\u00a0\u202f]+(.*)$/);
         if (ulMatch) {
           if (hasOpenLi) { blockHtml += "</li>"; hasOpenLi = false; }
           if (openList === "ol") { blockHtml += "</ol>"; openList = null; }
@@ -413,7 +490,7 @@ export function renderMarkdown(text: string, sources?: readonly WebSearchCitatio
           blockHtml += `<p><strong>${headingMatch[1].trim()}</strong></p>`;
           continue;
         }
-        if (/^[ \t]*(?:---+|\*\*\*+)[ \t]*$/.test(line)) {
+        if (/^[ \t]*(?:---+|\*\*\*+|___+)[ \t]*$/.test(line)) {
           closeList();
           blockHtml += "<hr class=\"md-hr\"/>";
           continue;
@@ -428,8 +505,12 @@ export function renderMarkdown(text: string, sources?: readonly WebSearchCitatio
     return `<p>${trimmed.replace(/\n/g, "<br/>")}</p>`;
   }).join("");
 
-  // Restore protected blockquotes, code blocks, inline codes and links
+  // Restore protected blockquotes, images, code blocks, inline codes and links
   html = html.replace(/§§BLOCKQUOTE(\d+)§§/g, (_m, idx) => blockquotes[Number(idx)]);
+  html = html.replace(/§§IMAGE(\d+)§§/g, (_m, idx) => images[Number(idx)]);
+  html = html.replace(/§§LINK(\d+)§§/g, (_m, idx) => links[Number(idx)]);
+  html = html.replace(/§§INLINECODE(\d+)§§/g, (_m, idx) => inlineCodes[Number(idx)]);
+  html = html.replace(/§§CODEBLOCK(\d+)§§/g, (_m, idx) => codeBlocks[Number(idx)]);
   html = html.replace(/§§LINK(\d+)§§/g, (_m, idx) => links[Number(idx)]);
   html = html.replace(/§§INLINECODE(\d+)§§/g, (_m, idx) => inlineCodes[Number(idx)]);
   html = html.replace(/§§CODEBLOCK(\d+)§§/g, (_m, idx) => codeBlocks[Number(idx)]);

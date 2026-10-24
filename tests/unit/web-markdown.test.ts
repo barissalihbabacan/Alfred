@@ -181,15 +181,22 @@ describe("renderMarkdown (apps/web/lib/markdown.ts)", () => {
       expect(renderMarkdown("let user_id_test = 42;")).toBe("<p>let user_id_test = 42;</p>");
     });
 
-    it("supports GFM table column alignments", () => {
-      const table = "| Sol | Orta | Sağ |\n| :--- | :---: | ---: |\n| 1 | 2 | 3 |";
+    it("supports GFM table column alignments and tables immediately following text", () => {
+      const table = "Tablo:\n| Sol | Orta | Sağ |\n| :--- | :---: | ---: |\n| 1 | 2 | 3 |";
       const html = renderMarkdown(table);
+      expect(html).toContain("<p>Tablo:</p>");
       expect(html).toContain('<th style="text-align: left;">Sol</th>');
       expect(html).toContain('<th style="text-align: center;">Orta</th>');
       expect(html).toContain('<th style="text-align: right;">Sağ</th>');
       expect(html).toContain('<td style="text-align: left;">1</td>');
       expect(html).toContain('<td style="text-align: center;">2</td>');
       expect(html).toContain('<td style="text-align: right;">3</td>');
+
+      // Test short delimiter row with 1 hyphen
+      const shortDelim = "| A | B |\n|:-:|:-:|\n| x | y |";
+      const shortHtml = renderMarkdown(shortDelim);
+      expect(shortHtml).toContain('<th style="text-align: center;">A</th>');
+      expect(shortHtml).toContain('<td style="text-align: center;">x</td>');
     });
 
     it("supports autolinks for emails and urls", () => {

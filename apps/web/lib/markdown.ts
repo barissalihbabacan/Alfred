@@ -194,7 +194,7 @@ function isTableSeparatorLine(line: string): boolean {
   const trimmed = line.trim();
   if (!trimmed.includes("|")) return false;
   const cells = trimmed.replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
-  return cells.length >= 2 && cells.every((c) => /^:?-{3,}:?$/.test(c));
+  return cells.length >= 2 && cells.every((c) => /^:?-+:?$/.test(c));
 }
 
 function parseTableCells(line: string): string[] {
@@ -227,6 +227,39 @@ function renderTableBlock(lines: string[]): string {
     ? `<tbody>${bodyRows.map((row) => `<tr>${parseTableCells(row).map((c, idx) => `<td${getAlignAttr(idx)}>${c}</td>`).join("")}</tr>`).join("")}</tbody>`
     : "";
   return `<div class="md-table-wrap"><table class="md-table">${thead}${tbody}</table></div>`;
+}
+
+function extractTables(html: string): { html: string; tables: string[] } {
+  const lines = html.split("\n");
+  const tables: string[] = [];
+  const outLines: string[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const current = lines[i];
+    const next = lines[i + 1];
+
+    if (
+      current &&
+      current.includes("|") &&
+      next &&
+      isTableSeparatorLine(next)
+    ) {
+      const tableLines = [current, next];
+      i += 2;
+      while (i < lines.length && lines[i] && lines[i].includes("|") && !isTableSeparatorLine(lines[i])) {
+        tableLines.push(lines[i]);
+        i++;
+      }
+      i--;
+      const idx = tables.length;
+      tables.push(renderTableBlock(tableLines));
+      outLines.push(`§§TABLE${idx}§§`);
+    } else {
+      outLines.push(current);
+    }
+  }
+
+  return { html: outLines.join("\n"), tables };
 }
 
 export function renderMarkdown(text: string, sources?: readonly WebSearchCitationSource[] | null): string {
@@ -412,8 +445,12 @@ export function renderMarkdown(text: string, sources?: readonly WebSearchCitatio
     return `§§BLOCKQUOTE${idx}§§`;
   });
 
-  // Ensure code blocks and blockquotes are always isolated in their own paragraph block.
-  html = html.replace(/[ \t]*\n?(§§CODEBLOCK\d+§§|§§BLOCKQUOTE\d+§§)\n?[ \t]*/g, "\n\n$1\n\n");
+  // Extract GFM tables before paragraph splitting so they don't require empty lines around them.
+  const { html: tableHtml, tables } = extractTables(html);
+  html = tableHtml;
+
+  // Ensure code blocks, blockquotes and tables are always isolated in their own paragraph block.
+  html = html.replace(/[ \t]*\n?(§§CODEBLOCK\d+§§|§§BLOCKQUOTE\d+§§|§§TABLE\d+§§)\n?[ \t]*/g, "\n\n$1\n\n");
   // Collapse blank lines between consecutive list items so loose lists stay in one <ul>/<ol>.
   html = html.replace(/^([ \t]*[-*+•\u2011\u2013][ \t\u00a0\u202f]+[^\n]+)\n\n+(?=[ \t]*[-*+•\u2011\u2013][ \t\u00a0\u202f]+)/gm, "$1\n");
   html = html.replace(/^([ \t]*\d+[.)][ \t\u00a0\u202f]+[^\n]+)\n\n+(?=[ \t]*(?:\d+[.)]|[-*+•\u2011\u2013])[ \t\u00a0\u202f]+)/gm, "$1\n");
@@ -422,7 +459,7 @@ export function renderMarkdown(text: string, sources?: readonly WebSearchCitatio
   html = html.split("\n\n").map(para => {
     const trimmed = para.trim();
     if (!trimmed) return "";
-    if (/^§§CODEBLOCK\d+§§$/.test(trimmed) || /^§§BLOCKQUOTE\d+§§$/.test(trimmed)) return trimmed;
+    if (/^§§CODEBLOCK\d+§§$/.test(trimmed) || /^§§BLOCKQUOTE\d+§§$/.test(trimmed) || /^§§TABLE\d+§§$/.test(trimmed)) return trimmed;
 
     const lines = trimmed.split("\n");
     if (lines.length >= 2 && lines[0].includes("|") && isTableSeparatorLine(lines[1])) {
@@ -505,12 +542,10 @@ export function renderMarkdown(text: string, sources?: readonly WebSearchCitatio
     return `<p>${trimmed.replace(/\n/g, "<br/>")}</p>`;
   }).join("");
 
-  // Restore protected blockquotes, images, code blocks, inline codes and links
+  // Restore protected blockquotes, images, tables, code blocks, inline codes and links
   html = html.replace(/§§BLOCKQUOTE(\d+)§§/g, (_m, idx) => blockquotes[Number(idx)]);
   html = html.replace(/§§IMAGE(\d+)§§/g, (_m, idx) => images[Number(idx)]);
-  html = html.replace(/§§LINK(\d+)§§/g, (_m, idx) => links[Number(idx)]);
-  html = html.replace(/§§INLINECODE(\d+)§§/g, (_m, idx) => inlineCodes[Number(idx)]);
-  html = html.replace(/§§CODEBLOCK(\d+)§§/g, (_m, idx) => codeBlocks[Number(idx)]);
+  html = html.replace(/§§TABLE(\d+)§§/g, (_m, idx) => tables[Number(idx)]);
   html = html.replace(/§§LINK(\d+)§§/g, (_m, idx) => links[Number(idx)]);
   html = html.replace(/§§INLINECODE(\d+)§§/g, (_m, idx) => inlineCodes[Number(idx)]);
   html = html.replace(/§§CODEBLOCK(\d+)§§/g, (_m, idx) => codeBlocks[Number(idx)]);

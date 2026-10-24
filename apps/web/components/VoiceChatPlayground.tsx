@@ -1314,14 +1314,14 @@ export default function VoiceChatPlayground() {
             </div>
           </div>
 
-          {/* Primary Action Button */}
-          <div className="px-3 pb-1.5 pt-2.5">
+          {/* Primary Action Button & Search */}
+          <div className="flex flex-col gap-2 px-3 pb-2 pt-2.5">
             <button
               onClick={() => {
                 handleNewConversation();
                 closeSidebarOnMobile();
               }}
-              className="flex h-[38px] w-full cursor-pointer items-center justify-between rounded-[10px] border border-white/10 bg-white/4 px-3 text-[13px] font-medium text-chat-text [transition:all_0.15s_ease]"
+              className="flex h-[38px] w-full cursor-pointer items-center justify-between rounded-[10px] border border-white/10 bg-white/4 px-3 text-[13px] font-medium text-chat-text [transition:all_0.15s_ease] hover:border-gold/30 hover:bg-white/6"
             >
               <div className="flex items-center gap-2 text-chat-text">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c5a059" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -1333,6 +1333,44 @@ export default function VoiceChatPlayground() {
               {/* No ⌘K hint on phones or touch screens. */}
               <span className="rounded-sm border border-white/10 bg-white/6 px-[5px] py-0.5 text-[10px] font-semibold text-chat-faint mobile:hidden touch:hidden">⌘K</span>
             </button>
+
+            {/* Conversation Search Bar - Always visible */}
+            <div className="relative w-full">
+              <input
+                type="text"
+                value={conversationSearch}
+                onChange={(e) => setConversationSearch(e.target.value)}
+                placeholder="Sohbetlerde ara..."
+                className="w-full rounded-[9px] border border-white/10 bg-black/30 py-1.5 pl-8 pr-7 text-[12px] text-chat-text placeholder:text-chat-subtle outline-none transition focus:border-gold/50 focus:bg-black/50"
+              />
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-chat-subtle"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              {conversationSearch && (
+                <button
+                  type="button"
+                  onClick={() => setConversationSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-chat-subtle hover:text-chat-text"
+                  title="Aramayı temizle"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1426,45 +1464,6 @@ export default function VoiceChatPlayground() {
               ? `${projects.find((p) => p.id === activeProjectId)?.name || "Proje"} Sohbetleri`
               : "Geçmiş Sohbetler"}
           </div>
-
-          {conversations.length > 3 && (
-            <div className="relative mb-2 mt-1 px-1">
-              <input
-                type="text"
-                value={conversationSearch}
-                onChange={(e) => setConversationSearch(e.target.value)}
-                placeholder="Sohbetlerde ara..."
-                className="w-full rounded-lg border border-white/10 bg-black/30 py-1.5 pl-7 pr-6 text-[12px] text-chat-text placeholder:text-chat-subtle outline-none transition focus:border-gold/50 focus:bg-black/50"
-              />
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-chat-subtle"
-              >
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-              {conversationSearch && (
-                <button
-                  type="button"
-                  onClick={() => setConversationSearch("")}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-chat-subtle hover:text-chat-text"
-                  title="Aramayı temizle"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
-              )}
-            </div>
-          )}
 
           {conversationsLoading ? (
             <>
@@ -1812,19 +1811,6 @@ export default function VoiceChatPlayground() {
                 <span className="mobile:hidden">.md İndir</span>
               </button>
             )}
-            <button
-              type="button"
-              onClick={handleOpenMemoryModal}
-              className="flex cursor-pointer items-center gap-1.5 rounded-full border border-white/8 bg-white/4 px-2.5 py-1 text-[12px] font-medium text-chat-muted [transition:border-color_0.15s,color_0.15s,background_0.15s] hover:border-gold/35 hover:bg-gold/10 hover:text-gold"
-              title="Alfred'in uzun süreli belleğini görüntüle ve yönet"
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <ellipse cx="12" cy="5" rx="9" ry="3" />
-                <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
-                <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
-              </svg>
-              <span className="mobile:hidden">Bellek</span>
-            </button>
 
             <div className="flex items-center gap-1.5 rounded-full border border-white/8 bg-white/4 px-2.5 py-1 text-[12px] text-chat-muted">
               <span className={cx(

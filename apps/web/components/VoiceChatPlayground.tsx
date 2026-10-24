@@ -2143,7 +2143,7 @@ export default function VoiceChatPlayground() {
 
         {/* Floating Bottom Input Dock */}
         <div className="pointer-events-none absolute bottom-0 left-0 right-0 flex flex-col items-center bg-[linear-gradient(180deg,rgba(33,33,33,0)_0%,rgba(33,33,33,0.95)_25%,#212121_100%)] px-5 pb-[calc(20px+env(safe-area-inset-bottom,0px))] pt-4 mobile:px-2.5 mobile:pb-[calc(10px+env(safe-area-inset-bottom,0px))] mobile:pt-2.5">
-          <div className="pointer-events-auto flex w-full items-end gap-2.5 rounded-[26px] border border-white/12 bg-chat-surface py-2.5 pl-5 pr-3.5 shadow-[0_10px_30px_rgba(0,0,0,0.4)]">
+          <div className="pointer-events-auto flex w-full items-end gap-2.5 rounded-[26px] border border-white/12 bg-chat-surface py-2.5 pl-5 pr-3.5 shadow-[0_10px_30px_rgba(0,0,0,0.4)] mobile:flex-col mobile:items-stretch mobile:gap-2 mobile:rounded-[22px] mobile:p-3 mobile:shadow-[0_8px_24px_rgba(0,0,0,0.45)]">
             {/* 16px on phones stops iOS Safari from zooming in when the composer is focused. */}
             <textarea
               id="chat-message-input"
@@ -2155,51 +2155,58 @@ export default function VoiceChatPlayground() {
               onKeyDown={handleKeyDown}
               rows={1}
               placeholder="Alfred'e mesaj yazın..."
-              className="max-h-[160px] min-h-[24px] min-w-0 flex-1 resize-none border-none bg-transparent px-0 py-1.5 text-[15px] leading-normal text-chat-text outline-hidden placeholder:text-[#757575] mobile:text-[16px]"
+              className="max-h-[160px] min-h-[24px] min-w-0 flex-1 resize-none border-none bg-transparent px-0 py-1.5 text-[15px] leading-relaxed text-chat-text outline-hidden placeholder:text-[#757575] mobile:max-h-[180px] mobile:w-full mobile:px-1 mobile:text-[16px] mobile:leading-normal"
             />
 
-            <button
-              onClick={toggleRecording}
-              className={cx(
-                "mb-0.5 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border-none text-[17px] [transition:background_0.15s,color_0.15s]",
-                isRecording ? "animate-alfred-pulse-fast bg-danger text-white" : "bg-transparent text-chat-muted"
-              )}
-              title="Sesli Konuşma"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                <line x1="12" y1="19" x2="12" y2="23" />
-                <line x1="8" y1="23" x2="16" y2="23" />
-              </svg>
-            </button>
-
-            {isBusy ? (
+            <div className="flex shrink-0 items-center gap-1.5 mobile:w-full mobile:items-center mobile:justify-between mobile:pt-1">
               <button
-                onClick={handleStopStreaming}
-                className="mb-0.5 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border-none bg-transparent text-danger [transition:background_0.15s,color_0.15s]"
-                title="Durdur"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="4" y="4" width="16" height="16" rx="2" />
-                </svg>
-              </button>
-            ) : (
-              <button
-                onClick={() => handleSendMessage()}
-                disabled={!inputText.trim()}
+                type="button"
+                onClick={toggleRecording}
                 className={cx(
-                  "mb-0.5 flex h-9 w-9 items-center justify-center rounded-full border-none bg-transparent [transition:all_0.15s_ease]",
-                  inputText.trim() ? "cursor-pointer text-chat-text" : "cursor-not-allowed text-chat-faint"
+                  "flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border-none text-[17px] [transition:background_0.15s,color_0.15s]",
+                  isRecording ? "animate-alfred-pulse-fast bg-danger text-white" : "bg-transparent text-chat-muted hover:bg-white/6 hover:text-chat-text"
                 )}
-                title="Gönder"
+                title="Sesli Konuşma"
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="12" y1="19" x2="12" y2="5" />
-                  <polyline points="5 12 12 5 19 12" />
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                  <line x1="12" y1="19" x2="12" y2="23" />
+                  <line x1="8" y1="23" x2="16" y2="23" />
                 </svg>
               </button>
-            )}
+
+              {isBusy ? (
+                <button
+                  type="button"
+                  onClick={handleStopStreaming}
+                  className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border-none bg-danger/15 text-danger [transition:background_0.15s,color_0.15s] hover:bg-danger/25"
+                  title="Durdur"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="4" y="4" width="16" height="16" rx="2" />
+                  </svg>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleSendMessage()}
+                  disabled={!inputText.trim()}
+                  className={cx(
+                    "flex h-9 w-9 items-center justify-center rounded-full border-none [transition:all_0.15s_ease]",
+                    inputText.trim()
+                      ? "cursor-pointer bg-gold text-chat-ink shadow-[0_2px_8px_rgba(197,160,89,0.35)] hover:bg-gold-light"
+                      : "cursor-not-allowed bg-transparent text-chat-faint"
+                  )}
+                  title="Gönder"
+                >
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="19" x2="12" y2="5" />
+                    <polyline points="5 12 12 5 19 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
 
           <p className="pointer-events-auto mt-2 text-center text-[11px] text-chat-faint mobile:hidden">

@@ -49,6 +49,8 @@ interface Message {
   providerNotice?: string;
   /** Bu turda calistirilan araclar (`web_search`, `get_current_time`). */
   usedTools?: string[];
+  /** Araclarin anlik durumu: calisiyor, basarili veya hata. */
+  toolStatuses?: Record<string, "running" | "success" | "error">;
   /** Web aramasindan donen kaynaklar (baslik + URL). */
   sources?: WebSearchCitationSource[];
 }
@@ -951,6 +953,7 @@ export default function VoiceChatPlayground() {
     let accumulatedText = "";
     const searchSources: WebSearchCitationSource[] = [];
     const usedTools: string[] = [];
+    const toolStatuses: Record<string, "running" | "success" | "error"> = {};
 
     try {
       const selectedOption = selectedModelId
@@ -1008,6 +1011,7 @@ export default function VoiceChatPlayground() {
             accumulatedText = "";
             for (const tName of extractToolNames(event)) {
               if (!usedTools.includes(tName)) usedTools.push(tName);
+              if (!toolStatuses[tName]) toolStatuses[tName] = "running";
             }
             const status = toolStatusText(event);
             setState("Thinking");
@@ -1016,14 +1020,21 @@ export default function VoiceChatPlayground() {
               isThinking: true,
               rateLimitUntil: undefined,
               usedTools: [...usedTools],
+              toolStatuses: { ...toolStatuses },
               ...(status ? { providerNotice: status } : {})
             });
             break;
           }
           case "tool_result": {
             accumulatedText = "";
-            if (typeof event.tool === "string" && event.tool && !usedTools.includes(event.tool)) {
-              usedTools.push(event.tool);
+            if (typeof event.tool === "string" && event.tool) {
+              if (!usedTools.includes(event.tool)) usedTools.push(event.tool);
+              const isErr = Boolean(
+                event.result &&
+                typeof event.result === "object" &&
+                (event.result as { error?: unknown }).error
+              );
+              toolStatuses[event.tool] = isErr ? "error" : "success";
             }
             if (event.tool === "web_search" && event.result && typeof event.result === "object") {
               const items = (event.result as { results?: unknown }).results;
@@ -1045,6 +1056,7 @@ export default function VoiceChatPlayground() {
               rateLimitUntil: undefined,
               providerNotice: undefined,
               usedTools: [...usedTools],
+              toolStatuses: { ...toolStatuses },
               sources: searchSources.length > 0 ? [...searchSources] : undefined
             });
             break;
@@ -1087,10 +1099,22 @@ export default function VoiceChatPlayground() {
             break;
           }
           case "done": {
+            for (const tName of usedTools) {
+              if (!toolStatuses[tName] || toolStatuses[tName] === "running") {
+                toolStatuses[tName] = "success";
+              }
+            }
             const finalText = searchSources.length > 0
               ? linkCitationsInText(accumulatedText, searchSources)
               : accumulatedText;
-            updateAssistant({ text: finalText || "*(Yanıt boş)*", isThinking: false, rateLimitUntil: undefined, providerNotice: undefined });
+            updateAssistant({
+              text: finalText || "*(Yanıt boş)*",
+              isThinking: false,
+              rateLimitUntil: undefined,
+              providerNotice: undefined,
+              usedTools: [...usedTools],
+              toolStatuses: { ...toolStatuses }
+            });
             finishTurn();
             break;
           }
@@ -1145,11 +1169,18 @@ export default function VoiceChatPlayground() {
         }
         // Groq sinirinda sunucunun kisa mesaji balonda da gosterilir.
         const rateLimited = err instanceof ChatStreamError && err.code === "rate_limited";
+        for (const tName of usedTools) {
+          if (!toolStatuses[tName] || toolStatuses[tName] === "running") {
+            toolStatuses[tName] = "error";
+          }
+        }
         updateAssistant({
           text: accumulatedText || (rateLimited ? msg : "İletişim sırasında bir hata oluştu."),
           isThinking: false,
           rateLimitUntil: undefined,
-          providerNotice: undefined
+          providerNotice: undefined,
+          usedTools: [...usedTools],
+          toolStatuses: { ...toolStatuses }
         });
       }
     } finally {
@@ -1828,35 +1859,46 @@ export default function VoiceChatPlayground() {
                       <span className="font-normal text-chat-faint">{msg.timestamp}</span>
                       {msg.usedTools && msg.usedTools.length > 0 && (
                         <div className="flex flex-wrap items-center gap-1.5">
-                          {msg.usedTools.map((toolName) => (
-                            <span
-                              key={toolName}
-                              className="inline-flex items-center gap-1 rounded-full border border-gold/30 bg-gold/10 px-2 py-0.5 text-[10.5px] font-medium text-gold"
-                            >
-                              {toolName === "web_search" ? (
-                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <circle cx="12" cy="12" r="10" />
-                                  <line x1="2" y1="12" x2="22" y2="12" />
-                                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-                                </svg>
-                              ) : toolName === "read_url" ? (
-                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                                </svg>
-                              ) : toolName === "github" ? (
-                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" />
-                                </svg>
-                              ) : (
-                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <circle cx="12" cy="12" r="10" />
-                                  <polyline points="12 6 12 12 16 14" />
-                                </svg>
-                              )}
-                              <span>{toolBadgeLabel(toolName)}</span>
-                            </span>
-                          ))}
+                          {msg.usedTools.map((toolName) => {
+                            const status = msg.toolStatuses?.[toolName] ?? (msg.isThinking ? "running" : "success");
+                            return (
+                              <span
+                                key={toolName}
+                                className={cx(
+                                  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px] font-medium transition-colors",
+                                  status === "error"
+                                    ? "border-rose-500/35 bg-rose-500/10 text-rose-300"
+                                    : status === "running"
+                                    ? "border-gold/30 bg-gold/10 text-gold"
+                                    : "border-emerald-500/35 bg-emerald-500/10 text-emerald-300"
+                                )}
+                                title={
+                                  status === "error"
+                                    ? `${toolBadgeLabel(toolName)} (Hata)`
+                                    : status === "running"
+                                    ? `${toolBadgeLabel(toolName)} (Çalışıyor...)`
+                                    : `${toolBadgeLabel(toolName)} (Başarılı)`
+                                }
+                              >
+                                {status === "error" ? (
+                                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-rose-400">
+                                    <line x1="18" y1="6" x2="6" y2="18" />
+                                    <line x1="6" y1="6" x2="18" y2="18" />
+                                  </svg>
+                                ) : status === "running" ? (
+                                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-pulse text-gold">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <polyline points="12 6 12 12 16 14" />
+                                  </svg>
+                                ) : (
+                                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-400">
+                                    <polyline points="20 6 9 17 4 12" />
+                                  </svg>
+                                )}
+                                <span>{toolBadgeLabel(toolName)}</span>
+                              </span>
+                            );
+                          })}
                         </div>
                       )}
                     </div>

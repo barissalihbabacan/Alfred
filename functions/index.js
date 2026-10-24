@@ -24,6 +24,10 @@ import {
   createGoogleTasksTool
 } from "../src/ai/tools/google/tasks.js";
 import {
+  GMAIL_TOOL_DEFINITION,
+  createGmailTool
+} from "../src/ai/tools/google/gmail.js";
+import {
   buildGoogleAuthUrl,
   exchangeCodeForTokens,
   refreshAccessToken,
@@ -1198,7 +1202,8 @@ export const api = onRequest({
           readUrlAvailable: true,
           githubAvailable: true,
           googleCalendarAvailable: googleConnected,
-          googleTasksAvailable: googleConnected
+          googleTasksAvailable: googleConnected,
+          gmailAvailable: googleConnected
         })
       },
       ...boundedHistory,
@@ -1355,7 +1360,7 @@ export const api = onRequest({
     // sunucu erisiminin henuz bagli olmadigini soyluyor.
     // web_search yalnizca Tavily anahtari varsa sunulur; persona da buna gore
     // kurulur (buildMessagesFor), sunulmayan bir araci vaat etmez.
-    const activeTools = [TIME_TOOL_DEFINITION, READ_URL_TOOL_DEFINITION, GITHUB_TOOL_DEFINITION, ...(googleConnected ? [GOOGLE_CALENDAR_TOOL_DEFINITION, GOOGLE_TASKS_TOOL_DEFINITION] : []), ...(webSearchEnabled ? [WEB_SEARCH_TOOL_DEFINITION] : [])];
+    const activeTools = [TIME_TOOL_DEFINITION, READ_URL_TOOL_DEFINITION, GITHUB_TOOL_DEFINITION, ...(googleConnected ? [GOOGLE_CALENDAR_TOOL_DEFINITION, GOOGLE_TASKS_TOOL_DEFINITION, GMAIL_TOOL_DEFINITION] : []), ...(webSearchEnabled ? [WEB_SEARCH_TOOL_DEFINITION] : [])];
     const MAX_TURNS = 3;
     // Tur basina bir arama oturumu: ayni sorgu tekrar aranmaz, en fazla 1 arama;
     // yedek saglayiciya gecilince tur bastan baslasa da yeni kredi harcanmaz.
@@ -1383,6 +1388,10 @@ export const api = onRequest({
       getAccessToken: getGoogleAccessToken,
       fetchFn: (url, init) => fetch(url, init)
     });
+    const googleGmail = createGmailTool({
+      getAccessToken: getGoogleAccessToken,
+      fetchFn: (url, init) => fetch(url, init)
+    });
 
     const runTool = async (fnName, fnArgs) => {
       if (fnName === "get_current_time") {
@@ -1396,6 +1405,10 @@ export const api = onRequest({
       if (fnName === "google_tasks") {
         usedToolsSet.add("google_tasks");
         return googleTasks(fnArgs);
+      }
+      if (fnName === "gmail") {
+        usedToolsSet.add("gmail");
+        return googleGmail(fnArgs);
       }
       if (fnName === "web_search" && webSearch) {
         usedToolsSet.add("web_search");

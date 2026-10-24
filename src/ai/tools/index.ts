@@ -11,3 +11,4 @@ export * from "./github/github.js";
 export * from "./google/google-auth.js";
 export * from "./google/calendar.js";
 export * from "./google/tasks.js";
+export * from "./google/gmail.js";

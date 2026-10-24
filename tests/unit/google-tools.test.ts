@@ -13,6 +13,10 @@ import {
   GOOGLE_TASKS_TOOL_DEFINITION,
   createGoogleTasksTool
 } from "../../src/ai/tools/google/tasks.js";
+import {
+  GMAIL_TOOL_DEFINITION,
+  createGmailTool
+} from "../../src/ai/tools/google/gmail.js";
 
 describe("Google Auth Helper", () => {
   it("builds correct OAuth URL with offline access and prompt=consent", () => {
@@ -188,5 +192,127 @@ describe("Google Tasks Tool", () => {
     const res = (await tool({ action: "create_task", title: "Test görevi" })) as { status: string; id: string };
     expect(res.status).toBe("created");
     expect(res.id).toBe("t_created");
+  });
+});
+
+describe("Gmail Tool", () => {
+  it("has valid tool definition", () => {
+    expect(GMAIL_TOOL_DEFINITION.type).toBe("function");
+    expect(GMAIL_TOOL_DEFINITION.function.name).toBe("gmail");
+    expect(GMAIL_TOOL_DEFINITION.function.parameters.required).toContain("action");
+  });
+
+  it("returns error if not connected (no accessToken)", async () => {
+    const tool = createGmailTool({
+      getAccessToken: async () => null
+    });
+    const res = (await tool({ action: "list_messages" })) as { error?: string };
+    expect(res.error).toContain("Google hesabı bağlı değil");
+  });
+
+  it("handles 403 insufficient scope gracefully", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      text: async () => "ACCESS_TOKEN_SCOPE_INSUFFICIENT"
+    });
+
+    const tool = createGmailTool({
+      getAccessToken: async () => "token_123",
+      fetchFn: mockFetch as unknown as typeof fetch
+    });
+
+    const res = (await tool({ action: "list_messages" })) as { error?: string };
+    expect(res.error).toContain("Gmail okuma izni (gmail.readonly) henüz onaylanmamış");
+  });
+
+  it("lists messages and retrieves metadata summaries", async () => {
+    const mockFetch = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes("/messages?")) {
+        return {
+          ok: true,
+          json: async () => ({
+            messages: [{ id: "m_1", threadId: "th_1" }]
+          })
+        };
+      }
+      if (url.includes("/messages/m_1?format=metadata")) {
+        return {
+          ok: true,
+          json: async () => ({
+            id: "m_1",
+            threadId: "th_1",
+            snippet: "Yarınki toplantı saat 10:00'da yapılacak.",
+            payload: {
+              headers: [
+                { name: "From", value: "Ahmet Yılmaz <ahmet@example.com>" },
+                { name: "Subject", value: "Haftalık Senkronizasyon" },
+                { name: "Date", value: "Sat, 24 Oct 2026 14:00:00 +0300" }
+              ]
+            }
+          })
+        };
+      }
+      return { ok: false, status: 404 };
+    });
+
+    const tool = createGmailTool({
+      getAccessToken: async () => "token_123",
+      fetchFn: mockFetch as unknown as typeof fetch
+    });
+
+    const res = (await tool({ action: "list_messages" })) as {
+      total: number;
+      messages: Array<{ id: string; subject: string; from: string; snippet: string }>;
+    };
+
+    expect(res.total).toBe(1);
+    expect(res.messages[0].subject).toBe("Haftalık Senkronizasyon");
+    expect(res.messages[0].from).toContain("ahmet@example.com");
+    expect(res.messages[0].snippet).toContain("saat 10:00'da");
+  });
+
+  it("gets full message with decoded plain text body", async () => {
+    const sampleBody = "Merhaba Barış, proje teslim tarihi haftaya ertelendi.";
+    const base64Body = Buffer.from(sampleBody, "utf-8").toString("base64url");
+
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: "m_detail_1",
+        threadId: "th_1",
+        snippet: "Merhaba Barış...",
+        payload: {
+          mimeType: "multipart/alternative",
+          headers: [
+            { name: "From", value: "can@example.com" },
+            { name: "To", value: "owner@example.invalid" },
+            { name: "Subject", value: "Proje Durumu" },
+            { name: "Date", value: "Sat, 24 Oct 2026 15:30:00 +0300" }
+          ],
+          parts: [
+            {
+              mimeType: "text/plain",
+              body: { data: base64Body }
+            }
+          ]
+        }
+      })
+    });
+
+    const tool = createGmailTool({
+      getAccessToken: async () => "token_123",
+      fetchFn: mockFetch as unknown as typeof fetch
+    });
+
+    const res = (await tool({ action: "get_message", messageId: "m_detail_1" })) as {
+      status: string;
+      message: { id: string; subject: string; from: string; to: string; body: string };
+    };
+
+    expect(res.status).toBe("success");
+    expect(res.message.subject).toBe("Proje Durumu");
+    expect(res.message.from).toBe("can@example.com");
+    expect(res.message.body).toBe(sampleBody);
   });
 });

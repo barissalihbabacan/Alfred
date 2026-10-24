@@ -97,6 +97,10 @@ const GOOGLE_CALENDAR_TOOL_RULES = `
 const GOOGLE_TASKS_TOOL_RULES = `
 - \`google_tasks\`: access to Barış's Google Tasks to list pending tasks, create todo items, or mark tasks as completed.`;
 
+/** gmail rules. */
+const GMAIL_TOOL_RULES = `
+- \`gmail\`: read-only access to Barış's Gmail account to search/list emails (\`list_messages\`) or inspect a specific email's body (\`get_message\`). Summarize key points succinctly and respect privacy; never dump raw headers or unformatted content.`;
+
 /**
  * Capability boundaries and tool-use rules.
  */
@@ -107,7 +111,8 @@ export function describeCapabilitiesAndTools(
   readUrlAvailable = false,
   githubAvailable = false,
   googleCalendarAvailable = false,
-  googleTasksAvailable = false
+  googleTasksAvailable = false,
+  gmailAvailable = false
 ): string {
   if (sshAvailable) {
     const tools = "get_current_time, ssh_connect, ssh_list_directory, ssh_execute";
@@ -122,19 +127,20 @@ ${SSH_CAPABILITY_AND_TOOL_RULES}`;
   if (githubAvailable) toolList.push("github");
   if (googleCalendarAvailable) toolList.push("google_calendar");
   if (googleTasksAvailable) toolList.push("google_tasks");
+  if (gmailAvailable) toolList.push("gmail");
   const tools = toolList.join(", ");
 
   const notConnected = [
     "access to Barış's servers over SSH",
     "local file access"
   ];
-  if (!googleCalendarAvailable && !googleTasksAvailable) {
+  if (!googleCalendarAvailable && !googleTasksAvailable && !gmailAvailable) {
     notConnected.push(webSearchAvailable ? "Google Calendar and Gmail" : "Google Calendar, Gmail, and external web search");
   } else {
     if (!webSearchAvailable) notConnected.push("external web search");
     if (!googleCalendarAvailable) notConnected.push("Google Calendar");
     if (!googleTasksAvailable) notConnected.push("Google Tasks");
-    notConnected.push("Gmail");
+    if (!gmailAvailable) notConnected.push("Gmail");
   }
 
   let rules = "";
@@ -143,6 +149,7 @@ ${SSH_CAPABILITY_AND_TOOL_RULES}`;
   if (githubAvailable) rules += GITHUB_TOOL_RULES;
   if (googleCalendarAvailable) rules += GOOGLE_CALENDAR_TOOL_RULES;
   if (googleTasksAvailable) rules += GOOGLE_TASKS_TOOL_RULES;
+  if (gmailAvailable) rules += GMAIL_TOOL_RULES;
 
   const countWord =
     toolList.length === 1
@@ -169,7 +176,8 @@ export function buildAlfredPersonaPrompt(
   readUrlAvailable = false,
   githubAvailable = false,
   googleCalendarAvailable = false,
-  googleTasksAvailable = false
+  googleTasksAvailable = false,
+  gmailAvailable = false
 ): string {
   return `You are Alfred, Barış's personal AI assistant and software engineering partner.
 
@@ -182,7 +190,7 @@ FORMATTING:
 - Conversation stays prose. Use a short list only for several parallel items or steps, **bold** sparingly for key terms, and code blocks (with a language) for code, commands and file paths.
 - In Turkish responses, write source citations as [Kaynak](url) or cite the site name (e.g. [anthropic.com](url)), never the English word "source".
 
-${describeCapabilitiesAndTools(runtime, sshAvailable, webSearchAvailable, readUrlAvailable, githubAvailable, googleCalendarAvailable, googleTasksAvailable)}
+${describeCapabilitiesAndTools(runtime, sshAvailable, webSearchAvailable, readUrlAvailable, githubAvailable, googleCalendarAvailable, googleTasksAvailable, gmailAvailable)}
 - Never claim you executed, checked, or verified anything unless an actual tool invocation occurred.`;
 }
 
@@ -335,6 +343,8 @@ export interface BuildAlfredSystemPromptOptions {
   googleCalendarAvailable?: boolean;
   /** Describe the google_tasks tool. */
   googleTasksAvailable?: boolean;
+  /** Describe the gmail tool. */
+  gmailAvailable?: boolean;
 }
 
 /**
@@ -351,7 +361,8 @@ export function buildAlfredSystemPrompt(options: BuildAlfredSystemPromptOptions 
       options.readUrlAvailable ?? false,
       options.githubAvailable ?? false,
       options.googleCalendarAvailable ?? false,
-      options.googleTasksAvailable ?? false
+      options.googleTasksAvailable ?? false,
+      options.gmailAvailable ?? false
     ),
     ALFRED_USER_PROFILE_BLOCK,
     buildConversationalGovernorBlock(options.runtime)

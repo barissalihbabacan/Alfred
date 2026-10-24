@@ -8,7 +8,8 @@ const TOOL_STATUS: Record<string, string> = {
   read_url: "Sayfa okunuyor…",
   github: "GitHub inceleniyor…",
   google_calendar: "Takvim inceleniyor…",
-  google_tasks: "Görevler güncelleniyor…"
+  google_tasks: "Görevler güncelleniyor…",
+  gmail: "E-postalar taranıyor…"
 };
 
 const TOOL_BADGE_LABELS: Record<string, string> = {
@@ -17,6 +18,7 @@ const TOOL_BADGE_LABELS: Record<string, string> = {
   github: "GitHub",
   google_calendar: "Google Takvim",
   google_tasks: "Google Görevler",
+  gmail: "Gmail",
   get_current_time: "Sistem Zamanı"
 };
 

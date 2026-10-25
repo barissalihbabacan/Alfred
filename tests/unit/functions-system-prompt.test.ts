@@ -236,7 +236,16 @@ describe("3. capability line matches what production runs", () => {
   });
 
   it("the SSH allow-list text (when enabled) is exactly the ssh_execute enum", () => {
-    const allowed = ["list_directory", "disk_usage", "current_directory", "identity", "system_info"];
+    const allowed = [
+      "list_directory",
+      "disk_usage",
+      "current_directory",
+      "identity",
+      "system_info",
+      "docker_ps",
+      "docker_logs",
+      "docker_restart"
+    ];
     expect(SSH_EXECUTE_TOOL_DEFINITION.function.parameters.properties.command.enum).toEqual(allowed);
     expect(SSH_EXECUTE_TOOL_DEFINITION.function.description).toContain(
       `Permitted commands: ${allowed.map((c) => `'${c}'`).join(", ")}.`
@@ -244,7 +253,7 @@ describe("3. capability line matches what production runs", () => {
     expect([SSH_CONNECT_TOOL_DEFINITION, SSH_LIST_DIRECTORY_TOOL_DEFINITION, SSH_EXECUTE_TOOL_DEFINITION].map((d) => d.function.name))
       .toEqual(["ssh_connect", "ssh_list_directory", "ssh_execute"]);
     expect(buildAlfredPersonaPrompt(GROQ, true)).toContain(
-      "You may execute `ssh_execute` exclusively for five controlled commands: `list_directory`, `disk_usage`, `current_directory`, `identity`, and `system_info`."
+      "You may execute `ssh_execute` exclusively for eight controlled commands: `list_directory`, `disk_usage`, `current_directory`, `identity`, `system_info`, `docker_ps`, `docker_logs`, and `docker_restart`."
     );
   });
 

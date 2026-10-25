@@ -11,12 +11,18 @@ export type AllowedSSHCommand =
   | "disk_usage"
   | "current_directory"
   | "identity"
-  | "system_info";
+  | "system_info"
+  | "docker_ps"
+  | "docker_logs"
+  | "docker_restart";
 
 export const ALLOWED_SSH_COMMANDS: readonly AllowedSSHCommand[] = [
   "list_directory",
   "disk_usage",
   "current_directory",
   "identity",
-  "system_info"
+  "system_info",
+  "docker_ps",
+  "docker_logs",
+  "docker_restart"
 ] as const;

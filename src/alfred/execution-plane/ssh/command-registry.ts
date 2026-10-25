@@ -36,6 +36,9 @@ export interface SSHCommandResultMap {
   current_directory: { host: string; command: "current_directory"; currentDirectory: string };
   identity: { host: string; command: "identity"; user: string };
   system_info: { host: string; command: "system_info"; systemInfo: string };
+  docker_ps: { host: string; command: "docker_ps"; output: string };
+  docker_logs: { host: string; command: "docker_logs"; container: string; logs: string };
+  docker_restart: { host: string; command: "docker_restart"; container: string; output: string };
 }
 
 /** Structured output of any whitelisted command. */
@@ -267,6 +270,118 @@ export class CommandRegistry {
           host,
           command: "system_info",
           systemInfo: stdout.trim()
+        };
+      }
+    });
+
+    const SAFE_CONTAINER_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{1,63}$/;
+
+    // 6. docker_ps
+    CommandRegistry.register<{ all?: boolean }>({
+      name: "docker_ps",
+      description: "Reports Docker containers status via `docker ps`.",
+      validateArgs: (rawArgs: unknown) => {
+        let all = false;
+        if (rawArgs && typeof rawArgs === "object" && !Array.isArray(rawArgs)) {
+          const cast = rawArgs as Record<string, unknown>;
+          if (typeof cast.all === "boolean") {
+            all = cast.all;
+          }
+        }
+        return { valid: true, parsedArgs: { all } };
+      },
+      buildCommand: (args: { all?: boolean }) => {
+        return args?.all
+          ? "LC_ALL=C docker ps -a --format 'table {{.Names}}\\t{{.Status}}\\t{{.Ports}}'"
+          : "LC_ALL=C docker ps --format 'table {{.Names}}\\t{{.Status}}\\t{{.Ports}}'";
+      },
+      parseOutput: (stdout, stderr, exitCode, _args, host) => {
+        if (exitCode !== 0) {
+          throw new Error(`Command 'docker_ps' failed: ${stderr.trim() || stdout.trim()}`);
+        }
+        return {
+          host,
+          command: "docker_ps",
+          output: stdout.trim()
+        };
+      }
+    });
+
+    // 7. docker_logs
+    CommandRegistry.register<{ container: string; lines: number }>({
+      name: "docker_logs",
+      description: "Retrieves recent stdout/stderr logs of a Docker container.",
+      validateArgs: (rawArgs: unknown) => {
+        if (!rawArgs || typeof rawArgs !== "object" || Array.isArray(rawArgs)) {
+          return {
+            valid: false,
+            error: "Arguments for 'docker_logs' must be an object with a 'container' name."
+          };
+        }
+        const cast = rawArgs as Record<string, unknown>;
+        const container = typeof cast.container === "string" ? cast.container.trim() : "";
+        if (!container || !SAFE_CONTAINER_REGEX.test(container)) {
+          return {
+            valid: false,
+            error: `Invalid container name '${container}'. Must be 2-64 alphanumeric characters, dots, underscores or dashes.`
+          };
+        }
+        let lines = 50;
+        if (typeof cast.lines === "number" && Number.isInteger(cast.lines) && cast.lines > 0) {
+          lines = Math.min(cast.lines, 500);
+        }
+        return { valid: true, parsedArgs: { container, lines } };
+      },
+      buildCommand: (args: { container: string; lines: number }) => {
+        return `LC_ALL=C docker logs --tail ${args.lines} ${escapeShellArg(args.container)}`;
+      },
+      parseOutput: (stdout, stderr, exitCode, args, host) => {
+        if (exitCode !== 0) {
+          throw new Error(`Command 'docker_logs' failed: ${stderr.trim() || stdout.trim()}`);
+        }
+        const fullLogs = (stdout + (stderr ? "\n" + stderr : "")).trim();
+        return {
+          host,
+          command: "docker_logs",
+          container: args.container,
+          logs: fullLogs
+        };
+      }
+    });
+
+    // 8. docker_restart
+    CommandRegistry.register<{ container: string }>({
+      name: "docker_restart",
+      description: "Restarts a specified Docker container safely.",
+      validateArgs: (rawArgs: unknown) => {
+        if (!rawArgs || typeof rawArgs !== "object" || Array.isArray(rawArgs)) {
+          return {
+            valid: false,
+            error: "Arguments for 'docker_restart' must be an object with a 'container' name."
+          };
+        }
+        const cast = rawArgs as Record<string, unknown>;
+        const container = typeof cast.container === "string" ? cast.container.trim() : "";
+        if (!container || !SAFE_CONTAINER_REGEX.test(container)) {
+          return {
+            valid: false,
+            error: `Invalid container name '${container}'. Must be 2-64 alphanumeric characters, dots, underscores or dashes.`
+          };
+        }
+        return { valid: true, parsedArgs: { container } };
+      },
+      buildCommand: (args: { container: string }) => {
+        return `LC_ALL=C docker restart ${escapeShellArg(args.container)}`;
+      },
+      parseOutput: (stdout, stderr, exitCode, args, host) => {
+        if (exitCode !== 0) {
+          throw new Error(`Command 'docker_restart' failed: ${stderr.trim() || stdout.trim()}`);
+        }
+        return {
+          host,
+          command: "docker_restart",
+          container: args.container,
+          output: stdout.trim()
         };
       }
     });

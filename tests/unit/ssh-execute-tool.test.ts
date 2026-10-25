@@ -39,19 +39,43 @@ describe("SSHExecuteTool Unit Suite", () => {
         "disk_usage",
         "current_directory",
         "identity",
-        "system_info"
+        "system_info",
+        "docker_ps",
+        "docker_logs",
+        "docker_restart"
       ]);
       expect(props.args.type).toBe("object");
     });
   });
 
   describe("Command Whitelist Validation & Shell Injection Rejection", () => {
-    it("accepts all 5 strictly whitelisted commands", () => {
-      const allowed = ["list_directory", "disk_usage", "current_directory", "identity", "system_info"];
+    it("accepts all strictly whitelisted commands", () => {
+      const allowed = [
+        "list_directory",
+        "disk_usage",
+        "current_directory",
+        "identity",
+        "system_info",
+        "docker_ps"
+      ];
       for (const cmd of allowed) {
         const val = tool.validateArgs({ host: "home-server", command: cmd });
         expect(val.valid).toBe(true);
       }
+      // docker_logs and docker_restart require container name
+      const logsVal = tool.validateArgs({
+        host: "home-server",
+        command: "docker_logs",
+        args: { container: "jellyfin" }
+      });
+      expect(logsVal.valid).toBe(true);
+
+      const restartVal = tool.validateArgs({
+        host: "home-server",
+        command: "docker_restart",
+        args: { container: "n8n" }
+      });
+      expect(restartVal.valid).toBe(true);
     });
 
     it("rejects dangerous destructive commands before reaching SSH layer", () => {
@@ -131,7 +155,7 @@ describe("SSHExecuteTool Unit Suite", () => {
     });
 
     it("uses production's text for a missing, non-string or padded command", () => {
-      const allowed = "list_directory, disk_usage, current_directory, identity, system_info";
+      const allowed = "list_directory, disk_usage, current_directory, identity, system_info, docker_ps, docker_logs, docker_restart";
       for (const [command, shown] of [
         [undefined, "undefined"],
         [null, "null"],
@@ -255,6 +279,108 @@ describe("SSHExecuteTool Unit Suite", () => {
       expect(result.command).toBe("system_info");
       expect(result.systemInfo).toContain("Linux");
       expect(mockClient.execCalls).toEqual(["uname -a"]);
+    });
+
+    it("executes docker_ps returning container status list", async () => {
+      const result = await tool.execute({
+        host: "home-server",
+        command: "docker_ps",
+        args: { all: true }
+      });
+
+      expect(result.host).toBe("home-server");
+      expect(result.command).toBe("docker_ps");
+      expect(result.output).toContain("jellyfin");
+      expect(mockClient.execCalls).toEqual(["LC_ALL=C docker ps -a --format 'table {{.Names}}\\t{{.Status}}\\t{{.Ports}}'"]);
+    });
+
+    it("executes docker_logs returning logs for specified container", async () => {
+      const result = await tool.execute({
+        host: "home-server",
+        command: "docker_logs",
+        args: { container: "jellyfin", lines: 100 }
+      });
+
+      expect(result.host).toBe("home-server");
+      expect(result.command).toBe("docker_logs");
+      expect(result.container).toBe("jellyfin");
+      expect(result.logs).toContain("Server started successfully");
+      expect(mockClient.execCalls).toEqual(["LC_ALL=C docker logs --tail 100 'jellyfin'"]);
+    });
+
+    it("executes docker_restart restarting the container", async () => {
+      const result = await tool.execute({
+        host: "home-server",
+        command: "docker_restart",
+        args: { container: "n8n" }
+      });
+
+      expect(result.host).toBe("home-server");
+      expect(result.command).toBe("docker_restart");
+      expect(result.container).toBe("n8n");
+      expect(result.output).toBe("n8n");
+      expect(mockClient.execCalls).toEqual(["LC_ALL=C docker restart 'n8n'"]);
+    });
+  });
+
+  describe("Docker Command Argument Validation", () => {
+    it("validates docker_ps with optional all flag", () => {
+      const validWithoutArgs = tool.validateArgs({ host: "home-server", command: "docker_ps" });
+      expect(validWithoutArgs.valid).toBe(true);
+
+      const validWithAll = tool.validateArgs({
+        host: "home-server",
+        command: "docker_ps",
+        args: { all: true }
+      });
+      expect(validWithAll.valid).toBe(true);
+      expect(validWithAll.parsedArgs?.args).toEqual({ all: true });
+    });
+
+    it("validates docker_logs container and lines", () => {
+      const valid = tool.validateArgs({
+        host: "home-server",
+        command: "docker_logs",
+        args: { container: "jellyfin", lines: 50 }
+      });
+      expect(valid.valid).toBe(true);
+      expect(valid.parsedArgs?.args).toEqual({ container: "jellyfin", lines: 50 });
+
+      const missingContainer = tool.validateArgs({
+        host: "home-server",
+        command: "docker_logs"
+      });
+      expect(missingContainer.valid).toBe(false);
+      expect(missingContainer.error).toContain("Invalid container name");
+    });
+
+    it("rejects shell injection in container name for docker_logs and docker_restart", () => {
+      const badContainers = [
+        "jellyfin; rm -rf /",
+        "n8n && whoami",
+        "$(whoami)",
+        "`id`",
+        "container|cat",
+        "../etc",
+        "-v",
+        " "
+      ];
+
+      for (const container of badContainers) {
+        const logsResult = tool.validateArgs({
+          host: "home-server",
+          command: "docker_logs",
+          args: { container }
+        });
+        expect(logsResult.valid).toBe(false);
+
+        const restartResult = tool.validateArgs({
+          host: "home-server",
+          command: "docker_restart",
+          args: { container }
+        });
+        expect(restartResult.valid).toBe(false);
+      }
     });
   });
 

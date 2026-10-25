@@ -214,6 +214,35 @@ export class MockSSHClient implements ISSHClient {
       };
     }
 
+    // 6. docker_ps: docker ps
+    if (command.includes("docker ps")) {
+      return {
+        stdout: "NAMES               STATUS          PORTS\njellyfin            Up 3 days       0.0.0.0:8096->8096/tcp\nn8n                 Up 3 days       127.0.0.1:5678->5678/tcp\nnginx               Up 5 days       0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp\n",
+        stderr: "",
+        exitCode: 0
+      };
+    }
+
+    // 7. docker_logs: docker logs
+    if (command.includes("docker logs")) {
+      return {
+        stdout: "[INFO] Server started successfully.\n[INFO] Listening on port.\n",
+        stderr: "",
+        exitCode: 0
+      };
+    }
+
+    // 8. docker_restart: docker restart
+    if (command.includes("docker restart")) {
+      const match = command.match(/docker restart\s+['"]?([^\s'"]+)['"]?/);
+      const container = match ? match[1] : "jellyfin";
+      return {
+        stdout: `${container}\n`,
+        stderr: "",
+        exitCode: 0
+      };
+    }
+
     return {
       stdout: "",
       stderr: `bash: ${command}: command not found`,

@@ -68,7 +68,7 @@ export const SSH_EXECUTE_TOOL_DEFINITION: ToolDefinition = {
   type: "function",
   function: {
     name: SSH_EXECUTE_TOOL_NAME,
-    description: "Executes a strictly whitelisted remote command on an approved host. Permitted commands: 'list_directory', 'disk_usage', 'current_directory', 'identity', 'system_info'. Arbitrary shell execution is strictly prohibited.",
+    description: "Executes a strictly whitelisted remote command on an approved host. Permitted commands: 'list_directory', 'disk_usage', 'current_directory', 'identity', 'system_info', 'docker_ps', 'docker_logs', 'docker_restart'. Arbitrary shell execution is strictly prohibited.",
     parameters: {
       type: "object",
       properties: {
@@ -83,11 +83,23 @@ export const SSH_EXECUTE_TOOL_DEFINITION: ToolDefinition = {
         },
         args: {
           type: "object",
-          description: "Structured arguments specific to the chosen command (e.g. { path: 'Belgeler' } for 'list_directory').",
+          description: "Structured arguments specific to the chosen command (e.g. { path: 'Belgeler' } for 'list_directory', { container: 'jellyfin' } for 'docker_logs'/'docker_restart', { all: true } for 'docker_ps').",
           properties: {
             path: {
               type: "string",
               description: "Directory path within 'Belgeler/' for 'list_directory'."
+            },
+            container: {
+              type: "string",
+              description: "Container name for 'docker_logs' and 'docker_restart' (e.g. 'jellyfin', 'n8n', 'nginx')."
+            },
+            lines: {
+              type: "number",
+              description: "Number of log lines to retrieve for 'docker_logs' (default: 50)."
+            },
+            all: {
+              type: "boolean",
+              description: "Show all containers including stopped ones for 'docker_ps'."
             }
           }
         }
@@ -102,7 +114,7 @@ export interface RawSshToolArgs {
   host?: unknown;
   path?: unknown;
   command?: unknown;
-  args?: { path?: unknown } | null;
+  args?: { path?: unknown; container?: unknown; lines?: unknown; all?: unknown } | null;
 }
 
 /**

@@ -73,7 +73,7 @@ export function describeReasoningRuntime(runtime: AlfredRuntime = DEFAULT_ALFRED
 }
 
 /** SSH capability and tool rules, for a caller that really executes the ssh_* tools. */
-const SSH_CAPABILITY_AND_TOOL_RULES = `- Whitelisted SSH commands: You may execute \`ssh_execute\` exclusively for five controlled commands: \`list_directory\`, \`disk_usage\`, \`current_directory\`, \`identity\`, and \`system_info\`.
+const SSH_CAPABILITY_AND_TOOL_RULES = `- Whitelisted SSH commands: You may execute \`ssh_execute\` exclusively for eight controlled commands: \`list_directory\`, \`disk_usage\`, \`current_directory\`, \`identity\`, \`system_info\`, \`docker_ps\`, \`docker_logs\`, and \`docker_restart\`.
 - Not connected: arbitrary remote shell execution, reading/writing file contents, Google Calendar, Gmail, and external web search.
 - Tools: \`get_current_time\`, \`ssh_connect\` (host: "home-server"), \`ssh_list_directory\` (confined to the \`Belgeler/\` sandbox), and \`ssh_execute\`. If no city is given for time, ask: "Which city?".`;
 

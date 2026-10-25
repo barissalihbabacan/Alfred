@@ -108,6 +108,21 @@ export class SSHExecuteTool implements ITool<SSHExecuteArgs, SSHCommandResult> {
         };
       }
       cmdArgs = { path };
+    } else if (
+      command === "docker_ps" ||
+      command === "docker_logs" ||
+      command === "docker_restart"
+    ) {
+      if (
+        args &&
+        typeof args === "object" &&
+        "args" in args &&
+        typeof (args as { args?: unknown }).args === "object" &&
+        (args as { args?: unknown }).args !== null &&
+        !Array.isArray((args as { args?: unknown }).args)
+      ) {
+        cmdArgs = (args as { args: Record<string, unknown> }).args;
+      }
     }
 
     const argValidation = CommandRegistry.get(command)!.validateArgs(cmdArgs);

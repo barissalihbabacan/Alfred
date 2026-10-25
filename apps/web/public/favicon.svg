@@ -1,44 +1,61 @@
 <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' width='512' height='512'>
   <defs>
-    <linearGradient id='bg' x1='0%' y1='0%' x2='100%' y2='100%'>
-      <stop offset='0%' stop-color='#16233A'/>
-      <stop offset='50%' stop-color='#0E1726'/>
-      <stop offset='100%' stop-color='#080D16'/>
+    <radialGradient id='bg' cx='50%' cy='40%' r='70%'>
+      <stop offset='0%' stop-color='#1A2740'/>
+      <stop offset='60%' stop-color='#0E1726'/>
+      <stop offset='100%' stop-color='#070B12'/>
+    </radialGradient>
+    <linearGradient id='gold-frame' x1='0%' y1='0%' x2='100%' y2='100%'>
+      <stop offset='0%' stop-color='#FCE8B2'/>
+      <stop offset='35%' stop-color='#C9A45C'/>
+      <stop offset='70%' stop-color='#9E7B35'/>
+      <stop offset='100%' stop-color='#E5C77A'/>
     </linearGradient>
-    <linearGradient id='gold' x1='0%' y1='0%' x2='100%' y2='100%'>
-      <stop offset='0%' stop-color='#E5C77A'/>
-      <stop offset='50%' stop-color='#C9A45C'/>
-      <stop offset='100%' stop-color='#9E7B35'/>
-    </linearGradient>
-    <linearGradient id='gold-bright' x1='0%' y1='0%' x2='100%' y2='100%'>
-      <stop offset='0%' stop-color='#FFF2C2'/>
+    <linearGradient id='gold-bright' x1='0%' y1='0%' x2='0%' y2='100%'>
+      <stop offset='0%' stop-color='#FFF7D6'/>
+      <stop offset='50%' stop-color='#E6C678'/>
       <stop offset='100%' stop-color='#C9A45C'/>
     </linearGradient>
-    <filter id='glow' x='-20%' y='-20%' width='140%' height='140%'>
-      <feDropShadow dx='0' dy='8' stdDeviation='16' flood-color='#C9A45C' flood-opacity='0.35'/>
+    <linearGradient id='shield-fill' x1='0%' y1='0%' x2='100%' y2='100%'>
+      <stop offset='0%' stop-color='#162238' stop-opacity='0.9'/>
+      <stop offset='100%' stop-color='#0B121E' stop-opacity='0.95'/>
+    </linearGradient>
+    <filter id='badge-shadow' x='-20%' y='-20%' width='140%' height='140%'>
+      <feDropShadow dx='0' dy='12' stdDeviation='18' flood-color='#000000' flood-opacity='0.6'/>
+      <feDropShadow dx='0' dy='4' stdDeviation='8' flood-color='#C9A45C' flood-opacity='0.25'/>
     </filter>
   </defs>
 
-  <!-- Arka Plan -->
-  <rect width='512' height='512' rx='112' fill='url(#bg)'/>
-  <rect width='504' height='504' x='4' y='4' rx='108' fill='none' stroke='url(#gold)' stroke-width='3' stroke-opacity='0.4'/>
+  <!-- Tam kenara oturan arka plan (Android squircle maskesi kenarlari puruzsuz kesecektir) -->
+  <rect width='512' height='512' fill='url(#bg)'/>
 
-  <!-- Merkez Kalkan / Amblem Deseni -->
-  <g filter='url(#glow)'>
-    <!-- Altin Geometrik Sekil -->
-    <path d='M256 96 L376 166 L376 306 L256 386 L136 306 L136 166 Z' fill='none' stroke='url(#gold)' stroke-width='7' stroke-linejoin='round' opacity='0.85'/>
+  <!-- Guvenli alan icinde (Safe Zone r=204) yer alan Merkez Rozet / Kalkan -->
+  <g filter='url(#badge-shadow)'>
+    <!-- Kalkan arka plani: x: 106..406, y: 84..428 (Tamamen 64px - 448px guvenli alaninda) -->
+    <!-- Kalkan sekli: Tepe duz oval, yanlar kavisli, alt uca dogru sivrilen asil kalkan -->
+    <path d='M140 120 C140 100, 372 100, 372 120 C372 230, 370 310, 256 414 C142 310, 140 230, 140 120 Z'
+          fill='url(#shield-fill)'
+          stroke='url(#gold-frame)'
+          stroke-width='8'
+          stroke-linejoin='round'/>
 
-    <!-- 'A' Monogram & Komut Istemi Birlikteligi -->
-    <!-- Sol bacak -->
-    <path d='M192 340 L256 168' stroke='url(#gold-bright)' stroke-width='24' stroke-linecap='round'/>
-    <!-- Sag bacak -->
-    <path d='M320 340 L256 168' stroke='url(#gold-bright)' stroke-width='24' stroke-linecap='round'/>
-    <!-- Orta kopru (Chevron komut istemi motifi) -->
-    <path d='M214 274 L256 250 L298 274' fill='none' stroke='url(#gold-bright)' stroke-width='18' stroke-linecap='round' stroke-linejoin='round'/>
-    <!-- Tepe Isigi -->
-    <circle cx='256' cy='164' r='8' fill='#FFF2C2'/>
+    <!-- Ic ince vurgu hatti -->
+    <path d='M154 132 C154 118, 358 118, 358 132 C358 226, 356 298, 256 392 C156 298, 154 226, 154 132 Z'
+          fill='none'
+          stroke='url(#gold-frame)'
+          stroke-width='1.75'
+          stroke-opacity='0.45'/>
+
+    <!-- Alfred 'A' Monogrami & Komut Istemi (Prompt) Birlikteligi -->
+    <!-- Sol Bacak -->
+    <path d='M204 332 L256 168' stroke='url(#gold-bright)' stroke-width='20' stroke-linecap='round'/>
+    <!-- Sag Bacak -->
+    <path d='M308 332 L256 168' stroke='url(#gold-bright)' stroke-width='20' stroke-linecap='round'/>
+    <!-- Orta Kopru: Butler Papyon / Terminal Chevron '>' motifi -->
+    <path d='M220 270 L256 244 L292 270' fill='none' stroke='url(#gold-bright)' stroke-width='15' stroke-linecap='round' stroke-linejoin='round'/>
+
+    <!-- Tepe Isik Tacı / Asistan Yildizi -->
+    <circle cx='256' cy='164' r='7.5' fill='#FFFDF0'/>
+    <path d='M256 142 L258.5 152 L268.5 154.5 L258.5 157 L256 167 L253.5 157 L243.5 154.5 L253.5 152 Z' fill='url(#gold-bright)' opacity='0.85'/>
   </g>
-
-  <!-- Alt Metin 'ALFRED' -->
-  <text x='256' y='432' text-anchor='middle' font-family='ui-monospace, SFMono-Regular, Menlo, monospace' font-size='32' font-weight='700' letter-spacing='8' fill='#C9A45C'>ALFRED</text>
 </svg>

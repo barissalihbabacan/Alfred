@@ -1761,7 +1761,7 @@ export default function VoiceChatPlayground() {
       {/* Main Chat Area */}
       <main className="relative flex h-full min-w-0 flex-1 flex-col bg-chat-bg">
         {/* Top Bar */}
-        <header className="flex h-[52px] min-h-[52px] shrink-0 items-center justify-between border-b border-white/8 px-4 mobile:box-content mobile:pl-1 mobile:pr-2 mobile:pt-[env(safe-area-inset-top,0px)]">
+        <header className="flex h-[52px] min-h-[52px] shrink-0 items-center justify-between border-b border-white/8 bg-chat-bg px-4 mobile:box-content mobile:pl-1 mobile:pr-2 mobile:pt-[env(safe-area-inset-top,0px)]">
           <div className="flex min-w-0 items-center gap-3 mobile:gap-1.5">
             <button
               id="sidebarToggleBtn"

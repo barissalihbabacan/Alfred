@@ -4,12 +4,30 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "B.U.T.L.E.R. Alfred — Yönetici Yapay Zeka Asistanı",
   description: "Barış'ın Birleşik Görev, Mantık, Yürütme ve Muhakeme Asistanı — Yönetici Zekası",
+  manifest: "/manifest.json",
+  applicationName: "B.U.T.L.E.R. Alfred",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Alfred",
+  },
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  themeColor: "#16233A",
 };
 
 export default function RootLayout({

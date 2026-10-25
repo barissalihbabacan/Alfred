@@ -1,0 +1,44 @@
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' width='512' height='512'>
+  <defs>
+    <linearGradient id='bg' x1='0%' y1='0%' x2='100%' y2='100%'>
+      <stop offset='0%' stop-color='#16233A'/>
+      <stop offset='50%' stop-color='#0E1726'/>
+      <stop offset='100%' stop-color='#080D16'/>
+    </linearGradient>
+    <linearGradient id='gold' x1='0%' y1='0%' x2='100%' y2='100%'>
+      <stop offset='0%' stop-color='#E5C77A'/>
+      <stop offset='50%' stop-color='#C9A45C'/>
+      <stop offset='100%' stop-color='#9E7B35'/>
+    </linearGradient>
+    <linearGradient id='gold-bright' x1='0%' y1='0%' x2='100%' y2='100%'>
+      <stop offset='0%' stop-color='#FFF2C2'/>
+      <stop offset='100%' stop-color='#C9A45C'/>
+    </linearGradient>
+    <filter id='glow' x='-20%' y='-20%' width='140%' height='140%'>
+      <feDropShadow dx='0' dy='8' stdDeviation='16' flood-color='#C9A45C' flood-opacity='0.35'/>
+    </filter>
+  </defs>
+
+  <!-- Arka Plan -->
+  <rect width='512' height='512' rx='112' fill='url(#bg)'/>
+  <rect width='504' height='504' x='4' y='4' rx='108' fill='none' stroke='url(#gold)' stroke-width='3' stroke-opacity='0.4'/>
+
+  <!-- Merkez Kalkan / Amblem Deseni -->
+  <g filter='url(#glow)'>
+    <!-- Altin Geometrik Sekil -->
+    <path d='M256 96 L376 166 L376 306 L256 386 L136 306 L136 166 Z' fill='none' stroke='url(#gold)' stroke-width='7' stroke-linejoin='round' opacity='0.85'/>
+
+    <!-- 'A' Monogram & Komut Istemi Birlikteligi -->
+    <!-- Sol bacak -->
+    <path d='M192 340 L256 168' stroke='url(#gold-bright)' stroke-width='24' stroke-linecap='round'/>
+    <!-- Sag bacak -->
+    <path d='M320 340 L256 168' stroke='url(#gold-bright)' stroke-width='24' stroke-linecap='round'/>
+    <!-- Orta kopru (Chevron komut istemi motifi) -->
+    <path d='M214 274 L256 250 L298 274' fill='none' stroke='url(#gold-bright)' stroke-width='18' stroke-linecap='round' stroke-linejoin='round'/>
+    <!-- Tepe Isigi -->
+    <circle cx='256' cy='164' r='8' fill='#FFF2C2'/>
+  </g>
+
+  <!-- Alt Metin 'ALFRED' -->
+  <text x='256' y='432' text-anchor='middle' font-family='ui-monospace, SFMono-Regular, Menlo, monospace' font-size='32' font-weight='700' letter-spacing='8' fill='#C9A45C'>ALFRED</text>
+</svg>

@@ -14,6 +14,14 @@ import {
 } from "../lib/providers";
 import { linkCitationsInText, renderMarkdown, type WebSearchCitationSource } from "../lib/markdown";
 import { extractToolNames, toolBadgeLabel, toolStatusText } from "../lib/tools";
+import {
+  getNotificationPermissionState,
+  requestPushPermissionAndToken,
+  saveFcmTokenToBackend,
+  removeFcmTokenFromBackend,
+  sendTestPushNotification,
+  subscribeForegroundMessages
+} from "../lib/notifications";
 
 export type AssistantState =
   | "Idle"
@@ -301,6 +309,12 @@ export default function VoiceChatPlayground() {
   const [googleEmail, setGoogleEmail] = useState<string | null>(null);
   const [googleConnecting, setGoogleConnecting] = useState<boolean>(false);
 
+  const [notificationState, setNotificationState] = useState<NotificationPermission | "unsupported">("default");
+  const [notificationLoading, setNotificationLoading] = useState(false);
+  const [fcmToken, setFcmToken] = useState<string | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState<any>(null);
+
   const modelMenuRef = useRef<HTMLDivElement | null>(null);
   const turnSeqRef = useRef(0);
   const activeTurnRef = useRef<ActiveTurn | null>(null);
@@ -529,6 +543,90 @@ export default function VoiceChatPlayground() {
       cancelled = true;
     };
   }, []);
+
+  // PWA and FCM Push Notifications registration & foreground listener
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setNotificationState(getNotificationPermissionState());
+      const savedToken = localStorage.getItem("alfred_fcm_token");
+      if (savedToken) setFcmToken(savedToken);
+
+      const handleBeforeInstall = (e: Event) => {
+        e.preventDefault();
+        setDeferredInstallPrompt(e);
+      };
+      window.addEventListener("beforeinstallprompt", handleBeforeInstall);
+
+      let unsub: (() => void) | null = null;
+      void subscribeForegroundMessages((payload) => {
+        console.log("[Alfred Push] Foreground payload:", payload);
+      }).then((u) => {
+        unsub = u;
+      });
+
+      return () => {
+        window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
+        if (unsub) unsub();
+      };
+    }
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    const { outcome } = await deferredInstallPrompt.userChoice;
+    if (outcome === "accepted") {
+      setDeferredInstallPrompt(null);
+    }
+  };
+
+  const handleToggleNotifications = async () => {
+    if (notificationLoading) return;
+    setNotificationLoading(true);
+
+    try {
+      if (notificationState === "granted" && fcmToken) {
+        const sendTest = confirm("Bildirimler bu cihazda aktif!\n\nGalaxy cihazınıza anında bir test bildirimi göndermek istiyor musunuz?\n\n(İptal'e basarak bildirimleri bu cihazda kapatma seçeneğini görebilirsiniz)");
+        if (sendTest) {
+          const res = await sendTestPushNotification();
+          alert(res.message);
+        } else {
+          const disable = confirm("Bildirimler bu cihaz için devre dışı bırakılsın mı?");
+          if (disable) {
+            await removeFcmTokenFromBackend(fcmToken);
+            localStorage.removeItem("alfred_fcm_token");
+            setFcmToken(null);
+            setNotificationState(getNotificationPermissionState());
+            alert("Bildirim kaydı başarıyla kaldırıldı.");
+          }
+        }
+      } else {
+        const { token, error } = await requestPushPermissionAndToken();
+        if (error || !token) {
+          alert("Bildirim izni alınamadı: " + (error || "Bilinmeyen hata"));
+          setNotificationState(getNotificationPermissionState());
+          return;
+        }
+
+        await saveFcmTokenToBackend(token);
+        localStorage.setItem("alfred_fcm_token", token);
+        setFcmToken(token);
+        setNotificationState("granted");
+
+        try {
+          await sendTestPushNotification();
+        } catch (_testErr) {
+          // İlk test hatası yutulabilir
+        }
+
+        alert("Bildirimler başarıyla açıldı! Galaxy cihazınıza ilk test bildirimi gönderildi.");
+      }
+    } catch (err: unknown) {
+      alert("Hata: " + ((err as Error)?.message || String(err)));
+    } finally {
+      setNotificationLoading(false);
+    }
+  };
 
   const handleSelectModelOption = useCallback((option: ModelOption) => {
     setSelectedModelId(option.id);
@@ -1825,6 +1923,55 @@ export default function VoiceChatPlayground() {
               </button>
             )}
 
+            {deferredInstallPrompt && (
+              <button
+                type="button"
+                onClick={handleInstallApp}
+                className="flex h-7 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-gold/40 bg-gold/15 px-2.5 text-[12px] font-medium text-gold hover:bg-gold/25 mobile:w-7 mobile:px-0"
+                title="Alfred'i telefona yükle (PWA)"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                <span className="mobile:hidden">Yükle</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={handleToggleNotifications}
+              disabled={notificationLoading}
+              className={cx(
+                "flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border [transition:border-color_0.15s,color_0.15s,background_0.15s]",
+                notificationState === "granted" && fcmToken
+                  ? "border-gold/40 bg-gold/15 text-gold hover:bg-gold/25"
+                  : "border-white/8 bg-white/4 text-chat-muted hover:border-white/16 hover:bg-white/8 hover:text-chat-text"
+              )}
+              title={
+                notificationState === "granted" && fcmToken
+                  ? "Bildirimler aktif (Test için tıklayın)"
+                  : "Bildirimleri etkinleştir"
+              }
+            >
+              {notificationLoading ? (
+                <span className="h-3 w-3 animate-spin rounded-full border-2 border-gold border-t-transparent" />
+              ) : notificationState === "granted" && fcmToken ? (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                  <circle cx="18" cy="6" r="3" fill="#C9A45C" stroke="none" />
+                </svg>
+              ) : (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                  <line x1="2" y1="2" x2="22" y2="22" opacity="0.6" />
+                </svg>
+              )}
+            </button>
+
             <div
               className="flex h-7 items-center justify-center gap-1.5 rounded-full border border-white/8 bg-white/4 px-2.5 text-[12px] text-chat-muted mobile:w-7 mobile:px-0"
               title={`Durum: ${STATE_LABELS[state]}`}
@@ -2865,6 +3012,86 @@ export default function VoiceChatPlayground() {
                     className="cursor-pointer border-none bg-transparent p-0 text-[11px] text-red-400/80 hover:text-red-400 hover:underline"
                   >
                     Bağlantıyı Kaldır
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* FCM Push Notifications & PWA Row */}
+            <div className="mb-[18px] flex flex-col gap-2 rounded-[10px] border border-white/8 bg-white/3 p-3.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-col">
+                  <span className="text-[13px] font-semibold text-chat-text">Anlık Bildirimler (FCM & PWA)</span>
+                  <span className="text-[11px] text-chat-subtle">
+                    {notificationState === "granted" && fcmToken
+                      ? "Cihazınız bildirim almaya hazır"
+                      : "Görev, alarm ve arka plan bildirimleri için izni açın"}
+                  </span>
+                </div>
+                {notificationState === "granted" && fcmToken ? (
+                  <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-400">
+                    Aktif
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={notificationLoading}
+                    onClick={handleToggleNotifications}
+                    className="cursor-pointer rounded-lg border border-gold/40 bg-gold/15 px-3 py-1.5 text-[12px] font-semibold text-gold hover:bg-gold/25 disabled:opacity-50"
+                  >
+                    {notificationLoading ? "Açılıyor…" : "Bildirimleri Aç"}
+                  </button>
+                )}
+              </div>
+
+              {notificationState === "granted" && fcmToken && (
+                <div className="mt-1 flex items-center justify-between gap-2 border-t border-white/6 pt-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const res = await sendTestPushNotification();
+                        alert(res.message);
+                      } catch (err: unknown) {
+                        alert("Hata: " + ((err as Error)?.message || String(err)));
+                      }
+                    }}
+                    className="cursor-pointer rounded-md border border-white/12 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-gold hover:bg-white/10"
+                  >
+                    Test Bildirimi Gönder
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!confirm("Bildirimler bu cihaz için devre dışı bırakılsın mı?")) return;
+                      try {
+                        await removeFcmTokenFromBackend(fcmToken);
+                        localStorage.removeItem("alfred_fcm_token");
+                        setFcmToken(null);
+                        setNotificationState(getNotificationPermissionState());
+                      } catch (_err) {
+                        alert("Kaldırılamadı.");
+                      }
+                    }}
+                    className="cursor-pointer border-none bg-transparent p-0 text-[11px] text-red-400/80 hover:text-red-400 hover:underline"
+                  >
+                    Bildirimleri Kapat
+                  </button>
+                </div>
+              )}
+
+              {deferredInstallPrompt && (
+                <div className="mt-1 flex items-center justify-between rounded-lg border border-gold/30 bg-gold/10 p-2.5">
+                  <div className="flex flex-col">
+                    <span className="text-[12px] font-medium text-gold">Telefon Uygulaması (PWA)</span>
+                    <span className="text-[10px] text-chat-subtle">Ana ekranınıza tam ekran Alfred uygulamasını kurun</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleInstallApp}
+                    className="cursor-pointer rounded-lg bg-gold px-3 py-1 text-[11px] font-bold text-black hover:bg-gold-light"
+                  >
+                    Yükle
                   </button>
                 </div>
               )}

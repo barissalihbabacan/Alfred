@@ -65,6 +65,7 @@ import { initializeApp, getApps } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { getAppCheck } from "firebase-admin/app-check";
+import { getMessaging } from "firebase-admin/messaging";
 import * as logger from "firebase-functions/logger";
 
 setGlobalOptions({ maxInstances: 10, timeoutSeconds: 120, memory: "512MiB" });
@@ -614,6 +615,141 @@ export const api = onRequest({
       } catch (err) {
         console.error("Google integration disconnect failed:", err);
         res.status(500).json({ error: "Failed to disconnect Google integration." });
+        return;
+      }
+    }
+  }
+
+  // FCM Push Notifications endpoints:
+  // POST /api/notifications/fcm-token
+  // DELETE /api/notifications/fcm-token
+  // POST /api/notifications/test
+  if (path.includes("/notifications/")) {
+    if (path.endsWith("/notifications/fcm-token") && req.method === "POST") {
+      try {
+        const { token, userAgent, platform } = req.body || {};
+        if (!token || typeof token !== "string") {
+          res.status(400).json({ error: "FCM token is required." });
+          return;
+        }
+
+        const crypto = await import("crypto");
+        const tokenHash = crypto.createHash("sha256").update(token).digest("hex").slice(0, 32);
+
+        const tokenRef = db.collection("users").doc(userId).collection("fcmTokens").doc(tokenHash);
+        await tokenRef.set({
+          token,
+          userAgent: userAgent || "unknown",
+          platform: platform || "web",
+          updatedAt: Timestamp.now(),
+          createdAt: Timestamp.now()
+        }, { merge: true });
+
+        logger.info("[Notifications] Registered FCM token for user", { userId, tokenHash });
+        res.status(200).json({ success: true, message: "Token registered successfully." });
+        return;
+      } catch (err) {
+        logger.error("[Notifications] Failed to save FCM token", { userId, error: errMessage(err) });
+        res.status(500).json({ error: "Failed to register notification token." });
+        return;
+      }
+    }
+
+    if (path.endsWith("/notifications/fcm-token") && req.method === "DELETE") {
+      try {
+        const { token } = req.body || {};
+        if (!token || typeof token !== "string") {
+          res.status(400).json({ error: "FCM token is required." });
+          return;
+        }
+
+        const crypto = await import("crypto");
+        const tokenHash = crypto.createHash("sha256").update(token).digest("hex").slice(0, 32);
+
+        await db.collection("users").doc(userId).collection("fcmTokens").doc(tokenHash).delete();
+        logger.info("[Notifications] Deleted FCM token for user", { userId, tokenHash });
+        res.status(200).json({ success: true, message: "Token removed." });
+        return;
+      } catch (err) {
+        logger.error("[Notifications] Failed to delete FCM token", { userId, error: errMessage(err) });
+        res.status(500).json({ error: "Failed to remove notification token." });
+        return;
+      }
+    }
+
+    if (path.endsWith("/notifications/test") && req.method === "POST") {
+      try {
+        const { title, body } = req.body || {};
+        const tokensSnap = await db.collection("users").doc(userId).collection("fcmTokens").get();
+
+        if (tokensSnap.empty) {
+          res.status(404).json({
+            error: "Kayıtlı bildirim cihazı bulunamadı. Lütfen önce bildirim iznini etkinleştirin."
+          });
+          return;
+        }
+
+        const notifTitle = title || "Alfred — Test Bildirimi";
+        const notifBody = body || "Alfred bildirim sistemi başarıyla devrede!";
+        let sentCount = 0;
+
+        for (const doc of tokensSnap.docs) {
+          const docData = doc.data();
+          const targetToken = docData.token;
+          if (!targetToken) continue;
+
+          try {
+            await getMessaging().send({
+              token: targetToken,
+              notification: {
+                title: notifTitle,
+                body: notifBody
+              },
+              data: {
+                url: "/",
+                timestamp: Date.now().toString()
+              },
+              webpush: {
+                fcmOptions: {
+                  link: "/"
+                },
+                notification: {
+                  icon: "/icon-192.png",
+                  badge: "/icon-192.png",
+                  vibrate: [200, 100, 200]
+                }
+              }
+            });
+            sentCount++;
+          } catch (sendErr) {
+            const errCode = sendErr?.code || "";
+            if (
+              errCode === "messaging/registration-token-not-registered" ||
+              errCode === "messaging/invalid-registration-token"
+            ) {
+              logger.warn("[Notifications] Removing stale token", { docId: doc.id, errCode });
+              await doc.ref.delete().catch(() => {});
+            } else {
+              logger.warn("[Notifications] Failed to send message to token", { docId: doc.id, error: errMessage(sendErr) });
+            }
+          }
+        }
+
+        if (sentCount === 0) {
+          res.status(502).json({
+            error: "Bildirim gönderilemedi. Cihaz token'ı geçersiz olabilir, lütfen bildirimleri kapatıp tekrar açın."
+          });
+          return;
+        }
+
+        res.status(200).json({
+          success: true,
+          message: `${sentCount} cihaza test bildirimi başarıyla gönderildi.`
+        });
+        return;
+      } catch (err) {
+        logger.error("[Notifications] Test notification failed", { userId, error: errMessage(err) });
+        res.status(500).json({ error: "Test notification failed to send." });
         return;
       }
     }

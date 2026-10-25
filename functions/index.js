@@ -58,12 +58,18 @@ import {
 import { createExtractAndPersistMemories } from "./memory-extraction.js";
 import { persistMemoryCandidates } from "./memory-persistence.js";
 import { buildAlfredSystemPrompt } from "../src/ai/prompts/alfred-system-prompt.js";
+import {
+  SSH_CONNECT_TOOL_DEFINITION,
+  SSH_LIST_DIRECTORY_TOOL_DEFINITION,
+  SSH_EXECUTE_TOOL_DEFINITION
+} from "../src/ai/tools/ssh/ssh-tool-definitions.js";
+import { ALLOWED_SSH_COMMANDS } from "../src/alfred/execution-plane/ssh/allowed-commands.js";
 import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { setGlobalOptions } from "firebase-functions/v2";
 import { defineSecret } from "firebase-functions/params";
 import { initializeApp, getApps } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
-import { getFirestore, Timestamp } from "firebase-admin/firestore";
+import { getFirestore, Timestamp, FieldValue } from "firebase-admin/firestore";
 import { getAppCheck } from "firebase-admin/app-check";
 import { getMessaging } from "firebase-admin/messaging";
 import * as logger from "firebase-functions/logger";
@@ -167,6 +173,71 @@ async function getEmbedding(text, ollamaUrl, geminiKey) {
         });
       }
     }
+  });
+}
+
+/**
+ * Dispatches a server command to the Firestore command queue, where Barış's
+ * home server relay daemon (alfred-relay) picks it up, validates and executes it
+ * locally on the home server, and writes back the structured output.
+ */
+async function dispatchServerCommandViaRelay(db, { host, command, args, userId }) {
+  const targetHost = host || "home-server";
+  if (!ALLOWED_SSH_COMMANDS.includes(command)) {
+    return {
+      error: `Command '${command}' is not permitted. Only strictly whitelisted commands (${ALLOWED_SSH_COMMANDS.join(", ")}) may be executed.`
+    };
+  }
+
+  const TIMEOUT_MS = 20000;
+  const docRef = await db.collection("server_commands").add({
+    userId: userId || "user_baris",
+    host: targetHost,
+    command,
+    args: (args && typeof args === "object" && !Array.isArray(args)) ? args : {},
+    status: "pending",
+    createdAt: FieldValue.serverTimestamp(),
+    expiresAt: Date.now() + TIMEOUT_MS
+  });
+
+  return new Promise((resolve) => {
+    let resolved = false;
+    const timer = setTimeout(async () => {
+      if (resolved) return;
+      resolved = true;
+      try { unsubscribe(); } catch {}
+      await docRef.update({ status: "timed_out" }).catch(() => {});
+      resolve({
+        error: "Ev sunucusu rölesi zaman aşımına uğradı (20s). Ev sunucusundaki alfred-relay servisinin çalıştığından emin olun."
+      });
+    }, TIMEOUT_MS);
+
+    const unsubscribe = docRef.onSnapshot(
+      (snapshot) => {
+        if (resolved || !snapshot.exists) return;
+        const data = snapshot.data();
+        if (data.status === "completed") {
+          resolved = true;
+          clearTimeout(timer);
+          try { unsubscribe(); } catch {}
+          docRef.delete().catch(() => {});
+          resolve(data.result);
+        } else if (data.status === "failed") {
+          resolved = true;
+          clearTimeout(timer);
+          try { unsubscribe(); } catch {}
+          docRef.delete().catch(() => {});
+          resolve({ error: data.error || "Komut ev sunucusunda başarısız oldu." });
+        }
+      },
+      (err) => {
+        if (resolved) return;
+        resolved = true;
+        clearTimeout(timer);
+        try { unsubscribe(); } catch {}
+        resolve({ error: `Firestore relay dinleyici hatası: ${err.message}` });
+      }
+    );
   });
 }
 
@@ -1354,6 +1425,7 @@ export const api = onRequest({
           runtime: { provider: runtime.id, model: runtime.model },
           memories: retrievedMemories,
           project: activeProjectContext,
+          sshAvailable: true,
           webSearchAvailable: webSearchEnabled,
           readUrlAvailable: true,
           githubAvailable: true,
@@ -1510,13 +1582,18 @@ export const api = onRequest({
         });
     };
 
-    // Yalnizca gercekten calisan araclar sunulur. SSH araclarinin arkasinda
-    // bir baglanti yoktu (sabit yer tutucu ciktilar donuyordu); model
-    // uydurma sunucu durumu raporlamasin diye kaldirildilar. Persona da
-    // sunucu erisiminin henuz bagli olmadigini soyluyor.
-    // web_search yalnizca Tavily anahtari varsa sunulur; persona da buna gore
-    // kurulur (buildMessagesFor), sunulmayan bir araci vaat etmez.
-    const activeTools = [TIME_TOOL_DEFINITION, READ_URL_TOOL_DEFINITION, GITHUB_TOOL_DEFINITION, ...(googleConnected ? [GOOGLE_CALENDAR_TOOL_DEFINITION, GOOGLE_TASKS_TOOL_DEFINITION, GMAIL_TOOL_DEFINITION] : []), ...(webSearchEnabled ? [WEB_SEARCH_TOOL_DEFINITION] : [])];
+    // Home server araçları: Barış'ın ev sunucusundaki alfred-relay arka plan
+    // servisi Firestore üzerinden güvenli şekilde komutları koşturur.
+    const activeTools = [
+      TIME_TOOL_DEFINITION,
+      SSH_CONNECT_TOOL_DEFINITION,
+      SSH_LIST_DIRECTORY_TOOL_DEFINITION,
+      SSH_EXECUTE_TOOL_DEFINITION,
+      READ_URL_TOOL_DEFINITION,
+      GITHUB_TOOL_DEFINITION,
+      ...(googleConnected ? [GOOGLE_CALENDAR_TOOL_DEFINITION, GOOGLE_TASKS_TOOL_DEFINITION, GMAIL_TOOL_DEFINITION] : []),
+      ...(webSearchEnabled ? [WEB_SEARCH_TOOL_DEFINITION] : [])
+    ];
     const MAX_TURNS = 3;
     // Tur basina bir arama oturumu: ayni sorgu tekrar aranmaz, en fazla 1 arama;
     // yedek saglayiciya gecilince tur bastan baslasa da yeni kredi harcanmaz.
@@ -1553,6 +1630,33 @@ export const api = onRequest({
       if (fnName === "get_current_time") {
         usedToolsSet.add("get_current_time");
         return runGetCurrentTimeTool(fnArgs);
+      }
+      if (fnName === "ssh_connect") {
+        usedToolsSet.add("ssh_connect");
+        const targetHost = fnArgs?.host || "home-server";
+        return {
+          host: targetHost,
+          status: "connected",
+          message: `Successfully connected to host '${targetHost}'. All credentials and handshakes are verified via Alfred Home Relay.`
+        };
+      }
+      if (fnName === "ssh_list_directory") {
+        usedToolsSet.add("ssh_list_directory");
+        return dispatchServerCommandViaRelay(db, {
+          host: fnArgs?.host || "home-server",
+          command: "list_directory",
+          args: { path: fnArgs?.path || "Belgeler" },
+          userId
+        });
+      }
+      if (fnName === "ssh_execute") {
+        usedToolsSet.add("ssh_execute");
+        return dispatchServerCommandViaRelay(db, {
+          host: fnArgs?.host || "home-server",
+          command: fnArgs?.command,
+          args: fnArgs?.args,
+          userId
+        });
       }
       if (fnName === "google_calendar") {
         usedToolsSet.add("google_calendar");

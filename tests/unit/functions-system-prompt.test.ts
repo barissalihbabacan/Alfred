@@ -194,7 +194,7 @@ describe("3. capability line matches what production runs", () => {
     expect(functionsSource).toContain("webSearchAvailable: webSearchEnabled");
     // The round after a search is the final one (a second search round broke Groq's TPM limit).
     expect(functionsSource).toContain('finalRoundAfter: ["web_search", "read_url"],');
-    expect(functionsSource).not.toContain("ssh-tool-definitions.js");
+    expect(functionsSource).toContain("ssh-tool-definitions.js");
     // Without a key: one tool, and web search listed as not connected.
     expect(ALFRED_PERSONA_PROMPT).toContain("and deterministic tool calling (get_current_time).");
     expect(ALFRED_PERSONA_PROMPT).toContain("- You have access to one tool: `get_current_time`.");

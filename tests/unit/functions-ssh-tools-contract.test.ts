@@ -595,26 +595,23 @@ describe("src SSH tools accept and reject like production", () => {
   });
 });
 
-describe("production offers no SSH tools", () => {
+describe("production offers real server tools via Firestore Relay", () => {
   const source = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
 
-  it("does not send SSH tool definitions to the model or run placeholder results", () => {
-    // There is no SSH connection behind these tools in production; they used
-    // to return canned output that Alfred presented as real server state.
-    const activeLine = /const activeTools = [^\n]*/.exec(source)?.[0] ?? "";
-    expect(activeLine).toContain("TIME_TOOL_DEFINITION");
-    expect(activeLine).not.toMatch(/SSH/);
-    expect(source).not.toContain("ssh-tool-definitions.js");
-    expect(source).not.toContain("ssh-placeholder");
-    expect(source).not.toMatch(/SSH_\w*TOOL_DEFINITION/);
+  it("sends SSH tool definitions to the model and routes execution to the relay", () => {
+    const activeBlock = /const activeTools = \[[\s\S]*?\];/.exec(source)?.[0] ?? "";
+    expect(activeBlock).toContain("TIME_TOOL_DEFINITION");
+    expect(activeBlock).toContain("SSH_EXECUTE_TOOL_DEFINITION");
+    expect(source).toContain("ssh-tool-definitions.js");
+    expect(source).toContain("dispatchServerCommandViaRelay");
     for (const name of ["ssh_connect", "ssh_list_directory", "ssh_execute"]) {
-      expect(source).not.toContain(`"${name}"`);
+      expect(source).toContain(`"${name}"`);
     }
   });
 
-  it("answers an unexpected SSH tool call with the generic not-recognized error", () => {
+  it("routes ssh_execute and ssh_list_directory to dispatchServerCommandViaRelay", () => {
     expect(source).toMatch(
-      /const runTool = async \(fnName, fnArgs\) => \{[\s\S]*?if \(fnName === "get_current_time"\) \{[\s\S]*?if \(fnName === "web_search" && webSearch\) \{[\s\S]*?return \{ error: `Tool \$\{fnName\} not recognized\.` \};/
+      /if \(fnName === "ssh_execute"\) \{[\s\S]*?dispatchServerCommandViaRelay/
     );
   });
 

@@ -123,11 +123,11 @@
 }
 
 :root {
-  --bg-primary: #0a0d14;
-  --bg-secondary: #121824;
-  --bg-card: #182030;
-  --bg-card-hover: #1e293d;
-  --border-subtle: #27354f;
+  --bg-primary: #212121;
+  --bg-secondary: #171717;
+  --bg-card: #2f2f2f;
+  --bg-card-hover: #262626;
+  --border-subtle: #3a3a3a;
   --text-primary: #f0f4fc;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;

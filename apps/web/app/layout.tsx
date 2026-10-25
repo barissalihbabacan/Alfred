@@ -28,6 +28,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: "#212121",
+  colorScheme: "dark",
 };
 
 export default function RootLayout({
@@ -36,7 +37,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="tr">
+    <html lang="tr" style={{ backgroundColor: "#212121", colorScheme: "dark" }}>
       <head>
         {/* Loaded at runtime (not next/font) so the static build needs no network. */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -46,7 +47,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body style={{ backgroundColor: "#212121" }}>{children}</body>
     </html>
   );
 }

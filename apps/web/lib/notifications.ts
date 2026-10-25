@@ -125,17 +125,37 @@ export async function sendTestPushNotification(): Promise<{ success: boolean; me
 }
 
 export async function subscribeForegroundMessages(
-  onNotification: (payload: { title?: string; body?: string; data?: Record<string, unknown> }) => void
+  onNotification?: (payload: { title?: string; body?: string; data?: Record<string, unknown> }) => void
 ): Promise<(() => void) | null> {
   const messaging = await getFirebaseMessaging();
   if (!messaging) return null;
 
   const { onMessage } = await import("firebase/messaging");
-  const unsubscribe = onMessage(messaging, (payload) => {
+  const unsubscribe = onMessage(messaging, async (payload) => {
     console.log("[Notifications] Ön planda bildirim:", payload);
     const title = payload.notification?.title || payload.data?.title || "Alfred";
     const body = payload.notification?.body || payload.data?.body || "";
-    onNotification({ title, body, data: payload.data });
+
+    if (onNotification) {
+      onNotification({ title, body, data: payload.data });
+    }
+
+    // Ön plandayken de sistem bildirimini tetikle
+    if (typeof window !== "undefined" && "serviceWorker" in navigator && Notification.permission === "granted") {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        await reg.showNotification(title, {
+          body,
+          icon: "/icon-192.png",
+          badge: "/icon-192.png",
+          data: payload.data || { url: "/" },
+          // @ts-expect-error vibrate is standard in ServiceWorker NotificationOptions
+          vibrate: [200, 100, 200]
+        });
+      } catch (err) {
+        console.warn("[Notifications] Foreground showNotification:", err);
+      }
+    }
   });
 
   return unsubscribe;

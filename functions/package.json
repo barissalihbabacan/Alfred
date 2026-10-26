@@ -6,7 +6,7 @@
   "main": "lib/index.js",
   "scripts": {
     "build": "node build.js",
-    "check:bundle": "node --check lib/index.js && node --input-type=module -e \"const m = await import('./lib/index.js'); for (const n of ['api', 'alfredCallable']) if (typeof m[n] !== 'function') throw new Error('missing export ' + n); console.log('bundle import OK')\"",
+    "check:bundle": "node --check lib/index.js && node --input-type=module -e \"const m = await import('./lib/index.js'); for (const n of ['api', 'alfredCallable', 'scheduledMorningBriefing']) if (typeof m[n] !== 'function') throw new Error('missing export ' + n); console.log('bundle import OK')\"",
     "gcp-build": "",
     "deploy": "firebase deploy --only functions"
   },

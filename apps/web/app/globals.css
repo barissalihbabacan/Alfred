@@ -267,3 +267,6 @@
   min-height: 100vh;
   min-height: 100dvh;
 }
+@utility pb-safe-bottom {
+  padding-bottom: max(6px, env(safe-area-inset-bottom, 6px));
+}

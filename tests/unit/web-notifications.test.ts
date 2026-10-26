@@ -27,7 +27,6 @@ describe("Web Notifications client (apps/web/lib/notifications.ts)", () => {
     if (originalWindow !== undefined) {
       (globalThis as unknown as { window?: unknown }).window = originalWindow;
     } else {
-      // @ts-expect-error cleanup
       delete (globalThis as unknown as { window?: unknown }).window;
     }
   });
@@ -57,9 +56,8 @@ describe("Web Notifications client (apps/web/lib/notifications.ts)", () => {
 
   it("handles requestPushPermissionAndToken when user denies permission", async () => {
     (globalThis as unknown as { window: unknown }).window = globalThis;
-    // @ts-expect-error mock Notification
-    globalThis.Notification = {
-      requestPermission: vi.fn(async () => "denied"),
+    (globalThis as unknown as { Notification: unknown }).Notification = {
+      requestPermission: vi.fn(async () => "denied" as NotificationPermission),
       permission: "denied"
     };
     const res = await requestPushPermissionAndToken();

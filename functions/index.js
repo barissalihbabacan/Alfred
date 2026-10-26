@@ -65,6 +65,7 @@ import {
 } from "../src/ai/tools/ssh/ssh-tool-definitions.js";
 import { ALLOWED_SSH_COMMANDS } from "../src/alfred/execution-plane/ssh/allowed-commands.js";
 import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import { setGlobalOptions } from "firebase-functions/v2";
 import { defineSecret } from "firebase-functions/params";
 import { initializeApp, getApps } from "firebase-admin/app";
@@ -823,6 +824,19 @@ export const api = onRequest({
         res.status(500).json({ error: "Test notification failed to send." });
         return;
       }
+    }
+  }
+
+  // Trigger morning briefing on demand: POST /api/briefing/trigger
+  if (path.endsWith("/briefing/trigger") && req.method === "POST") {
+    try {
+      const result = await executeMorningBriefing(userId);
+      res.status(200).json(result);
+      return;
+    } catch (err) {
+      logger.error("[Briefing] Manual trigger failed", { userId, error: errMessage(err) });
+      res.status(500).json({ error: "Failed to generate morning briefing: " + errMessage(err) });
+      return;
     }
   }
 
@@ -1924,5 +1938,293 @@ export const alfredCallable = onCall(
       appId: request.app?.appId || null,
       message: "Alfred callable endpoint verified."
     };
+  }
+);
+
+/**
+ * Executes an automated multi-step morning briefing turn for Barış:
+ * 1. Resolves Google tokens, GitHub token, and chat providers.
+ * 2. Prepares active tools: Time, Calendar, Tasks, Gmail, GitHub, and Home Server.
+ * 3. Builds a dedicated morning briefing prompt for the LLM.
+ * 4. Runs multi-step tool execution with fallback.
+ * 5. Saves the conversation to Firestore.
+ * 6. Sends an FCM push notification to all registered devices.
+ */
+async function executeMorningBriefing(userId) {
+  const briefingStart = performance.now();
+  const db = getFirestore();
+
+  // 1. Google tokens
+  let googleConnected = false;
+  let googleAccessToken = null;
+  try {
+    const gSnap = await db.collection("users").doc(userId).collection("integrations").doc("google").get();
+    if (gSnap.exists) {
+      const gData = gSnap.data() || {};
+      const { accessToken, refreshToken, expiresAt } = gData;
+      if (accessToken && typeof expiresAt === "number" && Date.now() < (expiresAt - 60_000)) {
+        googleAccessToken = accessToken;
+        googleConnected = true;
+      } else if (refreshToken) {
+        const googleClientId = gizliOku(GOOGLE_OAUTH_CLIENT_ID, "GOOGLE_OAUTH_CLIENT_ID");
+        const googleClientSecret = gizliOku(GOOGLE_OAUTH_CLIENT_SECRET, "GOOGLE_OAUTH_CLIENT_SECRET");
+        if (googleClientId && googleClientSecret) {
+          try {
+            const refreshed = await refreshAccessToken({
+              refreshToken,
+              clientId: googleClientId,
+              clientSecret: googleClientSecret
+            });
+            const newExpiresAt = Date.now() + (refreshed.expiresIn * 1000);
+            await gSnap.ref.set({
+              accessToken: refreshed.accessToken,
+              expiresAt: newExpiresAt,
+              updatedAt: Timestamp.now()
+            }, { merge: true });
+            googleAccessToken = refreshed.accessToken;
+            googleConnected = true;
+          } catch (rErr) {
+            logger.error("[Briefing] Google token refresh failed:", { error: errMessage(rErr) });
+            googleAccessToken = accessToken || null;
+            if (googleAccessToken) googleConnected = true;
+          }
+        }
+      }
+    }
+  } catch (gErr) {
+    logger.warn("[Briefing] Google integration lookup error:", { error: errMessage(gErr) });
+  }
+
+  const getGoogleAccessToken = async () => googleAccessToken;
+
+  // 2. GitHub token & Tavily
+  const githubToken = process.env.GITHUB_TOKEN || "";
+  const tavilyKey = gizliOku(TAVILY_API_KEY, "TAVILY_API_KEY") || "";
+  const webSearchEnabled = isUsableApiKey(tavilyKey);
+
+  // 3. Setup tools
+  const googleCalendar = createGoogleCalendarTool({
+    getAccessToken: getGoogleAccessToken,
+    fetchFn: (url, init) => fetch(url, init)
+  });
+  const googleTasks = createGoogleTasksTool({
+    getAccessToken: getGoogleAccessToken,
+    fetchFn: (url, init) => fetch(url, init)
+  });
+  const googleGmail = createGmailTool({
+    getAccessToken: getGoogleAccessToken,
+    fetchFn: (url, init) => fetch(url, init)
+  });
+  const gitHub = createTurnGitHub({
+    token: githubToken || null,
+    defaultRepo: null,
+    fetch: (url, init) => fetch(url, init)
+  });
+  const webSearch = webSearchEnabled
+    ? createTurnWebSearch({ apiKey: tavilyKey, fetch: (url, init) => fetch(url, init) })
+    : null;
+
+  const activeTools = [
+    TIME_TOOL_DEFINITION,
+    SSH_EXECUTE_TOOL_DEFINITION,
+    GITHUB_TOOL_DEFINITION,
+    ...(googleConnected ? [GOOGLE_CALENDAR_TOOL_DEFINITION, GOOGLE_TASKS_TOOL_DEFINITION, GMAIL_TOOL_DEFINITION] : []),
+    ...(webSearchEnabled ? [WEB_SEARCH_TOOL_DEFINITION] : [])
+  ];
+
+  const runTool = async (fnName, fnArgs) => {
+    if (fnName === "get_current_time") {
+      return runGetCurrentTimeTool(fnArgs);
+    }
+    if (fnName === "ssh_connect") {
+      return { host: "home-server", status: "connected", message: "Connected via Home Relay." };
+    }
+    if (fnName === "ssh_execute") {
+      return dispatchServerCommandViaRelay(db, {
+        host: fnArgs?.host || "home-server",
+        command: fnArgs?.command,
+        args: fnArgs?.args,
+        userId
+      });
+    }
+    if (fnName === "google_calendar") return googleCalendar(fnArgs);
+    if (fnName === "google_tasks") return googleTasks(fnArgs);
+    if (fnName === "gmail") return googleGmail(fnArgs);
+    if (fnName === "github" && gitHub) return gitHub(fnArgs);
+    if (fnName === "web_search" && webSearch) return webSearch(fnArgs);
+    return { error: `Tool ${fnName} not recognized.` };
+  };
+
+  // 4. Chat Providers
+  const evrenKey = gizliOku(EVREN_API_KEY, "EVREN_API_KEY");
+  const groqKey = gizliOku(GROQ_API_KEY, "GROQ_API_KEY");
+  const geminiKey = gizliOku(GEMINI_API_KEY, "GEMINI_API_KEY");
+  const turnEnv = {
+    GROQ_MODEL: process.env.GROQ_MODEL,
+    CHAT_FALLBACK_ORDER: process.env.CHAT_FALLBACK_ORDER
+  };
+  const { providers: chatProviders } = resolveChatProviders({
+    evren: evrenKey,
+    groq: groqKey,
+    gemini: geminiKey
+  }, turnEnv);
+
+  const briefingPrompt = "Bugün saat 09:00. Lütfen günlük sabah brifingimi hazırla. Google Takvim'deki bugünkü etkinliklerimi, Google Tasks'teki bekleyen görevlerimi, Gmail'deki okunmamış önemli e-postalarımı ve GitHub'daki güncel durumu kontrol et. Tüm verileri net, anlaşılır ve doğrudan eyleme dönük bir yönetici brifingi olarak özetle.";
+
+  const buildMessagesFor = (runtime) => [
+    {
+      role: "system",
+      content: buildAlfredSystemPrompt({
+        runtime: { provider: runtime.id, model: runtime.model },
+        sshAvailable: true,
+        webSearchAvailable: webSearchEnabled,
+        readUrlAvailable: false,
+        githubAvailable: true,
+        googleCalendarAvailable: googleConnected,
+        googleTasksAvailable: googleConnected,
+        gmailAvailable: googleConnected
+      })
+    },
+    { role: "user", content: briefingPrompt }
+  ];
+
+  const turnState = createChatTurnState();
+  const llmMetrics = createChatTurnMetrics(chatProviders[0]?.id || "groq", chatProviders[0]?.model || "");
+
+  await runChatTurnWithFallback({
+    providers: chatProviders,
+    buildMessages: buildMessagesFor,
+    tools: activeTools,
+    maxTurns: 4,
+    finalRoundAfter: ["web_search"],
+    runTool,
+    fetch: (url, init) => fetch(url, init),
+    sendEvent: () => {},
+    sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+    logEvent: (severity, event, msg, data) => logger.info(`[Briefing:${event}] ${msg}`, data || {}),
+    metrics: llmMetrics,
+    state: turnState,
+    onFirstToken: () => {},
+    onParseError: (provider, pErr) => console.warn(`Briefing parse error ${provider}:`, pErr),
+    timeoutMs: 90000,
+    clock: () => performance.now()
+  });
+
+  const cleanContent = turnState.accumulatedText.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
+  if (!cleanContent) {
+    throw new Error("Briefing generation returned empty content.");
+  }
+
+  // 5. Persist to Firestore as a new conversation
+  const now = new Date();
+  const dateStr = now.toLocaleDateString("tr-TR", { timeZone: "Europe/Istanbul", day: "numeric", month: "long" });
+  const convRef = db.collection("conversations").doc();
+  await convRef.set({
+    userId,
+    title: `Sabah Brifingi — ${dateStr}`,
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+    messageCount: 2
+  });
+  await convRef.collection("messages").add({
+    role: "user",
+    content: briefingPrompt,
+    createdAt: FieldValue.serverTimestamp(),
+    ["sequence"]: 1
+  });
+  await convRef.collection("messages").add({
+    role: "assistant",
+    content: cleanContent,
+    createdAt: FieldValue.serverTimestamp(),
+    ["sequence"]: 2,
+    status: "completed"
+  });
+
+  // 6. Send FCM Push Notification
+  const lines = cleanContent.split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#") && !l.startsWith("---") && !l.startsWith("|"));
+  const teaser = lines.slice(0, 2).join(" ").slice(0, 120) || "Bugünkü takvim, görevler, e-postalar ve GitHub durumunuz hazır.";
+
+  const tokensSnap = await db.collection("users").doc(userId).collection("fcmTokens").get();
+  let pushSentCount = 0;
+  for (const doc of tokensSnap.docs) {
+    const targetToken = doc.data()?.token;
+    if (!targetToken) continue;
+    try {
+      await getMessaging().send({
+        token: targetToken,
+        notification: {
+          title: "🌅 Günaydın Barış — Sabah Brifingin Hazır",
+          body: teaser
+        },
+        data: {
+          conversationId: convRef.id,
+          url: `/?conversation=${convRef.id}`,
+          timestamp: Date.now().toString()
+        },
+        webpush: {
+          fcmOptions: {
+            link: `/?conversation=${convRef.id}`
+          },
+          notification: {
+            icon: "/icon-192.png",
+            badge: "/icon-192.png",
+            vibrate: [200, 100, 200]
+          }
+        }
+      });
+      pushSentCount++;
+    } catch (pushErr) {
+      logger.warn("[Briefing] Push notification failed for a token:", { error: errMessage(pushErr) });
+    }
+  }
+
+  const durationMs = Math.round(performance.now() - briefingStart);
+  logger.info("[Briefing] Completed successfully", {
+    conversationId: convRef.id,
+    pushSentCount,
+    durationMs
+  });
+
+  return {
+    success: true,
+    conversationId: convRef.id,
+    teaser,
+    cleanContent,
+    durationMs,
+    pushSentCount
+  };
+}
+
+// Scheduled morning briefing (runs daily at 09:00 Europe/Istanbul)
+export const scheduledMorningBriefing = onSchedule(
+  {
+    schedule: "0 9 * * *",
+    timeZone: "Europe/Istanbul",
+    retryCount: 1,
+    memory: "512MiB",
+    timeoutSeconds: 300,
+    secrets: [
+      EVREN_API_KEY,
+      GROQ_API_KEY,
+      GEMINI_API_KEY,
+      TAVILY_API_KEY,
+      GOOGLE_OAUTH_CLIENT_ID,
+      GOOGLE_OAUTH_CLIENT_SECRET
+    ]
+  },
+  async (event) => {
+    logger.info("[Scheduler] Triggering scheduled morning briefing (09:00 Europe/Istanbul)...", {
+      scheduleTime: event.scheduleTime
+    });
+    try {
+      const result = await executeMorningBriefing(ALLOWED_UID);
+      logger.info("[Scheduler] Morning briefing finished successfully.", {
+        conversationId: result?.conversationId,
+        pushSentCount: result?.pushSentCount,
+        durationMs: result?.durationMs
+      });
+    } catch (err) {
+      logger.error("[Scheduler] Morning briefing failed:", { error: errMessage(err) });
+    }
   }
 );

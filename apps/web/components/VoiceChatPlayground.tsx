@@ -314,6 +314,19 @@ export default function VoiceChatPlayground() {
   const [fcmToken, setFcmToken] = useState<string | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState<any>(null);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.visualViewport) return;
+    const vv = window.visualViewport;
+    const handleViewportResize = () => {
+      // Visual viewport height shrinks substantially when mobile virtual keyboard opens
+      const keyboardActive = window.innerHeight - vv.height > 100;
+      setIsKeyboardOpen(keyboardActive);
+    };
+    vv.addEventListener("resize", handleViewportResize);
+    return () => vv.removeEventListener("resize", handleViewportResize);
+  }, []);
 
   const modelMenuRef = useRef<HTMLDivElement | null>(null);
   const turnSeqRef = useRef(0);
@@ -442,7 +455,9 @@ export default function VoiceChatPlayground() {
     if (!currentUserId) return;
     for (const key of LEGACY_STORAGE_KEYS) storageSet(key, null);
 
-    const savedConvId = storageGet(CONVERSATION_KEY);
+    const urlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    const queryConvId = urlParams ? urlParams.get("conversation") : null;
+    const savedConvId = queryConvId || storageGet(CONVERSATION_KEY);
     const savedProjId = storageGet(ACTIVE_PROJECT_KEY);
     void apiFetch("/projects")
       .then((r) => (r.ok ? r.json() : null))
@@ -480,7 +495,6 @@ export default function VoiceChatPlayground() {
       .catch(() => {});
 
     // Fallback: If URL has Google OAuth code (e.g. redirected or rewrite), exchange it directly
-    const urlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
     const authCode = urlParams?.get("code");
     if (authCode) {
       const redirectUri = window.location.origin + "/auth/google/callback";
@@ -1991,7 +2005,7 @@ export default function VoiceChatPlayground() {
 
         {/* Scrollable Message List */}
         <div className="flex flex-1 flex-col overflow-y-auto">
-          <div className="my-0 flex w-full flex-col gap-6 px-5 pb-[140px] pt-6 mobile:px-3.5 mobile:pb-[120px] mobile:pt-4">
+          <div className="my-0 flex w-full flex-col gap-6 px-5 pb-[140px] pt-6 mobile:px-3.5 mobile:pb-[100px] mobile:pt-4">
             {/* Message Skeleton Loading */}
             {messagesLoading ? (
               <div className="flex flex-col gap-6 px-0 py-4">
@@ -2302,8 +2316,15 @@ export default function VoiceChatPlayground() {
         </div>
 
         {/* Floating Bottom Input Dock */}
-        <div className="pointer-events-none absolute bottom-0 left-0 right-0 flex flex-col items-center bg-[linear-gradient(180deg,rgba(33,33,33,0)_0%,rgba(33,33,33,0.95)_25%,#212121_100%)] px-5 pb-[calc(20px+env(safe-area-inset-bottom,0px))] pt-4 mobile:px-2.5 mobile:pb-[calc(10px+env(safe-area-inset-bottom,0px))] mobile:pt-2.5">
-          <div className="pointer-events-auto flex w-full items-end gap-2.5 rounded-[26px] border border-white/12 bg-chat-surface py-2.5 pl-5 pr-3.5 shadow-[0_10px_30px_rgba(0,0,0,0.4)] mobile:flex-col mobile:items-stretch mobile:gap-2 mobile:rounded-[22px] mobile:p-3 mobile:shadow-[0_8px_24px_rgba(0,0,0,0.45)]">
+        <div
+          className={cx(
+            "pointer-events-none absolute bottom-0 left-0 right-0 flex flex-col items-center bg-[linear-gradient(180deg,rgba(33,33,33,0)_0%,rgba(33,33,33,0.95)_25%,#212121_100%)] px-5 pt-4 mobile:px-2.5 mobile:pt-1.5",
+            isKeyboardOpen
+              ? "pb-1.5"
+              : "pb-[calc(20px+env(safe-area-inset-bottom,0px))] mobile:pb-safe-bottom"
+          )}
+        >
+          <div className="pointer-events-auto flex w-full max-w-[760px] items-end gap-2.5 rounded-[26px] border border-white/12 bg-chat-surface py-2.5 pl-5 pr-3.5 shadow-[0_10px_30px_rgba(0,0,0,0.4)] mobile:flex-col mobile:items-stretch mobile:gap-1.5 mobile:rounded-[20px] mobile:p-2.5 mobile:shadow-[0_8px_24px_rgba(0,0,0,0.45)]">
             {/* 16px on phones stops iOS Safari from zooming in when the composer is focused. */}
             <textarea
               id="chat-message-input"
@@ -2318,7 +2339,7 @@ export default function VoiceChatPlayground() {
               className="max-h-[55vh] min-h-[36px] min-w-0 flex-1 resize-none overflow-hidden border-none bg-transparent px-0 py-1.5 text-[15px] leading-relaxed text-chat-text outline-hidden placeholder:text-[#757575] [field-sizing:content] mobile:max-h-[55vh] mobile:min-h-[36px] mobile:w-full mobile:flex-none mobile:px-1 mobile:text-[16px] mobile:leading-normal"
             />
 
-            <div className="flex shrink-0 items-center gap-1.5 mobile:w-full mobile:items-center mobile:justify-between mobile:pt-1">
+            <div className="flex shrink-0 items-center gap-1.5 mobile:w-full mobile:items-center mobile:justify-between mobile:pt-0.5">
               <button
                 type="button"
                 onClick={toggleRecording}
@@ -2369,7 +2390,7 @@ export default function VoiceChatPlayground() {
             </div>
           </div>
 
-          <p className="pointer-events-auto mt-2 text-center text-[11px] text-chat-faint mobile:hidden">
+          <p className="pointer-events-auto mt-2 hidden text-center text-[11px] text-chat-faint md:block">
             B.U.T.L.E.R. Alfred — Barış&apos;ın Birleşik Görev, Mantık, Yürütme ve Muhakeme Asistanı
           </p>
         </div>

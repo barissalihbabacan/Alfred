@@ -34,7 +34,7 @@ import {
 } from "../scripts/generate-user-profile-sources.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const REQUIRED_EXPORTS = ["api", "alfredCallable"];
+const REQUIRED_EXPORTS = ["api", "alfredCallable", "scheduledMorningBriefing"];
 
 const pkg = JSON.parse(readFileSync(join(here, "package.json"), "utf8"));
 const allowedPackages = new Set(Object.keys(pkg.dependencies || {}));

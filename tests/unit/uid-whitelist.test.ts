@@ -23,6 +23,8 @@ vi.mock("firebase/auth", async (importOriginal) => {
 
 import {
   ALLOWED_UID,
+  ALLOWED_EMAIL,
+  isAuthorizedUser,
   getAuthErrorDetails,
   subscribeAuthState,
   signInWithGoogle,
@@ -31,13 +33,21 @@ import {
 
 const fakeAuth = { name: "fake-auth" } as unknown as Auth;
 
-describe("Single-User Authorization (UID Whitelist)", () => {
+describe("Single-User Authorization (UID & Email Whitelist)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("defines the exact authorized UID constant", () => {
+  it("defines the authorized UID and Email constants", () => {
     expect(ALLOWED_UID).toBe("test-owner-uid-123456");
+    expect(ALLOWED_EMAIL).toBe("owner@example.invalid");
+  });
+
+  it("authorizes matching user and rejects unauthorized email or uid", () => {
+    expect(isAuthorizedUser({ uid: ALLOWED_UID, email: ALLOWED_EMAIL })).toBe(true);
+    expect(isAuthorizedUser({ uid: ALLOWED_UID, email: "intruder@example.com" })).toBe(false);
+    expect(isAuthorizedUser({ uid: "wrong_uid", email: ALLOWED_EMAIL })).toBe(false);
+    expect(isAuthorizedUser(null)).toBe(false);
   });
 
   it("provides Turkish user-facing error message for unauthorized UIDs", () => {

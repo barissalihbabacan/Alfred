@@ -11,10 +11,10 @@ import {
   UserCredential
 } from "firebase/auth";
 import { app } from "./firebase";
-import { ALLOWED_UID } from "./allowed-uid";
+import { ALLOWED_UID, ALLOWED_EMAIL, isAuthorizedUser } from "./allowed-uid";
 import { errorCode, errorWithCode, readErrorProp } from "./errors";
 
-export { ALLOWED_UID };
+export { ALLOWED_UID, ALLOWED_EMAIL, isAuthorizedUser };
 
 let authInstance: Auth | null = null;
 let googleProviderInstance: GoogleAuthProvider | null = null;
@@ -44,7 +44,7 @@ export async function signInWithGoogle(): Promise<User> {
   const provider = getGoogleAuthProvider();
   try {
     const result: UserCredential = await signInWithPopup(auth, provider);
-    if (result.user && result.user.uid !== ALLOWED_UID) {
+    if (result.user && !isAuthorizedUser(result.user)) {
       await signOut(auth);
       throw errorWithCode(
         "Yetkisiz Kullanıcı: Bu sisteme yalnızca yetkili yönetici erişebilir.",
@@ -84,7 +84,7 @@ export async function checkRedirectResult(): Promise<User | null> {
   try {
     const cred = await getRedirectResult(auth);
     if (cred?.user) {
-      if (cred.user.uid !== ALLOWED_UID) {
+      if (!isAuthorizedUser(cred.user)) {
         await signOut(auth);
         throw errorWithCode(
           "Yetkisiz Kullanıcı: Bu sisteme yalnızca yetkili yönetici erişebilir.",
@@ -119,8 +119,8 @@ export function subscribeAuthState(
   auth: Auth = getFirebaseAuth()
 ): () => void {
   return onAuthStateChanged(auth, async (user) => {
-    if (user && user.uid !== ALLOWED_UID) {
-      console.warn("[Auth] Unauthorized UID detected in onAuthStateChanged:", user.uid);
+    if (user && !isAuthorizedUser(user)) {
+      console.warn("[Auth] Unauthorized user detected in onAuthStateChanged:", user.uid, user.email);
       try {
         await signOut(auth);
       } catch (e) {

@@ -101,6 +101,7 @@ const GOOGLE_OAUTH_CLIENT_ID = defineSecret("GOOGLE_OAUTH_CLIENT_ID");
 const GOOGLE_OAUTH_CLIENT_SECRET = defineSecret("GOOGLE_OAUTH_CLIENT_SECRET");
 
 const ALLOWED_UID = process.env.ALLOWED_UID || "test-owner-uid-123456";
+const ALLOWED_EMAIL = (process.env.ALLOWED_EMAIL || "owner@example.invalid").toLowerCase().trim();
 
 // App Check zorunlulugu varsayilan olarak ACIK (24 Eyl: canli trafigin tamami
 // "valid" idi). Emulatorde kapali; gerekirse ENFORCE_APP_CHECK=false ile
@@ -427,18 +428,26 @@ export const api = onRequest({
   }
 
   let authenticatedUid;
+  let authenticatedEmail;
+  let isEmailVerified;
   try {
     const decoded = await getAuth().verifyIdToken(authHeader.substring(7).trim());
     authenticatedUid = decoded?.uid || null;
+    authenticatedEmail = (decoded?.email || "").toLowerCase().trim();
+    isEmailVerified = Boolean(decoded?.email_verified);
   } catch (err) {
     console.warn("[Auth] ID token verification failed:", err.message);
     res.status(401).json({ error: "Unauthorized: Invalid or expired auth token." });
     return;
   }
 
-  if (authenticatedUid !== ALLOWED_UID) {
-    console.warn(`[Auth] Forbidden: UID ${authenticatedUid} attempted access`);
-    res.status(403).json({ error: "Forbidden: Unauthorized UID." });
+  // Dual verification: UID and/or Email
+  const uidMatches = !ALLOWED_UID || authenticatedUid === ALLOWED_UID;
+  const emailMatches = !ALLOWED_EMAIL || (authenticatedEmail === ALLOWED_EMAIL && isEmailVerified);
+
+  if (!uidMatches || !emailMatches) {
+    console.warn(`[Auth] Forbidden: UID ${authenticatedUid} (email: ${authenticatedEmail}) attempted access`);
+    res.status(403).json({ error: "Forbidden: Unauthorized account." });
     return;
   }
 
@@ -1930,8 +1939,14 @@ export const alfredCallable = onCall(
     secrets: [GROQ_API_KEY, GEMINI_API_KEY]
   },
   async (request) => {
-    if (request.auth?.uid !== ALLOWED_UID) {
-      throw new HttpsError("permission-denied", "Unauthorized UID.");
+    const uid = request.auth?.uid;
+    const email = (request.auth?.token?.email || "").toLowerCase().trim();
+    const isEmailVerified = Boolean(request.auth?.token?.email_verified);
+    const uidMatches = !ALLOWED_UID || uid === ALLOWED_UID;
+    const emailMatches = !ALLOWED_EMAIL || (email === ALLOWED_EMAIL && isEmailVerified);
+
+    if (!uidMatches || !emailMatches) {
+      throw new HttpsError("permission-denied", "Unauthorized account.");
     }
     return {
       status: "ok",

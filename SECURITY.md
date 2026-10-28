@@ -19,6 +19,11 @@ Alfred is designed with defense-in-depth principles:
 2. **App Check Attestation**: Enforced at the gateway to guarantee requests originate from the genuine, unmodified web client.
 3. **Secret Storage**: All production API keys live exclusively inside Google Secret Manager and are never baked into client bundles or repository files.
 4. **Autonomous Secret Scrubbing**: All messages processed by the vector memory extraction pipeline are scrubbed with regex and heuristic privacy filters to prevent credentials, bearer tokens, and private keys from ever reaching Firestore.
+5. **Zero-Trust Firestore Rules**: Client SDK direct reads and writes are blocked (`allow read, write: if false;`). All mutations strictly pass through Cloud Functions.
+6. **Automated CI Security Scans**: Every commit and pull request is scanned with:
+   - **Gitleaks**: Detects accidental secret, API key, and credential leaks.
+   - **GitHub CodeQL**: Deep AST static analysis (SAST) for TypeScript and JavaScript vulnerabilities.
+   - **Dependabot**: Automated weekly scanning and patching of dependency CVEs.
 
 ---
 

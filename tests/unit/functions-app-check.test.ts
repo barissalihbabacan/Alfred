@@ -4,9 +4,9 @@ import { readFileSync } from "node:fs";
 // App Check is verified on every api request and enforced by default
 // (switched on 24 Sep 2026 after production traffic logged "valid").
 // It is off in the emulator and can be disabled with ENFORCE_APP_CHECK=false.
-const source = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
+const source = readFileSync(new URL("../../functions/api.ts", import.meta.url), "utf8");
 
-describe("functions/index.js App Check handling", () => {
+describe("functions/api.ts App Check handling", () => {
   it("reads enforcement from one constant: on unless ENFORCE_APP_CHECK=false or in the emulator", () => {
     expect(source).toContain(
       'const ENFORCE_APP_CHECK =\n  process.env.ENFORCE_APP_CHECK !== "false" && !process.env.FUNCTIONS_EMULATOR;'

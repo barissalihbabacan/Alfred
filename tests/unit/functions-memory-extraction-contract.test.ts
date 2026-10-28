@@ -592,13 +592,13 @@ describe("generateDeterministicTitle (production contract)", () => {
   });
 });
 
-describe("functions/index.js uses the shared modules", () => {
-  const index = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
-  // Extraction moved to functions/memory-extraction.js and the candidate loop
-  // to functions/memory-persistence.js (both bundled into the same
+describe("functions/api.ts uses the shared modules", () => {
+  const index = readFileSync(new URL("../../functions/api.ts", import.meta.url), "utf8");
+  // Extraction moved to functions/memory-extraction.ts and the candidate loop
+  // to functions/memory-persistence.ts (both bundled into the same
   // functions/lib/index.js); the loop itself is src/'s memory-write-loop.ts.
-  const extraction = readFileSync(new URL("../../functions/memory-extraction.js", import.meta.url), "utf8");
-  const persistence = readFileSync(new URL("../../functions/memory-persistence.js", import.meta.url), "utf8");
+  const extraction = readFileSync(new URL("../../functions/memory-extraction.ts", import.meta.url), "utf8");
+  const persistence = readFileSync(new URL("../../functions/memory-persistence.ts", import.meta.url), "utf8");
   const loop = readFileSync(new URL("../../src/alfred/cognitive/memory/memory-write-loop.ts", import.meta.url), "utf8");
   const source = `${index}\n${extraction}\n${persistence}`;
 

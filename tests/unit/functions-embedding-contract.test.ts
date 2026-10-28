@@ -514,8 +514,8 @@ describe("src providers build the same requests through the shared builders", ()
   });
 });
 
-describe("functions/index.js uses the shared embedding client", () => {
-  const source = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
+describe("functions/api.ts uses the shared embedding client", () => {
+  const source = readFileSync(new URL("../../functions/api.ts", import.meta.url), "utf8");
 
   it("imports it instead of carrying a copy", () => {
     expect(source).toMatch(/generateEmbedding,[\s\S]*from "\.\.\/src\/ai\/embedding\/embedding-client\.js"/);

@@ -1,10 +1,10 @@
-// Uzun sureli bellek cikarimi: sohbet turu bittikten sonra index.js buradaki
+// Uzun sureli bellek cikarimi: sohbet turu bittikten sonra api.ts buradaki
 // extractAndPersistMemories'i cagirir. Adimlar src/ ile ortak:
 // - istem, baglam siniri ve "bunu hatirlama" kisa devresi:
 //   src/alfred/cognitive/memory/extractor/extraction-pipeline.ts
 // - model cagrisi (Groq -> Gemini -> Ollama):
 //   src/ai/providers/chat-fallback/extraction-providers.ts
-// - adaylarin kaydi: memory-persistence.js (karar mantigi
+// - adaylarin kaydi: memory-persistence.ts (karar mantigi
 //   src/alfred/cognitive/memory/memory-write-loop.ts + memory-write-planner.ts)
 // src/ tarafinda ayni adimlari MemoryExtractor + MemoryService kullanir.
 //
@@ -14,26 +14,50 @@
 // kodun birebir kopyasiyla (fixtures/legacy-extract-and-persist.js)
 // karsilastirabilir.
 import { runMemoryExtraction } from "../src/alfred/cognitive/memory/extractor/extraction-pipeline.js";
-import { callMemoryExtractionProviders } from "../src/ai/providers/chat-fallback/extraction-providers.js";
+import type { ExtractionContextMessage } from "../src/alfred/cognitive/memory/extractor/extraction-pipeline.js";
+import {
+  callMemoryExtractionProviders,
+  type ExtractionProviderError
+} from "../src/ai/providers/chat-fallback/extraction-providers.js";
 import {
   createMemoryWriteTally,
   summarizeMemoryWriteTally
 } from "../src/alfred/cognitive/memory/memory-write-planner.js";
-import { persistMemoryCandidates as defaultPersist } from "./memory-persistence.js";
+import { persistMemoryCandidates as defaultPersist, type PersistMemoryCandidatesParams } from "./memory-persistence.js";
 
-const PROVIDER_LABELS = { evren: "EVREN", groq: "Groq", gemini: "Gemini" };
+const PROVIDER_LABELS: Record<string, string> = { evren: "EVREN", groq: "Groq", gemini: "Gemini" };
 
-/**
- * @param {object} deps
- * @param {(url: string, init: RequestInit) => Promise<Response>} deps.fetch
- * @param {{ info: Function, warn: Function }} deps.logger
- * @param {() => unknown} deps.now sunucu zaman damgasi (Timestamp.now)
- * @param {(text: string, ollamaUrl: string, geminiKey: string) => Promise<{ values: number[], model: string }>} deps.getEmbedding
- * @param {(err: unknown) => string} deps.errMessage
- * @param {string} deps.memoryExtractionModel Groq cikarim modeli
- * @param {string} deps.geminiExtractionModel Gemini cikarim modeli
- * @param {typeof defaultPersist} [deps.persist]
- */
+export type MemoryExtractionSummary = ReturnType<typeof summarizeMemoryWriteTally> & {
+  skip_reason?: string;
+};
+
+export interface CreateExtractAndPersistMemoriesDeps {
+  fetch: (url: string, init?: RequestInit) => Promise<Response>;
+  logger: { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void };
+  now: () => unknown;
+  getEmbedding: (text: string, ollamaUrl?: string, geminiKey?: string) => Promise<{ values: number[]; model: string }>;
+  errMessage: (err: unknown) => string;
+  memoryExtractionModel: string;
+  geminiExtractionModel: string;
+  persist?: (params: PersistMemoryCandidatesParams) => Promise<void>;
+}
+
+export interface ExtractAndPersistMemoriesParams {
+  db: unknown;
+  ollamaUrl?: string;
+  ollamaModel?: string;
+  evrenKey?: string;
+  groqKey?: string;
+  geminiKey?: string;
+  userMessage: string;
+  assistantResponse?: string;
+  userId: string;
+  projectId?: string | null;
+  conversationId: string;
+  sourceMessageIds?: string[];
+  recentHistory?: unknown[];
+}
+
 export function createExtractAndPersistMemories({
   fetch,
   logger,
@@ -43,15 +67,15 @@ export function createExtractAndPersistMemories({
   memoryExtractionModel,
   geminiExtractionModel,
   persist = defaultPersist
-}) {
-  const onProviderError = (e) => {
+}: CreateExtractAndPersistMemoriesDeps) {
+  const onProviderError = (e: ExtractionProviderError) => {
     if (e.provider === "ollama") {
       logger.warn(`[Memory] Ollama extraction call failed: ${errMessage(e.error)}`, {
         event: "memory_extraction_provider_error", provider: "ollama"
       });
       return;
     }
-    const label = PROVIDER_LABELS[e.provider];
+    const label = PROVIDER_LABELS[e.provider] || e.provider;
     logger.warn(e.httpStatus !== undefined
       ? `[Memory] ${label} extraction HTTP ${e.httpStatus}: ${String(e.detail).slice(0, 500)}`
       : `[Memory] ${label} extraction error: ${String(e.detail).slice(0, 300)}`, {
@@ -77,7 +101,7 @@ export function createExtractAndPersistMemories({
     conversationId,
     sourceMessageIds,
     recentHistory
-  }) {
+  }: ExtractAndPersistMemoriesParams): Promise<MemoryExtractionSummary> {
     // Aday basina sonuc sayaclari; memory_extraction olayi icin dondurulur.
     // rejected: gizli bilgi filtresi; invalid: validateMemoryCandidate reddetti.
     const tally = createMemoryWriteTally();
@@ -85,7 +109,11 @@ export function createExtractAndPersistMemories({
     // 429'da beklenmez (sohbet cevabi zaten gitti); limit turu ve gercek sure
     // loglanir, siradaki saglayiciya gecilir.
     const extraction = await runMemoryExtraction({
-      turn: { currentMessage: userMessage, assistantResponse, recentMessages: recentHistory },
+      turn: {
+        currentMessage: userMessage,
+        assistantResponse,
+        recentMessages: recentHistory as ExtractionContextMessage[] | undefined
+      },
       call: (system, user) => callMemoryExtractionProviders({
         fetch: (url, init) => fetch(url, init),
         evrenKey,
@@ -100,7 +128,7 @@ export function createExtractAndPersistMemories({
         onProviderError
       })
     });
-    const summarize = (fallbackOutcome) => summarizeMemoryWriteTally(tally, fallbackOutcome, extraction.provider);
+    const summarize = (fallbackOutcome: string) => summarizeMemoryWriteTally(tally, fallbackOutcome, extraction.provider);
 
     switch (extraction.outcome) {
       case "skipped":
@@ -121,7 +149,7 @@ export function createExtractAndPersistMemories({
     }
 
     // Karar mantigi src/ ile ortak (memory-write-loop.ts + memory-write-planner.ts);
-    // G/C memory-persistence.js icinde, Firebase bagimliliklari buradan verilir.
+    // G/C memory-persistence.ts icinde, Firebase bagimliliklari buradan verilir.
     await persist({
       db,
       memories: extraction.memories,

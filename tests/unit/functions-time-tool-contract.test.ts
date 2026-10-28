@@ -327,8 +327,8 @@ describe("getCurrentTimeForCity (differential against production)", () => {
   });
 });
 
-describe("functions/index.js uses the shared time tool", () => {
-  const source = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
+describe("functions/api.ts uses the shared time tool", () => {
+  const source = readFileSync(new URL("../../functions/api.ts", import.meta.url), "utf8");
 
   it("imports it instead of carrying a copy", () => {
     expect(source).toMatch(/GET_CURRENT_TIME_TOOL_DEFINITION as TIME_TOOL_DEFINITION,\s*runGetCurrentTimeTool\s*\} from "\.\.\/src\/ai\/tools\/time\/current-time\.js"/);

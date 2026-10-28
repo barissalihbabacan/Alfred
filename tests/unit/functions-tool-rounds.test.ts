@@ -56,7 +56,7 @@ describe("runGetCurrentTimeTool", () => {
 // (shared by every fallback provider; behaviour tested end to end in
 // tests/unit/chat-fallback-turn.test.ts). These pins follow it there.
 describe("production tool rounds", () => {
-  const source = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
+  const source = readFileSync(new URL("../../functions/api.ts", import.meta.url), "utf8");
   const turn = readFileSync(new URL("../../src/ai/providers/chat-fallback/chat-turn.ts", import.meta.url), "utf8");
   const stream = readFileSync(new URL("../../src/ai/providers/chat-fallback/openai-stream.ts", import.meta.url), "utf8");
 

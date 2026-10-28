@@ -596,7 +596,7 @@ describe("src SSH tools accept and reject like production", () => {
 });
 
 describe("production offers real server tools via Firestore Relay", () => {
-  const source = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
+  const source = readFileSync(new URL("../../functions/api.ts", import.meta.url), "utf8");
 
   it("sends SSH tool definitions to the model and routes execution to the relay", () => {
     const activeBlock = /const activeTools = \[[\s\S]*?\];/.exec(source)?.[0] ?? "";

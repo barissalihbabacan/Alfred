@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 
-// The /chat handler in functions/index.js needs Firebase Admin, so it is not
+// The /chat handler in functions/api.ts needs Firebase Admin, so it is not
 // run here; these checks pin the two ordering rules of its message writes.
-const source = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
+const source = readFileSync(new URL("../../functions/api.ts", import.meta.url), "utf8");
 
 function body(name: string): string {
   const start = source.indexOf(`const ${name} = async`);
@@ -12,7 +12,7 @@ function body(name: string): string {
   return source.slice(start, end);
 }
 
-describe("functions/index.js assistant message persistence", () => {
+describe("functions/api.ts assistant message persistence", () => {
   it("writes every assistant message in a transaction that takes the next sequence and raises messageCount", () => {
     const persist = body("persistAssistantMessage");
     expect(persist).toContain("db.runTransaction");

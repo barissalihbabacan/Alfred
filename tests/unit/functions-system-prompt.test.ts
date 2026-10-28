@@ -55,7 +55,7 @@ const FIXTURE = "./fixtures/functions-alfred-system-prompt.txt";
 const GROQ = { provider: "groq", model: "openai/gpt-oss-120b" };
 const OLLAMA = { provider: "ollama", model: "gemma4:12b-mlx" };
 
-const functionsSource = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
+const functionsSource = readFileSync(new URL("../../functions/api.ts", import.meta.url), "utf8");
 const readUsersFile = (name: string) => readFileSync(new URL(`../../users/${name}`, import.meta.url), "utf8");
 
 describe("production system prompt fixture", () => {

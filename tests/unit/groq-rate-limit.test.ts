@@ -336,7 +336,7 @@ describe("Groq rate-limit helpers", () => {
 // tests/unit/chat-fallback-turn.test.ts) and the extraction calls in
 // extraction-providers.ts. These pins follow the code there.
 describe("production uses the shared rate-limit helpers", () => {
-  const index = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
+  const index = readFileSync(new URL("../../functions/api.ts", import.meta.url), "utf8");
   const turn = readFileSync(new URL("../../src/ai/providers/chat-fallback/chat-turn.ts", import.meta.url), "utf8");
   const extraction = readFileSync(new URL("../../src/ai/providers/chat-fallback/extraction-providers.ts", import.meta.url), "utf8");
 
@@ -371,7 +371,7 @@ describe("production uses the shared rate-limit helpers", () => {
 
   it("logs the limit type on a memory-extraction 429", () => {
     expect(extraction).toContain("rateLimit = { limitType: info.limitType, retryAfterMs: info.retryAfterMs };");
-    const memoryExtraction = readFileSync(new URL("../../functions/memory-extraction.js", import.meta.url), "utf8");
+    const memoryExtraction = readFileSync(new URL("../../functions/memory-extraction.ts", import.meta.url), "utf8");
     expect(memoryExtraction).toContain('...(e.rateLimit ? { limit_type: e.rateLimit.limitType, retry_after_ms: e.rateLimit.retryAfterMs, decision: "give_up" } : {})');
   });
 

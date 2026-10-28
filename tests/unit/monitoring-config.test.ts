@@ -48,8 +48,8 @@ function loadDir<T>(dir: string): Map<string, T> {
 const metrics = loadDir<LogMetric>(METRICS_DIR);
 const policies = loadDir<Policy>(POLICIES_DIR);
 const emittingSources = [
-  "functions/index.js",
-  "functions/memory-persistence.js",
+  "functions/api.ts",
+  "functions/memory-persistence.ts",
   "src/ai/providers/chat-fallback/chat-turn.ts"
 ].map((p) => readFileSync(join(ROOT, p), "utf8")).join("\n");
 

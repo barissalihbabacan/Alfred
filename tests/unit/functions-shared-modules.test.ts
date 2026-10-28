@@ -93,9 +93,9 @@ describe("src/ modules shared with functions/", () => {
     });
   });
 
-  it("functions/index.js imports these from src/ instead of carrying copies", () => {
-    const index = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
-    const extraction = readFileSync(new URL("../../functions/memory-extraction.js", import.meta.url), "utf8");
+  it("functions/api.ts imports these from src/ instead of carrying copies", () => {
+    const index = readFileSync(new URL("../../functions/api.ts", import.meta.url), "utf8");
+    const extraction = readFileSync(new URL("../../functions/memory-extraction.ts", import.meta.url), "utf8");
     const source = `${index}\n${extraction}`;
     expect(index).toContain('from "../src/data/vector/cosine-similarity.js"');
     // The prompt builders reach production through the shared extraction pipeline.

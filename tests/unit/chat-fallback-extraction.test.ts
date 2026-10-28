@@ -116,8 +116,8 @@ describe("memory extraction: Groq, then Gemini", () => {
   });
 
   it("is wired into production through functions/memory-extraction.js, Ollama included", () => {
-    const index = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
-    const extraction = readFileSync(new URL("../../functions/memory-extraction.js", import.meta.url), "utf8");
+    const index = readFileSync(new URL("../../functions/api.ts", import.meta.url), "utf8");
+    const extraction = readFileSync(new URL("../../functions/memory-extraction.ts", import.meta.url), "utf8");
     expect(extraction).toContain("call: (system, user) => callMemoryExtractionProviders({");
     expect(extraction).toMatch(/ollamaUrl,\s+ollamaModel,\s+system,/);
     // The Ollama step is no longer inline (index.js keeps /api/chat only for the chat path).
@@ -148,8 +148,8 @@ describe("capability line for a fallback provider", () => {
   });
 });
 
-describe("functions/index.js secrets", () => {
-  const index = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
+describe("functions/api.ts secrets", () => {
+  const index = readFileSync(new URL("../../functions/api.ts", import.meta.url), "utf8");
 
   it("binds the EVREN, Groq, Gemini and Tavily keys to the api function", () => {
     expect(index).toContain('const EVREN_API_KEY = defineSecret("EVREN_API_KEY");');

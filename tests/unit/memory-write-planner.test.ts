@@ -1016,11 +1016,11 @@ describe("memory persistence fixes (production module)", () => {
 });
 
 describe("functions wiring", () => {
-  const index = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
-  const extraction = readFileSync(new URL("../../functions/memory-extraction.js", import.meta.url), "utf8");
-  const persistence = readFileSync(new URL("../../functions/memory-persistence.js", import.meta.url), "utf8");
+  const index = readFileSync(new URL("../../functions/api.ts", import.meta.url), "utf8");
+  const extraction = readFileSync(new URL("../../functions/memory-extraction.ts", import.meta.url), "utf8");
+  const persistence = readFileSync(new URL("../../functions/memory-persistence.ts", import.meta.url), "utf8");
 
-  it("index.js delegates extraction to memory-extraction.js, which persists through memory-persistence.js and the shared tally", () => {
+  it("api.ts delegates extraction to memory-extraction.ts, which persists through memory-persistence.ts and the shared tally", () => {
     expect(index).toContain('from "./memory-extraction.js"');
     expect(extraction).toContain('from "./memory-persistence.js"');
     expect(extraction).toMatch(/createMemoryWriteTally,[\s\S]*summarizeMemoryWriteTally[\s\S]*from "\.\.\/src\/alfred\/cognitive\/memory\/memory-write-planner\.js"/);

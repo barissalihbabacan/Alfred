@@ -1,4 +1,4 @@
-// Uzun sureli bellek kaliciligi: extractAndPersistMemories (memory-extraction.js)
+// Uzun sureli bellek kaliciligi: extractAndPersistMemories (memory-extraction.ts)
 // cikarim modelinin adaylarini buraya verir. Aday dongusu (dogrulama, gizli
 // bilgi filtresi, embedding, aktif bellekleri yeniden okuma, forget /
 // duplicate / supersede / create karari, sayaclar) src/ ile ortak:
@@ -18,13 +18,42 @@ import {
   buildMemoryRetractionUpdate,
   buildMemorySupersessionUpdate,
   buildMemoryVectorRecord,
-  generateMemoryId
+  generateMemoryId,
+  type MemoryWriteTally
 } from "../src/alfred/cognitive/memory/memory-write-planner.js";
+import type { MemoryType } from "../src/data/firestore/memory.types.js";
 import { runMemoryWriteLoop } from "../src/alfred/cognitive/memory/memory-write-loop.js";
+
+interface DocRecord {
+  id: string;
+  ref: {
+    update: (data: unknown) => Promise<unknown>;
+  };
+  data: () => Record<string, unknown> | undefined;
+}
+
+interface FirestoreLike {
+  collection: (name: string) => {
+    where: (field: string, op: string, value: unknown) => {
+      where: (field: string, op: string, value: unknown) => {
+        get: () => Promise<{ docs: DocRecord[] }>;
+      };
+      get: () => Promise<{ docs: DocRecord[] }>;
+    };
+    doc: (id: string) => {
+      set: (data: unknown) => Promise<unknown>;
+    };
+  };
+  batch: () => {
+    update: (ref: unknown, data: unknown) => void;
+    set: (ref: unknown, data: unknown) => void;
+    commit: () => Promise<unknown>;
+  };
+}
 
 // Aktif bellekler her aday icin yeniden okunur: ayni turda once yazilan,
 // supersede ya da retract edilen kayit sonraki adayin kararina yansir.
-async function readActiveMemories(db, userId, projectId) {
+async function readActiveMemories(db: FirestoreLike, userId: string, projectId?: string | null) {
   const snap = await db.collection("memory_vectors")
     .where("userId", "==", userId)
     .where("status", "==", "active")
@@ -34,26 +63,28 @@ async function readActiveMemories(db, userId, projectId) {
   return snap.docs.filter((doc) => (doc.data()?.projectId || null) === targetProject);
 }
 
-const docData = (doc) => doc.data();
+const docData = (doc: DocRecord) => (doc.data() || {}) as Record<string, unknown>;
+
+export interface PersistMemoryCandidatesParams {
+  db: unknown;
+  memories: unknown[];
+  userId: string;
+  projectId?: string | null;
+  conversationId: string;
+  sourceMessageIds?: string[];
+  embed: (text: string) => Promise<{ values: number[]; model: string }>;
+  logger: { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void };
+  now: () => unknown;
+  errMessage: (err: unknown) => string;
+  tally: MemoryWriteTally;
+  [key: string]: unknown;
+}
 
 /**
  * Adaylari sirayla isler ve `tally` sayaclarini gunceller.
- *
- * @param {object} p
- * @param {object} p.db Firestore (collection/where/get/doc/set, doc.ref.update, batch)
- * @param {unknown[]} p.memories cikarim modelinin ham adaylari
- * @param {string} p.userId
- * @param {string | null} [p.projectId]
- * @param {string} p.conversationId
- * @param {string[]} [p.sourceMessageIds]
- * @param {(text: string) => Promise<{ values: number[], model: string }>} p.embed
- * @param {{ info: Function, warn: Function }} p.logger
- * @param {() => unknown} p.now sunucu zaman damgasi (Timestamp.now)
- * @param {(err: unknown) => string} p.errMessage
- * @param {import("../src/alfred/cognitive/memory/memory-write-planner.js").MemoryWriteTally} p.tally
  */
 export async function persistMemoryCandidates({
-  db,
+  db: rawDb,
   memories,
   userId,
   projectId,
@@ -64,7 +95,8 @@ export async function persistMemoryCandidates({
   now,
   errMessage,
   tally
-}) {
+}: PersistMemoryCandidatesParams): Promise<void> {
+  const db = rawDb as FirestoreLike;
   await runMemoryWriteLoop({
     candidates: memories,
     tally,
@@ -91,7 +123,7 @@ export async function persistMemoryCandidates({
           memoryId,
           userId,
           content: candidate.content,
-          memoryType: candidate.memoryType,
+          memoryType: candidate.memoryType as MemoryType,
           ...(projectId ? { projectId } : {}),
           sourceConversationId: conversationId,
           sourceMessageIds,

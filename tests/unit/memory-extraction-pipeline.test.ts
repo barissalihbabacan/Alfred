@@ -444,7 +444,7 @@ describe("planMemoryExtraction", () => {
   it("uses production's 10 s budget as src's default timeout", () => {
     expect(MEMORY_EXTRACTION_BUDGET_MS).toBe(10_000);
     expect(DEFAULT_EXTRACTION_TIMEOUT_MS).toBe(10_000);
-    const index = readFileSync(new URL("../../functions/index.js", import.meta.url), "utf8");
+    const index = readFileSync(new URL("../../functions/api.ts", import.meta.url), "utf8");
     expect(index).toContain('import { MEMORY_EXTRACTION_BUDGET_MS } from "../src/alfred/cognitive/memory/extractor/extraction-pipeline.js";');
     expect(index).not.toMatch(/const MEMORY_EXTRACTION_BUDGET_MS\s*=/);
   });

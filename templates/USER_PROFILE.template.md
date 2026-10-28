@@ -1,28 +1,28 @@
-# Canonical User Profile — [USER_NAME]
+# Canonical User Profile — {{USER_NAME}}
 
 > **Document Status**: Canonical Baseline Profile  
 > **Source of Truth**: Version-Controlled Git (`users/USER_PROFILE.md`)  
-> **Author**: [USER_FULL_NAME]  
-> **Generated**: [GENERATED_DATE]
+> **Author**: {{USER_FULL_NAME}}  
+> **Generated**: {{GENERATED_DATE}}
 
 ---
 
 ## 1. Identity & Baseline Information
 
-- **Name**: [USER_NAME] (Full name: [USER_FULL_NAME])
-- **Primary Languages**: [PRIMARY_LANGUAGES]
-- **Role**: [USER_ROLE]
-- **Domain**: [USER_DOMAIN]
+- **Name**: {{USER_NAME}} (Full name: {{USER_FULL_NAME}})
+- **Primary Languages**: {{PRIMARY_LANGUAGES}}
+- **Role**: {{USER_ROLE}}
+- **Domain**: {{USER_DOMAIN}}
 
 ---
 
 ## 2. Technical Profile & Proficiency
 
-- **Engineering Level**: [ENGINEERING_LEVEL]
+- **Engineering Level**: {{ENGINEERING_LEVEL}}
 - **Core Stacks & Competencies**:
-[CORE_STACKS]
+{{CORE_STACKS}}
 - **Architectural Orientation**:
-[ARCHITECTURAL_ORIENTATION]
+{{ARCHITECTURAL_ORIENTATION}}
 
 ---
 

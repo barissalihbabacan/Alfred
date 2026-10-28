@@ -143,7 +143,7 @@ describe("2. formatting", () => {
 
   it("matches the canonical rule in docs/persona/ALFRED_PERSONA.md", () => {
     const doc = readFileSync(new URL("../../docs/persona/ALFRED_PERSONA.md", import.meta.url), "utf8");
-    expect(doc).toContain("**Chat Formatting**: Alfred's replies appear in [USER_NAME]'s chat window, which renders markdown");
+    expect(doc).toContain("**Chat Formatting**: Alfred's replies appear in {{USER_NAME}}'s chat window, which renders markdown");
     expect(doc).toContain("It does not render headings or tables, so he never uses them.");
     expect(doc).toContain("Conversation stays prose: a short list only for several parallel items or steps");
   });

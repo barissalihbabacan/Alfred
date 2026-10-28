@@ -26,17 +26,90 @@ pub fn validate_gcp_project_id(project_id: &str) -> Result<String, String> {
 }
 
 /// Validates an email address for single-user authorization (ALLOWED_EMAIL).
+/// Rejects dummy, placeholder, disposable, profane, or RFC 2606 example domains.
 pub fn validate_email(email: &str) -> Result<String, String> {
     let trimmed = email.trim().to_lowercase();
     if trimmed.is_empty() {
         return Err("Email address cannot be empty.".to_string());
     }
 
-    let re = Regex::new(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    let re = Regex::new(r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$")
         .map_err(|e| e.to_string())?;
 
     if !re.is_match(&trimmed) {
-        return Err("Please enter a valid email address (e.g., owner@example.invalid).".to_string());
+        return Err("Please enter a valid email address (e.g. yourname@gmail.com).".to_string());
+    }
+
+    let parts: Vec<&str> = trimmed.split('@').collect();
+    if parts.len() != 2 {
+        return Err("Invalid email address format.".to_string());
+    }
+    let local = parts[0];
+    let domain = parts[1];
+
+    // 1. Block RFC 2606 reserved example & test domains and disposable providers
+    const BLOCKED_DOMAINS: &[&str] = &[
+        "example.com",
+        "example.org",
+        "example.net",
+        "test.com",
+        "test.org",
+        "test.net",
+        "sample.com",
+        "fake.com",
+        "dummy.com",
+        "invalid",
+        "localhost",
+        "mailinator.com",
+        "tempmail.com",
+        "dispostable.com",
+        "10minutemail.com",
+        "guerrillamail.com",
+        "trashmail.com",
+        "yopmail.com",
+        "sharklasers.com",
+    ];
+
+    if BLOCKED_DOMAINS.iter().any(|d| domain == *d || domain.ends_with(&format!(".{d}"))) {
+        return Err("Placeholder, test, or disposable domains (like example.com) are not allowed. Please enter your real Google account email.".to_string());
+    }
+
+    // 2. Block placeholder/dummy local names
+    const DUMMY_LOCALPARTS: &[&str] = &[
+        "test",
+        "demo",
+        "sample",
+        "fake",
+        "dummy",
+        "placeholder",
+        "asdf",
+        "qwerty",
+    ];
+
+    if DUMMY_LOCALPARTS.contains(&local) {
+        return Err(format!("'{local}' is a placeholder name. Please enter your real personal Google account email."));
+    }
+
+    // 3. Block profanity / abusive localparts
+    const PROFANITY_PATTERNS: &[&str] = &[
+        "fuck",
+        "shit",
+        "bitch",
+        "asshole",
+        "dick",
+        "cunt",
+        "bastard",
+        "sik",
+        "amk",
+        "pic",
+        "orospu",
+        "yarrak",
+    ];
+
+    for bad in PROFANITY_PATTERNS {
+        if local.contains(bad) {
+            return Err("Inappropriate or abusive email address detected. Please enter your real email address.".to_string());
+        }
     }
 
     Ok(trimmed)
@@ -126,8 +199,20 @@ mod tests {
     #[test]
     fn test_validate_email() {
         assert!(validate_email("owner@example.invalid").is_ok());
+        assert!(validate_email("john.doe@gmail.com").is_ok());
         assert!(validate_email("invalid-email").is_err());
         assert!(validate_email("").is_err());
+        // Blocked dummy and example domains
+        assert!(validate_email("user@example.com").is_err());
+        assert!(validate_email("user@test.com").is_err());
+        assert!(validate_email("user@mailinator.com").is_err());
+        // Blocked dummy localparts
+        assert!(validate_email("test@gmail.com").is_err());
+        assert!(validate_email("dummy@gmail.com").is_err());
+        // Blocked profanity
+        assert!(validate_email("fuckyou@example.com").is_err());
+        assert!(validate_email("fuckyou@gmail.com").is_err());
+        assert!(validate_email("amk@gmail.com").is_err());
     }
 
     #[test]

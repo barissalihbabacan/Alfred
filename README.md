@@ -34,9 +34,8 @@
 
 ## What Alfred Does
 
-- **Bilingual fluency (Turkish & English).** Responds in whichever language you address it in, with natural conversational cadence and native voice input (microphone) support.
-- **TÜBİTAK BİLGEM EVREN LLM Integration.** Primary model tier powered by Türkiye's national open LLM API (`qwen3.8-flash-next`, `deepseek-v4.1-flash`; generous 15M tokens/day free quota), delivering exceptional low-latency multilingual reasoning.
-- **Multi-tier failover chain.** Seamlessly switches across providers before streaming tokens: **EVREN → Groq (`gpt-oss-120b`) → Gemini (`gemini-3.8-flash`) → Local Ollama**.
+- **Bilingual fluency (English & Turkish).** Responds in whichever language you address it in, with natural conversational cadence and native voice input (microphone) support.
+- **Multi-tier LLM failover chain.** Seamlessly switches across providers before streaming tokens: **Groq (`gpt-oss-120b`) → Gemini (`gemini-3.8-flash`) → Local Ollama** (supports regional national models like TÜBİTAK EVREN LLM as well; see [Türkçe](./README.tr.md)).
 - **Autonomous long-term vector memory.** Silently extracts preferences and durable facts post-turn via an independent classification pipeline, scrubs secrets (API keys, passwords, tokens), embeds vectors via Gemini, and commits atomic deduplications/supersessions to Firestore.
 - **Reasoned objection.** Rejects reckless operations without sycophancy: explains the concrete failure mode and presents a safe, production-grade alternative.
 - **Live web search with factual citations.** Integrates Tavily search with automatic news indexing (`topic: "news"`), prunes stale SEO/clickbait, and embeds clickable markdown links (`[source](url)`) for every factual assertion.
@@ -67,10 +66,10 @@ All core behaviors are pinned in production with real conversation logs and auto
 1. **Client (Web):** `apps/web` is a Next.js 16 (App Router) frontend statically exported to Firebase Hosting. It authenticates users via Google Sign-In and attaches Firebase App Check attestation tokens to every request.
 2. **Security Gateway:** `functions/index.ts` (Cloud Functions 2nd Gen) serves as the sole backend gateway. It enforces strict dual-layer authorization (`ALLOWED_EMAIL` + `ALLOWED_UID` whitelist) and validates App Check tokens. All API keys live strictly within Google Secret Manager.
 3. **Intelligent Failover Chain:**
-   - **1. EVREN LLM** (`qwen3.8-flash-next`, 15M tokens/day): High-throughput national model.
-   - **2. Groq** (`gpt-oss-120b`): Ultra-low latency global inference.
-   - **3. Google Gemini** (`gemini-3.8-flash`): Cloud fallback tier.
-   - **4. Local Ollama** (`gemma4:12b`): On-premise private offline fallback.
+   - **1. Groq** (`gpt-oss-120b`): Ultra-low latency global inference.
+   - **2. Google Gemini** (`gemini-3.8-flash`): Cloud fallback tier.
+   - **3. Local Ollama** (`gemma4:12b`): On-premise private offline fallback.
+   *(Turkish citizens can also enable TÜBİTAK's EVREN LLM with 15M free tokens/day; see [Türkçe README](./README.tr.md)).*
    *If a provider encounters rate limits (HTTP 429) or timeouts before token streaming begins, the entire turn fails over cleanly to the next provider.*
 4. **Real-Time Streaming (SSE):** Replies stream chunk-by-chunk via Server-Sent Events, surfacing reasoning thoughts, tool calls, and model handovers live in the UI.
 
@@ -82,10 +81,10 @@ All core behaviors are pinned in production with real conversation logs and auto
 - **Node.js**: v22+
 - **Firebase CLI**: `npm install -g firebase-tools`
 - **Model API Keys (Any combination)**:
-  - [TÜBİTAK BİLGEM EVREN API](https://evren-llmapi.ssyz.org.tr/) (Free 15M tokens/day)
   - [Groq Console](https://console.groq.com/)
   - [Google AI Studio (Gemini)](https://aistudio.google.com/)
   - [Tavily](https://tavily.com/) (For real-time web search)
+  - *(Optional)* [TÜBİTAK BİLGEM EVREN API](https://evren-llmapi.ssyz.org.tr/) (For TR users via e-Devlet)
 
 ### 1. Clone & Install Dependencies
 
@@ -116,10 +115,10 @@ Edit `.env` with your authorization whitelist and API keys:
 ```env
 ALLOWED_EMAIL="you@example.com"
 ALLOWED_UID="your_firebase_auth_uid"
-EVREN_API_KEY="evren_..."
 GROQ_API_KEY="gsk_..."
 GEMINI_API_KEY="AIzaSy..."
 TAVILY_API_KEY="tvly-..."
+# EVREN_API_KEY="evren_..."  # Optional: Turkish national LLM API
 ```
 
 ### 4. Run Locally

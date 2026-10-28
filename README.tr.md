@@ -35,7 +35,7 @@
 ## Alfred Ne Yapar?
 
 - **Türkçe ve İngilizceyi akıcı konuşur.** Hangi dilde sorulduysa o dilde teknik derinlikle yanıt verir; sesli girişleri (mikrofon) destekler.
-- **TÜBİTAK BİLGEM EVREN LLM Entegrasyonu.** Türkiye'nin ulusal açık LLM servisi olan EVREN API (`qwen3.8-flash-next`, `deepseek-v4.1-flash`; günlük 15M token ücretsiz kota) öncelikli model zincirinin en başında yer alır. Türkçe sorgularda yerel kültürel ve dilsel yetkinliği en üst seviyededir.
+- **TÜBİTAK BİLGEM EVREN LLM Entegrasyonu.** Türkiye'nin ulusal açık LLM servisi olan EVREN API (`qwen3.8-flash-next`, `deepseek-v4.1-flash`; e-Devlet ile T.C. vatandaşlarına günlük 15M token ücretsiz kota) öncelikli model zincirinin en başında yer alır. Türkçe sorgularda yerel kültürel ve dilsel yetkinliği en üst seviyededir.
 - **Kendiliğinden hatırlar.** "Yeşil elma suyunu severim" gibi kalıcı tercihleri sohbet bittikten sonra ayrı bir modelle çıkarır, şifre ve anahtar gibi gizli bilgileri filtreler ve sonraki konuşmalarda kullanılmak üzere Firestore vektör veritabanına yazar.
 - **Gerekçesiyle itiraz eder.** Prodüksiyon veritabanını silmek, yetkisiz betik çalıştırmak veya testleri atlamak gibi riskli önerilere tereddütsüz "Hayır." der; somut riskini açıklar ve güvenli bir alternatif sunar.
 - **Doğru saati bilir.** Tek araç çağrısıyla dünya çapında altı şehre kadar yerel saati ve yaz/kış saati (DST) farklarını doğru hesaplar.

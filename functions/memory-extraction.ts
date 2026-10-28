@@ -32,7 +32,7 @@ export type MemoryExtractionSummary = ReturnType<typeof summarizeMemoryWriteTall
 };
 
 export interface CreateExtractAndPersistMemoriesDeps {
-  fetch: (url: string, init?: RequestInit) => Promise<Response>;
+  fetch: (url: string, init: RequestInit) => Promise<Response>;
   logger: { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void };
   now: () => unknown;
   getEmbedding: (text: string, ollamaUrl?: string, geminiKey?: string) => Promise<{ values: number[]; model: string }>;

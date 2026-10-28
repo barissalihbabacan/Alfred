@@ -75,7 +75,19 @@ pub fn generate_cloud_shell_script(config: &SetupConfig) -> String {
     script.push_str("fi\n\n");
 
     script.push_str("echo \"🦇 [Alfred Setup] Configuring Google Cloud project...\"\n");
-    script.push_str(&format!("gcloud config set project \"{}\"\n\n", config.project_id));
+    script.push_str(&format!("gcloud config set project \"{}\"\n\n", config.project_id.trim()));
+
+    script.push_str("# 2. Billing Account Association (Auto-links available billing account)\n");
+    script.push_str("if ! gcloud billing projects describe \"$PROJECT_ID\" --format=\"value(billingAccountName)\" 2>/dev/null | grep -q \"/\"; then\n");
+    script.push_str("  echo \"💳 [Alfred Setup] Linking open Google Cloud billing account...\"\n");
+    script.push_str("  for ba in $(gcloud billing accounts list --filter=\"open=true\" --format=\"value(ACCOUNT_ID)\" 2>/dev/null); do\n");
+    script.push_str("    echo \"  Attempting to link billing account $ba...\"\n");
+    script.push_str("    if gcloud billing projects link \"$PROJECT_ID\" --billing-account=\"$ba\" 2>/dev/null; then\n");
+    script.push_str("      echo \"  ✓ Successfully linked billing account: $ba\"\n");
+    script.push_str("      break\n");
+    script.push_str("    fi\n");
+    script.push_str("  done\n");
+    script.push_str("fi\n\n");
 
     script.push_str("echo \"🔑 [Alfred Setup] Enabling required Google Cloud and Firebase APIs...\"\n");
     script.push_str("gcloud services enable \\\n");
@@ -88,9 +100,9 @@ pub fn generate_cloud_shell_script(config: &SetupConfig) -> String {
     script.push_str("  identitytoolkit.googleapis.com\n\n");
 
     script.push_str("echo \"🔥 [Alfred Setup] Ensuring Firebase is enabled on Google Cloud project...\"\n");
-    script.push_str("if ! npx firebase-tools projects:list 2>/dev/null | grep -q \"$PROJECT_ID\"; then\n");
+    script.push_str("if ! npx --yes firebase-tools projects:list 2>/dev/null | grep -q \"$PROJECT_ID\"; then\n");
     script.push_str("  echo \"  Adding Firebase capabilities to $PROJECT_ID...\"\n");
-    script.push_str("  npx firebase-tools projects:addfirebase \"$PROJECT_ID\" || true\n");
+    script.push_str("  npx --yes firebase-tools projects:addfirebase \"$PROJECT_ID\" || true\n");
     script.push_str("fi\n\n");
 
     script.push_str("echo \"🗄️ [Alfred Setup] Ensuring Firestore database exists in Native mode...\"\n");
@@ -135,8 +147,8 @@ pub fn generate_cloud_shell_script(config: &SetupConfig) -> String {
     script.push_str("npm run profile:init\n\n");
 
     script.push_str("echo \"🚀 [Alfred Setup] Deploying to Firebase (Hosting, Functions & Security Rules)...\"\n");
-    script.push_str(&format!("npx firebase-tools use \"{}\"\n", config.project_id));
-    script.push_str("npx firebase-tools deploy --only hosting,functions,firestore:rules,firestore:indexes\n\n");
+    script.push_str(&format!("npx --yes firebase-tools use \"{}\"\n", config.project_id.trim()));
+    script.push_str("npx --yes firebase-tools deploy --only hosting,functions,firestore:rules,firestore:indexes\n\n");
 
     script.push_str("echo \"\"\n");
     script.push_str("echo \"===================================================================\"\n");

@@ -100,13 +100,10 @@ pub fn generate_cloud_shell_script(config: &SetupConfig) -> String {
     script.push_str("  identitytoolkit.googleapis.com\n\n");
 
     script.push_str("echo \"🔥 [Alfred Setup] Ensuring Firebase is enabled on Google Cloud project...\"\n");
-    script.push_str("if ! npx --yes firebase-tools projects:list 2>/dev/null | grep -q \"$PROJECT_ID\"; then\n");
-    script.push_str("  echo \"  Adding Firebase capabilities to $PROJECT_ID...\"\n");
-    script.push_str("  npx --yes firebase-tools projects:addfirebase \"$PROJECT_ID\" || true\n");
-    script.push_str("fi\n\n");
+    script.push_str("npx --yes firebase-tools projects:addfirebase \"$PROJECT_ID\" >/dev/null 2>&1 || true\n\n");
 
     script.push_str("echo \"🗄️ [Alfred Setup] Ensuring Firestore database exists in Native mode...\"\n");
-    script.push_str("gcloud firestore databases create --location=europe-west1 2>/dev/null || true\n\n");
+    script.push_str("gcloud firestore databases create --location=europe-west1 >/dev/null 2>&1 || true\n\n");
 
     script.push_str("# Helper to create or update secrets in Google Secret Manager\n");
     script.push_str("create_or_update_secret() {\n");
@@ -122,29 +119,23 @@ pub fn generate_cloud_shell_script(config: &SetupConfig) -> String {
     script.push_str("}\n\n");
 
     script.push_str("echo \"🛡️ [Alfred Setup] Provisioning Secret Manager vault...\"\n");
-    if !config.groq_api_key.trim().is_empty() {
-        script.push_str(&format!("create_or_update_secret \"GROQ_API_KEY\" \"{}\"\n", config.groq_api_key.trim()));
-    }
-    if !config.gemini_api_key.trim().is_empty() {
-        script.push_str(&format!("create_or_update_secret \"GEMINI_API_KEY\" \"{}\"\n", config.gemini_api_key.trim()));
-    }
-    if !config.tavily_api_key.trim().is_empty() {
-        script.push_str(&format!("create_or_update_secret \"TAVILY_API_KEY\" \"{}\"\n", config.tavily_api_key.trim()));
-    }
-
-    if let Some(ref evren) = config.evren_api_key {
-        if !evren.trim().is_empty() {
-            script.push_str(&format!("create_or_update_secret \"EVREN_API_KEY\" \"{}\"\n", evren.trim()));
-        }
-    }
+    script.push_str(&format!("create_or_update_secret \"GROQ_API_KEY\" \"{}\"\n", config.groq_api_key.trim()));
+    script.push_str(&format!("create_or_update_secret \"GEMINI_API_KEY\" \"{}\"\n", config.gemini_api_key.trim()));
+    script.push_str(&format!("create_or_update_secret \"TAVILY_API_KEY\" \"{}\"\n", config.tavily_api_key.trim()));
+    let evren_val = config.evren_api_key.as_deref().unwrap_or("").trim();
+    script.push_str(&format!("create_or_update_secret \"EVREN_API_KEY\" \"{}\"\n", evren_val));
+    script.push_str("create_or_update_secret \"GOOGLE_OAUTH_CLIENT_ID\" \"\"\n");
+    script.push_str("create_or_update_secret \"GOOGLE_OAUTH_CLIENT_SECRET\" \"\"\n");
 
     script.push_str("\necho \"📝 [Alfred Setup] Writing local environment config (.env)...\"\n");
     script.push_str("cat << 'EOF' > .env\n");
     script.push_str(&generate_env_file(config));
     script.push_str("EOF\n\n");
 
-    script.push_str("echo \"🧠 [Alfred Setup] Initializing user persona profile digest...\"\n");
-    script.push_str("npm run profile:init\n\n");
+    script.push_str("if [ ! -f \"users/USER_PROFILE.md\" ]; then\n");
+    script.push_str("  echo \"🧠 [Alfred Setup] Initializing user persona profile digest...\"\n");
+    script.push_str("  npm run profile:init -- --defaults\n");
+    script.push_str("fi\n\n");
 
     script.push_str("echo \"🚀 [Alfred Setup] Deploying to Firebase (Hosting, Functions & Security Rules)...\"\n");
     script.push_str(&format!("npx --yes firebase-tools use \"{}\"\n", config.project_id.trim()));
@@ -207,7 +198,7 @@ mod tests {
         assert!(script.contains("PROJECT_ID=\"butler-alfred\""));
         assert!(script.contains("gcloud config set project \"butler-alfred\""));
         assert!(script.contains("create_or_update_secret \"GROQ_API_KEY\""));
-        assert!(script.contains("npm run profile:init"));
+        assert!(script.contains("users/USER_PROFILE.md"));
         assert!(script.contains("https://butler-alfred.web.app"));
     }
 }

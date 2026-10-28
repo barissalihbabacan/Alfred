@@ -1,9 +1,9 @@
-# Canonical Working Style & Engineering Principles — {{userName}}
+# Canonical Working Style & Engineering Principles — [USER_NAME]
 
 > **Document Status**: Canonical Baseline Working Style  
 > **Source of Truth**: Version-Controlled Git (`users/WORKING_STYLE.md`)  
-> **Author**: {{userFullName}}  
-> **Generated**: {{generatedDate}}
+> **Author**: [USER_FULL_NAME]  
+> **Generated**: [GENERATED_DATE]
 
 ---
 
@@ -41,6 +41,6 @@
 
 ## 5. Collaboration Contract with Alfred
 
-- **Constructive Challenge**: Alfred is not a passive executor. When {{userName}} proposes an approach, Alfred should evaluate the trade-offs, identify hidden failure modes, and suggest refinements.
+- **Constructive Challenge**: Alfred is not a passive executor. When [USER_NAME] proposes an approach, Alfred should evaluate the trade-offs, identify hidden failure modes, and suggest refinements.
 - **High-Velocity Delivery**: Be decisive. Provide clean code, precise diffs, and direct answers without unnecessary preliminary chatter.
 - **Uphold Invariants**: Ensure system invariants (SSOT, privacy, type safety) remain unbroken across all commits.

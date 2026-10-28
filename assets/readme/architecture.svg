@@ -1,86 +1,111 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640" role="img" aria-labelledby="arch-title arch-desc">
-  <title id="arch-title">Bir mesajın yolculuğu</title>
-  <desc id="arch-desc">Tarayıcıdaki Next.js uygulaması Google girişi ve App Check token'ıyla api Cloud Function'ına istek atar. Fonksiyon kimliği doğrular, yalın istemi kurar, Groq ve Gemini sırasıyla denenerek cevap SSE ile akıtılır. Arka planda saat ve Tavily web arama araçları çalışır; kalıcı bilgiler gizli bilgi filtresinden geçip Gemini embedding ile Firestore'a yazılır.</desc>
+  <title id="arch-title">Alfred — Bir Mesajın Uçtan Uca Yolculuğu</title>
+  <desc id="arch-desc">Tarayıcıdaki Next.js uygulaması Google girişi ve App Check token'ıyla api Cloud Function'ına istek atar. Fonksiyon çift katmanlı whitelist ile kimliği doğrular, istemi kurar, Groq ve Gemini sırasıyla denenerek cevap SSE ile akıtılır. Arka planda saat ve Tavily web arama araçları çalışır; kalıcı bilgiler gizli bilgi filtresinden geçip Firestore vektör tabanına yazılır.</desc>
 
-  <rect width="1200" height="640" rx="24" fill="#0E1726"/>
+  <defs>
+    <linearGradient id="archBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0E1726"/>
+      <stop offset="100%" stop-color="#0A101D"/>
+    </linearGradient>
+  </defs>
 
-  <text x="48" y="62" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" letter-spacing="3" fill="#C9A45C">BİR MESAJIN YOLCULUĞU</text>
+  <rect width="1200" height="640" rx="24" fill="url(#archBg)"/>
+
+  <!-- üst başlık -->
+  <g transform="translate(48 54)">
+    <circle cx="6" cy="6" r="4" fill="#C9A45C"/>
+    <text x="22" y="11" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" font-weight="600" letter-spacing="3" fill="#C9A45C">UÇTAN UCA MİMARİ · BİR MESAJIN YOLCULUĞU</text>
+  </g>
 
   <!-- üst sıra: istek yolu -->
   <g id="request-path" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
     <!-- 1 tarayıcı -->
-    <g transform="translate(48 96)">
-      <rect width="252" height="220" rx="16" fill="#16233A" stroke="#26344D"/>
-      <text x="24" y="44" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#C9A45C">01</text>
-      <text x="24" y="82" font-size="24" font-weight="600" fill="#F4EFE3">Tarayıcı</text>
-      <text x="24" y="120" font-size="20" fill="#C8CEDA">Next.js statik uygulama</text>
-      <text x="24" y="150" font-size="20" fill="#C8CEDA">Google ile giriş</text>
-      <text x="24" y="180" font-size="20" fill="#C8CEDA">App Check token'ı</text>
+    <g transform="translate(48 88)">
+      <rect width="252" height="232" rx="16" fill="#16233A" stroke="#26344D"/>
+      <text x="24" y="44" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" font-weight="700" fill="#C9A45C">01</text>
+      <text x="24" y="80" font-size="22" font-weight="700" fill="#F4EFE3">Tarayıcı (Web)</text>
+      <text x="24" y="116" font-size="15" fill="#C8CEDA">Next.js 16 (App Router)</text>
+      <text x="24" y="142" font-size="15" fill="#C8CEDA">Google Auth (Firebase)</text>
+      <text x="24" y="168" font-size="15" fill="#C8CEDA">App Check Token</text>
+      <text x="24" y="198" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#8A94A6">apps/web/ (statik export)</text>
     </g>
+
     <!-- 2 kapı -->
-    <g transform="translate(332 96)">
-      <rect width="252" height="220" rx="16" fill="#16233A" stroke="#26344D"/>
-      <text x="24" y="44" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#C9A45C">02</text>
-      <text x="24" y="82" font-size="24" font-weight="600" fill="#F4EFE3">api fonksiyonu</text>
-      <text x="24" y="120" font-size="20" fill="#C8CEDA">ID token + tek UID</text>
-      <text x="24" y="150" font-size="20" fill="#C8CEDA">App Check zorunlu</text>
-      <text x="24" y="180" font-size="20" fill="#C8CEDA">Secret Manager</text>
+    <g transform="translate(332 88)">
+      <rect width="252" height="232" rx="16" fill="#16233A" stroke="#26344D"/>
+      <text x="24" y="44" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" font-weight="700" fill="#C9A45C">02</text>
+      <text x="24" y="80" font-size="22" font-weight="700" fill="#F4EFE3">Cloud Function</text>
+      <text x="24" y="116" font-size="15" fill="#C8CEDA">ALLOWED_EMAIL &amp; UID</text>
+      <text x="24" y="142" font-size="15" fill="#C8CEDA">App Check Doğrulama</text>
+      <text x="24" y="168" font-size="15" fill="#C8CEDA">Secret Manager Kasası</text>
+      <text x="24" y="198" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#8A94A6">functions/index.ts (2nd Gen)</text>
     </g>
+
     <!-- 3 model zinciri -->
-    <g transform="translate(616 96)">
-      <rect width="252" height="220" rx="16" fill="#16233A" stroke="#C9A45C" stroke-opacity="0.6"/>
-      <text x="24" y="44" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#C9A45C">03</text>
-      <text x="24" y="82" font-size="24" font-weight="600" fill="#F4EFE3">Model zinciri</text>
-      <text x="24" y="120" font-size="20" fill="#F4EFE3">Groq gpt-oss-120b</text>
-      <text x="24" y="150" font-size="20" fill="#C8CEDA">↓ Gemini 3.8 Flash</text>
-      <text x="24" y="180" font-size="18" fill="#8A94A6">otomatik devretme</text>
+    <g transform="translate(616 88)">
+      <rect width="252" height="232" rx="16" fill="#16233A" stroke="#C9A45C" stroke-width="1.5" stroke-opacity="0.8"/>
+      <text x="24" y="44" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" font-weight="700" fill="#C9A45C">03</text>
+      <text x="24" y="80" font-size="22" font-weight="700" fill="#F4EFE3">Model Zinciri</text>
+      <text x="24" y="116" font-size="15" font-weight="600" fill="#F4EFE3">1. Groq (gpt-oss-120b)</text>
+      <text x="24" y="142" font-size="15" fill="#C8CEDA">2. Gemini 3.8 Flash</text>
+      <text x="24" y="168" font-size="15" fill="#C8CEDA">3. Yerel Ollama (Gemma)</text>
+      <text x="24" y="198" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#C9A45C">otomatik kesintisiz devretme</text>
     </g>
+
     <!-- 4 cevap -->
-    <g transform="translate(900 96)">
-      <rect width="252" height="220" rx="16" fill="#16233A" stroke="#26344D"/>
-      <text x="24" y="44" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#C9A45C">04</text>
-      <text x="24" y="82" font-size="24" font-weight="600" fill="#F4EFE3">Akışlı cevap</text>
-      <text x="24" y="120" font-size="20" fill="#C8CEDA">SSE: thinking · chunk</text>
-      <text x="24" y="150" font-size="20" fill="#C8CEDA">kaynak linkli markdown</text>
-      <text x="24" y="180" font-size="20" fill="#C8CEDA">Türkçe / İngilizce</text>
+    <g transform="translate(900 88)">
+      <rect width="252" height="232" rx="16" fill="#16233A" stroke="#26344D"/>
+      <text x="24" y="44" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" font-weight="700" fill="#C9A45C">04</text>
+      <text x="24" y="80" font-size="22" font-weight="700" fill="#F4EFE3">Akışlı Yanıt</text>
+      <text x="24" y="116" font-size="15" fill="#C8CEDA">Server-Sent Events (SSE)</text>
+      <text x="24" y="142" font-size="15" fill="#C8CEDA">Düşünce &amp; Araç Aşamaları</text>
+      <text x="24" y="168" font-size="15" fill="#C8CEDA">Tıklanabilir Kaynak Linkleri</text>
+      <text x="24" y="198" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#8A94A6">Doğrudan fonksiyondan akış</text>
     </g>
-    <!-- oklar -->
+
+    <!-- bağlantı okları -->
     <g stroke="#C9A45C" stroke-width="2" fill="none">
-      <path d="M302 206 H328"/><path d="M322 200 L330 206 L322 212"/>
-      <path d="M586 206 H612"/><path d="M606 200 L614 206 L606 212"/>
-      <path d="M870 206 H896"/><path d="M890 200 L898 206 L890 212"/>
+      <path d="M300 204 H330"/><path d="M324 198 L332 204 L324 210"/>
+      <path d="M584 204 H614"/><path d="M608 198 L616 204 L608 210"/>
+      <path d="M868 204 H898"/><path d="M892 198 L900 204 L892 210"/>
     </g>
   </g>
 
-  <!-- alt sıra: arka plan -->
-  <text x="48" y="384" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" letter-spacing="3" fill="#8A94A6">ARKA PLANDA</text>
+  <!-- alt sıra: arka planda çalışan zeka -->
+  <g transform="translate(48 368)">
+    <circle cx="6" cy="6" r="4" fill="#8A94A6"/>
+    <text x="22" y="11" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" font-weight="600" letter-spacing="3" fill="#8A94A6">ARKA PLANDA ÇALIŞAN ÇEKİRDEK SERVİSLER</text>
+  </g>
+
   <g id="background-work" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
-    <g transform="translate(48 408)">
-      <rect width="348" height="184" rx="16" fill="#131F33" stroke="#26344D"/>
-      <text x="24" y="44" font-size="22" font-weight="600" fill="#F4EFE3">İstem (~1.540 token)</text>
-      <text x="24" y="82" font-size="20" fill="#C8CEDA">Yalın asistan kuralları</text>
-      <text x="24" y="112" font-size="20" fill="#C8CEDA">+ profil özeti (users/*.md)</text>
-      <text x="24" y="142" font-size="20" fill="#C8CEDA">+ ilgili uzun süreli anılar</text>
+    <!-- servis 1: istem & profil -->
+    <g transform="translate(48 396)">
+      <rect width="348" height="200" rx="16" fill="#131F33" stroke="#26344D"/>
+      <text x="24" y="40" font-size="20" font-weight="700" fill="#F4EFE3">Dinamik İstem (~1.540 Token)</text>
+      <text x="24" y="74" font-size="15" fill="#C8CEDA">Kullanıcı profili özeti (users/*.md)</text>
+      <text x="24" y="100" font-size="15" fill="#C8CEDA">Kişilik yönergeleri &amp; itiraz kuralları</text>
+      <text x="24" y="126" font-size="15" fill="#C8CEDA">Firestore'dan anlık RAG hafıza çekimi</text>
+      <text x="24" y="164" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#C9A45C">npm run profile:init ile özelleşir</text>
     </g>
-    <g transform="translate(426 408)">
-      <rect width="348" height="184" rx="16" fill="#131F33" stroke="#26344D"/>
-      <text x="24" y="44" font-size="22" font-weight="600" fill="#F4EFE3">Araçlar</text>
-      <text x="24" y="82" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="19" fill="#C9A45C">get_current_time</text>
-      <text x="24" y="112" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="19" fill="#C9A45C">web_search</text>
-      <text x="24" y="142" font-size="20" fill="#C8CEDA">Tavily · güncel haber + link</text>
+
+    <!-- servis 2: araçlar -->
+    <g transform="translate(426 396)">
+      <rect width="348" height="200" rx="16" fill="#131F33" stroke="#26344D"/>
+      <text x="24" y="40" font-size="20" font-weight="700" fill="#F4EFE3">Saat &amp; Canlı Web Araçları</text>
+      <text x="24" y="74" font-size="15" fill="#C8CEDA">Tavily: Güncel haber indeksi (news)</text>
+      <text x="24" y="100" font-size="15" fill="#C8CEDA">Kaynak doğrulama &amp; temizleme</text>
+      <text x="24" y="126" font-size="15" fill="#C8CEDA">Tek çağrıda çoklu şehir saat çözümü</text>
+      <text x="24" y="164" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#8A94A6">Halüsinasyonsuz somut gerçekler</text>
     </g>
-    <g transform="translate(804 408)">
-      <rect width="348" height="184" rx="16" fill="#131F33" stroke="#26344D"/>
-      <text x="24" y="44" font-size="22" font-weight="600" fill="#F4EFE3">Bellek</text>
-      <text x="24" y="82" font-size="20" fill="#C8CEDA">gpt-oss-20b ile çıkarım</text>
-      <text x="24" y="112" font-size="20" fill="#C8CEDA">gizli bilgi filtresi</text>
-      <text x="24" y="142" font-size="20" fill="#C8CEDA">Gemini embedding → Firestore</text>
-    </g>
-    <!-- ince bağlantılar: fonksiyondan arka plana -->
-    <g stroke="#26344D" stroke-width="2" fill="none">
-      <path d="M458 318 V352 H222 V404"/>
-      <path d="M742 318 V352 H600 V404"/>
-      <path d="M742 352 H978 V404"/>
+
+    <!-- servis 3: bellek döngüsü -->
+    <g transform="translate(804 396)">
+      <rect width="348" height="200" rx="16" fill="#131F33" stroke="#26344D"/>
+      <text x="24" y="40" font-size="20" font-weight="700" fill="#F4EFE3">Uzun Vadeli Vektör Bellek</text>
+      <text x="24" y="74" font-size="15" fill="#C8CEDA">Sohbet sonrası arka planda cıkarım</text>
+      <text x="24" y="100" font-size="15" fill="#C8CEDA">Gizli Bilgi Filtresi (API anahtarı/şifre)</text>
+      <text x="24" y="126" font-size="15" fill="#C8CEDA">Atomik Firestore batch supersede/dedup</text>
+      <text x="24" y="164" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#10B981">gemini-embedding-001 (768d)</text>
     </g>
   </g>
 </svg>

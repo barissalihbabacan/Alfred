@@ -1,0 +1,6 @@
+# GitHub Linguist overrides
+# Ignore agent skill definitions, scripts, and configurations from GitHub language statistics
+.agents/** linguist-vendored linguist-detectable=false
+
+# Mark generated files
+src/alfred/cognitive/context/user-profile.generated.ts linguist-generated=true

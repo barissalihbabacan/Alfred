@@ -2,12 +2,11 @@
 # Ignore agent skill definitions, scripts, and configurations from GitHub language statistics
 .agents/** linguist-vendored linguist-detectable=false
 
-# Exclude tooling configs, web assets, test fixtures, and functions JS from language statistics
+# Exclude tooling configs, web assets, test fixtures, and built bundles from language statistics
 eslint.config.js linguist-detectable=false
 apps/web/postcss.config.js linguist-detectable=false
 apps/web/public/firebase-messaging-sw.js linguist-detectable=false
 tests/unit/fixtures/** linguist-detectable=false
-functions/*.js linguist-detectable=false
 functions/lib/** linguist-vendored linguist-detectable=false
 
 # Mark generated files

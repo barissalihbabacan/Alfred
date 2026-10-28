@@ -77,6 +77,24 @@ All core behaviors are pinned in production with real conversation logs and auto
 
 ## Quick Start
 
+### ⚡ 1-Click Launch with Google Cloud Shell & Setup-UI
+
+No local tools, Node.js, or SDK installations required! You can deploy your personal Alfred instance directly from your browser using Google Cloud Shell and our interactive **Rust + WebAssembly Setup-UI**:
+
+[![Open in Cloud Shell](https://gstatic.com/cloudsdk/images/open-in-cloudshell.svg)](https://ssh.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https://github.com/barissalihbabacan/Alfred&cloudshell_tutorial=.cloudshell/tutorial.md)
+
+1. Click **Open in Cloud Shell** above to clone the repository into a pre-configured Google Cloud environment.
+2. Launch the interactive setup wizard in the Cloud Shell terminal:
+   ```bash
+   npm run setup:ui
+   ```
+3. Click **Web Preview &rarr; Preview on port 8080** in the top-right corner of Cloud Shell.
+4. Enter your Project ID, single-user Google account, and API keys. The **Rust + WebAssembly** engine validates all credentials client-side and provisions Google Secret Manager, Firestore, and Firebase Hosting in one click!
+
+---
+
+### Local Installation
+
 ### Prerequisites
 - **Node.js**: v22+
 - **Firebase CLI**: `npm install -g firebase-tools`

@@ -8,6 +8,7 @@ apps/web/postcss.config.js linguist-detectable=false
 apps/web/public/firebase-messaging-sw.js linguist-detectable=false
 tests/unit/fixtures/** linguist-detectable=false
 functions/lib/** linguist-vendored linguist-detectable=false
+setup-ui/wasm/** linguist-vendored linguist-detectable=false
 
 # Mark generated files
 src/alfred/cognitive/context/user-profile.generated.ts linguist-generated=true

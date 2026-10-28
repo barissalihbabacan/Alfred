@@ -29,6 +29,8 @@ export default tseslint.config(
       // Build output: Next.js static export and the functions esbuild bundle.
       "**/out/**",
       "functions/lib/**",
+      "setup-ui/**",
+      "crates/**",
     ],
   },
 

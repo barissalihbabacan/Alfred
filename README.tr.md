@@ -77,6 +77,24 @@ Tüm yetenekler üretim ortamında, gerçek konuşmalar ve test logları ile do�
 
 ## Hızlı Başlangıç
 
+### ⚡ Google Cloud Shell & Setup-UI ile Tek Tıkla Kurulum
+
+Yerel makinenize Node.js veya herhangi bir araç kurmanıza gerek yoktur! Doğrudan tarayıcınızda Google Cloud Shell ve **Rust + WebAssembly Setup-UI** sihirbazı ile kişisel Alfred asistanınızı yayına alabilirsiniz:
+
+[![Open in Cloud Shell](https://gstatic.com/cloudsdk/images/open-in-cloudshell.svg)](https://ssh.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https://github.com/barissalihbabacan/Alfred&cloudshell_tutorial=.cloudshell/tutorial.md)
+
+1. Yukarıdaki **Open in Cloud Shell** butonuna tıklayarak depoyu hazır Google Cloud ortamında açın.
+2. Terminalde interaktif görsel kurulum sihirbazını başlatın:
+   ```bash
+   npm run setup:ui
+   ```
+3. Cloud Shell'in sağ üst köşesindeki **Web Önizleme (Web Preview) &rarr; 8080 Bağlantı Noktasında Önizle** seçeneğine tıklayın.
+4. Açılan görsel sihirbazda Proje ID'nizi, izinli e-postanızı ve API anahtarlarınızı girin. **Rust + WebAssembly** çekirdeği istemci tarafında tüm anahtarları doğrular; tek tıkla Google Secret Manager ve Firebase dağıtımını otomatik gerçekleştirir!
+
+---
+
+### Yerel Kurulum
+
 ### Ön Gereksinimler
 - **Node.js**: v22+
 - **Firebase CLI**: `npm install -g firebase-tools`

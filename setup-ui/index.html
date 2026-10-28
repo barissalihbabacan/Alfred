@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Alfred — Interactive Setup Wizard</title>
+  <link rel="icon" type="image/png" href="/avatar.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="bg-pattern"></div>
+
+  <main class="wizard-container">
+    <!-- Header -->
+    <header class="wizard-header">
+      <div class="brand">
+        <div class="avatar-ring">
+          <img src="/avatar.png" alt="Alfred" class="avatar-img" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%23c9a45c%22 stroke-width=%222%22><path d=%22M3 18h18M6 18V8a1.5 1.5 0 0 1 1.5-1.5h9A1.5 1.5 0 0 1 18 8v10M6 14.5h12%22/></svg>'">
+        </div>
+        <div>
+          <div class="brand-title">
+            <h1>Alfred</h1>
+            <span class="badge">WebAssembly Core</span>
+          </div>
+          <p class="brand-subtitle">Interactive Setup &amp; Cloud Shell Provisioning Wizard</p>
+        </div>
+      </div>
+    </header>
+
+    <!-- Stepper Navigation -->
+    <nav class="stepper" aria-label="Setup steps">
+      <div class="step-item active" data-step="0">
+        <span class="step-num">1</span>
+        <span class="step-label">GCP Project</span>
+      </div>
+      <div class="step-divider"></div>
+      <div class="step-item" data-step="1">
+        <span class="step-num">2</span>
+        <span class="step-label">Auth &amp; Whitelist</span>
+      </div>
+      <div class="step-divider"></div>
+      <div class="step-item" data-step="2">
+        <span class="step-num">3</span>
+        <span class="step-label">API Keys</span>
+      </div>
+      <div class="step-divider"></div>
+      <div class="step-item" data-step="3">
+        <span class="step-num">4</span>
+        <span class="step-label">Review &amp; Deploy</span>
+      </div>
+    </nav>
+
+    <!-- Step Content Cards -->
+    <div class="card-body">
+      <!-- Step 0: Project -->
+      <section class="step-panel active" id="step-0">
+        <h2>1. Select Google Cloud / Firebase Project</h2>
+        <p class="step-desc">
+          Alfred deploys to Firebase Hosting (Next.js 16) and Cloud Functions 2nd Gen. Enter your target Google Cloud Project ID.
+        </p>
+
+        <div class="form-group">
+          <label for="project-id">Google Cloud Project ID <span class="required">*</span></label>
+          <input type="text" id="project-id" placeholder="e.g. butler-alfred or my-alfred-prod" autocomplete="off" spellcheck="false">
+          <div class="input-hint">6–30 characters, lowercase letters, numbers, and hyphens.</div>
+          <div class="validation-message" id="val-project-id"></div>
+        </div>
+
+        <div class="info-box">
+          <div class="info-icon">💡</div>
+          <div class="info-text">
+            <strong>Running in Google Cloud Shell?</strong> You can list your active projects by typing <code>gcloud projects list</code> in the Cloud Shell terminal.
+          </div>
+        </div>
+      </section>
+
+      <!-- Step 1: User Whitelist -->
+      <section class="step-panel" id="step-1">
+        <h2>2. Single-User Authorization &amp; Whitelist</h2>
+        <p class="step-desc">
+          Alfred enforces dual-layer defense-in-depth: every request is checked against both your Google account email and your Firebase Auth UID.
+        </p>
+
+        <div class="form-group">
+          <label for="allowed-email">Allowed Google Email <span class="required">*</span></label>
+          <input type="email" id="allowed-email" placeholder="you@example.com" autocomplete="email">
+          <div class="input-hint">Only this Google account will be permitted to access Alfred.</div>
+          <div class="validation-message" id="val-allowed-email"></div>
+        </div>
+
+        <div class="form-group">
+          <label for="allowed-uid">Allowed Firebase Auth UID <span class="required">*</span></label>
+          <input type="text" id="allowed-uid" placeholder="e.g. test-owner-uid-123456" autocomplete="off" spellcheck="false">
+          <div class="input-hint">Found in Firebase Console &rarr; Authentication &rarr; Users table (User UID column).</div>
+          <div class="validation-message" id="val-allowed-uid"></div>
+        </div>
+      </section>
+
+      <!-- Step 2: Model API Keys -->
+      <section class="step-panel" id="step-2">
+        <h2>3. Model Providers &amp; Tool API Keys</h2>
+        <p class="step-desc">
+          Keys are validated client-side with WebAssembly and securely stored directly in Google Secret Manager.
+        </p>
+
+        <div class="form-group">
+          <label for="groq-key">Groq API Key (Primary Fast Inference) <span class="required">*</span></label>
+          <input type="password" id="groq-key" placeholder="gsk_..." autocomplete="off">
+          <div class="input-hint">Free from <a href="https://console.groq.com" target="_blank" rel="noreferrer">console.groq.com</a>. Powers <code>gpt-oss-120b</code>.</div>
+          <div class="validation-message" id="val-groq-key"></div>
+        </div>
+
+        <div class="form-group">
+          <label for="gemini-key">Google Gemini API Key (Fallback &amp; Vectors) <span class="required">*</span></label>
+          <input type="password" id="gemini-key" placeholder="AIzaSy..." autocomplete="off">
+          <div class="input-hint">Free from <a href="https://aistudio.google.com" target="_blank" rel="noreferrer">aistudio.google.com</a>. Powers fallback &amp; 768d vector memory embeddings.</div>
+          <div class="validation-message" id="val-gemini-key"></div>
+        </div>
+
+        <div class="form-group">
+          <label for="tavily-key">Tavily API Key (Fact-Checked Web Search) <span class="required">*</span></label>
+          <input type="password" id="tavily-key" placeholder="tvly-..." autocomplete="off">
+          <div class="input-hint">Free from <a href="https://tavily.com" target="_blank" rel="noreferrer">tavily.com</a> (1,000 free searches/month).</div>
+          <div class="validation-message" id="val-tavily-key"></div>
+        </div>
+
+        <div class="form-group">
+          <label for="evren-key">TÜBİTAK BİLGEM EVREN API Key (Optional — TR Users)</label>
+          <input type="password" id="evren-key" placeholder="evren_... or sk-..." autocomplete="off">
+          <div class="input-hint">15M free tokens/day via e-Devlet (<a href="https://evren-llmapi.ssyz.org.tr/" target="_blank" rel="noreferrer">evren-llmapi.ssyz.org.tr</a>).</div>
+          <div class="validation-message" id="val-evren-key"></div>
+        </div>
+
+        <div class="form-group">
+          <label for="ollama-url">Local Ollama Base URL (Optional Offline Fallback)</label>
+          <input type="text" id="ollama-url" placeholder="http://localhost:11434" value="http://localhost:11434">
+          <div class="input-hint">Used when offline or private fallback is needed.</div>
+          <div class="validation-message" id="val-ollama-url"></div>
+        </div>
+      </section>
+
+      <!-- Step 3: Review & Deploy -->
+      <section class="step-panel" id="step-3">
+        <h2>4. Review, Provision &amp; Deploy</h2>
+        <p class="step-desc">
+          Everything is validated. Choose whether to execute provisioning automatically in Cloud Shell or copy the script.
+        </p>
+
+        <div class="review-summary" id="review-summary"></div>
+
+        <div class="actions-card">
+          <div class="action-buttons">
+            <button type="button" class="btn btn-primary" id="btn-execute-provision">
+              🚀 Execute Setup &amp; Deploy Now
+            </button>
+            <button type="button" class="btn btn-secondary" id="btn-copy-script">
+              📋 Copy Provisioning Script
+            </button>
+            <button type="button" class="btn btn-secondary" id="btn-download-env">
+              💾 Download .env File
+            </button>
+          </div>
+          <div id="execution-status" class="execution-status hidden"></div>
+        </div>
+
+        <div class="script-preview-container">
+          <div class="tab-header">
+            <span class="tab-title">Generated Provisioning Script (bash)</span>
+          </div>
+          <pre><code id="script-preview"></code></pre>
+        </div>
+      </section>
+    </div>
+
+    <!-- Wizard Footer Controls -->
+    <footer class="wizard-footer">
+      <button type="button" class="btn btn-secondary" id="btn-prev" disabled>&larr; Back</button>
+      <div class="footer-status" id="footer-status"></div>
+      <button type="button" class="btn btn-gold" id="btn-next">Next Step &rarr;</button>
+    </footer>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

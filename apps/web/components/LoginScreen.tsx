@@ -44,13 +44,12 @@ export default function LoginScreen() {
       <div className="relative z-1 flex w-full max-w-[460px] flex-col items-center rounded-2xl border border-gold/[0.28] bg-[rgba(18,24,36,0.85)] px-8 py-10 text-center shadow-[0_24px_64px_rgba(0,0,0,0.6),0_0_32px_rgba(197,160,89,0.08)] backdrop-blur-lg">
         
         {/* Butler Crest / Emblem */}
-        <div className="mb-5 flex h-[72px] w-[72px] items-center justify-center rounded-full border-[1.5px] border-gold bg-gold/10 shadow-[0_0_20px_rgba(197,160,89,0.25)]">
-          {/* Stylized Butler / Crown Icon */}
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" className="stroke-gold" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2L2 7l10 5 10-5-10-5z" />
-            <path d="M2 17l10 5 10-5" />
-            <path d="M2 12l10 5 10-5" />
-          </svg>
+        <div className="mb-5 flex h-[80px] w-[80px] items-center justify-center overflow-hidden rounded-full border-2 border-gold/60 bg-[#0E1726] shadow-[0_0_24px_rgba(197,160,89,0.3)]">
+          <img
+            src="/avatar.png"
+            alt="Alfred"
+            className="h-full w-full object-cover object-[center_20%]"
+          />
         </div>
 
         {/* Security Badge */}

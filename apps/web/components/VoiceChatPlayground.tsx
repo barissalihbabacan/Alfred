@@ -1422,12 +1422,12 @@ export default function VoiceChatPlayground() {
           {/* Top Horizon Bar (52px, matches main top-bar) */}
           <div className="flex h-[52px] min-h-[52px] items-center justify-between border-b border-white/8 bg-chat-sidebar px-3.5">
             <div className="flex w-full flex-1 select-none items-center gap-2.5">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] border border-gold/35 bg-[linear-gradient(135deg,rgba(197,160,89,0.18)_0%,rgba(140,109,50,0.08)_100%)] text-gold shadow-[0_2px_8px_rgba(0,0,0,0.25)]">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 18h18" />
-                  <path d="M6 18V8a1.5 1.5 0 0 1 1.5-1.5h9A1.5 1.5 0 0 1 18 8v10" />
-                  <path d="M6 14.5h12" />
-                </svg>
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-[9px] border border-gold/35 bg-[#0E1726] shadow-[0_2px_8px_rgba(0,0,0,0.25)]">
+                <img
+                  src="/avatar.png"
+                  alt="Alfred"
+                  className="h-full w-full object-cover object-[center_20%]"
+                />
               </div>
               <div className="flex min-w-0 flex-1 flex-col gap-px">
                 <div className="flex items-center gap-1.5">
@@ -2024,12 +2024,12 @@ export default function VoiceChatPlayground() {
             ) : messages.length === 0 ? (
               /* Empty / Welcome State */
               <div className="m-auto flex flex-col items-center px-4 pb-5 pt-10 text-center">
-                <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-[radial-gradient(circle_at_center,#d8b26e_0%,#a47e33_100%)] text-[26px] shadow-[0_8px_24px_rgba(197,160,89,0.25)]">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#121212" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 18h18" />
-                    <path d="M6 18V8a1.5 1.5 0 0 1 1.5-1.5h9A1.5 1.5 0 0 1 18 8v10" />
-                    <path d="M6 14.5h12" />
-                  </svg>
+                <div className="mb-5 flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-2 border-gold/50 bg-[#0E1726] shadow-[0_8px_24px_rgba(197,160,89,0.3)]">
+                  <img
+                    src="/avatar.png"
+                    alt="Alfred"
+                    className="h-full w-full object-cover object-[center_20%]"
+                  />
                 </div>
                 <h1 className="mb-2 text-[24px] font-semibold">İyi günler, efendim.</h1>
                 <p className="text-[14px] text-chat-muted">
@@ -2076,12 +2076,12 @@ export default function VoiceChatPlayground() {
                 className={cx("flex w-full gap-[14px]", msg.role === "user" ? "justify-end" : "justify-start")}
               >
                 {msg.role === "assistant" && (
-                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[radial-gradient(circle_at_center,#c5a059_0%,#8c6d32_100%)] text-[15px] text-chat-ink">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#121212" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M3 18h18" />
-                      <path d="M6 18V8a1.5 1.5 0 0 1 1.5-1.5h9A1.5 1.5 0 0 1 18 8v10" />
-                      <path d="M6 14.5h12" />
-                    </svg>
+                  <div className="relative mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-gold/40 bg-[#0E1726] shadow-[0_2px_8px_rgba(0,0,0,0.35)]">
+                    <img
+                      src="/avatar.png"
+                      alt="Alfred"
+                      className="h-full w-full object-cover object-[center_20%]"
+                    />
                   </div>
                 )}
 

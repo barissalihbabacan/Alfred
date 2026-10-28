@@ -600,7 +600,7 @@ export default function VoiceChatPlayground() {
 
     try {
       if (notificationState === "granted" && fcmToken) {
-        const sendTest = confirm("Bildirimler bu cihazda aktif!\n\nGalaxy cihazınıza anında bir test bildirimi göndermek istiyor musunuz?\n\n(İptal'e basarak bildirimleri bu cihazda kapatma seçeneğini görebilirsiniz)");
+        const sendTest = confirm("Bildirimler bu cihazda aktif!\n\nCihazınıza anında bir test bildirimi göndermek istiyor musunuz?\n\n(İptal'e basarak bildirimleri bu cihazda kapatma seçeneğini görebilirsiniz)");
         if (sendTest) {
           const res = await sendTestPushNotification();
           alert(res.message);
@@ -633,7 +633,7 @@ export default function VoiceChatPlayground() {
           // İlk test hatası yutulabilir
         }
 
-        alert("Bildirimler başarıyla açıldı! Galaxy cihazınıza ilk test bildirimi gönderildi.");
+        alert("Bildirimler başarıyla açıldı! Cihazınıza ilk test bildirimi gönderildi.");
       }
     } catch (err: unknown) {
       alert("Hata: " + ((err as Error)?.message || String(err)));

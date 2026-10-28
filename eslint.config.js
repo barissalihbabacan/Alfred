@@ -31,6 +31,8 @@ export default tseslint.config(
       "functions/lib/**",
       "setup-ui/**",
       "crates/**",
+      "**/.remember/**",
+      "**/.trail/**",
     ],
   },
 

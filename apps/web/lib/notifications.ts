@@ -116,7 +116,7 @@ export async function sendTestPushNotification(): Promise<{ success: boolean; me
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       title: "Alfred — Test Bildirimi",
-      body: "Alfred bildirim sistemi Samsung Galaxy cihazınızda başarıyla devrede!"
+      body: "Alfred bildirim sistemi cihazınızda başarıyla devrede!"
     })
   });
   await ensureOk(res);

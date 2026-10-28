@@ -52,6 +52,14 @@ const btnDownloadEnv = document.getElementById("btn-download-env");
 const btnExecuteProvision = document.getElementById("btn-execute-provision");
 const executionStatus = document.getElementById("execution-status");
 
+// Live Terminal Console Elements
+const liveConsoleContainer = document.getElementById("live-console-container");
+const consoleOutput = document.getElementById("console-output");
+const consoleStageText = document.getElementById("console-stage-text");
+const consoleTimer = document.getElementById("console-timer");
+const consoleDot = document.getElementById("console-dot");
+let timerInterval = null;
+
 async function start() {
   try {
     await init();
@@ -294,9 +302,26 @@ function populateReview() {
 
 async function executeProvisioning() {
   if (!wizard) return;
-  executionStatus.className = "execution-status info";
-  executionStatus.textContent = "Running automated setup in Google Cloud Shell... Please wait.";
+  const projectId = inputProjectId.value.trim();
+
+  // Reset and show console
+  liveConsoleContainer.classList.remove("hidden");
+  consoleOutput.textContent = "";
+  consoleStageText.textContent = "Starting provisioning engine...";
+  consoleDot.className = "live-dot";
+  executionStatus.className = "execution-status hidden";
+  executionStatus.textContent = "";
   btnExecuteProvision.disabled = true;
+
+  // Start timer
+  const startTime = Date.now();
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    const elapsedSec = Math.floor((Date.now() - startTime) / 1000);
+    const m = String(Math.floor(elapsedSec / 60)).padStart(2, "0");
+    const s = String(elapsedSec % 60).padStart(2, "0");
+    consoleTimer.textContent = `${m}:${s}`;
+  }, 1000);
 
   try {
     const res = await fetch("/api/provision", {
@@ -305,27 +330,69 @@ async function executeProvisioning() {
       body: JSON.stringify({
         script: wizard.get_provisioning_script(),
         env: wizard.get_env_file(),
-        projectId: inputProjectId.value.trim()
+        projectId
       })
     });
 
-    if (res.ok) {
-      const data = await res.json();
+    if (!res.ok) {
+      throw new Error(`Server returned HTTP ${res.status}`);
+    }
+
+    if (!res.body) {
+      throw new Error("Readable stream is not supported in this browser.");
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let isSuccess = false;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      consoleOutput.textContent += chunk;
+      consoleOutput.scrollTop = consoleOutput.scrollHeight;
+
+      // Update stage badge based on log keywords
+      if (chunk.includes("Creating it in Google Cloud") || chunk.includes("Create in progress")) {
+        consoleStageText.textContent = "🚀 Creating Google Cloud project...";
+      } else if (chunk.includes("Linking") || chunk.includes("billing account")) {
+        consoleStageText.textContent = "💳 Linking Google Cloud billing account...";
+      } else if (chunk.includes("Enabling required Google Cloud")) {
+        consoleStageText.textContent = "🔑 Enabling Cloud APIs & Firestore...";
+      } else if (chunk.includes("Ensuring Firebase is enabled") || chunk.includes("Adding Firebase resources")) {
+        consoleStageText.textContent = "🔥 Configuring Firebase project...";
+      } else if (chunk.includes("Provisioning Secret Manager vault")) {
+        consoleStageText.textContent = "🛡️ Writing Secret Manager credentials...";
+      } else if (chunk.includes("Deploying to Firebase")) {
+        consoleStageText.textContent = "🚀 Deploying Web App & Cloud Functions...";
+      }
+
+      if (chunk.includes("[SUCCESS]") || chunk.includes("successfully provisioned and deployed")) {
+        isSuccess = true;
+      }
+    }
+
+    if (isSuccess) {
+      consoleDot.className = "live-dot done";
+      consoleStageText.textContent = "✨ Setup & Deployment Completed!";
       executionStatus.className = "execution-status success";
-      executionStatus.textContent = data.message || "Alfred was successfully provisioned and deployed!";
+      executionStatus.innerHTML = `🎉 <strong>Alfred is live!</strong> Open your application: <a href="https://${escapeHtml(projectId)}.web.app" target="_blank" style="color:var(--gold); text-decoration:underline;">https://${escapeHtml(projectId)}.web.app</a>`;
     } else {
-      let errDetail = "Provisioning API returned an error.";
-      try {
-        const errJson = await res.json();
-        if (errJson.error) errDetail = errJson.error;
-      } catch {}
-      throw new Error(errDetail);
+      consoleDot.className = "live-dot error";
+      consoleStageText.textContent = "⚠️ Deployment encountered an error";
+      executionStatus.className = "execution-status error";
+      executionStatus.textContent = "Check the live console above for error details or run the script directly in your Cloud Shell terminal.";
     }
   } catch (err) {
+    consoleDot.className = "live-dot error";
+    consoleStageText.textContent = "❌ Connection or Execution Error";
     executionStatus.className = "execution-status error";
     const msg = err instanceof Error ? err.message : String(err);
-    executionStatus.textContent = `Execution status: ${msg}`;
+    executionStatus.textContent = `Error: ${msg}`;
   } finally {
+    if (timerInterval) clearInterval(timerInterval);
     btnExecuteProvision.disabled = false;
   }
 }

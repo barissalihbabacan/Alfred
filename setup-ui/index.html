@@ -166,6 +166,18 @@
           <div id="execution-status" class="execution-status hidden"></div>
         </div>
 
+        <!-- Live Terminal Progress Console -->
+        <div id="live-console-container" class="live-console-container hidden">
+          <div class="console-header">
+            <div class="console-title">
+              <span class="live-dot" id="console-dot"></span>
+              <span id="console-stage-text">Initializing provisioning pipeline...</span>
+            </div>
+            <div class="console-timer" id="console-timer">00:00</div>
+          </div>
+          <pre class="console-output" id="console-output"></pre>
+        </div>
+
         <div class="script-preview-container">
           <div class="tab-header">
             <span class="tab-title">Generated Provisioning Script (bash)</span>

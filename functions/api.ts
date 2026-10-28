@@ -117,11 +117,12 @@ function isAppCheckExempt(path) {
 function gizliOku(secret, envAdi) {
   try {
     const deger = secret.value();
-    if (deger) return deger;
+    if (deger && deger !== "placeholder") return deger;
   } catch {
     // Secret baglanmamis (ornegin birim testinde): ortam degiskenine dus.
   }
-  return process.env[envAdi] || "";
+  const envVal = process.env[envAdi] || "";
+  return envVal === "placeholder" ? "" : envVal;
 }
 
 if (getApps().length === 0) {

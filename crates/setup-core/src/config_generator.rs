@@ -108,14 +108,16 @@ pub fn generate_cloud_shell_script(config: &SetupConfig) -> String {
     script.push_str("# Helper to create or update secrets in Google Secret Manager\n");
     script.push_str("create_or_update_secret() {\n");
     script.push_str("  local secret_name=\"$1\"\n");
-    script.push_str("  local secret_value=\"$2\"\n");
-    script.push_str("  if gcloud secrets describe \"$secret_name\" >/dev/null 2>&1; then\n");
-    script.push_str("    echo \"  Updating secret: $secret_name...\"\n");
-    script.push_str("    printf '%s' \"$secret_value\" | gcloud secrets versions add \"$secret_name\" --data-file=-\n");
-    script.push_str("  else\n");
-    script.push_str("    echo \"  Creating secret: $secret_name...\"\n");
-    script.push_str("    printf '%s' \"$secret_value\" | gcloud secrets create \"$secret_name\" --replication-policy=automatic --data-file=-\n");
+    script.push_str("  local secret_value=\"${2:-placeholder}\"\n");
+    script.push_str("  if [ -z \"$secret_value\" ]; then\n");
+    script.push_str("    secret_value=\"placeholder\"\n");
     script.push_str("  fi\n");
+    script.push_str("  if ! gcloud secrets describe \"$secret_name\" >/dev/null 2>&1; then\n");
+    script.push_str("    echo \"  Creating secret container: $secret_name...\"\n");
+    script.push_str("    gcloud secrets create \"$secret_name\" --replication-policy=automatic\n");
+    script.push_str("  fi\n");
+    script.push_str("  echo \"  Writing secret version: $secret_name...\"\n");
+    script.push_str("  printf '%s' \"$secret_value\" | gcloud secrets versions add \"$secret_name\" --data-file=-\n");
     script.push_str("}\n\n");
 
     script.push_str("echo \"🛡️ [Alfred Setup] Provisioning Secret Manager vault...\"\n");

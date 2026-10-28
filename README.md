@@ -111,4 +111,4 @@ Kod tabanında çalışırken önce [CLAUDE.md](CLAUDE.md) dosyasını okuyun: k
 
 ## Lisans
 
-Tüm hakları saklıdır © 2026 Barış Salih Babacan.
+Bu proje [MIT Lisansı](LICENSE) altında lisanslanmıştır. © 2026 Barış Salih Babacan.

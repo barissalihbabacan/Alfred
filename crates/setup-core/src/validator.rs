@@ -60,10 +60,11 @@ pub fn validate_firebase_uid(uid: &str) -> Result<String, String> {
 }
 
 /// Validates model API keys based on provider prefix rules.
+/// If empty, it is considered valid because all API keys are optional (can be configured later or use local Ollama).
 pub fn validate_api_key(provider: &str, key: &str) -> Result<String, String> {
     let trimmed = key.trim();
     if trimmed.is_empty() {
-        return Err(format!("{provider} API key cannot be empty."));
+        return Ok(String::new());
     }
 
     match provider.to_lowercase().as_str() {
@@ -139,10 +140,14 @@ mod tests {
     #[test]
     fn test_validate_api_key() {
         assert!(validate_api_key("groq", "gsk_1234567890abcdef12345678").is_ok());
+        assert!(validate_api_key("groq", "").is_ok()); // Optional
         assert!(validate_api_key("groq", "wrong_prefix_1234567890").is_err());
         assert!(validate_api_key("gemini", "AIzaSy1234567890abcdef1234567890abcdef").is_ok());
+        assert!(validate_api_key("gemini", "").is_ok()); // Optional
         assert!(validate_api_key("gemini", "bad_prefix").is_err());
         assert!(validate_api_key("tavily", "tvly-1234567890abcdef").is_ok());
+        assert!(validate_api_key("tavily", "").is_ok()); // Optional
         assert!(validate_api_key("evren", "evren_1234567890abcdef").is_ok());
+        assert!(validate_api_key("evren", "").is_ok()); // Optional
     }
 }

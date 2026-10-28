@@ -108,9 +108,15 @@ pub fn generate_cloud_shell_script(config: &SetupConfig) -> String {
     script.push_str("}\n\n");
 
     script.push_str("echo \"🛡️ [Alfred Setup] Provisioning Secret Manager vault...\"\n");
-    script.push_str(&format!("create_or_update_secret \"GROQ_API_KEY\" \"{}\"\n", config.groq_api_key));
-    script.push_str(&format!("create_or_update_secret \"GEMINI_API_KEY\" \"{}\"\n", config.gemini_api_key));
-    script.push_str(&format!("create_or_update_secret \"TAVILY_API_KEY\" \"{}\"\n", config.tavily_api_key));
+    if !config.groq_api_key.trim().is_empty() {
+        script.push_str(&format!("create_or_update_secret \"GROQ_API_KEY\" \"{}\"\n", config.groq_api_key.trim()));
+    }
+    if !config.gemini_api_key.trim().is_empty() {
+        script.push_str(&format!("create_or_update_secret \"GEMINI_API_KEY\" \"{}\"\n", config.gemini_api_key.trim()));
+    }
+    if !config.tavily_api_key.trim().is_empty() {
+        script.push_str(&format!("create_or_update_secret \"TAVILY_API_KEY\" \"{}\"\n", config.tavily_api_key.trim()));
+    }
 
     if let Some(ref evren) = config.evren_api_key {
         if !evren.trim().is_empty() {

@@ -109,21 +109,36 @@ function bindEvents() {
   inputGroqKey.addEventListener("input", (e) => {
     const val = e.target.value.trim();
     wizard.set_groq_key(val);
-    validateField(valGroqKey, () => wasm_validate_api_key("groq", val));
+    if (!val) {
+      valGroqKey.className = "validation-message valid";
+      valGroqKey.textContent = "ℹ️ (Optional) Can be configured later";
+    } else {
+      validateField(valGroqKey, () => wasm_validate_api_key("groq", val));
+    }
     clearFooterStatus();
   });
 
   inputGeminiKey.addEventListener("input", (e) => {
     const val = e.target.value.trim();
     wizard.set_gemini_key(val);
-    validateField(valGeminiKey, () => wasm_validate_api_key("gemini", val));
+    if (!val) {
+      valGeminiKey.className = "validation-message valid";
+      valGeminiKey.textContent = "ℹ️ (Optional) Can be configured later";
+    } else {
+      validateField(valGeminiKey, () => wasm_validate_api_key("gemini", val));
+    }
     clearFooterStatus();
   });
 
   inputTavilyKey.addEventListener("input", (e) => {
     const val = e.target.value.trim();
     wizard.set_tavily_key(val);
-    validateField(valTavilyKey, () => wasm_validate_api_key("tavily", val));
+    if (!val) {
+      valTavilyKey.className = "validation-message valid";
+      valTavilyKey.textContent = "ℹ️ (Optional) Can be configured later";
+    } else {
+      validateField(valTavilyKey, () => wasm_validate_api_key("tavily", val));
+    }
     clearFooterStatus();
   });
 
@@ -243,7 +258,19 @@ function populateReview() {
   const projectId = inputProjectId.value.trim();
   const allowedEmail = inputAllowedEmail.value.trim();
   const allowedUid = inputAllowedUid.value.trim();
+  const groqKey = inputGroqKey.value.trim();
+  const geminiKey = inputGeminiKey.value.trim();
+  const tavilyKey = inputTavilyKey.value.trim();
   const evrenKey = inputEvrenKey.value.trim();
+
+  const configuredProviders = [];
+  if (groqKey) configuredProviders.push("Groq");
+  if (geminiKey) configuredProviders.push("Gemini");
+  if (tavilyKey) configuredProviders.push("Tavily");
+  if (evrenKey) configuredProviders.push("TÜBİTAK EVREN");
+  const providersText = configuredProviders.length > 0
+    ? configuredProviders.join(" + ")
+    : "Can be added later (Local Ollama active)";
 
   reviewSummary.innerHTML = `
     <div class="summary-card">
@@ -260,7 +287,7 @@ function populateReview() {
     </div>
     <div class="summary-card">
       <div class="summary-label">Model Providers</div>
-      <div class="summary-value">Groq + Gemini + Tavily ${evrenKey ? "+ TÜBİTAK EVREN" : ""}</div>
+      <div class="summary-value">${escapeHtml(providersText)}</div>
     </div>
   `;
 }

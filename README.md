@@ -187,6 +187,16 @@ Alfred/
 
 ---
 
+## Community & Contributing
+
+We welcome contributions! Please review our community guidelines before submitting a pull request:
+
+- 🤝 [Contributing Guide](CONTRIBUTING.md): Workflow, typecheck requirements, and branch conventions.
+- 📜 [Code of Conduct](CODE_OF_CONDUCT.md): Standards for a respectful and inclusive environment.
+- 🔒 [Security Policy](SECURITY.md): Vulnerability reporting procedures and defense-in-depth model.
+
+---
+
 ## License
 
 This project is licensed under the [MIT License](LICENSE). © 2026 Barış Salih Babacan.

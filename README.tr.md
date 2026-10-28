@@ -187,6 +187,16 @@ Alfred/
 
 ---
 
+## Topluluk & Katkıda Bulunma
+
+Katkılarınızı memnuniyetle karşılıyoruz! Lütfen bir çekme isteği (PR) açmadan önce topluluk belgelerimizi inceleyin:
+
+- 🤝 [Katkı Kılavuzu (Contributing)](CONTRIBUTING.md): Geliştirme akışı, katı tip kontrolü ve dal kuralları.
+- 📜 [Davranış Kuralları (Code of Conduct)](CODE_OF_CONDUCT.md): Saygılı ve kapsayıcı açık kaynak topluluk standartları.
+- 🔒 [Güvenlik Politikası (Security Policy)](SECURITY.md): Zafiyet bildirim süreçleri ve savunma mimarisi.
+
+---
+
 ## Lisans
 
 Bu proje [MIT Lisansı](LICENSE) altında lisanslanmıştır. © 2026 Barış Salih Babacan.

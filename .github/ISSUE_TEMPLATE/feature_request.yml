@@ -1,0 +1,64 @@
+name: "Feature Request"
+description: "Suggest an idea, tool, or capability for Alfred"
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting an enhancement to Alfred!
+        Alfred is built to be a rigorous, honest, and technically disciplined engineering assistant.
+  - type: dropdown
+    id: category
+    attributes:
+      label: Feature Category
+      description: What area does this feature target?
+      options:
+        - "LLM Provider / Failover Chain"
+        - "Autonomous Vector Memory & RAG"
+        - "Tools & Integrations (Search, Time, SSH, Calendar)"
+        - "Web Interface & Voice Interaction (apps/web)"
+        - "Security & Authorization Gateway"
+        - "Developer Experience & Tooling"
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: Is your feature request related to a specific problem or workflow friction?
+      placeholder: "I'm always frustrated when..."
+    validations:
+      required: true
+  - type: textarea
+    id: proposed_solution
+    attributes:
+      label: Proposed Solution & Architecture
+      description: Describe the solution you'd like, including expected API contracts or interfaces.
+      placeholder: "Add support for provider X by implementing the LLMProvider interface..."
+    validations:
+      required: true
+  - type: textarea
+    id: safety_considerations
+    attributes:
+      label: Safety & Reasoned Objection Considerations
+      description: |
+        Does this feature introduce data loss risks, security concerns, or sycophancy pitfalls?
+        How should Alfred reason about and safely gate this capability?
+      placeholder: "Operations touching production keys should be rejected unless..."
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any alternative solutions or workarounds you've explored.
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Alignment
+      options:
+        - label: "I have searched existing issues and PRs to confirm this hasn't been proposed before."
+          required: true
+        - label: "I am willing to contribute code or tests to help implement this feature."
+          required: false

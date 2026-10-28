@@ -19,7 +19,7 @@
 //
 // Before bundling it regenerates src/alfred/cognitive/context/
 // user-profile.generated.ts from users/*.md (scripts/generate-user-profile-
-// sources.mjs), so the deployed system prompt always carries the current
+// sources.ts), so the deployed system prompt always carries the current
 // profile even if the committed module was not refreshed. Nothing in the
 // bundle reads files at runtime.
 import { build } from "esbuild";

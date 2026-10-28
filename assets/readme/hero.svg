@@ -28,23 +28,16 @@
     </g>
 
     <!-- ana başlık -->
-    <text x="0" y="162" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="82" font-weight="800" letter-spacing="-1.5" fill="#F4EFE3">Alfred</text>
-    
-    <!-- butler rozeti ve açılımı -->
-    <g transform="translate(0 196)">
-      <rect x="0" y="0" width="86" height="24" rx="5" fill="#16233A" stroke="#26344D"/>
-      <text x="8" y="16" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="700" letter-spacing="1.5" fill="#C9A45C">B.U.T.L.E.R.</text>
-      <text x="98" y="16" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="14" font-weight="500" fill="#8A94A6">Autonomous Personal AI Butler</text>
-    </g>
+    <text x="0" y="168" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="86" font-weight="800" letter-spacing="-1.5" fill="#F4EFE3">Alfred</text>
 
     <!-- değer önermesi -->
-    <g transform="translate(0 252)">
-      <text x="0" y="0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="20" font-weight="500" fill="#F4EFE3">Eşit bir mühendislik ortağı gibi net konuşur,</text>
-      <text x="0" y="28" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="20" font-weight="500" fill="#F4EFE3">önemli tercihleri hatırlar, riskli kararlara itiraz eder.</text>
+    <g transform="translate(0 220)">
+      <text x="0" y="0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="21" font-weight="500" fill="#F4EFE3">Eşit bir mühendislik ortağı gibi net konuşur,</text>
+      <text x="0" y="30" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="21" font-weight="500" fill="#F4EFE3">önemli tercihleri hatırlar, riskli kararlara itiraz eder.</text>
     </g>
 
     <!-- rozetler (geniş ve rahat 2x2 grid) -->
-    <g transform="translate(0 326)">
+    <g transform="translate(0 304)">
       <!-- rozet 1: TypeScript -->
       <g transform="translate(0 0)">
         <rect width="232" height="38" rx="8" fill="#16233A" stroke="#26344D"/>

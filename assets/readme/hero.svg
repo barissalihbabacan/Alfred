@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="480" viewBox="0 0 1200 480" role="img" aria-labelledby="hero-title hero-desc">
-  <title id="hero-title">Alfred — Açık Kaynaklı Kişisel Yapay Zeka ve Mühendislik Asistanı</title>
-  <desc id="hero-desc">Solda Alfred projesinin adı, self-hosted açık kaynak vizyonu ve teknoloji rozetleri; sağda canlı sistemden iki gerçek doğrulama örneği: üretim veritabanını silme önerisine gerekçeli itiraz ve çoklu şehir saati araç çağrısı.</desc>
+  <title id="hero-title">Alfred — Open-Source Personal AI Butler &amp; Engineering Partner</title>
+  <desc id="hero-desc">On the left: Alfred project identity, self-hosted open-source vision, and tech stack badges; on the right: two live verified interaction examples: reasoned objection to dropping production DB and multi-city timezone resolution.</desc>
 
   <defs>
     <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -13,95 +13,95 @@
     </linearGradient>
   </defs>
 
-  <!-- zemin -->
+  <!-- background -->
   <rect width="1200" height="480" rx="24" fill="url(#bgGrad)"/>
   <rect x="52" y="52" width="4" height="376" rx="2" fill="url(#goldGrad)" opacity="0.85"/>
 
-  <!-- sol blok: başlık, vizyon ve özellikler -->
+  <!-- left block: title, vision, badges -->
   <g id="title-block" transform="translate(80 0)">
-    <!-- terminal istemi motifi & etiket -->
+    <!-- terminal prompt tag -->
     <g transform="translate(0 64)">
       <rect x="0" y="0" width="28" height="26" rx="6" fill="#16233A" stroke="#C9A45C" stroke-width="1.5"/>
       <path d="M7 8 L13 13 L7 18" fill="none" stroke="#C9A45C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       <line x1="15" y1="18" x2="21" y2="18" stroke="#C9A45C" stroke-width="2" stroke-linecap="round"/>
-      <text x="38" y="18" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="700" letter-spacing="2" fill="#C9A45C">AÇIK KAYNAKLI · SELF-HOSTED</text>
+      <text x="38" y="18" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="700" letter-spacing="2" fill="#C9A45C">OPEN-SOURCE · SELF-HOSTED</text>
     </g>
 
-    <!-- ana başlık -->
+    <!-- main title -->
     <text x="0" y="168" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="86" font-weight="800" letter-spacing="-1.5" fill="#F4EFE3">Alfred</text>
 
-    <!-- değer önermesi -->
+    <!-- value proposition -->
     <g transform="translate(0 220)">
-      <text x="0" y="0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="21" font-weight="500" fill="#F4EFE3">Eşit bir mühendislik ortağı gibi net konuşur,</text>
-      <text x="0" y="30" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="21" font-weight="500" fill="#F4EFE3">önemli tercihleri hatırlar, riskli kararlara itiraz eder.</text>
+      <text x="0" y="0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="21" font-weight="500" fill="#F4EFE3">Speaks plainly as a senior engineering partner,</text>
+      <text x="0" y="30" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="21" font-weight="500" fill="#F4EFE3">remembers preferences, and objects to risky commands.</text>
     </g>
 
-    <!-- rozetler (geniş ve rahat 2x2 grid) -->
+    <!-- pills (2x2 grid) -->
     <g transform="translate(0 304)">
-      <!-- rozet 1: TypeScript -->
+      <!-- pill 1: TypeScript -->
       <g transform="translate(0 0)">
         <rect width="232" height="38" rx="8" fill="#16233A" stroke="#26344D"/>
         <circle cx="18" cy="19" r="4.5" fill="#3178C6"/>
         <text x="32" y="24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#C8CEDA">TypeScript %98.8</text>
       </g>
 
-      <!-- rozet 2: Failover -->
+      <!-- pill 2: Model Chain (EVREN -> Groq -> Gemini) -->
       <g transform="translate(244 0)">
         <rect width="232" height="38" rx="8" fill="#16233A" stroke="#26344D"/>
         <circle cx="18" cy="19" r="4.5" fill="#C9A45C"/>
-        <text x="32" y="24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#C8CEDA">Groq → Gemini Failover</text>
+        <text x="32" y="24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#C8CEDA">EVREN → Groq → Gemini</text>
       </g>
 
-      <!-- rozet 3: Vektör Bellek -->
+      <!-- pill 3: Vector Memory -->
       <g transform="translate(0 48)">
         <rect width="232" height="38" rx="8" fill="#16233A" stroke="#26344D"/>
         <circle cx="18" cy="19" r="4.5" fill="#10B981"/>
-        <text x="32" y="24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#C8CEDA">Vektör Bellek &amp; RAG</text>
+        <text x="32" y="24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#C8CEDA">Vector Memory &amp; RAG</text>
       </g>
 
-      <!-- rozet 4: Web & Saat -->
+      <!-- pill 4: Live Web & Time -->
       <g transform="translate(244 48)">
         <rect width="232" height="38" rx="8" fill="#16233A" stroke="#26344D"/>
         <circle cx="18" cy="19" r="4.5" fill="#F59E0B"/>
-        <text x="32" y="24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#C8CEDA">Canlı Web &amp; Saat Araçları</text>
+        <text x="32" y="24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#C8CEDA">Tavily Search &amp; Tools</text>
       </g>
     </g>
   </g>
 
-  <!-- sağ blok: canlı konuşma doğrulama kartı -->
+  <!-- right block: live verification card -->
   <g id="real-conversation" transform="translate(586 40)">
     <rect width="562" height="400" rx="18" fill="#16233A" stroke="#26344D"/>
     
     <g transform="translate(28 32)">
       <circle cx="6" cy="6" r="4" fill="#10B981"/>
-      <text x="20" y="10" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" font-weight="600" letter-spacing="1.5" fill="#8A94A6">CANLI DOĞRULAMA · GERÇEK ÇIKTILAR</text>
+      <text x="20" y="10" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" font-weight="600" letter-spacing="1.5" fill="#8A94A6">LIVE VERIFICATION · REAL OUTPUTS</text>
     </g>
 
-    <!-- 1: itiraz örneği -->
+    <!-- 1: objection -->
     <g transform="translate(28 68)">
-      <rect x="230" y="0" width="276" height="38" rx="10" fill="#26344D"/>
-      <text x="368" y="24" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" fill="#F4EFE3">Prod veritabanını silelim mi?</text>
+      <rect x="200" y="0" width="306" height="38" rx="10" fill="#26344D"/>
+      <text x="353" y="24" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="15" fill="#F4EFE3">Should we drop production DB?</text>
 
       <rect x="0" y="48" width="3" height="76" rx="1.5" fill="#C9A45C"/>
-      <text x="16" y="68" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" font-weight="600" fill="#F4EFE3">Hayır. Üretim veritabanını silmek geri</text>
-      <text x="16" y="92" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" fill="#C8CEDA">dönüşü olmayan veri kaybına ve kesintiye</text>
-      <text x="16" y="116" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" fill="#C8CEDA">yol açar; önce yedek alınmalıdır.</text>
+      <text x="16" y="68" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" font-weight="600" fill="#F4EFE3">No. Dropping the production database causes</text>
+      <text x="16" y="92" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="15" fill="#C8CEDA">irreversible data loss and outage; take a</text>
+      <text x="16" y="116" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="15" fill="#C8CEDA">verified snapshot backup first.</text>
     </g>
 
     <line x1="28" y1="216" x2="534" y2="216" stroke="#26344D" stroke-dasharray="4 4"/>
 
-    <!-- 2: araç çağrısı & saat -->
+    <!-- 2: tool calling & time -->
     <g transform="translate(28 236)">
       <rect x="150" y="0" width="356" height="38" rx="10" fill="#26344D"/>
-      <text x="328" y="24" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" fill="#F4EFE3">Londra, Tokyo ve Sidney'de saat kaç?</text>
+      <text x="328" y="24" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="15" fill="#F4EFE3">What time is it in London, Tokyo, Sydney?</text>
 
       <rect x="0" y="48" width="506" height="34" rx="6" fill="#0E1726" stroke="#26344D"/>
       <text x="14" y="70" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" font-weight="600" fill="#C9A45C">get_current_time</text>
-      <text x="180" y="70" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" fill="#8A94A6">["Londra","Tokyo","Sidney"]</text>
+      <text x="180" y="70" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" fill="#8A94A6">["London","Tokyo","Sydney"]</text>
 
       <rect x="0" y="94" width="3" height="46" rx="1.5" fill="#C9A45C"/>
-      <text x="16" y="114" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" font-weight="600" fill="#F4EFE3">Londra 14:03, Tokyo 22:03, Sidney 23:03.</text>
-      <text x="16" y="134" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="14" fill="#8A94A6">DST ve yerel saat farkları otomatik çözümlendi.</text>
+      <text x="16" y="114" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" font-weight="600" fill="#F4EFE3">London 14:03, Tokyo 22:03, Sydney 23:03.</text>
+      <text x="16" y="134" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="14" fill="#8A94A6">DST offsets and timezone calculations resolved.</text>
     </g>
   </g>
 </svg>

@@ -153,7 +153,7 @@ mod tests {
     fn test_generate_env_file() {
         let config = SetupConfig {
             project_id: "butler-alfred".to_string(),
-            allowed_email: "test@example.com".to_string(),
+            allowed_email: "owner@example.invalid".to_string(),
             allowed_uid: "test_uid_123456789".to_string(),
             groq_api_key: "gsk_test123".to_string(),
             gemini_api_key: "AIzaSy_test123".to_string(),
@@ -163,7 +163,7 @@ mod tests {
         };
 
         let env = generate_env_file(&config);
-        assert!(env.contains("ALLOWED_EMAIL=\"test@example.com\""));
+        assert!(env.contains("ALLOWED_EMAIL=\"owner@example.invalid\""));
         assert!(env.contains("ALLOWED_UID=\"test_uid_123456789\""));
         assert!(env.contains("GROQ_API_KEY=\"gsk_test123\""));
         assert!(env.contains("EVREN_API_KEY=\"evren_test123\""));
@@ -180,7 +180,7 @@ mod tests {
     fn test_generate_cloud_shell_script() {
         let config = SetupConfig {
             project_id: "butler-alfred".to_string(),
-            allowed_email: "test@example.com".to_string(),
+            allowed_email: "owner@example.invalid".to_string(),
             allowed_uid: "test_uid_123456789".to_string(),
             groq_api_key: "gsk_test123".to_string(),
             gemini_api_key: "AIzaSy_test123".to_string(),

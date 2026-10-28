@@ -131,7 +131,7 @@ cp .env.example .env
 Edit `.env` with your authorization whitelist and API keys:
 
 ```env
-ALLOWED_EMAIL="you@example.com"
+ALLOWED_EMAIL="owner@example.invalid"
 ALLOWED_UID="your_firebase_auth_uid"
 GROQ_API_KEY="gsk_..."
 GEMINI_API_KEY="AIzaSy..."

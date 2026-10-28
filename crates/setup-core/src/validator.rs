@@ -36,7 +36,7 @@ pub fn validate_email(email: &str) -> Result<String, String> {
         .map_err(|e| e.to_string())?;
 
     if !re.is_match(&trimmed) {
-        return Err("Please enter a valid email address (e.g., user@example.com).".to_string());
+        return Err("Please enter a valid email address (e.g., owner@example.invalid).".to_string());
     }
 
     Ok(trimmed)
@@ -125,7 +125,7 @@ mod tests {
 
     #[test]
     fn test_validate_email() {
-        assert!(validate_email("test@example.com").is_ok());
+        assert!(validate_email("owner@example.invalid").is_ok());
         assert!(validate_email("invalid-email").is_err());
         assert!(validate_email("").is_err());
     }

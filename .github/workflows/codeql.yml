@@ -23,6 +23,9 @@ permissions:
 jobs:
   analyze:
     name: CodeQL Static Analysis (TypeScript & JavaScript)
+    # CodeQL is free on public repos; private repos require GitHub Advanced Security (GHAS).
+    # Skip on private repositories and Dependabot PRs to prevent 403 / SARIF upload failures.
+    if: (!github.event.repository.private) && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
 
     steps:

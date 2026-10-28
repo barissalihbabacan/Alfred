@@ -17,6 +17,8 @@ permissions:
 jobs:
   secret-scan:
     name: Secret & Credential Leak Detection
+    # Gitleaks API integration requires permissions not available in Dependabot PR tokens.
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code

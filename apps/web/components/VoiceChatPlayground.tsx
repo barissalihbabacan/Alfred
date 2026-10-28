@@ -903,7 +903,7 @@ export default function VoiceChatPlayground() {
     const currentConv = conversations.find((c) => c.id === conversationId);
     const title = currentConv?.title && currentConv.title !== "New Conversation"
       ? currentConv.title
-      : "B.U.T.L.E.R. Alfred Sohbeti";
+      : "Alfred Sohbeti";
     const activeProj = activeProjectId ? projects.find((p) => p.id === activeProjectId) : null;
     const dateStr = new Date().toLocaleString("tr-TR");
     const lines: string[] = [
@@ -1431,8 +1431,8 @@ export default function VoiceChatPlayground() {
               </div>
               <div className="flex min-w-0 flex-1 flex-col gap-px">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[13px] font-bold tracking-[0.06em] text-chat-text">B.U.T.L.E.R.</span>
-                  <span className="rounded-full border border-gold/35 bg-gold/15 px-[5px] py-px text-[9px] font-bold tracking-[0.04em] text-gold">ALFRED</span>
+                  <span className="text-[14px] font-bold tracking-[0.04em] text-chat-text">Alfred</span>
+                  <span className="rounded-full border border-gold/35 bg-gold/15 px-[5px] py-px text-[9px] font-bold tracking-[0.04em] text-gold">AI</span>
                 </div>
                 <span className="text-[10px] font-medium tracking-[0.02em] text-chat-faint">Yönetici Zekası</span>
               </div>
@@ -2033,7 +2033,7 @@ export default function VoiceChatPlayground() {
                 </div>
                 <h1 className="mb-2 text-[24px] font-semibold">İyi günler, efendim.</h1>
                 <p className="text-[14px] text-chat-muted">
-                  B.U.T.L.E.R. Alfred hizmetinizde. Bugün ne üzerinde çalışıyoruz?
+                  Alfred hizmetinizde. Bugün ne üzerinde çalışıyoruz?
                 </p>
                 <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
                   <button
@@ -2391,7 +2391,7 @@ export default function VoiceChatPlayground() {
           </div>
 
           <p className="pointer-events-auto mt-2 hidden text-center text-[11px] text-chat-faint md:block">
-            B.U.T.L.E.R. Alfred — Barış&apos;ın Birleşik Görev, Mantık, Yürütme ve Muhakeme Asistanı
+            Alfred — Barış&apos;ın Kişisel Yapay Zeka ve Yönetici Asistanı
           </p>
         </div>
       </main>
@@ -2876,7 +2876,7 @@ export default function VoiceChatPlayground() {
                 maxLength={80}
                 value={projectFormName}
                 onChange={(e) => setProjectFormName(e.target.value)}
-                placeholder="Ör: B.U.T.L.E.R. Alfred, Otonom İHA, Finans API..."
+                placeholder="Ör: Alfred, Otonom İHA, Finans API..."
                 className="w-full rounded-xl border border-white/12 bg-black/25 px-3 py-2 text-[13.5px] text-chat-text outline-hidden focus:border-gold/50"
               />
             </div>
@@ -2898,7 +2898,7 @@ export default function VoiceChatPlayground() {
                     setProjectFormRepo(`https://github.com/${v.replace(/^github\.com\//i, "")}`);
                   }
                 }}
-                placeholder="https://github.com/barissalihbabacan/B.U.T.L.E.R.-Alfred"
+                placeholder="https://github.com/barissalihbabacan/Alfred"
                 className="w-full rounded-xl border border-white/12 bg-black/25 px-3 py-2 text-[13px] text-chat-text outline-hidden focus:border-gold/50"
               />
             </div>

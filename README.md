@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="B.U.T.L.E.R. Alfred: Barış'ın kişisel yapay zeka ve yazılım mühendisliği asistanı. Yanında iki gerçek konuşma: üretim veritabanını silme önerisine itiraz ve tek araç çağrısıyla Londra, Tokyo, Sidney saatleri.">
+  <img src="./assets/readme/hero.svg" width="100%" alt="Alfred: Barış'ın kişisel yapay zeka ve yazılım mühendisliği asistanı. Yanında iki gerçek konuşma: üretim veritabanını silme önerisine itiraz ve tek araç çağrısıyla Londra, Tokyo, Sidney saatleri.">
 </p>
 
 <p align="center">
@@ -11,6 +11,9 @@
 </p>
 
 **Alfred**, Barış için yazılmış kişisel bir yapay zeka ve yazılım mühendisliği asistanıdır. Eşit bir mühendislik ortağı gibi net konuşur, önemli bilgileri hatırlar ve riskli bir isteğe gerekçesiyle birlikte açıkça itiraz eder. Tek kullanıcılıdır: yalnızca Barış'ın Google hesabıyla açılır.
+
+> **Neden sadece Alfred?**  
+> *"Çünkü BATMAN'i seviyorum ve ben BATMAN'im."* 🦇
 
 ## Alfred ne yapar?
 
@@ -24,7 +27,7 @@
 ### Canlıda doğrulanan davranışlar
 
 <p align="center">
-  <img src="./assets/readme/playground.png" width="100%" alt="B.U.T.L.E.R. Alfred gerçek web arayüzü ekran görüntüsü: solda geçmiş sohbetler ve Google ile doğrulanmış kullanıcı bilgisi; sağda openai/gpt-oss-120b modeli, çoklu şehir saati ve kaynak bağlantılı güncel transfer haberleri.">
+  <img src="./assets/readme/playground.png" width="100%" alt="Alfred gerçek web arayüzü ekran görüntüsü: solda geçmiş sohbetler ve Google ile doğrulanmış kullanıcı bilgisi; sağda openai/gpt-oss-120b modeli, çoklu şehir saati ve kaynak bağlantılı güncel transfer haberleri.">
 </p>
 
 Aşağıdakiler canlı sistemde, gerçek konuşmalarla ve loglarla doğrulandı:
@@ -62,8 +65,8 @@ Her mesajda arka planda:
 Gereksinim: Node.js 22 ve npm.
 
 ```bash
-git clone https://github.com/barissalihbabacan/B.U.T.L.E.R.-Alfred.git
-cd B.U.T.L.E.R.-Alfred
+git clone https://github.com/barissalihbabacan/Alfred.git
+cd Alfred
 npm install
 cp .env.example .env    # GROQ_API_KEY ve GEMINI_API_KEY değerlerini girin
 ```

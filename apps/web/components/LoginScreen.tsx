@@ -60,7 +60,7 @@ export default function LoginScreen() {
         </div>
 
         <h1 className="mb-2 text-[26px] font-bold tracking-[-0.02em] text-butler-text">
-          B.U.T.L.E.R. Alfred
+          Alfred
         </h1>
         <p className="mb-7 text-[13px] leading-normal text-butler-text-secondary">
           Kişisel yapay zeka asistanınıza ve sesli etkileşim sistemine erişmek için lütfen kimliğinizi doğrulayın.

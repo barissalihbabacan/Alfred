@@ -1,7 +1,7 @@
 {
-  "name": "B.U.T.L.E.R. Alfred",
+  "name": "Alfred",
   "short_name": "Alfred",
-  "description": "Barış'ın Birleşik Görev, Mantık, Yürütme ve Muhakeme Asistanı",
+  "description": "Barış'ın Kişisel Yapay Zeka ve Yönetici Asistanı",
   "start_url": "/",
   "id": "/",
   "scope": "/",

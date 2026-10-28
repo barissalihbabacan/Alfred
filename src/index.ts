@@ -1,13 +1,12 @@
 /**
- * B.U.T.L.E.R. Alfred
- * Barış's Unified Task, Logic, Execution & Reasoning
+ * Alfred
  *
  * An AI-powered personal cognitive operations and executive assistant.
  * Bootstrap entrypoint.
  */
 
-export const PROJECT_NAME = "B.U.T.L.E.R. Alfred";
-export const REPOSITORY_NAME = "B.U.T.L.E.R.-Alfred";
+export const PROJECT_NAME = "Alfred";
+export const REPOSITORY_NAME = "Alfred";
 export const VERSION = "0.1.0";
 
 export function getProjectInfo() {

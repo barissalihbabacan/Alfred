@@ -2,7 +2,7 @@
   "name": "butler-alfred",
   "version": "0.1.0",
   "private": true,
-  "description": "B.U.T.L.E.R. Alfred — Barış's Unified Task, Logic, Execution & Reasoning",
+  "description": "Alfred — Personal AI & Software Engineering Assistant",
   "main": "src/index.ts",
   "type": "module",
   "scripts": {

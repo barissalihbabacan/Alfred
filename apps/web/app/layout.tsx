@@ -2,10 +2,10 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "B.U.T.L.E.R. Alfred — Yönetici Yapay Zeka Asistanı",
-  description: "Barış'ın Birleşik Görev, Mantık, Yürütme ve Muhakeme Asistanı — Yönetici Zekası",
+  title: "Alfred — Yönetici Yapay Zeka Asistanı",
+  description: "Barış'ın Kişisel Yapay Zeka ve Yönetici Asistanı",
   manifest: "/manifest.json",
-  applicationName: "B.U.T.L.E.R. Alfred",
+  applicationName: "Alfred",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",

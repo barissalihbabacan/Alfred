@@ -15,7 +15,7 @@ function AuthenticatedApp() {
         <div className="h-14 w-14 animate-spin-bounce rounded-full border-[3px] border-butler-border border-t-gold" />
         <div className="text-center">
           <div className="mb-1 text-[15px] font-semibold tracking-[0.06em] text-gold-light">
-            B.U.T.L.E.R. Alfred
+            Alfred
           </div>
           <div className="text-[12px] text-butler-text-muted">
             Güvenlik Protokolü Doğrulanıyor...

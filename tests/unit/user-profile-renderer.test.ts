@@ -6,7 +6,7 @@ import {
   describeStaleUserProfileDigest,
   renderUserProfileSourcesModule,
   staleUserProfileDigestSources
-} from "../../scripts/generate-user-profile-sources.mjs";
+} from "../../scripts/generate-user-profile-sources.js";
 import {
   renderUserProfileBlock,
   renderUserProfileMarkdown,

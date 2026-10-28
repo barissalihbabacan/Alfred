@@ -31,7 +31,7 @@ import {
   describeStaleUserProfileDigest,
   staleUserProfileDigestSources,
   syncUserProfileSourcesModule
-} from "../scripts/generate-user-profile-sources.mjs";
+} from "../scripts/generate-user-profile-sources.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const REQUIRED_EXPORTS = ["api", "alfredCallable", "scheduledMorningBriefing"];
@@ -40,7 +40,7 @@ const pkg = JSON.parse(readFileSync(join(here, "package.json"), "utf8"));
 const allowedPackages = new Set(Object.keys(pkg.dependencies || {}));
 const builtins = new Set(builtinModules);
 
-function packageName(specifier) {
+function packageName(specifier: string): string | null {
   if (specifier.startsWith("node:")) return null;
   const parts = specifier.split("/");
   const name = specifier.startsWith("@") ? parts.slice(0, 2).join("/") : parts[0];

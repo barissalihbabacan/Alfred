@@ -20,7 +20,8 @@
     "memory:reindex": "tsx scripts/reindex-memories.ts",
     "backup:firestore": "tsx scripts/backup-firestore.ts",
     "relay": "tsx scripts/home-relay-daemon.ts",
-    "generate:user-profile": "node scripts/generate-user-profile-sources.mjs",
+    "generate:user-profile": "tsx scripts/generate-user-profile-sources.ts",
+    "profile:init": "tsx scripts/init-profile.ts",
     "dev:web": "next dev apps/web -p 3000",
     "build:web": "next build apps/web"
   },

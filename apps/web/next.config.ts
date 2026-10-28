@@ -1,3 +1,5 @@
+import type { NextConfig } from "next";
+
 /**
  * apps/web statik bir export olarak derlenir (`next build` -> apps/web/out) ve
  * Firebase Hosting tarafindan sunulur. Sunucu tarafi calisma zamani yoktur:
@@ -16,8 +18,7 @@ const apiOrigin = (
   process.env.ALFRED_API_ORIGIN || "http://127.0.0.1:5001/butler-alfred/us-central1/api"
 ).replace(/\/+$/, "");
 
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+const nextConfig: NextConfig = {
   reactStrictMode: true,
   ...(isDev
     ? {

@@ -54,22 +54,25 @@
     <div class="card-body">
       <!-- Step 0: Project -->
       <section class="step-panel active" id="step-0">
-        <h2>1. Select Google Cloud / Firebase Project</h2>
+        <h2>1. Select or Create Google Cloud &amp; Firebase Project</h2>
         <p class="step-desc">
-          Alfred deploys to Firebase Hosting (Next.js 16) and Cloud Functions 2nd Gen. Enter your target Google Cloud Project ID.
+          Alfred deploys to Firebase Hosting (Next.js 16) and Cloud Functions 2nd Gen. Enter an existing GCP Project ID, or click <strong>Auto-Generate</strong> to have Alfred automatically create a dedicated GCP project and enable Firebase for you!
         </p>
 
         <div class="form-group">
           <label for="project-id">Google Cloud Project ID <span class="required">*</span></label>
-          <input type="text" id="project-id" placeholder="e.g. butler-alfred or my-alfred-prod" autocomplete="off" spellcheck="false">
-          <div class="input-hint">6–30 characters, lowercase letters, numbers, and hyphens.</div>
+          <div class="input-with-button">
+            <input type="text" id="project-id" placeholder="e.g. alfred-butler-prod" autocomplete="off" spellcheck="false">
+            <button type="button" id="btn-generate-project" class="btn btn-secondary btn-sm">✨ Auto-Generate</button>
+          </div>
+          <div class="input-hint">6–30 characters, lowercase letters, numbers, and hyphens. If it does not exist, the setup script creates it automatically.</div>
           <div class="validation-message" id="val-project-id"></div>
         </div>
 
         <div class="info-box">
           <div class="info-icon">💡</div>
           <div class="info-text">
-            <strong>Running in Google Cloud Shell?</strong> You can list your active projects by typing <code>gcloud projects list</code> in the Cloud Shell terminal.
+            <strong>Automated GCP &amp; Firebase Creation:</strong> You don't need to manually configure GCP or Firebase beforehand. Alfred's provisioning script will create the GCP project, enable Firebase capabilities, and initialize Firestore in Native mode for you.
           </div>
         </div>
       </section>
@@ -78,7 +81,7 @@
       <section class="step-panel" id="step-1">
         <h2>2. Single-User Authorization &amp; Whitelist</h2>
         <p class="step-desc">
-          Alfred enforces dual-layer defense-in-depth: every request is checked against both your Google account email and your Firebase Auth UID.
+          Alfred enforces strict single-user authorization. Enter your authorized Google account email. The Firebase Auth UID is <strong>optional</strong> — Alfred will automatically bind your UID the first time you sign in!
         </p>
 
         <div class="form-group">
@@ -89,9 +92,9 @@
         </div>
 
         <div class="form-group">
-          <label for="allowed-uid">Allowed Firebase Auth UID <span class="required">*</span></label>
-          <input type="text" id="allowed-uid" placeholder="e.g. test-owner-uid-123456" autocomplete="off" spellcheck="false">
-          <div class="input-hint">Found in Firebase Console &rarr; Authentication &rarr; Users table (User UID column).</div>
+          <label for="allowed-uid">Allowed Firebase Auth UID <span class="optional-tag">(Optional — Auto-linked on first sign-in)</span></label>
+          <input type="text" id="allowed-uid" placeholder="Leave empty for auto-linking on first login" autocomplete="off" spellcheck="false">
+          <div class="input-hint">Leave blank if this is a fresh setup. Alfred will automatically link your account UID upon first login.</div>
           <div class="validation-message" id="val-allowed-uid"></div>
         </div>
       </section>

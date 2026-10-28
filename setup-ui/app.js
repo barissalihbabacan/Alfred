@@ -25,6 +25,7 @@ const footerStatus = document.getElementById("footer-status");
 
 // Inputs
 const inputProjectId = document.getElementById("project-id");
+const btnGenerateProject = document.getElementById("btn-generate-project");
 const inputAllowedEmail = document.getElementById("allowed-email");
 const inputAllowedUid = document.getElementById("allowed-uid");
 const inputGroqKey = document.getElementById("groq-key");
@@ -66,6 +67,18 @@ async function start() {
 }
 
 function bindEvents() {
+  // Auto-generate project ID
+  if (btnGenerateProject) {
+    btnGenerateProject.addEventListener("click", () => {
+      const randomSuffix = Math.random().toString(36).substring(2, 8);
+      const generatedId = `alfred-butler-${randomSuffix}`;
+      inputProjectId.value = generatedId;
+      wizard.set_project_id(generatedId);
+      validateField(valProjectId, () => wasm_validate_project_id(generatedId));
+      clearFooterStatus();
+    });
+  }
+
   // Input live validations via WASM
   inputProjectId.addEventListener("input", (e) => {
     const val = e.target.value.trim();
@@ -84,7 +97,12 @@ function bindEvents() {
   inputAllowedUid.addEventListener("input", (e) => {
     const val = e.target.value.trim();
     wizard.set_allowed_uid(val);
-    validateField(valAllowedUid, () => wasm_validate_uid(val));
+    if (!val) {
+      valAllowedUid.className = "validation-message valid";
+      valAllowedUid.textContent = "ℹ️ (Optional) Will auto-bind on first sign-in";
+    } else {
+      validateField(valAllowedUid, () => wasm_validate_uid(val));
+    }
     clearFooterStatus();
   });
 
@@ -238,7 +256,7 @@ function populateReview() {
     </div>
     <div class="summary-card">
       <div class="summary-label">Firebase Auth UID</div>
-      <div class="summary-value">${escapeHtml(allowedUid)}</div>
+      <div class="summary-value">${allowedUid ? escapeHtml(allowedUid) : "<span style='color:var(--gold)'>Auto-bind on first sign-in</span>"}</div>
     </div>
     <div class="summary-card">
       <div class="summary-label">Model Providers</div>

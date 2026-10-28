@@ -230,6 +230,28 @@ body {
   color: var(--gold);
 }
 
+.optional-tag {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  margin-left: 4px;
+}
+
+.input-with-button {
+  display: flex;
+  gap: 10px;
+}
+
+.input-with-button input {
+  flex: 1;
+}
+
+.btn-sm {
+  padding: 8px 14px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
 .form-group input {
   width: 100%;
   padding: 12px 14px;

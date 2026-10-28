@@ -21,7 +21,11 @@ pub fn generate_env_file(config: &SetupConfig) -> String {
 
     out.push_str("# --- Single-User Authorization ---------------------------------------------------\n");
     out.push_str(&format!("ALLOWED_EMAIL=\"{}\"\n", config.allowed_email));
-    out.push_str(&format!("ALLOWED_UID=\"{}\"\n\n", config.allowed_uid));
+    if config.allowed_uid.trim().is_empty() {
+        out.push_str("ALLOWED_UID=\"\"\n# Note: ALLOWED_UID is empty and will automatically bind to the first login from ALLOWED_EMAIL.\n\n");
+    } else {
+        out.push_str(&format!("ALLOWED_UID=\"{}\"\n\n", config.allowed_uid.trim()));
+    }
 
     out.push_str("# --- Model Providers ------------------------------------------------------------\n");
     out.push_str("ALFRED_LLM_PROVIDER=groq\n");
@@ -62,16 +66,33 @@ pub fn generate_cloud_shell_script(config: &SetupConfig) -> String {
     script.push_str(&format!("# Target Project: {}\n", config.project_id));
     script.push_str("# ==============================================================================\n\n");
 
+    script.push_str("# 1. Google Cloud Project Setup (Auto-creates if project does not exist)\n");
+    script.push_str("if ! gcloud projects describe \"$PROJECT_ID\" >/dev/null 2>&1; then\n");
+    script.push_str("  echo \"🚀 [Alfred Setup] Project $PROJECT_ID does not exist yet. Creating it in Google Cloud...\"\n");
+    script.push_str("  gcloud projects create \"$PROJECT_ID\" --name=\"Alfred Butler\"\n");
+    script.push_str("fi\n\n");
+
     script.push_str("echo \"🦇 [Alfred Setup] Configuring Google Cloud project...\"\n");
     script.push_str(&format!("gcloud config set project \"{}\"\n\n", config.project_id));
 
-    script.push_str("echo \"🔑 [Alfred Setup] Enabling required Google Cloud APIs...\"\n");
+    script.push_str("echo \"🔑 [Alfred Setup] Enabling required Google Cloud and Firebase APIs...\"\n");
     script.push_str("gcloud services enable \\\n");
     script.push_str("  secretmanager.googleapis.com \\\n");
     script.push_str("  cloudfunctions.googleapis.com \\\n");
     script.push_str("  run.googleapis.com \\\n");
     script.push_str("  cloudbuild.googleapis.com \\\n");
-    script.push_str("  firestore.googleapis.com\n\n");
+    script.push_str("  firestore.googleapis.com \\\n");
+    script.push_str("  firebase.googleapis.com \\\n");
+    script.push_str("  identitytoolkit.googleapis.com\n\n");
+
+    script.push_str("echo \"🔥 [Alfred Setup] Ensuring Firebase is enabled on Google Cloud project...\"\n");
+    script.push_str("if ! npx firebase-tools projects:list 2>/dev/null | grep -q \"$PROJECT_ID\"; then\n");
+    script.push_str("  echo \"  Adding Firebase capabilities to $PROJECT_ID...\"\n");
+    script.push_str("  npx firebase-tools projects:addfirebase \"$PROJECT_ID\" || true\n");
+    script.push_str("fi\n\n");
+
+    script.push_str("echo \"🗄️ [Alfred Setup] Ensuring Firestore database exists in Native mode...\"\n");
+    script.push_str("gcloud firestore databases create --location=europe-west1 2>/dev/null || true\n\n");
 
     script.push_str("# Helper to create or update secrets in Google Secret Manager\n");
     script.push_str("create_or_update_secret() {\n");
@@ -141,6 +162,12 @@ mod tests {
         assert!(env.contains("GROQ_API_KEY=\"gsk_test123\""));
         assert!(env.contains("EVREN_API_KEY=\"evren_test123\""));
         assert!(env.contains("OLLAMA_BASE_URL=\"http://localhost:11434\""));
+
+        let mut config_no_uid = config.clone();
+        config_no_uid.allowed_uid = String::new();
+        let env_no_uid = generate_env_file(&config_no_uid);
+        assert!(env_no_uid.contains("ALLOWED_UID=\"\""));
+        assert!(env_no_uid.contains("automatically bind"));
     }
 
     #[test]

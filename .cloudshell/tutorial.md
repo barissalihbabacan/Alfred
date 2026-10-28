@@ -31,8 +31,8 @@ Once the server starts:
 
 Follow the 4 steps in the visual wizard:
 
-1. **GCP Project**: Enter your Google Cloud Project ID (run `gcloud projects list` to see available projects).
-2. **User Authorization**: Enter your Google Email and Firebase Auth UID.
+1. **GCP & Firebase Project**: Enter a project ID or click **✨ Auto-Generate**. Alfred's provisioning script will automatically create the Google Cloud project and enable Firebase for you!
+2. **User Authorization**: Enter your Google Email. The Firebase Auth UID is optional and will automatically bind to your account on first sign-in.
 3. **API Keys**: Enter your Groq (`gsk_...`), Gemini (`AIzaSy...`), and Tavily (`tvly-...`) API keys.
 4. **Deploy**: Click **🚀 Execute Setup & Deploy Now** or copy the generated provisioning script.
 

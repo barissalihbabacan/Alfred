@@ -43,10 +43,11 @@ pub fn validate_email(email: &str) -> Result<String, String> {
 }
 
 /// Validates a Firebase Auth UID for single-user authorization (ALLOWED_UID).
+/// If empty, it is considered valid because Alfred supports auto-binding on first login.
 pub fn validate_firebase_uid(uid: &str) -> Result<String, String> {
     let trimmed = uid.trim();
     if trimmed.is_empty() {
-        return Err("Firebase Auth UID cannot be empty.".to_string());
+        return Ok(String::new());
     }
     if trimmed.len() < 10 || trimmed.len() > 128 {
         return Err(format!(
@@ -131,6 +132,7 @@ mod tests {
     #[test]
     fn test_validate_firebase_uid() {
         assert!(validate_firebase_uid("test-owner-uid-123456").is_ok());
+        assert!(validate_firebase_uid("").is_ok()); // Optional for first-login auto-bind
         assert!(validate_firebase_uid("too-short").is_err());
     }
 

@@ -43,10 +43,6 @@
 
 Tüm yetenekler üretim ortamında, gerçek konuşmalar ve test logları ile doğrulanmıştır:
 
-<p align="center">
-  <img src="./assets/readme/playground.png" width="100%" alt="Alfred Web Arayüzü: Canlı sohbet geçmişi, Google ile doğrulanmış oturum, gpt-oss-120b modeli, saat çözümü ve kaynaklı web haberleri.">
-</p>
-
 | Kullanıcı Mesajı | Alfred'in Davranışı ve Yanıtı |
 | :--- | :--- |
 | *Prod veritabanını silelim mi?* | **Net İtiraz**: "Hayır. Üretim veritabanını silmek geri dönüşü olmayan veri kaybına ve hizmet kesintisine yol açar; önce yedek alınmalıdır…" |

@@ -1,13 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="480" viewBox="0 0 1200 480" role="img" aria-labelledby="hero-title hero-desc">
   <title id="hero-title">Alfred — Açık Kaynaklı Kişisel Yapay Zeka ve Mühendislik Asistanı</title>
-  <desc id="hero-desc">Solda Alfred projesinin adı, self-hosted açık kaynak vizyonu ve teknoloji altyapısı; sağda canlı sistemden iki gerçek doğrulama örneği: üretim veritabanını silme önerisine gerekçeli itiraz ve tek araç çağrısıyla çoklu şehir saati.</desc>
+  <desc id="hero-desc">Solda Alfred projesinin adı, self-hosted açık kaynak vizyonu ve teknoloji rozetleri; sağda canlı sistemden iki gerçek doğrulama örneği: üretim veritabanını silme önerisine gerekçeli itiraz ve çoklu şehir saati araç çağrısı.</desc>
 
   <defs>
     <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#0E1726"/>
-      <stop offset="100%" stop-color="#0A101D"/>
+      <stop offset="100%" stop-color="#080E18"/>
     </linearGradient>
-    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" stop-color="#E5C77D"/>
       <stop offset="100%" stop-color="#C9A45C"/>
     </linearGradient>
@@ -15,70 +15,79 @@
 
   <!-- zemin -->
   <rect width="1200" height="480" rx="24" fill="url(#bgGrad)"/>
-  <rect x="56" y="56" width="4" height="368" rx="2" fill="url(#goldGrad)" opacity="0.85"/>
+  <rect x="52" y="52" width="4" height="376" rx="2" fill="url(#goldGrad)" opacity="0.85"/>
 
-  <!-- sol blok: başlık ve vizyon -->
-  <g id="title-block" transform="translate(88 0)">
+  <!-- sol blok: başlık, vizyon ve özellikler -->
+  <g id="title-block" transform="translate(80 0)">
     <!-- terminal istemi motifi & etiket -->
-    <g transform="translate(0 68)">
+    <g transform="translate(0 64)">
       <rect x="0" y="0" width="28" height="26" rx="6" fill="#16233A" stroke="#C9A45C" stroke-width="1.5"/>
       <path d="M7 8 L13 13 L7 18" fill="none" stroke="#C9A45C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       <line x1="15" y1="18" x2="21" y2="18" stroke="#C9A45C" stroke-width="2" stroke-linecap="round"/>
-      <text x="38" y="19" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" font-weight="600" letter-spacing="2.5" fill="#C9A45C">AÇIK KAYNAKLI · SELF-HOSTED</text>
+      <text x="38" y="18" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="700" letter-spacing="2" fill="#C9A45C">AÇIK KAYNAKLI · SELF-HOSTED</text>
     </g>
 
     <!-- ana başlık -->
-    <text x="0" y="174" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="88" font-weight="800" letter-spacing="-1.5" fill="#F4EFE3">Alfred</text>
+    <text x="0" y="162" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="82" font-weight="800" letter-spacing="-1.5" fill="#F4EFE3">Alfred</text>
     
-    <g transform="translate(0 206)">
-      <rect x="0" y="0" width="94" height="24" rx="4" fill="#16233A" stroke="#26344D"/>
-      <text x="8" y="17" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" font-weight="700" letter-spacing="2" fill="#C9A45C">B.U.T.L.E.R.</text>
-      <text x="108" y="17" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="15" fill="#8A94A6">Autonomous Task, Logic, Execution &amp; Reasoning</text>
+    <!-- butler rozeti ve açılımı -->
+    <g transform="translate(0 196)">
+      <rect x="0" y="0" width="86" height="24" rx="5" fill="#16233A" stroke="#26344D"/>
+      <text x="8" y="16" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="700" letter-spacing="1.5" fill="#C9A45C">B.U.T.L.E.R.</text>
+      <text x="98" y="16" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="14" font-weight="500" fill="#8A94A6">Autonomous Personal AI Butler</text>
     </g>
 
     <!-- değer önermesi -->
-    <g transform="translate(0 264)">
-      <text x="0" y="0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="22" font-weight="500" fill="#F4EFE3">Eşit bir mühendislik ortağı gibi net konuşur,</text>
-      <text x="0" y="30" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="22" font-weight="500" fill="#F4EFE3">önemli tercihleri hatırlar, riskli kararlara itiraz eder.</text>
+    <g transform="translate(0 252)">
+      <text x="0" y="0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="20" font-weight="500" fill="#F4EFE3">Eşit bir mühendislik ortağı gibi net konuşur,</text>
+      <text x="0" y="28" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="20" font-weight="500" fill="#F4EFE3">önemli tercihleri hatırlar, riskli kararlara itiraz eder.</text>
     </g>
 
-    <!-- rozetler / yığın özellikleri -->
-    <g transform="translate(0 348)">
-      <!-- rozet 1 -->
-      <rect x="0" y="0" width="168" height="30" rx="6" fill="#16233A" stroke="#26344D"/>
-      <circle cx="14" cy="15" r="4" fill="#3178C6"/>
-      <text x="26" y="20" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#C8CEDA">%98.8 TypeScript</text>
+    <!-- rozetler (geniş ve rahat 2x2 grid) -->
+    <g transform="translate(0 326)">
+      <!-- rozet 1: TypeScript -->
+      <g transform="translate(0 0)">
+        <rect width="232" height="38" rx="8" fill="#16233A" stroke="#26344D"/>
+        <circle cx="18" cy="19" r="4.5" fill="#3178C6"/>
+        <text x="32" y="24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#C8CEDA">TypeScript %98.8</text>
+      </g>
 
-      <!-- rozet 2 -->
-      <rect x="178" y="0" width="164" height="30" rx="6" fill="#16233A" stroke="#26344D"/>
-      <circle cx="192" cy="15" r="4" fill="#C9A45C"/>
-      <text x="204" y="20" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#C8CEDA">Groq → Gemini Failover</text>
+      <!-- rozet 2: Failover -->
+      <g transform="translate(244 0)">
+        <rect width="232" height="38" rx="8" fill="#16233A" stroke="#26344D"/>
+        <circle cx="18" cy="19" r="4.5" fill="#C9A45C"/>
+        <text x="32" y="24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#C8CEDA">Groq → Gemini Failover</text>
+      </g>
 
-      <!-- rozet 3 -->
-      <rect x="0" y="38" width="168" height="30" rx="6" fill="#16233A" stroke="#26344D"/>
-      <circle cx="14" cy="53" r="4" fill="#10B981"/>
-      <text x="26" y="58" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#C8CEDA">Vektör Bellek &amp; RAG</text>
+      <!-- rozet 3: Vektör Bellek -->
+      <g transform="translate(0 48)">
+        <rect width="232" height="38" rx="8" fill="#16233A" stroke="#26344D"/>
+        <circle cx="18" cy="19" r="4.5" fill="#10B981"/>
+        <text x="32" y="24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#C8CEDA">Vektör Bellek &amp; RAG</text>
+      </g>
 
-      <!-- rozet 4 -->
-      <rect x="178" y="38" width="164" height="30" rx="6" fill="#16233A" stroke="#26344D"/>
-      <circle cx="192" cy="53" r="4" fill="#F59E0B"/>
-      <text x="204" y="58" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#C8CEDA">Canlı Web &amp; Saat Araçları</text>
+      <!-- rozet 4: Web & Saat -->
+      <g transform="translate(244 48)">
+        <rect width="232" height="38" rx="8" fill="#16233A" stroke="#26344D"/>
+        <circle cx="18" cy="19" r="4.5" fill="#F59E0B"/>
+        <text x="32" y="24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#C8CEDA">Canlı Web &amp; Saat Araçları</text>
+      </g>
     </g>
   </g>
 
   <!-- sağ blok: canlı konuşma doğrulama kartı -->
-  <g id="real-conversation" transform="translate(620 40)">
-    <rect width="536" height="400" rx="18" fill="#16233A" stroke="#26344D"/>
+  <g id="real-conversation" transform="translate(586 40)">
+    <rect width="562" height="400" rx="18" fill="#16233A" stroke="#26344D"/>
     
     <g transform="translate(28 32)">
       <circle cx="6" cy="6" r="4" fill="#10B981"/>
-      <text x="20" y="10" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" font-weight="600" letter-spacing="1.5" fill="#8A94A6">CANLI DOĞRULAMA · GERÇEK ÇIKTILAR</text>
+      <text x="20" y="10" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" font-weight="600" letter-spacing="1.5" fill="#8A94A6">CANLI DOĞRULAMA · GERÇEK ÇIKTILAR</text>
     </g>
 
     <!-- 1: itiraz örneği -->
     <g transform="translate(28 68)">
-      <rect x="204" y="0" width="276" height="38" rx="10" fill="#26344D"/>
-      <text x="342" y="24" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" fill="#F4EFE3">Prod veritabanını silelim mi?</text>
+      <rect x="230" y="0" width="276" height="38" rx="10" fill="#26344D"/>
+      <text x="368" y="24" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" fill="#F4EFE3">Prod veritabanını silelim mi?</text>
 
       <rect x="0" y="48" width="3" height="76" rx="1.5" fill="#C9A45C"/>
       <text x="16" y="68" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" font-weight="600" fill="#F4EFE3">Hayır. Üretim veritabanını silmek geri</text>
@@ -86,14 +95,14 @@
       <text x="16" y="116" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" fill="#C8CEDA">yol açar; önce yedek alınmalıdır.</text>
     </g>
 
-    <line x1="28" y1="216" x2="508" y2="216" stroke="#26344D" stroke-dasharray="4 4"/>
+    <line x1="28" y1="216" x2="534" y2="216" stroke="#26344D" stroke-dasharray="4 4"/>
 
     <!-- 2: araç çağrısı & saat -->
     <g transform="translate(28 236)">
-      <rect x="124" y="0" width="356" height="38" rx="10" fill="#26344D"/>
-      <text x="302" y="24" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" fill="#F4EFE3">Londra, Tokyo ve Sidney'de saat kaç?</text>
+      <rect x="150" y="0" width="356" height="38" rx="10" fill="#26344D"/>
+      <text x="328" y="24" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" fill="#F4EFE3">Londra, Tokyo ve Sidney'de saat kaç?</text>
 
-      <rect x="0" y="48" width="480" height="34" rx="6" fill="#0E1726" stroke="#26344D"/>
+      <rect x="0" y="48" width="506" height="34" rx="6" fill="#0E1726" stroke="#26344D"/>
       <text x="14" y="70" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" font-weight="600" fill="#C9A45C">get_current_time</text>
       <text x="180" y="70" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" fill="#8A94A6">["Londra","Tokyo","Sidney"]</text>
 

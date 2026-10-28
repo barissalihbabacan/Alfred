@@ -66,6 +66,8 @@ pub fn generate_cloud_shell_script(config: &SetupConfig) -> String {
     script.push_str(&format!("# Target Project: {}\n", config.project_id));
     script.push_str("# ==============================================================================\n\n");
 
+    script.push_str(&format!("PROJECT_ID=\"{}\"\n\n", config.project_id.trim()));
+
     script.push_str("# 1. Google Cloud Project Setup (Auto-creates if project does not exist)\n");
     script.push_str("if ! gcloud projects describe \"$PROJECT_ID\" >/dev/null 2>&1; then\n");
     script.push_str("  echo \"🚀 [Alfred Setup] Project $PROJECT_ID does not exist yet. Creating it in Google Cloud...\"\n");
@@ -190,6 +192,7 @@ mod tests {
         };
 
         let script = generate_cloud_shell_script(&config);
+        assert!(script.contains("PROJECT_ID=\"butler-alfred\""));
         assert!(script.contains("gcloud config set project \"butler-alfred\""));
         assert!(script.contains("create_or_update_secret \"GROQ_API_KEY\""));
         assert!(script.contains("npm run profile:init"));

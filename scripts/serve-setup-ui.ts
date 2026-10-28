@@ -52,7 +52,8 @@ const server = http.createServer(async (req, res) => {
         }));
       } catch (err: unknown) {
         console.error("[Alfred Setup Server] Execution error:", err);
-        const errorMessage = err instanceof Error ? err.message : "Failed to execute setup script.";
+        const errObj = err as { stderr?: string; stdout?: string; message?: string };
+        const errorMessage = errObj.stderr || errObj.stdout || errObj.message || "Failed to execute setup script.";
         res.writeHead(500, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: errorMessage }));
       }

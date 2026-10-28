@@ -314,12 +314,17 @@ async function executeProvisioning() {
       executionStatus.className = "execution-status success";
       executionStatus.textContent = data.message || "Alfred was successfully provisioned and deployed!";
     } else {
-      const err = await res.json();
-      throw new Error(err.error || "Provisioning API returned an error.");
+      let errDetail = "Provisioning API returned an error.";
+      try {
+        const errJson = await res.json();
+        if (errJson.error) errDetail = errJson.error;
+      } catch {}
+      throw new Error(errDetail);
     }
   } catch (err) {
     executionStatus.className = "execution-status error";
-    executionStatus.textContent = "Automated execution note: You can copy the bash script below and paste directly into your Cloud Shell terminal.";
+    const msg = err instanceof Error ? err.message : String(err);
+    executionStatus.textContent = `Execution status: ${msg}`;
   } finally {
     btnExecuteProvision.disabled = false;
   }

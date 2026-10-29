@@ -97,3 +97,9 @@ jobs:
 
       - name: Cargo Clippy (crates/setup-core)
         run: cargo clippy --manifest-path crates/setup-core/Cargo.toml -- -D warnings
+
+      - name: Cargo Test (crates/alfred-setup)
+        run: cargo test --manifest-path crates/alfred-setup/Cargo.toml
+
+      - name: Cargo Clippy (crates/alfred-setup)
+        run: cargo clippy --manifest-path crates/alfred-setup/Cargo.toml --all-targets -- -D warnings

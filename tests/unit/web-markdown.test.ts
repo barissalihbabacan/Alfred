@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { renderMarkdown } from "../../apps/web/lib/markdown.js";
 
-/** The JavaScript of the (first) "Kopyala" button's onclick attribute. */
+/** The JavaScript of the (first) copy button's onclick attribute. */
 function onclickOf(html: string): string {
   const m = /onclick="([^"]*)"/.exec(html);
   if (!m) throw new Error("no onclick attribute in: " + html.slice(0, 200));
@@ -139,11 +139,12 @@ describe("renderMarkdown (apps/web/lib/markdown.ts)", () => {
   describe("blockquotes & rich text boxes", () => {
     it("renders email draft blockquotes with header and copy button, without raw > markers", () => {
       const draft = "Gövde:\n> Selam Fatih,\n>\n> Guess the City App Store onayını aldı!\n>\n> Barış";
-      const html = renderMarkdown(draft);
+      const html = renderMarkdown(draft, null, "tr");
 
       expect(html).toContain('<blockquote class="md-blockquote">');
       expect(html).toContain("md-blockquote-header");
       expect(html).toContain("Taslak / Alıntı");
+      expect(renderMarkdown(draft, null, "en")).toContain("Draft / Quote");
       expect(html).toContain("md-blockquote-body");
       expect(html).toContain("<p>Selam Fatih,</p>");
       expect(html).toContain("<p>Guess the City App Store onayını aldı!</p>");

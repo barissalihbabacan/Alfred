@@ -95,7 +95,7 @@ describe("Single-User Authorization (UID & Email Whitelist)", () => {
   });
 
   it("provides Turkish user-facing error message for unauthorized UIDs", () => {
-    const errorDetails = getAuthErrorDetails({ code: "auth/unauthorized-uid" });
+    const errorDetails = getAuthErrorDetails({ code: "auth/unauthorized-uid" }, "tr");
     expect(errorDetails.title).toBe("Yetkisiz Kullanıcı (Erişim Reddedildi)");
     expect(errorDetails.message).toContain("yalnızca yetkili yönetici erişebilir");
   });

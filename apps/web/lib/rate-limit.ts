@@ -1,3 +1,4 @@
+import { translate, type Lang } from "./i18n";
 import { providerDisplayName } from "./providers";
 
 /**
@@ -13,15 +14,15 @@ export function normalizeRateLimitWaitMs(waitMs: unknown): number {
 }
 
 /**
- * Bekleme sirasinda "Düşünüyor..." yerine gosterilen durum metni.
+ * Bekleme sirasinda "Thinking..." yerine gosterilen durum metni.
  * `remainingMs` > 0 iken geri sayim, bittiginde yeniden deneme mesaji.
  * `provider`: olaydaki saglayici kimligi (varsayilan Groq).
  */
-export function formatRateLimitStatus(remainingMs: number, provider?: string): string {
+export function formatRateLimitStatus(remainingMs: number, provider: string | undefined, lang: Lang): string {
   const name = providerDisplayName(provider);
   if (!Number.isFinite(remainingMs) || remainingMs <= 0) {
-    return `${name} sınırına ulaşıldı, yeniden deneniyor…`;
+    return translate(lang, "rateLimit.retrying", { name });
   }
   const seconds = Math.max(1, Math.ceil(remainingMs / 1000));
-  return `${name} sınırına ulaşıldı, ~${seconds} sn bekleniyor…`;
+  return translate(lang, "rateLimit.waiting", { name, seconds });
 }

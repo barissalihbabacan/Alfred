@@ -5,15 +5,20 @@ import { ChatStreamError } from "../../apps/web/lib/api.js";
 
 describe("Web rate-limit status (apps/web/lib/rate-limit.ts)", () => {
   it("counts down in whole seconds, rounding up", () => {
-    expect(formatRateLimitStatus(15_000)).toBe("Groq sınırına ulaşıldı, ~15 sn bekleniyor…");
-    expect(formatRateLimitStatus(14_001)).toBe("Groq sınırına ulaşıldı, ~15 sn bekleniyor…");
-    expect(formatRateLimitStatus(200)).toBe("Groq sınırına ulaşıldı, ~1 sn bekleniyor…");
+    expect(formatRateLimitStatus(15_000, undefined, "tr")).toBe("Groq sınırına ulaşıldı, ~15 sn bekleniyor…");
+    expect(formatRateLimitStatus(14_001, undefined, "tr")).toBe("Groq sınırına ulaşıldı, ~15 sn bekleniyor…");
+    expect(formatRateLimitStatus(200, undefined, "tr")).toBe("Groq sınırına ulaşıldı, ~1 sn bekleniyor…");
+  });
+
+  it("counts down in English too", () => {
+    expect(formatRateLimitStatus(14_001, undefined, "en")).toBe("Groq rate limit reached, waiting ~15 s…");
+    expect(formatRateLimitStatus(0, "gemini", "en")).toBe("Gemini rate limit reached, retrying…");
   });
 
   it("switches to a retry message once the wait is over", () => {
-    expect(formatRateLimitStatus(0)).toBe("Groq sınırına ulaşıldı, yeniden deneniyor…");
-    expect(formatRateLimitStatus(-500)).toBe("Groq sınırına ulaşıldı, yeniden deneniyor…");
-    expect(formatRateLimitStatus(NaN)).toBe("Groq sınırına ulaşıldı, yeniden deneniyor…");
+    expect(formatRateLimitStatus(0, undefined, "tr")).toBe("Groq sınırına ulaşıldı, yeniden deneniyor…");
+    expect(formatRateLimitStatus(-500, undefined, "tr")).toBe("Groq sınırına ulaşıldı, yeniden deneniyor…");
+    expect(formatRateLimitStatus(NaN, undefined, "tr")).toBe("Groq sınırına ulaşıldı, yeniden deneniyor…");
   });
 
   it("sanitises the server's waitMs", () => {
@@ -52,17 +57,24 @@ describe("ChatStreamError (apps/web/lib/api.ts)", () => {
 
 describe("Provider fallback status (apps/web/lib/providers.ts)", () => {
   it("names the provider that is being waited on", () => {
-    expect(formatRateLimitStatus(15_000, "gemini")).toBe("Gemini sınırına ulaşıldı, ~15 sn bekleniyor…");
-    expect(formatRateLimitStatus(0, "gemini")).toBe("Gemini sınırına ulaşıldı, yeniden deneniyor…");
-    expect(formatRateLimitStatus(15_000, undefined)).toBe("Groq sınırına ulaşıldı, ~15 sn bekleniyor…");
+    expect(formatRateLimitStatus(15_000, "gemini", "tr")).toBe("Gemini sınırına ulaşıldı, ~15 sn bekleniyor…");
+    expect(formatRateLimitStatus(0, "gemini", "tr")).toBe("Gemini sınırına ulaşıldı, yeniden deneniyor…");
+    expect(formatRateLimitStatus(15_000, undefined, "tr")).toBe("Groq sınırına ulaşıldı, ~15 sn bekleniyor…");
   });
 
   it("describes a switch in Turkish, with the right suffix", () => {
-    expect(formatProviderFallbackStatus("groq", "gemini", "rate_limited")).toBe("Groq sınıra ulaştı, Gemini'ye geçiliyor…");
-    expect(formatProviderFallbackStatus("gemini", "groq", "timeout")).toBe("Gemini yanıt vermedi, Groq'a geçiliyor…");
-    expect(formatProviderFallbackStatus("groq", "groq", "rate_limited")).toBe("Groq sınıra ulaştı, başka bir Groq modeli deneniyor…");
-    expect(formatProviderFallbackStatus("groq", "gemini", "client_error")).toBe("Groq isteği reddetti, Gemini'ye geçiliyor…");
-    expect(formatProviderFallbackStatus("groq", "gemini", "mystery")).toBe("Groq kullanılamıyor, Gemini'ye geçiliyor…");
+    expect(formatProviderFallbackStatus("groq", "gemini", "rate_limited", "tr")).toBe("Groq sınıra ulaştı, Gemini'ye geçiliyor…");
+    expect(formatProviderFallbackStatus("gemini", "groq", "timeout", "tr")).toBe("Gemini yanıt vermedi, Groq'a geçiliyor…");
+    expect(formatProviderFallbackStatus("groq", "groq", "rate_limited", "tr")).toBe("Groq sınıra ulaştı, başka bir Groq modeli deneniyor…");
+    expect(formatProviderFallbackStatus("groq", "gemini", "client_error", "tr")).toBe("Groq isteği reddetti, Gemini'ye geçiliyor…");
+    expect(formatProviderFallbackStatus("groq", "gemini", "mystery", "tr")).toBe("Groq kullanılamıyor, Gemini'ye geçiliyor…");
+  });
+
+  it("describes a switch in English", () => {
+    expect(formatProviderFallbackStatus("groq", "gemini", "rate_limited", "en")).toBe("Groq hit its rate limit, switching to Gemini…");
+    expect(formatProviderFallbackStatus("gemini", "groq", "timeout", "en")).toBe("Gemini did not respond, switching to Groq…");
+    expect(formatProviderFallbackStatus("groq", "groq", "server_error", "en")).toBe("Groq returned an error, trying another Groq model…");
+    expect(formatProviderFallbackStatus("groq", "gemini", "hasOwnProperty", "en")).toBe("Groq is unavailable, switching to Gemini…");
   });
 
   it("maps provider ids to display names", () => {

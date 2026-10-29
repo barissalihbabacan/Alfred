@@ -1,25 +1,28 @@
+import { translate, type Lang, type MessageKey } from "./i18n";
+
 /**
- * Status text for a `tool_call` SSE event, shown instead of "Düşünüyor..."
+ * Status text for a `tool_call` SSE event, shown instead of "Thinking..."
  * while a slow tool runs. The server sends `{ toolCalls: [{ name, … }] }`
  * before running the calls and `{ tool }` per call afterwards.
  */
-const TOOL_STATUS: Record<string, string> = {
-  web_search: "Web'de aranıyor…",
-  read_url: "Sayfa okunuyor…",
-  github: "GitHub inceleniyor…",
-  google_calendar: "Takvim inceleniyor…",
-  google_tasks: "Görevler güncelleniyor…",
-  gmail: "E-postalar taranıyor…"
+const TOOL_STATUS: Record<string, MessageKey> = {
+  web_search: "tool.status.webSearch",
+  read_url: "tool.status.readUrl",
+  github: "tool.status.github",
+  google_calendar: "tool.status.calendar",
+  google_tasks: "tool.status.tasks",
+  gmail: "tool.status.gmail"
 };
 
-const TOOL_BADGE_LABELS: Record<string, string> = {
-  web_search: "Web Araması",
-  read_url: "Bağlantı",
-  github: "GitHub",
-  google_calendar: "Google Takvim",
-  google_tasks: "Google Görevler",
-  gmail: "Gmail",
-  get_current_time: "Sistem Zamanı"
+/** Product names stay as they are; the rest is translated. */
+const TOOL_BADGE_LABELS: Record<string, MessageKey | { name: string }> = {
+  web_search: "tool.badge.webSearch",
+  read_url: "tool.badge.readUrl",
+  github: { name: "GitHub" },
+  google_calendar: "tool.badge.calendar",
+  google_tasks: "tool.badge.tasks",
+  gmail: { name: "Gmail" },
+  get_current_time: "tool.badge.time"
 };
 
 export function extractToolNames(event: { tool?: unknown; toolCalls?: unknown }): string[] {
@@ -38,14 +41,16 @@ export function extractToolNames(event: { tool?: unknown; toolCalls?: unknown })
   return names;
 }
 
-export function toolStatusText(event: { tool?: unknown; toolCalls?: unknown }): string | undefined {
+export function toolStatusText(event: { tool?: unknown; toolCalls?: unknown }, lang: Lang): string | undefined {
   for (const name of extractToolNames(event)) {
-    if (TOOL_STATUS[name]) return TOOL_STATUS[name];
+    if (Object.hasOwn(TOOL_STATUS, name)) return translate(lang, TOOL_STATUS[name]);
   }
   return undefined;
 }
 
-export function toolBadgeLabel(toolName: string): string {
-  return TOOL_BADGE_LABELS[toolName] || toolName;
+export function toolBadgeLabel(toolName: string, lang: Lang): string {
+  if (!Object.hasOwn(TOOL_BADGE_LABELS, toolName)) return toolName;
+  const label = TOOL_BADGE_LABELS[toolName];
+  return typeof label === "string" ? translate(lang, label) : label.name;
 }
 

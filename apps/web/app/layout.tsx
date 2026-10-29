@@ -2,8 +2,10 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Alfred — Yönetici Yapay Zeka Asistanı",
-  description: "Kişisel Yapay Zeka ve Yönetici Asistanı",
+  // Prerendered in DEFAULT_LANG (lib/i18n.ts); useI18n() swaps the title and
+  // <html lang> for the chosen language on the client.
+  title: "Alfred — Personal AI Executive Assistant",
+  description: "Personal AI and Executive Assistant",
   manifest: "/manifest.json",
   applicationName: "Alfred",
   appleWebApp: {
@@ -38,7 +40,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="tr" style={{ backgroundColor: "#212121", colorScheme: "dark" }}>
+    <html lang="en"style={{ backgroundColor: "#212121", colorScheme: "dark" }}>
       <head>
         {/* Loaded at runtime (not next/font) so the static build needs no network. */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />

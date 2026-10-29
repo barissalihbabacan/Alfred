@@ -2,23 +2,40 @@ import { describe, it, expect } from "vitest";
 import { getAuthErrorDetails, getFriendlyAuthErrorMessage, ALLOWED_UID } from "../../apps/web/lib/auth.js";
 
 describe("Firebase Auth User-Friendly Error Messages", () => {
+  it("describes the same error in English when the UI is English", () => {
+    const err = { code: "auth/popup-blocked" };
+    expect(getAuthErrorDetails(err, "en")).toEqual({
+      code: "auth/popup-blocked",
+      title: "Pop-up Blocked",
+      message: "Your browser blocked the Google sign-in window. Allow pop-ups from the notice in the address bar and try again."
+    });
+    expect(getFriendlyAuthErrorMessage({ code: "auth/unauthorized-uid" }, "en")).toBe(
+      "Unauthorised User (Access Denied): Only the authorised owner can use this system. The account you signed in with is not authorised."
+    );
+    expect(getAuthErrorDetails({ message: "missing initial state" }, "en").code).toBe("auth/missing-initial-state");
+    expect(getAuthErrorDetails({ code: "auth/whatever" }, "en")).toMatchObject({
+      title: "Something Went Wrong",
+      message: "An unexpected error occurred during sign-in. Please try again."
+    });
+  });
+
   it("exports the ALLOWED_UID string", () => {
     expect(typeof ALLOWED_UID).toBe("string");
   });
   it("translates auth/popup-closed-by-user gracefully", () => {
     const err = { code: "auth/popup-closed-by-user", message: "Firebase: Error (auth/popup-closed-by-user)." };
-    const details = getAuthErrorDetails(err);
+    const details = getAuthErrorDetails(err, "tr");
 
     expect(details.title).toBe("Giriş Penceresi Kapatıldı");
     expect(details.message).toContain("Google kimlik doğrulama penceresi");
-    expect(getFriendlyAuthErrorMessage(err)).toBe(
+    expect(getFriendlyAuthErrorMessage(err, "tr")).toBe(
       "Giriş Penceresi Kapatıldı: Google kimlik doğrulama penceresi işlem tamamlanmadan kapatıldı. Lütfen tekrar deneyin."
     );
   });
 
   it("translates auth/popup-blocked with clear guidance", () => {
     const err = { code: "auth/popup-blocked" };
-    const details = getAuthErrorDetails(err);
+    const details = getAuthErrorDetails(err, "tr");
 
     expect(details.title).toBe("Açılır Pencere Engellendi");
     expect(details.message).toContain("açılır pencerelere (pop-up) izin verip");
@@ -26,7 +43,7 @@ describe("Firebase Auth User-Friendly Error Messages", () => {
 
   it("translates auth/unauthorized-domain with domain instructions", () => {
     const err = { code: "auth/unauthorized-domain" };
-    const details = getAuthErrorDetails(err);
+    const details = getAuthErrorDetails(err, "tr");
 
     expect(details.title).toBe("Yetkisiz Alan Adı");
     expect(details.message).toContain("Authorized Domains");
@@ -34,7 +51,7 @@ describe("Firebase Auth User-Friendly Error Messages", () => {
 
   it("translates auth/network-request-failed with connection hint", () => {
     const err = { code: "auth/network-request-failed" };
-    const details = getAuthErrorDetails(err);
+    const details = getAuthErrorDetails(err, "tr");
 
     expect(details.title).toBe("Bağlantı Hatası");
     expect(details.message).toContain("İnternet bağlantısı");
@@ -42,7 +59,7 @@ describe("Firebase Auth User-Friendly Error Messages", () => {
 
   it("translates auth/operation-not-allowed with clear console instructions", () => {
     const err = { code: "auth/operation-not-allowed" };
-    const details = getAuthErrorDetails(err);
+    const details = getAuthErrorDetails(err, "tr");
 
     expect(details.title).toBe("Google ile Giriş Henüz Etkin Değil");
     expect(details.message).toContain("Sign-in method");
@@ -50,7 +67,7 @@ describe("Firebase Auth User-Friendly Error Messages", () => {
 
   it("translates missing initial state / sessionStorage errors gracefully", () => {
     const err = { message: "Unable to process request due to missing initial state. This may happen if browser sessionStorage is inaccessible" };
-    const details = getAuthErrorDetails(err);
+    const details = getAuthErrorDetails(err, "tr");
 
     expect(details.title).toBe("Tarayıcı Oturum/Gizlilik Engeli");
     expect(details.message).toContain("çerez ve oturum");
@@ -58,7 +75,7 @@ describe("Firebase Auth User-Friendly Error Messages", () => {
 
   it("translates auth/internal-error with a generic server error message", () => {
     const err = { code: "auth/internal-error" };
-    const details = getAuthErrorDetails(err);
+    const details = getAuthErrorDetails(err, "tr");
 
     expect(details.title).toBe("Sunucu Hatası");
     expect(details.message).toContain("Kimlik doğrulama sunucusunda");
@@ -66,18 +83,18 @@ describe("Firebase Auth User-Friendly Error Messages", () => {
 
   it("translates auth/unauthorized-uid with clear restriction notice", () => {
     const err = { code: "auth/unauthorized-uid" };
-    const details = getAuthErrorDetails(err);
+    const details = getAuthErrorDetails(err, "tr");
 
     expect(details.title).toBe("Yetkisiz Kullanıcı (Erişim Reddedildi)");
     expect(details.message).toContain("yalnızca yetkili yönetici erişebilir");
-    expect(getFriendlyAuthErrorMessage(err)).toBe(
+    expect(getFriendlyAuthErrorMessage(err, "tr")).toBe(
       "Yetkisiz Kullanıcı (Erişim Reddedildi): Bu sisteme yalnızca yetkili yönetici erişebilir. Giriş yaptığınız hesap yetkilendirilmemiştir."
     );
   });
 
   it("falls back to friendly generic message for unknown errors", () => {
     const err = { code: "auth/unknown-custom-code", message: "Something broke" };
-    const details = getAuthErrorDetails(err);
+    const details = getAuthErrorDetails(err, "tr");
 
     expect(details.title).toBe("İşlem Başarısız Oldu");
     expect(details.message).toBe("Something broke");
@@ -85,10 +102,10 @@ describe("Firebase Auth User-Friendly Error Messages", () => {
 
   it("exposes Firebase customData as serverDetails when present", () => {
     const err = { code: "auth/internal-error", customData: { appName: "[DEFAULT]", serverResponse: "boom" } };
-    const details = getAuthErrorDetails(err);
+    const details = getAuthErrorDetails(err, "tr");
 
     expect(details.title).toBe("Sunucu Hatası");
     expect(details.serverDetails).toBe(JSON.stringify(err.customData));
-    expect(getAuthErrorDetails({ code: "auth/internal-error" }).serverDetails).toBeUndefined();
+    expect(getAuthErrorDetails({ code: "auth/internal-error" }, "tr").serverDetails).toBeUndefined();
   });
 });

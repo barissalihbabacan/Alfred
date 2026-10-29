@@ -4,11 +4,13 @@ import React from "react";
 import { AuthProvider, useAuth } from "../lib/AuthContext";
 import LoginScreen from "../components/LoginScreen";
 import VoiceChatPlayground from "../components/VoiceChatPlayground";
+import { useI18n } from "../lib/use-i18n";
 
 function AuthenticatedApp() {
   const { user, loading } = useAuth();
+  const { t } = useI18n();
 
-  // Initial authentication check state with Butler theme
+  // Initial authentication check
   if (loading) {
     return (
       <div className="min-h-screen-safe flex flex-col items-center justify-center gap-5 bg-butler-bg leading-[normal]">
@@ -18,7 +20,7 @@ function AuthenticatedApp() {
             Alfred
           </div>
           <div className="text-[12px] text-butler-text-muted">
-            Güvenlik Protokolü Doğrulanıyor...
+            {t("app.checkingSession")}
           </div>
         </div>
       </div>

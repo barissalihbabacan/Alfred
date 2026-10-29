@@ -39,16 +39,18 @@ Groq openai/gpt-oss-120b → Gemini gemini-3.8-flash  (fallback chain)
 Firestore (conversations, memory_vectors)
 ```
 
-Speech input uses the browser Web Speech API (`SpeechRecognition`, Turkish `tr-TR`; the TR/EN picker was removed on 27 Sep 2026); replies are not read aloud (the "Seslendir" button and `speechSynthesis` were removed on 27 Sep 2026). No audio is sent to the server.
+**UI language:** English or Turkish (`lib/i18n.ts` holds both dictionaries, `lib/use-i18n.ts` the hook). The choice is the one saved in `localStorage` (`alfred_ui_lang`), else the browser language (`tr*` is Turkish, anything else English); the EN/TR toggle sits on the login screen and in Settings. The static export is prerendered in English and switches after hydration, along with `<html lang>` and the tab title. Only the UI is translated: error texts the server sends over SSE or in `{ error }` bodies arrive as they are. `tests/unit/web-i18n.test.ts` fails if the two dictionaries' keys or placeholders differ.
+
+Speech input uses the browser Web Speech API (`SpeechRecognition`, in the UI language: `en-US` or `tr-TR`); replies are not read aloud (the "Seslendir" button and `speechSynthesis` were removed on 27 Sep 2026). No audio is sent to the server.
 
 ### Key files
 
 | File | Role |
 | :--- | :--- |
 | `app/page.tsx` | Auth gate: spinner while Firebase restores the session, `LoginScreen` when signed out, `VoiceChatPlayground` once an allowed user is present. |
-| `components/LoginScreen.tsx` | Google sign-in (popup + "Doğrudan Yönlendirme ile Giriş"), Turkish error banner, Firebase console hints. |
+| `components/LoginScreen.tsx` | Google sign-in (popup + redirect fallback), localized error banner, Firebase console hints, EN/TR toggle. |
 | `components/VoiceChatPlayground.tsx` | Chat UI: conversation list, streaming messages, mic, speech output, settings and account modals. |
-| `lib/auth.ts` | Google sign-in, redirect fallback, UID allow-list, `getAuthErrorDetails()` Turkish error messages. |
+| `lib/auth.ts` | Google sign-in, redirect fallback, UID allow-list, `getAuthErrorDetails(error, lang)` error messages. |
 | `lib/AuthContext.tsx` | React context around `lib/auth.ts`; also surfaces redirect-result and unauthorized-UID errors. |
 | `lib/firebase.ts` | Firebase config, App Check init, `getAppCheckToken()`. |
 | `lib/api.ts` | `apiFetch()` — the only way the UI calls the backend. |

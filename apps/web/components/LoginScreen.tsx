@@ -2,9 +2,17 @@
 
 import React, { useState } from "react";
 import { useAuth } from "../lib/AuthContext";
+import { useI18n } from "../lib/use-i18n";
+import LanguageToggle from "./LanguageToggle";
+
+/** Renders `**bold**` spans of a dictionary text as <strong>. */
+function withBold(text: string): React.ReactNode[] {
+  return text.split(/\*\*(.+?)\*\*/).map((part, i) => (i % 2 === 1 ? <strong key={i}>{part}</strong> : part));
+}
 
 export default function LoginScreen() {
   const { signInGoogle, signInGoogleRedirect, error, clearError } = useAuth();
+  const { t } = useI18n();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
   // Google butonunun hover kalkisi; eski onMouseEnter/Leave mantigi aynen
@@ -40,10 +48,12 @@ export default function LoginScreen() {
       {/* Decorative background grid lines */}
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(39,53,79,0.12)_1px,transparent_1px),linear-gradient(90deg,rgba(39,53,79,0.12)_1px,transparent_1px)] bg-size-[48px_48px]" />
 
+      <LanguageToggle className="absolute right-4 top-[calc(16px+env(safe-area-inset-top,0px))] z-2" />
+
       {/* Main Login Card */}
       <div className="relative z-1 flex w-full max-w-[460px] flex-col items-center rounded-2xl border border-gold/[0.28] bg-[rgba(18,24,36,0.85)] px-8 py-10 text-center shadow-[0_24px_64px_rgba(0,0,0,0.6),0_0_32px_rgba(197,160,89,0.08)] backdrop-blur-lg">
         
-        {/* Butler Crest / Emblem */}
+        {/* Avatar */}
         <div className="mb-5 flex h-[80px] w-[80px] items-center justify-center overflow-hidden rounded-full border-2 border-gold/60 bg-[#0E1726] shadow-[0_0_24px_rgba(197,160,89,0.3)]">
           <img
             src="/avatar.png"
@@ -55,14 +65,14 @@ export default function LoginScreen() {
         {/* Security Badge */}
         <div className="mb-3.5 inline-flex items-center gap-1.5 rounded-[20px] border border-gold/30 bg-gold/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-gold-light">
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-gold" />
-          Güvenli Yönetici Portalı
+          {t("login.badge")}
         </div>
 
         <h1 className="mb-2 text-[26px] font-bold tracking-[-0.02em] text-butler-text">
           Alfred
         </h1>
         <p className="mb-7 text-[13px] leading-normal text-butler-text-secondary">
-          Kişisel yapay zeka asistanınıza ve sesli etkileşim sistemine erişmek için lütfen kimliğinizi doğrulayın.
+          {t("login.intro")}
         </p>
 
         {/* User-Friendly Error Alert Banner */}
@@ -90,12 +100,12 @@ export default function LoginScreen() {
               {error.code === "auth/operation-not-allowed" && (
                 <div className="mt-2.5 rounded-lg border border-gold/30 bg-black/35 px-3 py-2.5 text-[11px] leading-normal text-slate-200">
                   <div className="mb-1 font-semibold text-gold-light">
-                    ⚙️ Çözüm Adımları (1 Dakika):
+                    {t("login.fixSteps")}
                   </div>
                   <ol className="m-0 list-decimal pl-[18px] text-slate-300">
-                    <li><strong>Firebase Console &gt; Authentication &gt; Sign-in method</strong> sekmesini açın.</li>
-                    <li><strong>Google</strong> seçeneğine tıklayıp <strong>Enable (Etkinleştir)</strong> yapın.</li>
-                    <li>Proje destek e-postasını seçip <strong>Save (Kaydet)</strong> butonuna tıklayın.</li>
+                    <li>{withBold(t("login.fixStep1"))}</li>
+                    <li>{withBold(t("login.fixStep2"))}</li>
+                    <li>{withBold(t("login.fixStep3"))}</li>
                   </ol>
                   <a
                     href={
@@ -107,26 +117,26 @@ export default function LoginScreen() {
                     rel="noopener noreferrer"
                     className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-gold underline"
                   >
-                    <span>Firebase Console Sağlayıcılar Sayfasına Git</span>
+                    <span>{t("login.openConsole")}</span>
                     <span>↗</span>
                   </a>
                 </div>
               )}
               {error.serverDetails && (
                 <div className="mt-2 break-all rounded-md bg-black/40 px-2 py-1.5 font-[monospace] text-[11px] text-slate-300">
-                  Sunucu Yanıtı: {error.serverDetails}
+                  {t("login.serverResponse", { details: error.serverDetails })}
                 </div>
               )}
               {error.code && error.code !== "unknown_error" && (
                 <div className="mt-1.5 font-[monospace] text-[10px] text-slate-400">
-                  Hata Kodu: {error.code}
+                  {t("login.errorCode", { code: error.code })}
                 </div>
               )}
             </div>
 
             <button
               onClick={clearError}
-              aria-label="Kapat"
+              aria-label={t("common.close")}
               className="cursor-pointer border-none bg-transparent p-0.5 text-[14px] leading-none text-slate-400 hover:text-white"
             >
               ✕
@@ -151,7 +161,7 @@ export default function LoginScreen() {
           {busy ? (
             <div className="flex items-center gap-2 text-gray-700">
               <div className="h-[18px] w-[18px] animate-spin-fast rounded-full border-2 border-gray-400 border-t-gold" />
-              <span>{isRedirecting ? "Google'a Yönlendiriliyor..." : "Giriş Yapılıyor..."}</span>
+              <span>{isRedirecting ? t("login.redirecting") : t("login.signingIn")}</span>
             </div>
           ) : (
             <>
@@ -174,7 +184,7 @@ export default function LoginScreen() {
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                 />
               </svg>
-              <span>Google ile Giriş Yap</span>
+              <span>{t("login.signInGoogle")}</span>
             </>
           )}
         </button>
@@ -183,21 +193,21 @@ export default function LoginScreen() {
         <button
           onClick={handleRedirectSignIn}
           disabled={busy}
-          title="Safari veya tarayıcı engeli varsa doğrudan sayfayı yönlendirerek giriş yapın"
+          title={t("login.redirectTitle")}
           className={`mt-3.5 border-none bg-transparent px-1.5 py-px text-[12px] leading-[1.45] text-butler-text-secondary underline underline-offset-[3px] ${
             busy ? "cursor-not-allowed opacity-50" : "cursor-pointer opacity-100"
           }`}
         >
-          Safari veya açılır pencere engeli yaşıyorsanız: <strong>Doğrudan Yönlendirme ile Giriş</strong>
+          {t("login.redirectPrefix")} <strong>{t("login.redirectAction")}</strong>
         </button>
 
-        {/* Security / Privacy Assurance */}
+        {/* Who can sign in */}
         <div className="mt-7 flex items-center gap-2 text-[11px] leading-[1.4] text-butler-text-muted">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
             <path d="M7 11V7a5 5 0 0 1 10 0v4" />
           </svg>
-          <span>256-Bit Uçtan Uca Şifrelemeli Yönetici Oturumu</span>
+          <span>{t("login.footer")}</span>
         </div>
 
       </div>

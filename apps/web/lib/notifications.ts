@@ -1,5 +1,6 @@
 import { app, firebaseConfig } from "./firebase";
 import { apiFetch, ensureOk } from "./api";
+import { translate, type Lang } from "./i18n";
 
 let messagingPromise: Promise<import("firebase/messaging").Messaging | null> | null = null;
 
@@ -54,26 +55,27 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
 }
 
 export async function requestPushPermissionAndToken(
+  lang: Lang,
   customVapidKey?: string
 ): Promise<{ token: string | null; error?: string }> {
   if (typeof window === "undefined" || !("Notification" in window)) {
-    return { token: null, error: "Tarayıcınız bildirimleri desteklemiyor." };
+    return { token: null, error: translate(lang, "notify.unsupported") };
   }
 
   try {
     const permission = await Notification.requestPermission();
     if (permission !== "granted") {
-      return { token: null, error: "Bildirim izni verilmedi." };
+      return { token: null, error: translate(lang, "notify.denied") };
     }
 
     const messaging = await getFirebaseMessaging();
     if (!messaging) {
-      return { token: null, error: "Firebase Messaging bu tarayıcıda desteklenmiyor." };
+      return { token: null, error: translate(lang, "notify.messagingUnsupported") };
     }
 
     const registration = await registerServiceWorker();
     if (!registration) {
-      return { token: null, error: "Service Worker başlatılamadı." };
+      return { token: null, error: translate(lang, "notify.swFailed") };
     }
 
     const vapidKey =
@@ -88,7 +90,7 @@ export async function requestPushPermissionAndToken(
     });
 
     if (!token) {
-      return { token: null, error: "Cihaz bildirim anahtarı (FCM token) üretilemedi." };
+      return { token: null, error: translate(lang, "notify.noToken") };
     }
 
     return { token };
@@ -120,18 +122,18 @@ export async function removeFcmTokenFromBackend(token: string): Promise<void> {
   }).catch((err) => console.warn("[Notifications] Failed to delete token on backend:", err));
 }
 
-export async function sendTestPushNotification(): Promise<{ success: boolean; message: string }> {
+export async function sendTestPushNotification(lang: Lang): Promise<{ success: boolean; message: string }> {
   const res = await apiFetch("/notifications/test", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      title: "Alfred — Test Bildirimi",
-      body: "Alfred bildirim sistemi cihazınızda başarıyla devrede!"
+      title: translate(lang, "notify.testTitle"),
+      body: translate(lang, "notify.testBody")
     })
   });
   await ensureOk(res);
   const data = await res.json().catch(() => ({}));
-  return { success: true, message: data.message || "Test bildirimi gönderildi." };
+  return { success: true, message: data.message || translate(lang, "notify.testSent") };
 }
 
 export async function subscribeForegroundMessages(

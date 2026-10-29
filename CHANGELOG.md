@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Setup-UI Hardening & Zero-Touch Provisioning Wizard**:
+  - Bound setup server strictly to `127.0.0.1` (loopback) with session token protection (`X-Setup-Token`).
+  - Disallowed client-supplied scripts; bash generation is performed server-side by the Rust Wasm engine (`crates/setup-core`).
+  - Implemented POSIX shell escaping (`shell_quote`) and secret-free script generation passing keys via Secret Manager stdin.
+  - Isolated script execution in temporary directories (`fs.mkdtempSync`) with `0700` permissions.
+  - 5-step wizard with real-time log streaming, billing account selector, Firestore region selection, and Post-Deployment Checklist.
+- **Fail-Closed Authorization & Zero-Touch Onboarding**:
+  - Added `verifyUserAuthorization` in `src/core/permissions/authorization.ts` enforcing strict fail-closed access.
+  - Zero-touch onboarding: allows verified email sign-in when `ALLOWED_UID` is unconfigured.
+  - Dynamic Firebase client SDK configuration and project ID resolution without hardcoded defaults.
+- **Wasm Optimization & CI Hardening**:
+  - Optimized `crates/setup-core` release profile (`opt-level = "z"`, `lto = true`), reducing Wasm bundle from 1.12 MB to 114 KB.
+  - Added `rust-toolchain.toml` and GitHub Actions CI steps for `cargo test`, `cargo clippy -- -D warnings`, and `git diff --exit-code setup-ui/wasm`.
+
 ## [0.1.0] - 2026-10-28
 
 ### Added

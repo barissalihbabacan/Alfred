@@ -89,7 +89,8 @@ No local tools, Node.js, or SDK installations required! You can deploy your pers
    npm run setup:ui
    ```
 3. Click **Web Preview &rarr; Preview on port 8080** in the top-right corner of Cloud Shell.
-4. Enter your Project ID, single-user Google account, and API keys. The **Rust + WebAssembly** engine validates all credentials client-side and provisions Google Secret Manager, Firestore, and Firebase Hosting in one click!
+4. Follow the 5-step wizard: select/generate project, link billing, choose Firestore region, set authorization (zero-touch verified email), enter model keys, review masked configuration, and 1-click deploy! The **Rust + WebAssembly** engine validates credentials, writes Secret Manager secrets securely, provisions Firestore, builds Next.js, and deploys to Firebase Hosting.
+5. Complete the interactive Post-Deployment Checklist (enable Google Sign-In, optional App Check, and install PWA on your phone).
 
 ---
 

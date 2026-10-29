@@ -169,23 +169,14 @@ pub fn validate_api_key(provider: &str, key: &str) -> Result<ValidationOutcome, 
     // 3. Prefix checks: warnings only (never errors)
     let mut warnings = Vec::new();
     match provider.to_lowercase().as_str() {
-        "groq" => {
-            if !trimmed.starts_with("gsk_") {
-                warnings.push("Groq API keys usually begin with 'gsk_'.".to_string());
-            }
+        "groq" if !trimmed.starts_with("gsk_") => {
+            warnings.push("Groq API keys usually begin with 'gsk_'.".to_string());
         }
-        "gemini" | "google" => {
-            if !trimmed.starts_with("AIza") {
-                warnings.push("Google Gemini API keys usually begin with 'AIza'.".to_string());
-            }
+        "gemini" | "google" if !trimmed.starts_with("AIza") => {
+            warnings.push("Google Gemini API keys usually begin with 'AIza'.".to_string());
         }
-        "tavily" => {
-            if !trimmed.starts_with("tvly-") {
-                warnings.push("Tavily API keys usually begin with 'tvly-'.".to_string());
-            }
-        }
-        "evren" => {
-            // EVREN has no fixed prefix; only character set and length checks apply
+        "tavily" if !trimmed.starts_with("tvly-") => {
+            warnings.push("Tavily API keys usually begin with 'tvly-'.".to_string());
         }
         _ => {}
     }

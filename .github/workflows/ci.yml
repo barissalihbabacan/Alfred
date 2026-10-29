@@ -17,6 +17,7 @@ on:
       - "tsconfig.tests.json"
       - "vitest.config.ts"
       - "eslint.config.js"
+      - "rust-toolchain.toml"
   workflow_call:
   workflow_dispatch:
 
@@ -86,3 +87,23 @@ jobs:
         run: npm run build:web
         env:
           NEXT_TELEMETRY_DISABLED: "1"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: clippy
+
+      - name: Cargo Test (crates/setup-core)
+        run: cargo test --manifest-path crates/setup-core/Cargo.toml
+
+      - name: Cargo Clippy (crates/setup-core)
+        run: cargo clippy --manifest-path crates/setup-core/Cargo.toml -- -D warnings
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Verify Wasm Build
+        run: |
+          npm run build:wasm
+          git diff --exit-code setup-ui/wasm

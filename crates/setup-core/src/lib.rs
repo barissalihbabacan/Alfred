@@ -66,6 +66,12 @@ pub struct WasmWizard {
     inner: SetupWizard,
 }
 
+impl Default for WasmWizard {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[wasm_bindgen]
 impl WasmWizard {
     #[wasm_bindgen(constructor)]

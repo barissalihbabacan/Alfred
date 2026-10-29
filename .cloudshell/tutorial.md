@@ -29,12 +29,13 @@ The wizard server binds securely to localhost (`127.0.0.1:8080`). Google Cloud S
 
 ## 3. Configure in Setup-UI
 
-Follow the 4 steps in the visual wizard:
+Follow the 5 steps in the visual wizard:
 
-1. **GCP & Firebase Project**: Enter a project ID or click **✨ Auto-Generate**. Alfred's provisioning script will automatically create the Google Cloud project and enable Firebase for you!
-2. **User Authorization**: Enter your Google Email. The Firebase Auth UID is optional — UID boş bırakılırsa yetki doğrulanmış e-posta ile verilir.
-3. **API Keys**: Enter your Groq (`gsk_...`), Gemini (`AIzaSy...`), and Tavily (`tvly-...`) API keys.
-4. **Deploy**: Click **🚀 Execute Setup & Deploy Now** or copy the generated provisioning script.
+1. **GCP & Firebase Project**: Enter a project ID (or click **✨ Auto-Generate**), choose your Google Cloud Billing Account, and select your nearest Firestore location (e.g. `europe-west3`, `us-central1`). Alfred automatically configures GCP and enables Firebase.
+2. **User Authorization**: Enter your Google Email. The Firebase Auth UID is optional for zero-touch onboarding — if UID is empty, access is securely granted to your verified email.
+3. **API Keys**: Enter your Groq (`gsk_...`), Gemini (`AIzaSy...`), Tavily (`tvly-...`), and optional EVREN keys. Client-side WebAssembly validates all inputs before deployment.
+4. **Deploy**: Review masked configuration and click **🚀 Execute Setup & Deploy Now**. Real-time execution logs and progress indicators will guide you through project creation, Secret Manager, Firestore database initialization, Next.js build, and Firebase deployment.
+5. **Post-Deployment Checklist**: Follow interactive cards to enable the Google Auth provider in Firebase Console, configure optional App Check reCAPTCHA keys, and install the Alfred PWA app on your mobile device.
 
 ---
 

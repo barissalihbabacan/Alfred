@@ -131,26 +131,8 @@ Preserve when editing memory code:
 - `.github/workflows/preview.yml` deploys each PR's web app to the fixed Hosting channel `preview` and comments the URL (UI only: `/api/**` there is the production function and data). Its domain must be in Firebase Auth's authorized domains and the reCAPTCHA key (`docs/OPERATIONS.md`, "Preview channel").
 - `.github/workflows/backup.yml` dumps Firestore every Sunday, encrypts it with the `BACKUP_PASSPHRASE` secret and keeps it as a 90-day artifact (`docs/OPERATIONS.md`, "Firestore backups"). The dump script must never print document content: workflow logs are public once the repo is.
 
-### Setup-UI & 1-Click Provisioning Architecture
-- `npm run setup:ui` launches `scripts/serve-setup-ui.ts`, serving `setup-ui/` on `http://127.0.0.1:8080`.
-- **Security Boundaries**:
-  - Bound strictly to loopback (`127.0.0.1`). In Google Cloud Shell, preview traffic routes through the secure Web Preview proxy.
-  - Generates a 32-byte cryptographically secure session token injected into `<meta name="setup-token">`. The client must supply `X-Setup-Token` on every mutation request (`POST /api/provision`), verified using `crypto.timingSafeEqual`.
-  - Disallows client-supplied bash scripts. The server generates the script directly using the Rust WebAssembly module (`crates/setup-core` compiled to `setup-ui/wasm`).
-  - Strict POSIX `shell_quote()` prevents shell injection.
-  - Secret-free script: API keys are piped directly to `gcloud secrets` via stdin (`cat << 'EOF' | gcloud ...`) and are never printed or leaked to command lines or files.
-  - Temporary execution file is created in `fs.mkdtempSync(path.join(os.tmpdir(), "alfred-setup-"))` with mode `0o700` and deleted immediately upon process exit.
-- **Fail-Closed Authorization (`src/core/permissions/authorization.ts`)**:
-  - Unconfigured state: returns 503 Service Unavailable (fail closed).
-  - Zero-touch onboarding: if `ALLOWED_UID` is empty, authenticates user if `email_verified: true` and email matches `ALLOWED_EMAIL`.
-  - Strictest mode: if both `ALLOWED_UID` and `ALLOWED_EMAIL` are configured, both must match.
-  - Invalid user / mismatch: returns 403 Forbidden.
-- **5-Step Wizard Flow**:
-  1. Project Selection, Billing Account linking, and Firestore region selection.
-  2. Single-user authorization (verified email whitelist; UID optional for zero-touch setup).
-  3. LLM API keys (Groq, Gemini, Tavily, EVREN) with live client-side validation and masking.
-  4. Review, dry-run inspection, and 1-click execution streaming real-time progress.
-  5. Post-Deployment Checklist (Google Auth provider activation, App Check reCAPTCHA setup, PWA installation & push notifications).
+### Setup
+Setup: the setup wizard is a Rust terminal UI (in progress on branch feat/setup-tui). crates/setup-core holds its pure logic (validators, wizard state, provisioning script generator); it has no web or wasm parts.
 
 ### Functions bundle — `functions/` imports `src/` via esbuild
 `functions/index.js` is the **source**; `functions/build.js` bundles it with the `src/` modules it imports into `functions/lib/index.js` (gitignored; built by the `predeploy` hook). Only `functions/` is uploaded.

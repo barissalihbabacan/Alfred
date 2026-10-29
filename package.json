@@ -22,8 +22,6 @@
     "relay": "tsx scripts/home-relay-daemon.ts",
     "generate:user-profile": "tsx scripts/generate-user-profile-sources.ts",
     "profile:init": "tsx scripts/init-profile.ts",
-    "setup:ui": "tsx scripts/serve-setup-ui.ts",
-    "build:wasm": "cd crates/setup-core && wasm-pack build --target web --out-dir ../../setup-ui/wasm",
     "dev:web": "next dev apps/web -p 3000",
     "build:web": "next build apps/web"
   },

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- Removed: browser-based Setup-UI and its local server; the setup wizard moves to a terminal UI.
+
 ### Added
 
 - **Setup-UI Hardening & Zero-Touch Provisioning Wizard**:
@@ -19,9 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added `verifyUserAuthorization` in `src/core/permissions/authorization.ts` enforcing strict fail-closed access.
   - Zero-touch onboarding: allows verified email sign-in when `ALLOWED_UID` is unconfigured.
   - Dynamic Firebase client SDK configuration and project ID resolution without hardcoded defaults.
-- **Wasm Optimization & CI Hardening**:
-  - Optimized `crates/setup-core` release profile (`opt-level = "z"`, `lto = true`), reducing Wasm bundle from 1.12 MB to 114 KB.
-  - Added `rust-toolchain.toml` and GitHub Actions CI steps for `cargo test`, `cargo clippy -- -D warnings`, and `git diff --exit-code setup-ui/wasm`.
+- **CI Hardening**:
+  - Added `rust-toolchain.toml` and GitHub Actions CI steps for `cargo test` and `cargo clippy -- -D warnings`.
 
 ## [0.1.0] - 2026-10-28
 

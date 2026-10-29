@@ -258,7 +258,7 @@ describe("3. capability line matches what production runs", () => {
   });
 
   it("keeps the core assistant rules (Turkish replies, unconnected services)", () => {
-    expect(ALFRED_PERSONA_PROMPT).toContain("Always answer in the language of his latest message, also after a tool call");
+    expect(ALFRED_PERSONA_PROMPT).toContain("Always answer in the language of their latest message, also after a tool call");
     expect(ALFRED_PERSONA_PROMPT).toContain("Google Calendar, Gmail, and external web search.");
   });
 });

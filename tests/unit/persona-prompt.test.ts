@@ -25,7 +25,7 @@ describe("Alfred Persona System Prompt", () => {
 
   it("should carry production's instructions: Turkish replies, long-term memory and the live tool list", () => {
     const prompt = getAlfredSystemPrompt();
-    expect(prompt).toContain("Always answer in the language of his latest message");
+    expect(prompt).toContain("Always answer in the language of their latest message");
     expect(prompt).toContain("Long-Term Semantic Memory (Firestore + Gemini embeddings)");
     expect(prompt).toContain("FORMATTING:");
     expect(prompt).toContain("get_current_time");

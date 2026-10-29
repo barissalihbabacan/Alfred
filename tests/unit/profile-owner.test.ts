@@ -100,4 +100,17 @@ describe("the prompts use the configured owner name", () => {
       expect(JSON.stringify(tool)).not.toMatch(FORMER_OWNER);
     }
   });
+
+  it("refers to the user without gendered pronouns", () => {
+    // The owner can be anyone: "they/their" or the name, never he/she forms.
+    // No exceptions today (the prompt's Turkish examples contain no "her").
+    const gendered = /\b(he|him|his|himself|she|her|hers|herself)\b/gi;
+    for (const sshAvailable of [false, true]) {
+      const prompt = buildAlfredSystemPrompt({ ...ALL_TOOLS, sshAvailable, memories: [{ content: "Alex uses Vim." }] });
+      expect(prompt.match(gendered), `sshAvailable=${sshAvailable}`).toBeNull();
+    }
+    const [system] = buildMemoryExtractionPrompt({ currentMessage: "I use Vim.", userId: "u" });
+    expect(system!.content.match(gendered)).toBeNull();
+  });
 });
+

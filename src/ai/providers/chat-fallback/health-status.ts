@@ -8,7 +8,7 @@
  * before the first turn is the one that would answer it.
  */
 
-import { isUsableApiKey, resolveChatProviders, type ChatProviderEnv, type ChatProviderId } from "./chat-providers.js";
+import { availableChatProviders, isUsableApiKey, resolveChatProviders, type ChatProviderEnv, type ChatProviderId } from "./chat-providers.js";
 
 export type HealthProvider = ChatProviderId | "ollama" | "offline";
 
@@ -18,6 +18,11 @@ export interface HealthStatus {
   activeProvider: HealthProvider;
   /** That provider's model; omitted when offline. */
   model?: string;
+  /**
+   * The providers the web model selector may offer (usable key). Omitted on
+   * the Ollama path, which ignores the selection.
+   */
+  availableProviders?: ChatProviderId[];
   providerStatus: {
     groqConfigured: boolean;
     ollamaReachable: boolean;
@@ -53,6 +58,7 @@ export function buildHealthStatus(input: HealthStatusInput): HealthStatus {
     status: "ok",
     activeProvider: first ? first.id : "offline",
     ...(first ? { model: first.model } : {}),
+    availableProviders: availableChatProviders(input.keys),
     providerStatus: { groqConfigured, ollamaReachable: false, modelReady: Boolean(first) }
   };
 }

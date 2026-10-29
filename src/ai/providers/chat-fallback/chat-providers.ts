@@ -267,6 +267,18 @@ export function resolveChatProviders(
   return { providers, skipped };
 }
 
+/**
+ * The providers a client may pick (the web model selector): those with a
+ * usable key, in {@link CHAT_PROVIDER_ORDER}. A pick moves its provider to the
+ * front of the chain ({@link applyChatModelPreference}), so CHAT_FALLBACK_ORDER
+ * does not limit the choice; only a missing key does.
+ */
+export function availableChatProviders(
+  keys: Partial<Record<ChatProviderId, string | null | undefined>>
+): ChatProviderId[] {
+  return CHAT_PROVIDER_ORDER.filter((id) => isUsableApiKey(keys[id]));
+}
+
 /** Request headers. For Groq exactly `Content-Type` + `Authorization`, as before. */
 export function buildChatRequestHeaders(provider: ChatProviderConfig, apiKey: string): Record<string, string> {
   return {

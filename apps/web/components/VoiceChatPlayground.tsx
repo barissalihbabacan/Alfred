@@ -8,9 +8,14 @@ import { errorMessage as messageOf, isAbortError } from "../lib/errors";
 import { formatRateLimitStatus, normalizeRateLimitWaitMs } from "../lib/rate-limit";
 import {
   CHAT_MODEL_OPTIONS,
+  NO_API_KEY_HINT,
+  findSelectableModelOption,
   formatProviderFallbackStatus,
+  isModelOptionAvailable,
+  parseAvailableProviders,
   providerDisplayName,
-  type ModelOption
+  type ModelOption,
+  type ModelProvider
 } from "../lib/providers";
 import { linkCitationsInText, renderMarkdown, type WebSearchCitationSource } from "../lib/markdown";
 import { extractToolNames, toolBadgeLabel, toolStatusText } from "../lib/tools";
@@ -300,6 +305,8 @@ export default function VoiceChatPlayground() {
   const [renamingTitle, setRenamingTitle] = useState("");
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  // /health'e gore anahtari olan saglayicilar; null: bilinmiyor (hepsi secilebilir).
+  const [availableProviders, setAvailableProviders] = useState<ModelProvider[] | null>(null);
   const [health, setHealth] = useState<HealthInfo | null>(null);
   const [modelLabel, setModelLabel] = useState(DEFAULT_MODEL_LABEL);
   // Son turu cevaplayan saglayici (`start` / `provider_fallback`); null: /health'e gore.
@@ -547,7 +554,15 @@ export default function VoiceChatPlayground() {
       .then((data) => {
         if (cancelled || !data?.activeProvider) return;
         setHealth({ activeProvider: data.activeProvider });
-        if (savedOption) return;
+        const available = parseAvailableProviders(data.availableProviders);
+        setAvailableProviders(available);
+        if (savedOption) {
+          if (findSelectableModelOption(savedOption.id, available)) return;
+          // Kayitli secimin saglayicisinin anahtari yok: varsayilan zincire don.
+          setSelectedModelId(null);
+          storageSet(MODEL_SELECTION_KEY, null);
+          setChatProvider(null);
+        }
         if (typeof data.model === "string" && data.model) setModelLabel(data.model);
         else if (data.activeProvider === "groq") setModelLabel("openai/gpt-oss-120b");
         else if (data.activeProvider === "ollama") setModelLabel("gemma4:12b-mlx");
@@ -1066,9 +1081,7 @@ export default function VoiceChatPlayground() {
     const toolStatuses: Record<string, "running" | "success" | "error"> = {};
 
     try {
-      const selectedOption = selectedModelId
-        ? CHAT_MODEL_OPTIONS.find((o) => o.id === selectedModelId)
-        : undefined;
+      const selectedOption = findSelectableModelOption(selectedModelId, availableProviders);
       // stream: SSE must bypass Hosting, which buffers the whole response.
       const res = await apiFetch("/chat", {
         stream: true,
@@ -1830,6 +1843,7 @@ export default function VoiceChatPlayground() {
                     Model &amp; Sağlayıcı Seçimi
                   </div>
                   {CHAT_MODEL_OPTIONS.map((option) => {
+                    const available = isModelOptionAvailable(option, availableProviders);
                     const isSelected =
                       selectedModelId === option.id ||
                       (!selectedModelId &&
@@ -1840,11 +1854,13 @@ export default function VoiceChatPlayground() {
                         key={option.id}
                         type="button"
                         onClick={() => handleSelectModelOption(option)}
+                        disabled={!available}
+                        title={available ? undefined : NO_API_KEY_HINT}
                         className={cx(
-                          "flex w-full cursor-pointer items-start justify-between gap-2.5 rounded-lg border-none px-2.5 py-2 text-left [transition:background_0.15s]",
+                          "flex w-full cursor-pointer items-start justify-between gap-2.5 rounded-lg border-none px-2.5 py-2 text-left [transition:background_0.15s] disabled:cursor-not-allowed disabled:opacity-45",
                           isSelected
                             ? "bg-gold/14 text-chat-text"
-                            : "bg-transparent text-chat-text hover:bg-white/6"
+                            : "bg-transparent text-chat-text hover:bg-white/6 disabled:hover:bg-transparent"
                         )}
                       >
                         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -1855,6 +1871,9 @@ export default function VoiceChatPlayground() {
                             <span className="rounded-sm border border-white/12 bg-white/6 px-1.5 py-px text-[10px] font-medium text-chat-muted">
                               {option.badge}
                             </span>
+                            {!available && (
+                              <span className="text-[10px] font-medium text-chat-faint">{NO_API_KEY_HINT}</span>
+                            )}
                           </div>
                           <span className="truncate text-[11px] text-chat-subtle">
                             {option.description}

@@ -20,6 +20,7 @@
     "memory:reindex": "tsx scripts/reindex-memories.ts",
     "backup:firestore": "tsx scripts/backup-firestore.ts",
     "relay": "tsx scripts/home-relay-daemon.ts",
+    "setup": "cargo run --release --manifest-path crates/alfred-setup/Cargo.toml --",
     "generate:user-profile": "tsx scripts/generate-user-profile-sources.ts",
     "profile:init": "tsx scripts/init-profile.ts",
     "dev:web": "next dev apps/web -p 3000",

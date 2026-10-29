@@ -187,6 +187,22 @@ pub fn validate_api_key(provider: &str, key: &str) -> Result<ValidationOutcome, 
     })
 }
 
+/// Validates the owner's display name (how Alfred addresses them).
+/// Any script is allowed (e.g. "Barış", "Zoë"); control characters are not.
+pub fn validate_owner_name(name: &str) -> Result<String, String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err("Name cannot be empty.".to_string());
+    }
+    if trimmed.chars().count() > 80 {
+        return Err("Name is too long (80 characters at most).".to_string());
+    }
+    if trimmed.chars().any(|c| c.is_control()) || trimmed.contains("ALFRED_ENV_EOF") {
+        return Err("Name cannot contain control characters.".to_string());
+    }
+    Ok(trimmed.split_whitespace().collect::<Vec<_>>().join(" "))
+}
+
 /// Validates local Ollama endpoint URL.
 /// Must begin with http:// or https:// and cannot contain spaces, quotes, or control characters.
 pub fn validate_ollama_url(url: &str) -> Result<String, String> {
@@ -221,6 +237,15 @@ pub fn validate_ollama_url(url: &str) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_validate_owner_name() {
+        assert_eq!(validate_owner_name("  Barış   Salih ").unwrap(), "Barış Salih");
+        assert!(validate_owner_name("Zoë").is_ok());
+        assert!(validate_owner_name("   ").is_err());
+        assert!(validate_owner_name("a\nb").is_err());
+        assert!(validate_owner_name(&"x".repeat(81)).is_err());
+    }
 
     #[test]
     fn test_validate_gcp_project_id() {

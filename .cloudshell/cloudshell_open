@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# Entry point of the Alfred Setup Cloud Shell image.
+#
+# When a link opens Cloud Shell with `cloudshell_image=<this image>`, Cloud Shell
+# runs /bin/cloudshell_open with the link's repository (--repo_url, --git_branch,
+# and flags we ignore) instead of cloning it itself. This is the mechanism
+# Google's Cloud Run Button uses. We clone the repository and start the
+# terminal wizard, so the README button is the only click a user needs.
+set -euo pipefail
+
+repo_url=""
+branch=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --repo_url=*) repo_url="${1#*=}" ;;
+    --repo_url) repo_url="${2:-}"; shift ;;
+    --git_branch=*) branch="${1#*=}" ;;
+    --git_branch) branch="${2:-}"; shift ;;
+    *) ;; # --dir, --page, --force_new_clone, --context: not used
+  esac
+  shift
+done
+
+fail() {
+  echo "Alfred Setup: $1" >&2
+  echo "Open the Launch Alfred Setup button in the README again, or see .cloudshell/README.md." >&2
+  exit 1
+}
+
+[ -n "$repo_url" ] || fail "no repository URL was passed."
+
+# A custom image opens a temporary session. Cloud Shell asks whether to trust it;
+# only a trusted session receives the user's credentials (same check as the
+# Cloud Run Button). Without them the wizard cannot create or deploy anything.
+if [ "${TRUSTED_ENVIRONMENT:-}" != "true" ]; then
+  echo "Alfred Setup: this Cloud Shell session was opened as \"Do not trust\", so your" >&2
+  echo "Google credentials are not available and nothing can be deployed." >&2
+  echo "Open the Launch Alfred Setup button again and choose \"Trust\"." >&2
+  echo "(Türkçe: oturum \"Do not trust\" ile açıldı; butona tekrar basıp \"Trust\" seç.)" >&2
+  exit 1
+fi
+
+# Wait up to two minutes for Cloud Shell to hand over the credentials; it may
+# show an "Authorize Cloud Shell" prompt first.
+metadata="http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/"
+echo "Waiting for Cloud Shell authorization… (click Authorize if Cloud Shell asks)"
+for _ in $(seq 1 120); do
+  accounts="$(curl -s -H "Metadata-Flavor: Google" "$metadata" 2>/dev/null || true)"
+  [ -n "$(printf '%s' "$accounts" | tr -d '[:space:]')" ] && break
+  sleep 1
+done
+[ -n "$(printf '%s' "${accounts:-}" | tr -d '[:space:]')" ] ||
+  fail "Google credentials did not arrive. Re-authenticate if Cloud Shell asks, then press the button again."
+case "$repo_url" in
+  https://github.com/*/*) ;;
+  *) fail "only https://github.com repositories are supported (got: $repo_url)." ;;
+esac
+case "$branch" in
+  -*) fail "invalid branch name: $branch" ;;
+esac
+
+name="$(basename "${repo_url%.git}")"
+target="$HOME/cloudshell_open/$name"
+mkdir -p "$HOME/cloudshell_open"
+
+if [ -d "$target/.git" ]; then
+  existing="$(git -C "$target" remote get-url origin 2>/dev/null || true)"
+  if [ "${existing%.git}" != "${repo_url%.git}" ]; then
+    target="$HOME/cloudshell_open/$name-$(date +%s)"
+    git clone -- "$repo_url" "$target"
+  else
+    echo "Updating the existing checkout at $target"
+    git -C "$target" pull --ff-only || echo "Could not fast-forward $target; using it as it is."
+  fi
+else
+  git clone -- "$repo_url" "$target"
+fi
+
+cd "$target"
+if [ -n "$branch" ]; then
+  git checkout -q "$branch"
+fi
+
+export ALFRED_SOURCE_REPO="$repo_url"
+exec alfred-setup

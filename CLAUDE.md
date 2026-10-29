@@ -48,6 +48,10 @@ npm run deploy --prefix functions   # firebase deploy --only functions
 # Home relay daemon (runs on the home server, executes production's SSH tool calls; see Tool execution)
 npm run relay              # needs a service-account key at ~/.config/alfred/home-relay-key.json (ALFRED_RELAY_KEY_PATH overrides)
 
+# Setup wizard (Rust terminal UI, crates/alfred-setup; needs gcloud signed in, Node 22, Rust)
+npm run setup              # -- --demo walks every screen without gcloud or deploying; -- --lang en|tr
+cargo test --manifest-path crates/alfred-setup/Cargo.toml   # also: crates/setup-core
+
 # Production alerting (Cloud Monitoring; see docs/OPERATIONS.md). Dry-run unless --apply.
 ./scripts/monitoring/setup-alerts.sh --project <your-project-id> --email <owner email> [--apply]
 ./scripts/monitoring/teardown-alerts.sh --project <your-project-id> [--apply] [--delete-channels]
@@ -133,7 +137,9 @@ Preserve when editing memory code:
 - `.github/workflows/backup.yml` dumps Firestore every Sunday, encrypts it with the `BACKUP_PASSPHRASE` secret and keeps it as a 90-day artifact (`docs/OPERATIONS.md`, "Firestore backups"). Opt-in: it skips with a notice until the `FIREBASE_SERVICE_ACCOUNT` (key of your project, which also names the project) and `BACKUP_PASSPHRASE` secrets exist. The dump script must never print document content: workflow logs are public once the repo is.
 
 ### Setup
-Setup: the setup wizard is a Rust terminal UI (in progress on branch feat/setup-tui). crates/setup-core holds its pure logic (validators, wizard state, provisioning script generator); it has no web or wasm parts.
+- `crates/alfred-setup` is the setup wizard, a ratatui terminal UI (project, billing account, region, owner e-mail, API keys, review, live deploy; English/Turkish with F2). `crates/setup-core` holds its pure logic: validators, wizard state and `generate_cloud_shell_script`, the bash script that creates the project, links billing, enables APIs, writes secrets, env files (`functions/.env.<project>` with `ENFORCE_APP_CHECK=false` for a fresh install) and deploys. The wizard maps the script's `[Alfred Setup]` echo lines to its progress stages (`deploy.rs`, pinned by a test against the real script), so keep those markers when editing the script.
+- API keys never enter the script text: the wizard passes them as environment variables of the script's process, which runs from a private `0700` temp directory.
+- The README button opens Cloud Shell with `cloudshell_image` (`.cloudshell/Dockerfile`, pushed to GHCR by `setup-image.yml`); Cloud Shell then runs the image's `/bin/cloudshell_open` (`.cloudshell/cloudshell_open`), which requires a trusted session, waits for credentials, clones the repo and starts the wizard. Such sessions are temporary: files written there are lost afterwards. Details and open questions in `.cloudshell/README.md`.
 
 ### Functions bundle — `functions/` imports `src/` via esbuild
 `functions/index.js` is the **source**; `functions/build.js` bundles it with the `src/` modules it imports into `functions/lib/index.js` (gitignored; built by the `predeploy` hook). Only `functions/` is uploaded.

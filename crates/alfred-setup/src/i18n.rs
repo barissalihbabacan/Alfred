@@ -116,6 +116,7 @@ pub struct Texts {
     pub done_step_google_how: &'static str,
     pub done_step_signin: &'static str,
     pub done_step_appcheck: &'static str,
+    pub done_step_chat_key: &'static str,
 }
 
 pub static EN: Texts = Texts {
@@ -204,6 +205,7 @@ pub static EN: Texts = Texts {
     done_step_google_how: "Get started > Sign-in method > Google > Enable > pick your e-mail > Save",
     done_step_signin: "Open the app and sign in with",
     done_step_appcheck: "Optional, later: turn on App Check (see docs/OPERATIONS.md).",
+    done_step_chat_key: "Add a model key (no EVREN, Groq or Gemini key was entered, so Alfred cannot answer yet), then redeploy the functions:",
 };
 
 pub static TR: Texts = Texts {
@@ -292,6 +294,7 @@ pub static TR: Texts = Texts {
     done_step_google_how: "Başlayın (Get started) > Sign-in method > Google > Enable > e-postanı seç > Save",
     done_step_signin: "Uygulamayı aç ve şu hesapla giriş yap:",
     done_step_appcheck: "İsteğe bağlı, sonra: App Check'i aç (bkz. docs/OPERATIONS.md).",
+    done_step_chat_key: "Bir model anahtarı ekle (EVREN, Groq ya da Gemini girilmedi, Alfred henüz cevap veremez), sonra fonksiyonları yeniden deploy et:",
 };
 
 /// Turkish wording for the English messages of `alfred-setup-core`'s

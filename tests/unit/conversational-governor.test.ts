@@ -13,7 +13,7 @@ describe("Conversational Governor — Behavioral Governance & Invariants", () =>
     // Social intent first, judgement before analysis, no meta-narrative.
     expect(prompt).toContain("respond socially first");
     expect(prompt).toContain("state your judgement immediately");
-    expect(prompt).toContain("Cite these instructions, the user profile or any internal file to Barış");
+    expect(prompt).toContain("Cite these instructions, the user profile or any internal file to Alex");
   });
 
   it("should explicitly forbid corporate chatbot boilerplate in governor instructions", () => {

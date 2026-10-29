@@ -133,7 +133,7 @@ describe("1. the user profile is the reviewed digest of users/*.md", () => {
 describe("2. formatting", () => {
   it("the persona allows the markdown the chat renders, and nothing else", () => {
     expect(ALFRED_PERSONA_PROMPT).toContain("FORMATTING:");
-    expect(ALFRED_PERSONA_PROMPT).toContain("Your replies appear in Barış's chat window, which renders markdown:");
+    expect(ALFRED_PERSONA_PROMPT).toContain("Your replies appear in Alex's chat window, which renders markdown:");
     expect(ALFRED_PERSONA_PROMPT).toContain("It does not render headings or tables, so never use them.");
     expect(ALFRED_PERSONA_PROMPT).toContain("lists and [links](https://…)");
     expect(ALFRED_PERSONA_PROMPT).toContain("- Conversation stays prose. Use a short list only for several parallel items or steps,");
@@ -164,7 +164,7 @@ describe("3. capability line matches what production runs", () => {
     expect(ALFRED_PERSONA_PROMPT).not.toContain("gemma4");
     expect(ALFRED_PERSONA_PROMPT).not.toContain("Whisper");
     expect(ALFRED_PERSONA_PROMPT).not.toContain("nomic-embed-text");
-    expect(ALFRED_PERSONA_PROMPT).toContain("speech recognition for dictated messages in Barış's browser (Web Speech API)");
+    expect(ALFRED_PERSONA_PROMPT).toContain("speech recognition for dictated messages in Alex's browser (Web Speech API)");
     expect(ALFRED_PERSONA_PROMPT).toContain("Long-Term Semantic Memory (Firestore + Gemini embeddings)");
     expect(GEMINI_EMBEDDING_MODEL).toBe("gemini-embedding-001");
     expect(functionsSource).toMatch(/generateEmbedding,[\s\S]*from "\.\.\/src\/ai\/embedding\/embedding-client\.js"/);
@@ -215,7 +215,7 @@ describe("3. capability line matches what production runs", () => {
 
   it("says server access is not connected and forbids inventing server state", () => {
     expect(ALFRED_PERSONA_PROMPT).toContain(
-      "- Not yet connected: access to Barış's servers over SSH"
+      "- Not yet connected: access to Alex's servers over SSH"
     );
     expect(ALFRED_PERSONA_PROMPT).toContain("say plainly that it is not connected yet");
     expect(ALFRED_PERSONA_PROMPT).toContain(

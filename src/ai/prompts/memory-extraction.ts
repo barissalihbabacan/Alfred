@@ -1,6 +1,7 @@
 import { ChatMessage } from "../providers/types.js";
 import { MemoryExtractionInput, MemoryExtractionResult, ExtractedMemoryCandidate, MemoryExtractionAction } from "../../alfred/cognitive/memory/extractor/types.js";
 import { MemoryType } from "../../data/firestore/memory.types.js";
+import { PROFILE_OWNER, ownerLabel } from "../../alfred/cognitive/context/profile-owner.js";
 
 const VALID_MEMORY_TYPES = new Set<MemoryType>([
   "user_preference",
@@ -112,7 +113,7 @@ If there is nothing worth remembering, return {"shouldRemember": false, "memorie
  * Strictly decoupled from Alfred's conversational persona.
  */
 export function buildMemoryExtractionPrompt(input: MemoryExtractionInput): ChatMessage[] {
-  const systemInstructions = buildMemoryExtractionSystemPrompt(input.userName || "Barış");
+  const systemInstructions = buildMemoryExtractionSystemPrompt(input.userName || ownerLabel(PROFILE_OWNER.name));
 
   const userPrompt = buildMemoryExtractionUserPrompt(input);
 

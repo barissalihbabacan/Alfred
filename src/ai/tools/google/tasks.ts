@@ -27,7 +27,7 @@ export const GOOGLE_TASKS_TOOL_DEFINITION: ToolDefinition = {
   function: {
     name: GOOGLE_TASKS_TOOL_NAME,
     description:
-      "Access Barış's Google Tasks. List pending tasks, create new todo items, " +
+      "Access the user's Google Tasks. List pending tasks, create new todo items, " +
       "or mark tasks as completed.",
     parameters: {
       type: "object",

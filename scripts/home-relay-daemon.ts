@@ -4,7 +4,7 @@
  * against Alfred's CommandRegistry, executes them locally on the home server,
  * and writes back the structured output.
  *
- * Runs on Barış's home server / local development host.
+ * Runs on the owner's home server / local development host.
  */
 
 import { initializeApp, cert, getApps } from "firebase-admin/app";

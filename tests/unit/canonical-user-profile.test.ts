@@ -65,7 +65,7 @@ describe("Canonical User Profile Layer", () => {
     const prompt = getAlfredSystemPrompt();
 
     // Assistant anchors must remain present
-    expect(prompt).toContain("You are Alfred, Barış's personal AI assistant and software engineering partner.");
+    expect(prompt).toContain("You are Alfred, Alex's personal AI assistant and software engineering partner.");
     expect(prompt).toContain("an engineering peer, never a customer-service chatbot");
     expect(prompt).toContain("slang, emojis");
     expect(prompt).toContain("calmly and firmly push back");
@@ -74,7 +74,7 @@ describe("Canonical User Profile Layer", () => {
   it("5. should not allow user profile to replace or override the Alfred persona", () => {
     // Both sections must coexist with the persona preceding the profile
     const prompt = getAlfredSystemPrompt();
-    const personaIndex = prompt.indexOf("You are Alfred, Barış's personal AI assistant");
+    const personaIndex = prompt.indexOf("You are Alfred, Alex's personal AI assistant");
     const profileIndex = prompt.indexOf("=== CANONICAL USER PROFILE");
 
     expect(personaIndex).toBeGreaterThanOrEqual(0);

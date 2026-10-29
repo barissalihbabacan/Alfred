@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Alfred — Yönetici Yapay Zeka Asistanı",
-  description: "Barış'ın Kişisel Yapay Zeka ve Yönetici Asistanı",
+  description: "Kişisel Yapay Zeka ve Yönetici Asistanı",
   manifest: "/manifest.json",
   applicationName: "Alfred",
   appleWebApp: {

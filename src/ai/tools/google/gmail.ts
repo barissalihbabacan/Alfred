@@ -48,11 +48,11 @@ export const GMAIL_TOOL_DEFINITION: ToolDefinition = {
   function: {
     name: GMAIL_TOOL_NAME,
     description:
-      "Access Barış's Gmail account. Search or list recent/unread emails (list_messages), " +
+      "Access the user's Gmail account. Search or list recent/unread emails (list_messages), " +
       "retrieve the detailed body and headers of a specific email (get_message), " +
       "compose and create an email draft in Gmail (create_draft), " +
       "or send an email directly (send_message). " +
-      "Always respect user privacy and prefer creating drafts when drafting responses for Barış to review.",
+      "Always respect user privacy and prefer creating drafts when drafting responses for the user to review.",
     parameters: {
       type: "object",
       properties: {

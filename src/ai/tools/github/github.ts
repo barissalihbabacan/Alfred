@@ -120,7 +120,7 @@ export function parseGitHubArgs(args: unknown, defaultRepo?: string | null): Par
     return {
       error: obj.repo
         ? "`repo` must look like \"owner/name\"."
-        : "No repository given and the active project has no GitHub repository. Ask Barış which repository to use."
+        : "No repository given and the active project has no GitHub repository. Ask the user which repository to use."
     };
   }
   const path = cleanPath(obj.path);

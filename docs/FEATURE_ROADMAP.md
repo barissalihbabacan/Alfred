@@ -7,7 +7,7 @@ Everything except new capabilities is done:
 - CI/CD: lint, typechecks, tests, bundle and web build gate every deploy.
 - Shared code: production and `src/` share the prompt, memory, time and embedding modules.
 
-This page lists the candidate features, what each one needs from Barış, and a suggested order. Pricing and quota notes are indicative and should be checked when a provider is chosen.
+This page lists the candidate features, what each one needs from the owner, and a suggested order. Pricing and quota notes are indicative and should be checked when a provider is chosen.
 
 ---
 
@@ -33,7 +33,7 @@ Implemented as `web_search` with Tavily (free plan: 1,000 basic searches a month
 
 - **Value:** High. Current events and fact checks, which Alfred cannot do today.
 - **Effort:** Small (about half a day).
-- **Needs from Barış:** a provider choice and its API key:
+- **Needs from the owner:** a provider choice and its API key:
   - Tavily: built for agents, returns summarised results with sources, free tier;
   - Brave Search API: independent index;
   - SerpAPI: Google results, mostly paid.
@@ -43,7 +43,7 @@ Implemented as `web_search` with Tavily (free plan: 1,000 basic searches a month
 ### 2. Google Calendar (read-only first)
 - **Value:** High for an executive assistant ("What's on tomorrow?").
 - **Effort:** Medium (1–2 days).
-- **Needs from Barış:**
+- **Needs from the owner:**
   - a Google Cloud OAuth consent screen, as an internal or testing app with only his account;
   - a one-time consent in the browser;
   - the refresh token then stored in Secret Manager.
@@ -53,14 +53,14 @@ Implemented as `web_search` with Tavily (free plan: 1,000 basic searches a month
 ### 3. Gmail (read-only summaries)
 - **Value:** High ("Summarise my unread mail").
 - **Effort:** Medium to large.
-- **Needs from Barış:** the same OAuth setup as Calendar with `gmail.readonly`. Gmail scopes are "restricted" in Google's policy; for a personal testing-mode app with one user this is workable, but it must stay unpublished.
+- **Needs from the owner:** the same OAuth setup as Calendar with `gmail.readonly`. Gmail scopes are "restricted" in Google's policy; for a personal testing-mode app with one user this is workable, but it must stay unpublished.
 - **Shape:** `gmail_list_unread(max)` → sender, subject, snippet; `gmail_get_message(id)` → plain text, truncated.
 - **Risk:** High sensitivity. Never store mail content in long-term memory without an explicit request, and keep it out of logs.
 
 ### 4. Real SSH to the home server
 - **Value:** Medium. Server diagnostics were the original intent of the SSH tools.
 - **Effort:** Medium to large; it needs design.
-- **Needs from Barış:**
+- **Needs from the owner:**
   - a network path from Cloud Run to the home server: a Tailscale auth key for a userspace Tailscale client, or a small authenticated relay on the server;
   - an SSH key in Secret Manager;
   - agreement on the allow-list (the five existing read-only commands).
@@ -70,15 +70,15 @@ Implemented as `web_search` with Tavily (free plan: 1,000 basic searches a month
 ### 5. Scheduled briefings (planner / scheduler, phase 1)
 - **Value:** Medium to high, and it becomes more valuable once 1–3 exist, e.g. a morning brief with calendar, mail and news.
 - **Effort:** Medium.
-- **Needs from Barış:** the schedule and delivery channel. Options: a message waiting in the web app, email, or a push notification, which would need FCM and the web app registering a token.
+- **Needs from the owner:** the schedule and delivery channel. Options: a message waiting in the web app, email, or a push notification, which would need FCM and the web app registering a token.
 - **Shape:** a scheduled Cloud Function (`onSchedule` from `firebase-functions/v2/scheduler`, already available in `firebase-functions` 6) runs a fixed prompt with the tools and writes the result as a new conversation.
 - **Risk:** Low to medium; mainly cost and quota discipline.
 
 ### 6. Cloud text-to-speech voice
 - **Value:** Medium. A consistent British butler voice instead of the browser/OS voice.
 - **Effort:** Small to medium.
-- **Needs from Barış:** a provider (ElevenLabs, OpenAI TTS, or Google Cloud TTS with an en-GB Neural2/Studio voice) and a key. It is paid per character.
-- **Shape:** a new `POST /api/tts` in `functions/index.js` returning audio, played by the web app. (The browser `speechSynthesis` playback was removed on 27 Sep 2026 because Barış does not need read-aloud for now; the persona prompt would also need its formatting rule revisited for spoken replies.) `src/voice/tts` already has the `ITTSProvider` abstraction.
+- **Needs from the owner:** a provider (ElevenLabs, OpenAI TTS, or Google Cloud TTS with an en-GB Neural2/Studio voice) and a key. It is paid per character.
+- **Shape:** a new `POST /api/tts` in `functions/index.js` returning audio, played by the web app. (The browser `speechSynthesis` playback was removed on 27 Sep 2026 because the owner does not need read-aloud for now; the persona prompt would also need its formatting rule revisited for spoken replies.) `src/voice/tts` already has the `ITTSProvider` abstraction.
 - **Risk:** Low; the main consideration is cost.
 
 ### 7. Multi-step planning (planner, phase 2)

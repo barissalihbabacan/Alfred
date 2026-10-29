@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-B.U.T.L.E.R. Alfred — a personal AI executive-assistant/agent system for Barış (*Barış's Unified Task, Logic, Execution & Reasoning*). Alfred is a courteous, peer-level assistant persona (the butler role-play was dropped in Sep 2026, see `docs/persona/ALFRED_PERSONA.md`): a vendor-agnostic TypeScript core (`src/`) handles LLM providers, long-term memory, voice and tool execution; the production front end is a Next.js app built as a static export (see **Front end** below). Deployed through Firebase.
+B.U.T.L.E.R. Alfred — a personal AI executive-assistant/agent system; each installation serves one owner, named in `users/USER_PROFILE.md` (prompts take the name from there via `src/alfred/cognitive/context/profile-owner.ts`, never a constant). Alfred is a courteous, peer-level assistant persona (the butler role-play was dropped in Sep 2026, see `docs/persona/ALFRED_PERSONA.md`): a vendor-agnostic TypeScript core (`src/`) handles LLM providers, long-term memory, voice and tool execution; the production front end is a Next.js app built as a static export (see **Front end** below). Deployed through Firebase.
 
 ## Commands
 

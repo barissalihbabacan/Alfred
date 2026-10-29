@@ -28,7 +28,7 @@ export const GOOGLE_CALENDAR_TOOL_DEFINITION: ToolDefinition = {
   function: {
     name: GOOGLE_CALENDAR_TOOL_NAME,
     description:
-      "Access Barış's Google Calendar. Read upcoming events, schedule new appointments/events, " +
+      "Access the user's Google Calendar. Read upcoming events, schedule new appointments/events, " +
       "or delete events. Always check timezone context and provide start/end in ISO 8601 strings.",
     parameters: {
       type: "object",

@@ -2,6 +2,7 @@
 // functions/lib/index.js icine paketler (functions/build.js).
 import { cosineSimilarity } from "../src/data/vector/cosine-similarity.js";
 import { generateDeterministicTitle } from "../src/data/firestore/conversation-title.js";
+import { PROFILE_OWNER } from "../src/alfred/cognitive/context/profile-owner.js";
 import {
   GET_CURRENT_TIME_TOOL_DEFINITION as TIME_TOOL_DEFINITION,
   runGetCurrentTimeTool
@@ -211,7 +212,7 @@ async function getEmbedding(text, ollamaUrl, geminiKey) {
 }
 
 /**
- * Dispatches a server command to the Firestore command queue, where Barış's
+ * Dispatches a server command to the Firestore command queue, where the owner's
  * home server relay daemon (alfred-relay) picks it up, validates and executes it
  * locally on the home server, and writes back the structured output.
  */
@@ -225,7 +226,7 @@ async function dispatchServerCommandViaRelay(db, { host, command, args, userId }
 
   const TIMEOUT_MS = 20000;
   const docRef = await db.collection("server_commands").add({
-    userId: userId || "user_baris",
+    userId: userId || "owner",
     host: targetHost,
     command,
     args: (args && typeof args === "object" && !Array.isArray(args)) ? args : {},
@@ -1644,7 +1645,7 @@ export const api = onRequest({
         });
     };
 
-    // Home server araçları: Barış'ın ev sunucusundaki alfred-relay arka plan
+    // Home server araçları: sahibin ev sunucusundaki alfred-relay arka plan
     // servisi Firestore üzerinden güvenli şekilde komutları koşturur.
     const activeTools = [
       TIME_TOOL_DEFINITION,
@@ -2001,7 +2002,7 @@ export const alfredCallable = onCall(
 );
 
 /**
- * Executes an automated multi-step morning briefing turn for Barış:
+ * Executes an automated multi-step morning briefing turn for the owner:
  * 1. Resolves Google tokens, GitHub token, and chat providers.
  * 2. Prepares active tools: Time, Calendar, Tasks, Gmail, GitHub, and Home Server.
  * 3. Builds a dedicated morning briefing prompt for the LLM.
@@ -2212,7 +2213,7 @@ async function executeMorningBriefing(userId) {
       await getMessaging().send({
         token: targetToken,
         notification: {
-          title: "🌅 Günaydın Barış — Sabah Brifingin Hazır",
+          title: PROFILE_OWNER.name ? `🌅 Günaydın ${PROFILE_OWNER.name} — Sabah Brifingin Hazır` : "🌅 Günaydın — Sabah Brifingin Hazır",
           body: teaser
         },
         data: {

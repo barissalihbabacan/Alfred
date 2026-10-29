@@ -55,13 +55,13 @@ The Cognitive Layer (`src/alfred/cognitive/`) represents Alfred's understanding 
 - **Attention** (planned): Prioritization focus, interrupt handling, and relevance filtering.
 
 ### Canonical User Profile Layer (`users/`)
-The `users/` directory represents Alfred's equivalent of a long-term local "disk" storing consciously authored, version-controlled knowledge about its primary user (Barış).
+The `users/` directory represents Alfred's equivalent of a long-term local "disk" storing consciously authored, version-controlled knowledge about its primary user (the owner named in `users/USER_PROFILE.md`).
 
 #### Tripartite Storage Model & Single Source of Truth (SSOT)
 Alfred rigorously separates storage responsibilities across three distinct tiers:
 
 1. **Git / Local Repository (`users/`) — Canonical Authored Truth**:
-   - Contains stable, consciously authored, version-controlled baseline knowledge about Barış (`USER_PROFILE.md`), communication preferences (`PREFERENCES.md`), and working style (`WORKING_STYLE.md`).
+   - Contains stable, consciously authored, version-controlled baseline knowledge about the owner (`USER_PROFILE.md`), communication preferences (`PREFERENCES.md`), and working style (`WORKING_STYLE.md`).
    - **Runtime Status**: Read-only. Alfred never commits, rewrites, or mutates these files at runtime.
      - The system prompt carries a **reviewed digest** of the files, not the files verbatim: `src/alfred/cognitive/context/user-profile.digest.md`, hand-written from them (~620 tokens instead of ~2,000). The digest keeps the facts and rules that change Alfred's answers and leaves out what the persona and governor already say. Its header records the sha256 of each `users/*.md` file it was written from.
      - In production, the files and the digest are embedded at build time. `npm run generate:user-profile` writes `src/alfred/cognitive/context/user-profile.generated.ts`, and a unit test fails if it drifts from `users/*.md`.

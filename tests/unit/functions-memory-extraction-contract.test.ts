@@ -284,9 +284,10 @@ describe("memory extraction system prompt (production contract)", () => {
     expect([...MEMORY_EXTRACTION_TYPES].sort()).toEqual([...PROMPT_TYPES].sort());
   });
 
-  it("buildMemoryExtractionPrompt sends it as the system message, defaulting the name to Barış", () => {
+  it("buildMemoryExtractionPrompt sends it as the system message, defaulting the name to the profile owner", () => {
     const [sys] = buildMemoryExtractionPrompt({ currentMessage: "hi", userId: "u" });
-    expect(sys!.content).toBe(buildMemoryExtractionSystemPrompt("Barış"));
+    // users/USER_PROFILE.md is the committed example ("Alex").
+    expect(sys!.content).toBe(buildMemoryExtractionSystemPrompt("Alex"));
     const [sysNamed] = buildMemoryExtractionPrompt({ currentMessage: "hi", userId: "u", userName: "Bruce" });
     expect(sysNamed!.content).toBe(buildMemoryExtractionSystemPrompt("Bruce"));
   });

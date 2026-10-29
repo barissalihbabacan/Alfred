@@ -906,6 +906,7 @@ export default function VoiceChatPlayground() {
       : "Alfred Sohbeti";
     const activeProj = activeProjectId ? projects.find((p) => p.id === activeProjectId) : null;
     const dateStr = new Date().toLocaleString("tr-TR");
+    const userLabel = user?.displayName || user?.email?.split("@")[0] || "Kullanıcı";
     const lines: string[] = [
       `# ${title}`,
       "",
@@ -919,7 +920,7 @@ export default function VoiceChatPlayground() {
 
     for (const m of messages) {
       if (m.isThinking && !m.text) continue;
-      const roleHeader = m.role === "user" ? `### 👤 Barış (${m.timestamp})` : `### 🤖 Alfred (${m.timestamp})`;
+      const roleHeader = m.role === "user" ? `### 👤 ${userLabel} (${m.timestamp})` : `### 🤖 Alfred (${m.timestamp})`;
       const cleanBody = m.text.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim() || m.text;
       lines.push(roleHeader, "", cleanBody, "");
       if (m.sources && m.sources.length > 0) {
@@ -1264,7 +1265,7 @@ export default function VoiceChatPlayground() {
         if (!wasFinished) {
           updateAssistant({
             text: accumulatedText
-              ? accumulatedText + "\n\n*(Yanıt Barış tarafından durduruldu)*"
+              ? accumulatedText + "\n\n*(Yanıt kullanıcı tarafından durduruldu)*"
               : "*Yanıt durduruldu.*",
             isThinking: false,
             rateLimitUntil: undefined
@@ -2391,7 +2392,7 @@ export default function VoiceChatPlayground() {
           </div>
 
           <p className="pointer-events-auto mt-2 hidden text-center text-[11px] text-chat-faint md:block">
-            Alfred — Barış&apos;ın Kişisel Yapay Zeka ve Yönetici Asistanı
+            Alfred — Kişisel Yapay Zeka ve Yönetici Asistanı
           </p>
         </div>
       </main>
@@ -2601,7 +2602,7 @@ export default function VoiceChatPlayground() {
                   maxLength={600}
                   value={newMemoryContent}
                   onChange={(e) => setNewMemoryContent(e.target.value)}
-                  placeholder="Ör: Barış yeni TypeScript projelerinde paket yöneticisi olarak pnpm kullanmayı tercih ediyor."
+                  placeholder={`Ör: ${displayName} yeni TypeScript projelerinde paket yöneticisi olarak pnpm kullanmayı tercih ediyor.`}
                   className="w-full resize-none rounded-lg border border-white/12 bg-black/25 px-3 py-2 text-[13px] leading-normal text-chat-text outline-hidden focus:border-gold/50"
                 />
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2898,7 +2899,7 @@ export default function VoiceChatPlayground() {
                     setProjectFormRepo(`https://github.com/${v.replace(/^github\.com\//i, "")}`);
                   }
                 }}
-                placeholder="https://github.com/barissalihbabacan/Alfred"
+                placeholder="https://github.com/owner/repo"
                 className="w-full rounded-xl border border-white/12 bg-black/25 px-3 py-2 text-[13px] text-chat-text outline-hidden focus:border-gold/50"
               />
             </div>

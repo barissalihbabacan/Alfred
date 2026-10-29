@@ -237,7 +237,9 @@ async function run(runner: Runner, s: Scenario) {
     })
     : createExtractAndPersistMemories({
       fetch, logger, now: () => Timestamp.now(), getEmbedding, errMessage,
-      memoryExtractionModel: models.groq, geminiExtractionModel: models.gemini, persist
+      memoryExtractionModel: models.groq, geminiExtractionModel: models.gemini, persist,
+      // The former code hard-coded "Barış"; the same name keeps the comparison exact.
+      userName: "Barış"
     });
 
   let result: unknown;
@@ -386,7 +388,8 @@ describe("src MemoryExtractor and production send the same requests and accept t
         currentMessage: s.userMessage,
         assistantResponse: s.assistantResponse,
         recentMessages: structuredClone(s.recentHistory),
-        userId: "user_1"
+        userId: "user_1",
+        userName: "Barış" // the name run() gives production for parity with the former code
       });
       vi.restoreAllMocks();
       vi.unstubAllEnvs();
@@ -425,7 +428,8 @@ describe("planMemoryExtraction", () => {
     const plan = planMemoryExtraction({ currentMessage: "I use Vim.", assistantResponse: "Noted, sir.", recentMessages: history });
     expect(plan).toEqual({
       kind: "call",
-      system: buildMemoryExtractionSystemPrompt("Barış"),
+      // Defaults to the owner in users/USER_PROFILE.md (the committed example, "Alex").
+      system: buildMemoryExtractionSystemPrompt("Alex"),
       user: buildMemoryExtractionUserPrompt({ currentMessage: "I use Vim.", assistantResponse: "Noted, sir.", recentMessages: history.slice(-10) })
     });
     const four = planMemoryExtraction({ currentMessage: "I use Vim.", recentMessages: history, userName: "Bruce" }, 4);

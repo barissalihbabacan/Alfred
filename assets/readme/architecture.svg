@@ -1,111 +1,112 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640" role="img" aria-labelledby="arch-title arch-desc">
-  <title id="arch-title">Alfred — End-to-End Architecture &amp; Journey of a Message</title>
-  <desc id="arch-desc">Next.js browser client sends requests with Firebase ID token and App Check token to the Cloud Function entrypoint. The function validates dual-whitelist auth, sets up the prompt, and fails over across EVREN, Groq, and Gemini with streaming SSE. Background vector memory extraction and Tavily tools run asynchronously.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" role="img" aria-labelledby="title desc">
+  <title id="title">Alfred architecture</title>
+  <desc id="desc">The browser (Next.js static export, PWA, Google sign-in) reaches the api Cloud Function through Firebase Hosting for normal calls and directly for the streaming chat. The function checks the ID token, the allowed user and App Check, runs the chat turn and streams it back. It calls the model chain EVREN, Groq, Gemini and the tools (Tavily, Google, GitHub) with keys from Secret Manager, stores conversations and memory in Firestore, and sends push notifications. A relay daemon on the home server picks up whitelisted server commands from Firestore and writes the result back.</desc>
 
   <defs>
-    <linearGradient id="archBg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0E1726"/>
-      <stop offset="100%" stop-color="#0A101D"/>
-    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#737373"/>
+    </marker>
+    <marker id="arrow-gold" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#c5a059"/>
+    </marker>
   </defs>
 
-  <rect width="1200" height="640" rx="24" fill="url(#archBg)"/>
+  <rect width="1200" height="700" rx="28" fill="#171717"/>
 
-  <!-- header -->
-  <g transform="translate(48 54)">
-    <circle cx="6" cy="6" r="4" fill="#C9A45C"/>
-    <text x="22" y="11" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" font-weight="600" letter-spacing="3" fill="#C9A45C">END-TO-END ARCHITECTURE · JOURNEY OF A MESSAGE</text>
-  </g>
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif">
+    <text x="64" y="64" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" letter-spacing="2" fill="#c5a059">ARCHITECTURE  ·  ONE OWNER, ONE FIREBASE PROJECT</text>
 
-  <!-- top row: request path -->
-  <g id="request-path" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
-    <!-- 01 client -->
-    <g transform="translate(48 88)">
-      <rect width="252" height="232" rx="16" fill="#16233A" stroke="#26344D"/>
-      <text x="24" y="44" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" font-weight="700" fill="#C9A45C">01</text>
-      <text x="24" y="80" font-size="22" font-weight="700" fill="#F4EFE3">Client (Web)</text>
-      <text x="24" y="116" font-size="15" fill="#C8CEDA">Next.js 16 (App Router)</text>
-      <text x="24" y="142" font-size="15" fill="#C8CEDA">Google Auth (Firebase)</text>
-      <text x="24" y="168" font-size="15" fill="#C8CEDA">App Check Attestation</text>
-      <text x="24" y="198" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#8A94A6">apps/web/ (static export)</text>
+    <!-- Browser -->
+    <g id="browser">
+      <rect x="64" y="100" width="260" height="210" rx="18" fill="#212121" stroke="#2f2f2f" stroke-width="1.5"/>
+      <text x="88" y="142" font-size="24" font-weight="600" fill="#ececec">Browser</text>
+      <text x="88" y="182" font-size="18" fill="#b4b4b4">Next.js static export</text>
+      <text x="88" y="210" font-size="18" fill="#b4b4b4">PWA with push</text>
+      <text x="88" y="238" font-size="18" fill="#b4b4b4">Google sign-in only</text>
+      <text x="88" y="284" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#737373">apps/web</text>
     </g>
 
-    <!-- 02 gateway -->
-    <g transform="translate(332 88)">
-      <rect width="252" height="232" rx="16" fill="#16233A" stroke="#26344D"/>
-      <text x="24" y="44" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" font-weight="700" fill="#C9A45C">02</text>
-      <text x="24" y="80" font-size="22" font-weight="700" fill="#F4EFE3">Cloud Function</text>
-      <text x="24" y="116" font-size="15" fill="#C8CEDA">ALLOWED_EMAIL &amp; UID</text>
-      <text x="24" y="142" font-size="15" fill="#C8CEDA">App Check Enforced</text>
-      <text x="24" y="168" font-size="15" fill="#C8CEDA">Secret Manager Vault</text>
-      <text x="24" y="198" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#8A94A6">functions/index.ts (2nd Gen)</text>
+    <!-- Browser to api -->
+    <g id="browser-api" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14">
+      <text x="332" y="150" fill="#8e8e8e">/api/** via</text>
+      <text x="332" y="168" fill="#8e8e8e">Hosting</text>
+      <line x1="326" y1="182" x2="472" y2="182" stroke="#737373" stroke-width="2" marker-end="url(#arrow)"/>
+      <text x="332" y="232" fill="#c5a059">POST /chat</text>
+      <text x="332" y="250" fill="#c5a059">direct, SSE</text>
+      <line x1="326" y1="264" x2="472" y2="264" stroke="#c5a059" stroke-width="2" marker-end="url(#arrow-gold)"/>
     </g>
 
-    <!-- 03 model failover chain -->
-    <g transform="translate(616 88)">
-      <rect width="252" height="232" rx="16" fill="#16233A" stroke="#C9A45C" stroke-width="1.5" stroke-opacity="0.8"/>
-      <text x="24" y="44" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" font-weight="700" fill="#C9A45C">03</text>
-      <text x="24" y="80" font-size="22" font-weight="700" fill="#F4EFE3">Model Failover</text>
-      <text x="24" y="116" font-size="15" font-weight="600" fill="#F4EFE3">1. Groq (gpt-oss-120b)</text>
-      <text x="24" y="142" font-size="15" fill="#C8CEDA">2. Gemini 3.8 Flash</text>
-      <text x="24" y="168" font-size="15" fill="#C8CEDA">3. Local Ollama (Gemma)</text>
-      <text x="24" y="198" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#C9A45C">zero-downtime failover</text>
+    <!-- api -->
+    <g id="api">
+      <rect x="476" y="100" width="324" height="340" rx="18" fill="#212121" stroke="#c5a059" stroke-opacity="0.7" stroke-width="1.5"/>
+      <text x="500" y="142" font-size="24" font-weight="600" fill="#ececec">Cloud Function <tspan font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#e6c887">api</tspan></text>
+
+      <rect x="496" y="160" width="284" height="72" rx="12" fill="#2a2a2a"/>
+      <text x="514" y="190" font-size="19" font-weight="600" fill="#ececec"><tspan fill="#c5a059">1 </tspan>Auth gate</text>
+      <text x="532" y="216" font-size="17" fill="#b4b4b4">ID token · owner · App Check</text>
+
+      <rect x="496" y="242" width="284" height="72" rx="12" fill="#2a2a2a"/>
+      <text x="514" y="272" font-size="19" font-weight="600" fill="#ececec"><tspan fill="#c5a059">2 </tspan>Chat turn</text>
+      <text x="532" y="298" font-size="17" fill="#b4b4b4">prompt · memories · tools</text>
+
+      <rect x="496" y="324" width="284" height="72" rx="12" fill="#2a2a2a"/>
+      <text x="514" y="354" font-size="19" font-weight="600" fill="#ececec"><tspan fill="#c5a059">3 </tspan>SSE stream</text>
+      <text x="532" y="380" font-size="17" fill="#b4b4b4">frames back to the tab</text>
+
+      <text x="500" y="424" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#737373">+ morning briefing, 09:00 daily</text>
     </g>
 
-    <!-- 04 streaming output -->
-    <g transform="translate(900 88)">
-      <rect width="252" height="232" rx="16" fill="#16233A" stroke="#26344D"/>
-      <text x="24" y="44" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" font-weight="700" fill="#C9A45C">04</text>
-      <text x="24" y="80" font-size="22" font-weight="700" fill="#F4EFE3">Streaming SSE</text>
-      <text x="24" y="116" font-size="15" fill="#C8CEDA">Server-Sent Events (SSE)</text>
-      <text x="24" y="142" font-size="15" fill="#C8CEDA">Thinking &amp; Tool States</text>
-      <text x="24" y="168" font-size="15" fill="#C8CEDA">Direct Clickable Citations</text>
-      <text x="24" y="198" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#8A94A6">Bypasses hosting buffers</text>
+    <!-- Right column -->
+    <g id="services">
+      <rect x="900" y="100" width="236" height="96" rx="18" fill="#212121" stroke="#2f2f2f" stroke-width="1.5"/>
+      <text x="922" y="138" font-size="21" font-weight="600" fill="#ececec">Model chain</text>
+      <text x="922" y="170" font-size="17" fill="#e6c887">EVREN → Groq → Gemini</text>
+
+      <rect x="900" y="212" width="236" height="96" rx="18" fill="#212121" stroke="#2f2f2f" stroke-width="1.5"/>
+      <text x="922" y="250" font-size="21" font-weight="600" fill="#ececec">Tools</text>
+      <text x="922" y="282" font-size="18" fill="#b4b4b4">Tavily · Google · GitHub</text>
+
+      <rect x="900" y="324" width="236" height="96" rx="18" fill="#212121" stroke="#2f2f2f" stroke-width="1.5"/>
+      <text x="922" y="362" font-size="21" font-weight="600" fill="#ececec">Secret Manager</text>
+      <text x="922" y="394" font-size="18" fill="#b4b4b4">every API key</text>
+
+      <line x1="802" y1="148" x2="896" y2="148" stroke="#737373" stroke-width="2" marker-end="url(#arrow)"/>
+      <line x1="802" y1="260" x2="896" y2="260" stroke="#737373" stroke-width="2" marker-end="url(#arrow)"/>
+      <line x1="896" y1="372" x2="802" y2="372" stroke="#737373" stroke-width="2" marker-end="url(#arrow)"/>
     </g>
 
-    <!-- connector arrows -->
-    <g stroke="#C9A45C" stroke-width="2" fill="none">
-      <path d="M300 204 H330"/><path d="M324 198 L332 204 L324 210"/>
-      <path d="M584 204 H614"/><path d="M608 198 L616 204 L608 210"/>
-      <path d="M868 204 H898"/><path d="M892 198 L900 204 L892 210"/>
-    </g>
-  </g>
-
-  <!-- bottom row: background intelligence -->
-  <g transform="translate(48 368)">
-    <circle cx="6" cy="6" r="4" fill="#8A94A6"/>
-    <text x="22" y="11" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" font-weight="600" letter-spacing="3" fill="#8A94A6">BACKGROUND INTELLIGENCE &amp; TOOLING</text>
-  </g>
-
-  <g id="background-work" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
-    <!-- service 1: prompt -->
-    <g transform="translate(48 396)">
-      <rect width="348" height="200" rx="16" fill="#131F33" stroke="#26344D"/>
-      <text x="24" y="40" font-size="20" font-weight="700" fill="#F4EFE3">Dynamic Prompt (~1,540 Tok)</text>
-      <text x="24" y="74" font-size="15" fill="#C8CEDA">User profile digest (users/*.md)</text>
-      <text x="24" y="100" font-size="15" fill="#C8CEDA">Honest demeanor &amp; objection rules</text>
-      <text x="24" y="126" font-size="15" fill="#C8CEDA">Real-time vector memory retrieval</text>
-      <text x="24" y="164" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#C9A45C">npm run profile:init customized</text>
+    <!-- Firestore -->
+    <g id="firestore">
+      <line x1="638" y1="442" x2="638" y2="496" stroke="#737373" stroke-width="2" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+      <rect x="476" y="500" width="324" height="150" rx="18" fill="#212121" stroke="#2f2f2f" stroke-width="1.5"/>
+      <text x="500" y="540" font-size="24" font-weight="600" fill="#ececec">Firestore</text>
+      <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#b4b4b4">
+        <text x="500" y="574">conversations</text>
+        <text x="500" y="598">memory_vectors</text>
+        <text x="500" y="622">server_commands</text>
+      </g>
+      <text x="776" y="540" font-size="15" text-anchor="end" fill="#737373">clients: deny-all</text>
     </g>
 
-    <!-- service 2: tools -->
-    <g transform="translate(426 396)">
-      <rect width="348" height="200" rx="16" fill="#131F33" stroke="#26344D"/>
-      <text x="24" y="40" font-size="20" font-weight="700" fill="#F4EFE3">Time &amp; Live Web Tools</text>
-      <text x="24" y="74" font-size="15" fill="#C8CEDA">Tavily: News index auto-selection</text>
-      <text x="24" y="100" font-size="15" fill="#C8CEDA">Domain link auto-conversion</text>
-      <text x="24" y="126" font-size="15" fill="#C8CEDA">Multi-city timezone &amp; DST resolver</text>
-      <text x="24" y="164" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#8A94A6">Strictly factual verification</text>
+    <!-- Home server -->
+    <g id="home">
+      <rect x="64" y="500" width="260" height="150" rx="18" fill="#212121" stroke="#2f2f2f" stroke-width="1.5"/>
+      <text x="88" y="540" font-size="24" font-weight="600" fill="#ececec">Home server</text>
+      <text x="88" y="576" font-size="18" fill="#b4b4b4">relay daemon runs</text>
+      <text x="88" y="602" font-size="18" fill="#b4b4b4">whitelisted commands</text>
+      <text x="88" y="630" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#737373">no open ports</text>
+      <line x1="326" y1="575" x2="472" y2="575" stroke="#737373" stroke-width="2" stroke-dasharray="6 5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+      <text x="399" y="562" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" text-anchor="middle" fill="#8e8e8e">claim · run</text>
+      <text x="399" y="600" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" text-anchor="middle" fill="#8e8e8e">write result</text>
     </g>
 
-    <!-- service 3: memory -->
-    <g transform="translate(804 396)">
-      <rect width="348" height="200" rx="16" fill="#131F33" stroke="#26344D"/>
-      <text x="24" y="40" font-size="20" font-weight="700" fill="#F4EFE3">Long-Term Vector Memory</text>
-      <text x="24" y="74" font-size="15" fill="#C8CEDA">Asynchronous post-turn extraction</text>
-      <text x="24" y="100" font-size="15" fill="#C8CEDA">Secret / credential privacy filter</text>
-      <text x="24" y="126" font-size="15" fill="#C8CEDA">Atomic Firestore batch dedup/supersede</text>
-      <text x="24" y="164" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" fill="#10B981">gemini-embedding-001 (768d)</text>
+    <!-- Push -->
+    <g id="push">
+      <rect x="900" y="500" width="236" height="150" rx="18" fill="#212121" stroke="#2f2f2f" stroke-width="1.5"/>
+      <text x="922" y="540" font-size="24" font-weight="600" fill="#ececec">Your phone</text>
+      <text x="922" y="576" font-size="18" fill="#b4b4b4">FCM push for the</text>
+      <text x="922" y="602" font-size="18" fill="#b4b4b4">morning briefing</text>
+      <path d="M802 420 C 860 420, 860 560, 896 560" fill="none" stroke="#737373" stroke-width="2" marker-end="url(#arrow)"/>
     </g>
   </g>
 </svg>

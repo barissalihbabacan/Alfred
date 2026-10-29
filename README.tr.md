@@ -1,220 +1,199 @@
 <p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="Alfred: Açık kaynaklı ve self-hosted kişisel yapay zeka ve yazılım mühendisliği asistanı.">
+  <img src="./assets/readme/tr/hero.svg" width="100%" alt="Alfred: kendi Firebase'inde çalışan kendi AI asistanın. Adın yanında tek bir sohbet turunun tarayıcıya ulaşan hâli: start, Londra, Tokyo ve Sidney için get_current_time araç çağrısı, araç sonucu, akan chunk'lar ve done.">
 </p>
 
 <p align="center">
-  <a href="https://github.com/barissalihbabacan/Alfred/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="MIT License"></a>
-  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-98.8%25-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript 98.8%"></a>
-  <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/Node.js-22+-43853D?style=flat-square&logo=node.js&logoColor=white" alt="Node.js 22+"></a>
-  <a href="https://firebase.google.com/"><img src="https://img.shields.io/badge/Firebase-Hosting%20%26%20Functions-FFCA28?style=flat-square&logo=firebase&logoColor=black" alt="Firebase"></a>
-  <a href="#hızlı-başlangıç"><img src="https://img.shields.io/badge/Self--Hosted-Gizlilik%20Odaklı-10B981?style=flat-square" alt="Self-Hosted"></a>
+  <a href="https://github.com/barissalihbabacan/Alfred/actions/workflows/ci.yml"><img src="https://github.com/barissalihbabacan/Alfred/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI durumu"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/lisans-MIT-c5a059?style=flat-square&labelColor=171717" alt="MIT Lisansı"></a>
+  <a href="./.nvmrc"><img src="https://img.shields.io/badge/node-22-c5a059?style=flat-square&labelColor=171717" alt="Node.js 22"></a>
+  <a href="https://evren-llmapi.ssyz.org.tr/"><img src="https://img.shields.io/badge/model-EVREN%20%C3%B6ncelikli-c5a059?style=flat-square&labelColor=171717" alt="EVREN öncelikli model zinciri"></a>
 </p>
 
 <p align="center">
-  <b>Türkçe</b> · <a href="./README.md">English</a>
+  <a href="./README.md">English</a> · <b>Türkçe</b>
 </p>
 
 <p align="center">
-  <a href="#alfred-ne-yapar">Ne Yapar</a> ·
-  <a href="#canlıda-doğrulanan-davranışlar">Canlı Kanıtlar</a> ·
-  <a href="#nasıl-çalışır">Nasıl Çalışır</a> ·
-  <a href="#hızlı-başlangıç">Hızlı Başlangıç</a> ·
-  <a href="#geliştirme">Geliştirme</a> ·
-  <a href="#belgeler">Belgeler</a>
+  <a href="#kendi-alfredini-kur"><b>Kur</b></a> ·
+  <a href="#canlıda-görülenler">Kanıt</a> ·
+  <a href="#neler-yapabilir">Yetenekler</a> ·
+  <a href="#bir-tur-nasıl-işler">Bir tur</a> ·
+  <a href="#mimari">Mimari</a> ·
+  <a href="#mühendislik-notları">Mühendislik notları</a>
 </p>
 
----
+**Alfred**, yalnızca tek bir kişi için yazılmış ve o kişinin kendi Firebase projesinde çalışan kişisel bir AI asistanı. Deneyimli bir meslektaş gibi konuşur, önemli bilgileri konuşmalar arasında hatırlar; takvimini, e-postanı, repolarını ve ev sunucunu yönetir. Ücretsiz bir modelin kotası dolduğunda, ilk kelime sana ulaşmadan turu sıradaki sağlayıcıya devrederek cevap vermeyi sürdürür.
 
-**Alfred**, yazılım mühendisleri ve üreticiler için geliştirilmiş, tek kullanıcılı ve self-hosted bir **kişisel yapay zeka ve mühendislik asistanıdır**. Eşit bir mühendislik ortağı gibi samimi ve net konuşur, önemli tercihleri kendiliğinden hatırlar ve riskli komutlara (üretim veritabanını silme, testleri atlama vb.) somut gerekçesiyle açıkça itiraz eder.
+Aynı zamanda böyle bir asistanın nasıl kurulacağına dair, production'da sınanmış eksiksiz bir referans: akış, sağlayıcı yedeklemesi, hız limiti politikası, uzun süreli hafıza, kimlik doğrulama ve alarmlar; her kararın arkasındaki ölçümle birlikte.
 
-> **Neden sadece Alfred?**  
-> *"Çünkü BATMAN'i seviyorum ve ben BATMAN'im."* 🦇
-
----
-
-## Alfred Ne Yapar?
-
-- **Türkçe ve İngilizceyi akıcı konuşur.** Hangi dilde sorulduysa o dilde teknik derinlikle yanıt verir; sesli girişleri (mikrofon) destekler.
-- **TÜBİTAK BİLGEM EVREN LLM Entegrasyonu.** Türkiye'nin ulusal açık LLM servisi olan EVREN API (`qwen3.8-flash-next`, `deepseek-v4.1-flash`; e-Devlet ile T.C. vatandaşlarına günlük 15M token ücretsiz kota) öncelikli model zincirinin en başında yer alır. Türkçe sorgularda yerel kültürel ve dilsel yetkinliği en üst seviyededir.
-- **Kendiliğinden hatırlar.** "Yeşil elma suyunu severim" gibi kalıcı tercihleri sohbet bittikten sonra ayrı bir modelle çıkarır, şifre ve anahtar gibi gizli bilgileri filtreler ve sonraki konuşmalarda kullanılmak üzere Firestore vektör veritabanına yazar.
-- **Gerekçesiyle itiraz eder.** Prodüksiyon veritabanını silmek, yetkisiz betik çalıştırmak veya testleri atlamak gibi riskli önerilere tereddütsüz "Hayır." der; somut riskini açıklar ve güvenli bir alternatif sunar.
-- **Doğru saati bilir.** Tek araç çağrısıyla dünya çapında altı şehre kadar yerel saati ve yaz/kış saati (DST) farklarını doğru hesaplar.
-- **Canlı web araması yapar.** Güncel haberler, piyasa gelişmeleri ve taze bilgiler için Tavily altyapısıyla arama yapar; haber sorgularında özel haber indeksini (`topic: "news"`) seçer, clickbait ve eski verileri eler, kullandığı her kaynağı tıklanabilir Markdown bağlantısı (`[kaynak](url)`) olarak verir.
-- **Uydurmaz (Hallucination-free).** Henüz bağlı olmayan bir servis (takvim, e-posta, uzak sunucu) sorulduğunda hayali veri üretmez, açıkça henüz erişimi olmadığını belirtir.
-
----
-
-## Canlıda Doğrulanan Davranışlar
-
-Tüm yetenekler üretim ortamında, gerçek konuşmalar ve test logları ile doğrulanmıştır:
-
-| Kullanıcı Mesajı | Alfred'in Davranışı ve Yanıtı |
-| :--- | :--- |
-| *Prod veritabanını silelim mi?* | **Net İtiraz**: "Hayır. Üretim veritabanını silmek geri dönüşü olmayan veri kaybına ve hizmet kesintisine yol açar; önce yedek alınmalıdır…" |
-| *Londra, Tokyo ve Sidney'de saat kaç?* | **Tek Araç Çağrısı** (`["Londra","Tokyo","Sidney"]`): "Londra'da saat 14:03, Tokyo'da 22:03 ve Sidney'de 23:03." |
-| *Remember that I love the green apple juice* | **Otonom Vektör Kaydı**: `"User loves green apple juice" (user_preference)` |
-| *Beşiktaş transfer haberleri.* | **Tavily Web Search**: Güncel haber indeksi taranır; eski içerikler elenerek doğrulanmış kaynaklar tıklanabilir bağlantılarla listelenir. |
-
----
-
-## Nasıl Çalışır?
+## Kendi Alfred'ini kur
 
 <p align="center">
-  <img src="./assets/readme/architecture.svg" width="100%" alt="Alfred Uçtan Uca Mimari Diyagramı: Next.js arayüzü, Cloud Function giriş noktası, EVREN/Groq/Gemini/Ollama model zinciri ve arka plan bellek/araç servisleri.">
+  <a href="https://ssh.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https://github.com/barissalihbabacan/Alfred&cloudshell_image=ghcr.io/barissalihbabacan/alfred-setup&shellonly=true&cloudshell_tutorial=.cloudshell/tutorial.md"><img src="./assets/readme/tr/setup-button.svg" width="320" alt="Alfred Kurulumunu Başlat (Google Cloud Shell'de açılır)"></a>
 </p>
 
-1. **İstemci (Web):** `apps/web`, Next.js 16 (App Router) ile statik derlenen ve Firebase Hosting üzerinden sunulan modern bir web arayüzüdür. Google Sign-In ve Firebase App Check token'ı ile çalışır.
-2. **Güvenlik & Kapı:** `functions/index.ts` Cloud Functions 2nd Gen tek giriş noktasıdır. Çift katmanlı yetkilendirme (`ALLOWED_EMAIL` + `ALLOWED_UID`) ve App Check token doğrulaması olmadan hiçbir isteği kabul etmez. API anahtarları yalnızca Secret Manager'da tutulur; tarayıcı asla anahtar görmez.
-3. **Akıllı Model Zinciri (Failover):**
-   - **1. EVREN LLM** (`qwen3.8-flash-next`, 15M token/gün): Türkçe öncelikli yüksek hızlı ulusal model.
-   - **2. Groq** (`gpt-oss-120b`): Ultra düşük gecikmeli küresel çıkarım.
-   - **3. Gemini** (`gemini-3.8-flash`): Yedek bulut sağlayıcısı.
-   - **4. Yerel Ollama** (`gemma4:12b`): Yerel çevrimdışı fallback.
-   *Limit aşımında (429) veya serviste bir aksama olduğunda, kullanıcıya henüz veri akıtılmamışsa sistem şeffaf biçimde bir sonraki sağlayıcıya devrolur.*
-4. **Gerçek Zamanlı Akış (SSE):** Yanıtlar Server-Sent Events ile parça parça akar; düşünme evresi (thinking), araç çağırma durumları ve model geçişleri arayüzde canlı izlenir.
+<p align="center">
+  <img src="./assets/readme/tr/setup.svg" width="100%" alt="Alfred Kurulumu: dört adım (GCP projesi, hesabın, API anahtarları, deploy) ve yanında yeni Alfred'in adresiyle biten canlı kurulum log'u.">
+</p>
 
----
+**Alfred Kurulumu**, Rust ile yazılmış bir terminal sihirbazı. Google Cloud Shell'de çalıştığı için bilgisayarına hiçbir şey kurman gerekmez. Faturalandırma hesabı olan bir Google hesabı (Cloud Functions, Firebase'in Blaze planını gerektirir) ve elindeki model anahtarları yeterli; anahtarların hepsi isteğe bağlı, sonradan da eklenebilir.
 
-## Hızlı Başlangıç
+1. **Alfred Kurulumunu Başlat** butonuna tıkla. Cloud Shell, Alfred'in kurulum imajını açar ve ona güvenip güvenmediğini sorar: **Trust** seç (sorulursa **Authorize**'a da bas). Sihirbaz terminalde kendiliğinden başlar.
+2. Bir proje ID'si gir (ya da Ctrl+G ile ürettir), faturalandırma hesabını ve Firestore bölgesini seç; ardından adını, Google hesabını ve elindeki API anahtarlarını yaz.
+3. Özet ekranında **Enter**'a bas. Canlı log, projeden deploy'a kadar her adımı gösterir.
+4. Sihirbazın sonunda listelediği konsol adımlarını (örneğin Google ile girişi açmak) tamamla, ardından `https://<proje-id>.web.app` adresini aç.
 
-### ⚡ Google Cloud Shell & Setup-UI ile Tek Tıkla Kurulum
+Cloud Shell oturumu geçicidir; önemli olan her şey senin Google Cloud projende oluşturulur. Sihirbazda F2 ile Türkçe ve İngilizce arasında geçebilirsin.
 
-Yerel makinenize Node.js veya herhangi bir araç kurmanıza gerek yoktur! Doğrudan tarayıcınızda Google Cloud Shell ve **Rust + WebAssembly Setup-UI** sihirbazı ile kişisel Alfred asistanınızı yayına alabilirsiniz:
+Alfred tasarım gereği tek kullanıcılı: giriş yapabilen tek hesap, burada girdiğin hesaptır.
 
-[![Open in Cloud Shell](https://gstatic.com/cloudsdk/images/open-in-cloudshell.svg)](https://ssh.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https://github.com/barissalihbabacan/Alfred&cloudshell_tutorial=.cloudshell/tutorial.md)
+### Yerelde çalıştır
 
-1. Yukarıdaki **Open in Cloud Shell** butonuna tıklayarak depoyu hazır Google Cloud ortamında açın.
-2. Terminalde interaktif görsel kurulum sihirbazını başlatın:
-   ```bash
-   npm run setup:ui
-   ```
-3. Cloud Shell'in sağ üst köşesindeki **Web Önizleme (Web Preview) &rarr; 8080 Bağlantı Noktasında Önizle** seçeneğine tıklayın.
-4. Açılan görsel sihirbazda Proje ID'nizi, izinli e-postanızı ve API anahtarlarınızı girin. **Rust + WebAssembly** çekirdeği istemci tarafında tüm anahtarları doğrular; tek tıkla Google Secret Manager ve Firebase dağıtımını otomatik gerçekleştirir!
-
----
-
-### Yerel Kurulum
-
-### Ön Gereksinimler
-- **Node.js**: v22+
-- **Firebase CLI**: `npm install -g firebase-tools`
-- **Model Sağlayıcıları (İsteğe bağlı kombinasyon)**:
-  - [TÜBİTAK BİLGEM EVREN API](https://evren-llmapi.ssyz.org.tr/) (Ücretsiz 15M token/gün)
-  - [Groq Console](https://console.groq.com/)
-  - [Google AI Studio (Gemini)](https://aistudio.google.com/)
-  - [Tavily](https://tavily.com/) (Web araması için)
-
-### 1. Depoyu Klonlayın ve Bağımlılıkları Yükleyin
+Geliştirme için Node.js 22 (`nvm use`) ve Firebase CLI gerekir.
 
 ```bash
 git clone https://github.com/barissalihbabacan/Alfred.git
 cd Alfred
 npm install
+npm run profile:init        # templates/ içinden users/*.md üretir (önce --dry-run ile dene)
+cp .env.example .env        # src/, script'ler ve entegrasyon testleri için anahtarlar
+npm run dev:web             # http://localhost:3000
 ```
 
-### 2. Kendi Kullanıcı Profilinizi Oluşturun
-
-Alfred, sistem istemini (`users/*.md`) klasöründeki kullanıcı profilinizden besler. Şablonlardan kendi profilinizi 1 dakikada oluşturmak için:
+`npm run dev:web`, `/api/**` isteklerini varsayılan olarak Functions emülatörüne yönlendirir. Deploy edilmiş bir backend kullanmak için:
 
 ```bash
-npm run profile:init
+ALFRED_API_ORIGIN=https://<projen>.web.app/api npm run dev:web
 ```
 
-Bu komut; adınız, uzmanlık alanınız ve çalışma tercihlerinizle `users/USER_PROFILE.md`, `users/PREFERENCES.md` ve `users/WORKING_STYLE.md` dosyalarını otomatik olarak hazırlar.
+Emülatör secret'ları `functions/.secret.local` dosyasından, diğer ayarları `functions/.env` dosyasından okur. Production'da anahtarlar yalnızca Secret Manager'dan gelir (`firebase functions:secrets:set AD`).
 
-### 3. Ortam Değişkenlerini Tanımlayın
+## Canlıda görülenler
 
-```bash
-cp .env.example .env
-```
+Alfred'in production log'larında görülen yanıtlar:
 
-`.env` dosyasını açarak API anahtarlarınızı ve yetkili hesap bilgilerinizi girin:
+| Sen | Alfred |
+| :--- | :--- |
+| *Prod veritabanını silelim mi?* | **Gerekçesiyle itiraz eder:** "Hayır. Üretim veritabanını silmek geri dönüşü olmayan veri kaybına ve hizmet kesintisine yol açar; önce yedek alınmalıdır…" |
+| *Londra, Tokyo ve Sidney'de saat kaç?* | **Üç şehir için tek araç çağrısı:** "Londra'da saat 14:03, Tokyo'da 22:03 ve Sidney'de 23:03." |
+| *Remember that I love green apple juice.* | **Yanıttan sonra kalıcı bir tercih kaydeder:** `"User loves green apple juice" (user_preference)` |
+| *Beşiktaş transfer haberleri.* | **Haber indeksinde arar**, eski sezonları eler ve kullandığı her kaynağa bağlantı verir. |
 
-```env
-ALLOWED_EMAIL="ornek@gmail.com"
-ALLOWED_UID="firebase_auth_uid_degeriniz"
-EVREN_API_KEY="evren_..."
-GROQ_API_KEY="gsk_..."
-GEMINI_API_KEY="AIzaSy..."
-TAVILY_API_KEY="tvly-..."
-```
+## Neler yapabilir
 
-### 4. Yerelde Çalıştırın
+**Konuşur:** Türkçe ya da İngilizce, sen hangisini kullandıysan onunla. Sesli giriş tarayıcıdan gelir, yanıtlar Markdown olarak görünür ve kaynaklar her zaman bağlantıdır.
 
-Web arayüzünü yerel geliştirme modunda başlatın (`http://localhost:3000`):
+**Hatırlar:** Her yanıttan sonra ayrı bir sınıflandırıcı kalıcı bilgileri ve tercihleri çıkarır; Alfred'in kendi sözlerini asla sana mal etmez. Gizli bilgiye benzeyen her şey kaydedilmeden önce elenir. Hafızayı uygulamada görüntüleyebilir, ekleyebilir ve geri alabilirsin; her proje alanının kendine ait, ayrı bir hafızası vardır.
 
-```bash
-npm run dev:web
-```
+**İş yapar:** Araçlar yalnızca gerçekten yapılandırıldıklarında sunulur, böylece yapamayacağı bir şeyi asla vaat etmez:
 
-Canlı backend API'sine bağlanarak yerel arayüzü çalıştırmak için:
+| Araç | Ne yapar | Gereken |
+| :--- | :--- | :--- |
+| `get_current_time` | Birden fazla şehrin yerel saati ve farkı, tek çağrıda, yaz saati dahil | yok |
+| `web_search` | Tavily araması, en fazla beş kaynak, soru başına tek arama | `TAVILY_API_KEY` |
+| `read_url` | Verdiğin bağlantıdaki sayfayı okur | yok |
+| `github` | Repo, issue, pull request, commit, dosya ağacı ve dosyalar (salt okunur) | isteğe bağlı `GITHUB_TOKEN` |
+| `google_calendar` | Etkinlikleri listeler, oluşturur, siler | uygulamada Google bağlantısı |
+| `google_tasks` | Görevleri listeler, oluşturur, tamamlar, siler | uygulamada Google bağlantısı |
+| `gmail` | E-postaları arar ve okur, taslak oluşturur, gönderir | uygulamada Google bağlantısı |
+| `ssh_*` | Ev sunucunda disk kullanımı, sistem bilgisi, dizin listesi, `docker ps`, log ve yeniden başlatma | ev relay daemon'ı |
 
-```bash
-ALFRED_API_ORIGIN=https://<proje-adiniz>.web.app/api npm run dev:web
-```
+**Kendiliğinden gelir:** Sabah brifingi her gün 09:00'da (İstanbul saati) çalışır ve yüklü PWA'ya push bildirimi olarak düşer.
 
----
+### EVREN: Türkçe için ulusal model
+
+Sohbet zincirinin ilk halkası, TÜBİTAK BİLGEM'in ulusal LLM servisi [EVREN](https://evren-llmapi.ssyz.org.tr/) (varsayılan model `qwen3.8-flash-next`). T.C. vatandaşları e-Devlet ile giriş yaparak günlük 15M token ücretsiz kota alabilir. `EVREN_API_KEY` tanımlı değilse zincir doğrudan Groq'tan başlar.
+
+## Bir tur nasıl işler
+
+<p align="center">
+  <img src="./assets/readme/tr/turn.svg" width="100%" alt="Bir sohbet turunun zaman çizgisi: start, thinking, tool_call, tool_result, chunk, done ve done sonrasında hafıza çıkarımı. İlk chunk'a kadar bir 429 ya da hata turun tamamını sıradaki sağlayıcıda (EVREN, Groq, Gemini) yeniden başlatır; ilk chunk'tan sonra sağlayıcı sabitlenir.">
+</p>
+
+- Her yanıt bir `data: {"type": …}` frame akışıdır: `start`, `thinking`, `tool_call`, `tool_result`, `chunk`, `rate_limited`, `provider_fallback`, `done`, `error`.
+- İlk `chunk`'a kadar bir hız limiti ya da hata, **turun tamamını** sıradaki sağlayıcıda yeniden başlatır. Ekrana metin düştükten sonra sağlayıcı sabittir; iki modelden yamanmış bir yanıt asla görmezsin.
+- Yanıt `done`'dan önce kaydedilir, yazma alanı hemen serbest kalır. Bağlantı ardından hafıza çıkarımı için açık kalır; bu adım, elindeki yanıtı asla değiştiremez ya da bozamaz.
+
+## Mimari
+
+<p align="center">
+  <img src="./assets/readme/tr/architecture.svg" width="100%" alt="Mimari: tarayıcı api Cloud Function'a Firebase Hosting üzerinden, akışlı sohbette ise doğrudan ulaşır. Fonksiyon ID token'ı, sahibi ve App Check'i doğrular, turu çalıştırır, Secret Manager'daki anahtarlarla model zincirini ve araçları çağırır, verileri Firestore'da tutar ve push bildirimi gönderir. Ev sunucusundaki relay daemon, Firestore'dan aldığı izinli komutları çalıştırır.">
+</p>
+
+1. **Tarayıcı:** `apps/web`, Firebase Hosting'den sunulan bir Next.js 16 statik çıktısı. Yüklenebilir bir PWA; giriş yalnızca Google ile. Normal API çağrıları Hosting rewrite'ından geçer, sohbet akışı ise doğrudan fonksiyona gider ([Mühendislik notları](#mühendislik-notları)).
+2. **`api` Cloud Function:** Her istek, tek izinli sahibe ait geçerli bir Firebase ID token'ı ve bir App Check token'ı ister. Fonksiyon prompt'u profil özetinden ve hafızadan çekilen bilgilerden kurar, turu araçlarla çalıştırır ve geri akıtır.
+3. **Model zinciri:** EVREN (anahtar varsa) → Groq `openai/gpt-oss-120b` → Gemini `gemini-3.8-flash`. Tüm anahtarlar Secret Manager'da durur, tarayıcıya asla ulaşmaz.
+4. **Firestore**, konuşmalar ve uzun süreli hafıza için tek doğruluk kaynağı. İstemci erişimi güvenlik kurallarıyla kapalı; yalnızca sunucu yazar.
+5. **Ev sunucusu:** SSH araçları hiçbir port açmaz. Fonksiyon izinli bir komutu Firestore'a yazar, evdeki relay daemon onu alır, yeniden doğrular, çalıştırır ve sonucu geri yazar.
+
+## Mühendislik notları
+
+Bunların her biri bir ölçümden ya da bir olaydan çıktı; çoğu bir testle sabitlenmiş durumda.
+
+| Sorun | Ne ölçüldü | Alfred ne yapıyor |
+| :--- | :--- | :--- |
+| Akış donmuş gibi görünüyordu | Firebase Hosting `/api/**` yanıtlarını tamponluyor: bir turun bütün olayları aynı milisaniyede geldi | Sohbet isteği doğrudan fonksiyona gider; böylece Hosting'in 60 sn sınırına da takılmaz |
+| Groq'un ücretsiz katmanı dakikada 8.000 token | Sistem prompt'u her model çağrısında yeniden gönderiliyor | Prompt ~4.360'tan ~2.160 token'a indirildi; 2.400'ü aşınca bir test kırılır |
+| Yedeğe geçiş arama maliyetini katlıyordu | Tek bir soru, sağlayıcı yeniden başlatmalarında 6 web araması harcadı | Soru başına tek arama oturumu: tekrarlar sonucu yeniden kullanır, aramadan sonra modele araç sunulmaz |
+| Konuşma ortasında 429 | Kırpılmış yeniden denemeler Groq'un gerçek bekleme süresini gizliyordu | Gerçek bekleme süresini yalnızca 25 sn'lik tur bütçesine sığıyorsa bekler; günlük limitte hemen vazgeçer |
+| Gerçek gibi görünen araç çıktısı | İlk SSH araçları yer tutucu çıktı döndürüyordu | Kaldırıldı. Bir entegrasyon bağlı değilse Alfred bunu açıkça söyler |
+| Canlı bir backend'i taşımak | `functions/` ile `src/` birbirinden ayrışmıştı | Modül modül birleştirildi; her adım, eski production kodunun birebir kopyalarına karşı diferansiyel testlerle doğrulandı |
+
+## Güvenlik modeli
+
+- Yalnızca Google ile giriş ve tek bir izinli sahip; kontrol sunucuda yapılır, istemcideki kontrol yalnızca kullanıcı deneyimi içindir.
+- Her istek doğrulanmış bir ID token'ı ve App Check token'ı taşır. Kullanıcı her zaman token'daki UID'dir, istekteki bir alan değil.
+- LLM, arama ve OAuth anahtarları Secret Manager'dan bağlanır; repoda da tarayıcıda da anahtar yoktur.
+- Yapılandırılmış log'lar olayları, sağlayıcıları ve süreleri kaydeder; mesaj metnini, anahtarları ve token'ları asla kaydetmez. Cloud Monitoring alarmları bu olaylar üzerine kurulu ([OPERATIONS.md](docs/OPERATIONS.md)).
+- İsteğe bağlı haftalık bir workflow, secret'larını eklediğinde Firestore'u şifreli olarak yedekler; repoyu Gitleaks, CodeQL ve Dependabot korur.
 
 ## Geliştirme
 
-Tüm proje katı tip güvenliği (`%98.8 TypeScript`) ve 968 birim testi ile korunmaktadır:
-
-| Komut | Açıklama |
+| Komut | Amaç |
 | :--- | :--- |
-| `npm run test:unit` | 72 dosyadaki 968 birim testini çevrimdışı ve sıfır mock sızıntısıyla çalıştırır |
-| `npm run typecheck` | `src/` altındaki tüm çekirdek kodun katı tip denetimi (`tsc --noEmit`) |
-| `npm run typecheck:tests` | `tests/` ve `scripts/` tip denetimi (`tsc -p tsconfig.tests.json`) |
-| `npm run lint` | ESLint 9 denetimi (tüm kurallar sıfır uyarı / sıfır hata toleranslıdır) |
-| `npm run profile:init` | Şablonlardan kişiselleştirilmiş kullanıcı profil dosyalarını oluşturur |
-| `npm run build:web` | Next.js web uygulamasını `apps/web/out` klasörüne statik derler |
-| `npm run build --prefix functions` | `functions/index.ts` ve paylaşılan TypeScript modüllerini esbuild ile paketler |
-| `npm run check:bundle --prefix functions` | Derlenen Cloud Functions paketinin dışa aktarımlarını doğrular |
-| `npm run test:integration:offline` | Ağ gerektirmeyen entegrasyon testlerini çalıştırır (CI ortamında koşar) |
+| `npm run test:unit` | Çevrimdışı birim testleri (70'ten fazla dosya, bellek içi depolar) |
+| `npm run test:integration:offline` | Servise bağımlı testlerin hepsi atlanarak entegrasyon testleri, CI'daki gibi |
+| `npm run typecheck` · `npm run typecheck:tests` | `src/` ve ardından `tests/` ile `scripts/` için katı TypeScript |
+| `npm run lint` | ESLint 10; her kural hata seviyesinde, `any` yasak |
+| `npm run build:web` | `apps/web/out` altına statik çıktı |
+| `npm run build --prefix functions` | Fonksiyonları paylaşılan `src/` modülleriyle paketler (esbuild) |
+| `npm run setup` | Kurulum sihirbazını yerelde başlatır (`-- --demo` deploy etmeden bütün ekranları gezer) |
+| `npm run relay` | Ev relay daemon'ını sunucunda çalıştırır |
 
----
+CI bunların hepsini her pull request'te çalıştırır; `main`'e yapılan bir push ancak her şey yeşilse deploy edilir.
 
-## Proje Yapısı
+<details>
+<summary><b>Repo haritası</b></summary>
 
 ```text
-Alfred/
-├── apps/
-│   └── web/                   # Next.js 16 App Router (statik export web arayüzü)
-├── functions/                 # Firebase Cloud Functions 2nd Gen API (TypeScript)
-│   ├── index.ts               # Cloud Function giriş noktası (wrapper)
-│   ├── api.ts                 # Sohbet, SSE akışı ve briefing endpoint'leri
-│   ├── memory-extraction.ts   # Bellek adaylarını çıkaran otonom pipeline
-│   └── memory-persistence.ts  # Firestore atomik batch bellek depolama katmanı
-├── src/                       # Paylaşılan saf TypeScript çekirdek kütüphanesi
-│   ├── ai/                    # LLM sağlayıcıları (EVREN, Groq, Gemini, Ollama), araçlar (Tavily, Saat)
-│   ├── alfred/                # Bilişsel mimari, bellek döngüsü ve gizlilik filtresi
-│   └── data/                  # Firestore modelleri ve vektör benzerlik algoritmaları
-├── templates/                 # Kullanıcı profili ve persona için dinamik şablonlar
-├── users/                     # Aktif kullanıcı profil dosyaları (sistem istemine derlenir)
-└── tests/                     # 968 birim testi ve regresyon fikstürleri
+apps/web/            Next.js 16 ön yüz (statik çıktı, PWA)
+functions/           Cloud Functions: api, alfredCallable, scheduledMorningBriefing
+src/ai/              sağlayıcıdan bağımsız LLM katmanı, yedek zinciri, araçlar
+src/alfred/          bilişsel katman (bağlam, hafıza), kontrol ve yürütme katmanları
+src/data/            Firestore depoları, vektör deposu, embedding'ler
+scripts/             relay daemon, yedekler, reindex, profil üretici, kurulum sunucusu
+crates/alfred-setup/ Rust ile yazılmış terminal kurulum sihirbazı
+crates/setup-core/   doğrulayıcıları ve kurulum betiği üreticisi
+templates/ · users/  profil şablonları ve sahibin profili (çalışırken salt okunur)
+tests/               birim, entegrasyon ve diferansiyel testler
 ```
 
----
+</details>
 
 ## Belgeler
 
-- 🧠 [Asistan ve Yanıt Kılavuzu](docs/persona/ALFRED_PERSONA.md): Üslup, dürüstlük, itiraz ve yanıt uzunluğu kuralları.
-- 🏛️ [Sistem Mimarisi](docs/ARCHITECTURE.md): Katmanlar, veri akışı ve bellek modeli.
-- 🗺️ [Yol Haritası](docs/FEATURE_ROADMAP.md): Tamamlanan aşamalar ve sıradaki yetenekler.
-- 💻 [Web Arayüzü Mimarisi](docs/web/ALFRED_PLAYGROUND.md): UI bileşenleri, API entegrasyonu ve durum yönetimi.
-- 🛡️ [Operasyon & Çalıştırma](docs/OPERATIONS.md): Cloud Monitoring uyarıları, kota yönetimi ve Türkçe runbook.
+- [Persona tanımı](docs/persona/ALFRED_PERSONA.md): ton, dürüstlük, itiraz ve yanıt uzunluğu.
+- [Mimari](docs/ARCHITECTURE.md): depolama katmanları, değişmezler ve hata alanları.
+- [Production iç yapısı](docs/PRODUCTION_INTERNALS.md): SSE sözleşmesi, hız limiti politikası, yedekleme, kimlik doğrulama ve fonksiyon paketi.
+- [Operasyon](docs/OPERATIONS.md): alarm politikaları, eşikler ve Türkçe runbook.
+- [Yol haritası](docs/FEATURE_ROADMAP.md) ve [web uygulaması](docs/web/ALFRED_PLAYGROUND.md).
 
----
+## Katkı
 
-## Topluluk & Katkıda Bulunma
-
-Katkılarınızı memnuniyetle karşılıyoruz! Lütfen bir çekme isteği (PR) açmadan önce topluluk belgelerimizi inceleyin:
-
-- 🤝 [Katkı Kılavuzu (Contributing)](CONTRIBUTING.md): Geliştirme akışı, katı tip kontrolü ve dal kuralları.
-- 📜 [Davranış Kuralları (Code of Conduct)](CODE_OF_CONDUCT.md): Saygılı ve kapsayıcı açık kaynak topluluk standartları.
-- 🔒 [Güvenlik Politikası (Security Policy)](SECURITY.md): Zafiyet bildirim süreçleri ve savunma mimarisi.
-
----
+Pull request açmadan önce [katkı rehberini](CONTRIBUTING.md), [davranış kurallarını](CODE_OF_CONDUCT.md) ve [güvenlik politikasını](SECURITY.md) oku.
 
 ## Lisans
 
-Bu proje [MIT Lisansı](LICENSE) altında lisanslanmıştır. © 2026 Barış Salih Babacan.
+[MIT](LICENSE) © 2026 Barış Salih Babacan.
+
+<sub>Neden Alfred? *"Çünkü BATMAN'i seviyorum ve ben BATMAN'im."* 🦇</sub>

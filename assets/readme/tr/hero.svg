@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" role="img" aria-labelledby="title desc">
+  <title id="title">Alfred: kendi Firebase'inde çalışan kendi AI asistanın</title>
+  <desc id="desc">Solda Alfred adı ve vaadi ile EVREN, Groq, Gemini sohbet zinciri; sağda tek bir sohbet turunun tarayıcıya ulaşan sunucu olayları: start, tool_call get_current_time, tool_result, chunk, done ve yanıt: Londra 14:03, Tokyo 22:03, Sidney 23:03.</desc>
+
+  <defs>
+    <radialGradient id="glow" cx="0.78" cy="0.42" r="0.55">
+      <stop offset="0" stop-color="#c5a059" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#c5a059" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1200" height="600" rx="28" fill="#171717"/>
+  <rect width="1200" height="600" rx="28" fill="url(#glow)"/>
+
+  <g id="title-block" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif">
+    <text x="64" y="100" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" letter-spacing="2.5" fill="#c5a059">KENDİ BULUTUNDA  ·  TEK KULLANICI  ·  MIT</text>
+    <text x="58" y="206" font-size="116" font-weight="700" letter-spacing="-4" fill="#ececec">Alfred</text>
+
+    <text x="64" y="264" font-size="32" font-weight="600" fill="#ececec">Kendi AI asistanın,</text>
+    <text x="64" y="304" font-size="32" font-weight="600" fill="#ececec">kendi Firebase'inde.</text>
+
+    <text x="64" y="352" font-size="21" fill="#b4b4b4">Önemli olanı hatırlar; takvimini, e-postanı,</text>
+    <text x="64" y="382" font-size="21" fill="#b4b4b4">repolarını ve ev sunucunu yönetir; ücretsiz</text>
+    <text x="64" y="412" font-size="21" fill="#b4b4b4">bir model tıkandığında da cevap vermeyi sürdürür.</text>
+
+    <text x="64" y="464" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" letter-spacing="1.5" fill="#8e8e8e">SOHBET ZİNCİRİ · İLK TOKEN'DAN ÖNCE GEÇİŞ</text>
+    <g id="chain" font-size="18" font-weight="600" text-anchor="middle">
+      <rect x="64" y="480" width="104" height="36" rx="18" fill="#212121" stroke="#c5a059" stroke-width="1.5"/>
+      <text x="116" y="504" fill="#e6c887">EVREN</text>
+      <text x="188" y="504" font-weight="400" fill="#737373">→</text>
+      <rect x="208" y="480" width="88" height="36" rx="18" fill="#212121" stroke="#3a3a3a" stroke-width="1.5"/>
+      <text x="252" y="504" fill="#ececec">Groq</text>
+      <text x="316" y="504" font-weight="400" fill="#737373">→</text>
+      <rect x="336" y="480" width="108" height="36" rx="18" fill="#212121" stroke="#3a3a3a" stroke-width="1.5"/>
+      <text x="390" y="504" fill="#ececec">Gemini</text>
+    </g>
+
+    <text x="64" y="556" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#b4b4b4"><tspan fill="#c5a059">araçlar </tspan>gmail · takvim · görevler · github · web · ssh</text>
+  </g>
+
+  <g id="live-turn" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif">
+    <rect x="650" y="56" width="486" height="488" rx="22" fill="#212121" stroke="#2f2f2f" stroke-width="1.5"/>
+    <circle cx="684" cy="87" r="5" fill="#c5a059"/>
+    <text x="698" y="92" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" letter-spacing="1.5" fill="#8e8e8e">BİR TUR, TARAYICININ GÖRDÜĞÜ GİBİ</text>
+
+    <rect x="812" y="112" width="300" height="76" rx="18" fill="#2f2f2f"/>
+    <text x="1090" y="143" font-size="19" text-anchor="end" fill="#ececec">Londra, Tokyo ve Sidney'de</text>
+    <text x="1090" y="171" font-size="19" text-anchor="end" fill="#ececec">saat kaç?</text>
+
+    <g id="sse-wire" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+      <line x1="694" y1="222" x2="694" y2="424" stroke="#c5a059" stroke-width="2" stroke-opacity="0.55"/>
+      <circle cx="694" cy="226" r="6" fill="#c5a059"/>
+      <text x="714" y="232" font-size="17" fill="#e6c887">start</text>
+      <text x="850" y="232" font-size="16" fill="#8e8e8e">groq · gpt-oss-120b</text>
+
+      <circle cx="694" cy="270" r="6" fill="#c5a059"/>
+      <text x="714" y="276" font-size="17" fill="#e6c887">tool_call</text>
+      <text x="850" y="276" font-size="16" fill="#ececec">get_current_time</text>
+      <text x="714" y="300" font-size="15" fill="#737373">{"cities":["Londra","Tokyo","Sidney"]}</text>
+
+      <circle cx="694" cy="332" r="6" fill="#c5a059"/>
+      <text x="714" y="338" font-size="17" fill="#e6c887">tool_result</text>
+      <text x="850" y="338" font-size="16" fill="#8e8e8e">3 sonuç</text>
+
+      <circle cx="694" cy="376" r="6" fill="#c5a059"/>
+      <text x="714" y="382" font-size="17" fill="#e6c887">chunk</text>
+      <text x="850" y="382" font-size="16" fill="#8e8e8e">token'lar akıyor</text>
+
+      <circle cx="694" cy="420" r="6" fill="#10b981"/>
+      <text x="714" y="426" font-size="17" fill="#10b981">done</text>
+      <text x="850" y="426" font-size="16" fill="#8e8e8e">kaydedildi, sonra hafıza</text>
+    </g>
+
+    <rect x="690" y="456" width="3" height="54" rx="1.5" fill="#c5a059"/>
+    <text x="710" y="478" font-size="19" fill="#ececec">Londra 14:03, Tokyo 22:03, Sidney 23:03.</text>
+    <text x="710" y="502" font-size="16" fill="#8e8e8e">tek araç çağrısı · yaz saati çözüldü</text>
+  </g>
+</svg>

@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" role="img" aria-labelledby="title desc">
+  <title id="title">Anatomy of one Alfred chat turn</title>
+  <desc id="desc">The server-sent events of one POST /chat turn on a timeline: start, thinking, tool_call, tool_result, chunk, done, then memory extraction after done. Until the first chunk, a rate limit or error restarts the whole turn on the next provider (EVREN, Groq, Gemini); after the first chunk the provider is fixed.</desc>
+
+  <rect width="1200" height="600" rx="28" fill="#171717"/>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif">
+    <text x="64" y="66" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" letter-spacing="2" fill="#c5a059">ANATOMY OF A TURN  ·  POST /chat  ·  text/event-stream</text>
+
+    <g id="zones">
+      <rect x="64" y="96" width="566" height="118" rx="16" fill="#c5a059" fill-opacity="0.06" stroke="#c5a059" stroke-opacity="0.6" stroke-width="1.5" stroke-dasharray="6 6"/>
+      <text x="88" y="128" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" letter-spacing="1.5" fill="#c5a059">FAILOVER ZONE</text>
+      <text x="88" y="160" font-size="20" fill="#ececec">A 429 or an error here restarts the whole turn</text>
+      <text x="88" y="190" font-size="20" fill="#ececec">on the next provider: EVREN → Groq → Gemini.</text>
+
+      <rect x="652" y="96" width="330" height="118" rx="16" fill="#212121" stroke="#3a3a3a" stroke-width="1.5"/>
+      <text x="676" y="128" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" letter-spacing="1.5" fill="#8e8e8e">COMMITTED</text>
+      <text x="676" y="160" font-size="20" fill="#ececec">First token sent:</text>
+      <text x="676" y="190" font-size="20" fill="#ececec">no more switching.</text>
+
+      <text x="1080" y="128" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" letter-spacing="1.5" text-anchor="middle" fill="#10b981">AFTER done</text>
+      <text x="1080" y="160" font-size="18" text-anchor="middle" fill="#b4b4b4">connection</text>
+      <text x="1080" y="184" font-size="18" text-anchor="middle" fill="#b4b4b4">stays open</text>
+    </g>
+
+    <g id="wire">
+      <line x1="80" y1="292" x2="980" y2="292" stroke="#c5a059" stroke-width="3" stroke-opacity="0.7"/>
+      <line x1="980" y1="292" x2="1120" y2="292" stroke="#10b981" stroke-width="3" stroke-dasharray="8 7" stroke-opacity="0.8"/>
+    </g>
+
+    <g id="stations" text-anchor="middle">
+      <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18">
+        <text x="112" y="268" fill="#e6c887">start</text>
+        <text x="250" y="268" fill="#e6c887">thinking</text>
+        <text x="400" y="268" fill="#e6c887">tool_call</text>
+        <text x="560" y="268" fill="#e6c887">tool_result</text>
+        <text x="730" y="268" fill="#e6c887">chunk</text>
+        <text x="890" y="268" fill="#10b981">done</text>
+        <text x="1080" y="268" fill="#10b981">memory</text>
+      </g>
+
+      <circle cx="112" cy="292" r="9" fill="#c5a059"/>
+      <circle cx="250" cy="292" r="9" fill="#c5a059"/>
+      <circle cx="400" cy="292" r="9" fill="#c5a059"/>
+      <circle cx="560" cy="292" r="9" fill="#c5a059"/>
+      <circle cx="730" cy="292" r="9" fill="#c5a059"/>
+      <circle cx="890" cy="292" r="9" fill="#10b981"/>
+      <circle cx="1080" cy="292" r="9" fill="#171717" stroke="#10b981" stroke-width="3"/>
+
+      <g font-size="18" fill="#b4b4b4">
+        <text x="112" y="332">auth passes,</text>
+        <text x="112" y="356">model picked</text>
+        <text x="250" y="332">prompt and</text>
+        <text x="250" y="356">memories sent</text>
+        <text x="400" y="332">model asks</text>
+        <text x="400" y="356">for a tool</text>
+        <text x="560" y="332">result goes</text>
+        <text x="560" y="356">back to model</text>
+        <text x="730" y="332">tokens reach</text>
+        <text x="730" y="356">the screen</text>
+        <text x="890" y="332">reply saved,</text>
+        <text x="890" y="356">composer free</text>
+        <text x="1080" y="332">facts kept,</text>
+        <text x="1080" y="356">secrets dropped</text>
+      </g>
+    </g>
+
+    <g id="tool-loop">
+      <path d="M560 376 C 560 420, 400 420, 400 384" fill="none" stroke="#c5a059" stroke-opacity="0.6" stroke-width="2"/>
+      <path d="M393 392 L400 378 L407 392" fill="none" stroke="#c5a059" stroke-opacity="0.6" stroke-width="2" stroke-linejoin="round"/>
+      <text x="480" y="440" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" text-anchor="middle" fill="#8e8e8e">repeat while tools are needed</text>
+    </g>
+
+    <line x1="64" y1="470" x2="1136" y2="470" stroke="#2f2f2f" stroke-width="1.5"/>
+
+    <g id="wire-examples">
+      <text x="64" y="504" font-size="17" fill="#8e8e8e">What the browser receives on a switch:</text>
+      <text x="64" y="534" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#ececec">data: {"type":"provider_fallback","from":"evren","to":"groq"}</text>
+      <text x="760" y="504" font-size="17" fill="#8e8e8e">And at the end:</text>
+      <text x="760" y="534" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#ececec">data: {"type":"done"}</text>
+      <text x="64" y="568" font-size="16" fill="#737373">The client ignores event types it does not know, so new ones can ship without breaking old tabs.</text>
+    </g>
+  </g>
+</svg>

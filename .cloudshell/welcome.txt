@@ -1,0 +1,9 @@
+
+  Alfred Setup
+  ------------
+  Start the setup wizard:      bash .cloudshell/start.sh
+  Kurulum sihirbazini baslat:  bash .cloudshell/start.sh
+
+  Tip: in the tutorial on the right, click the Cloud Shell icon next to the
+  command; it is typed here for you. Then press Enter.
+

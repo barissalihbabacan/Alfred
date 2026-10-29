@@ -2,7 +2,7 @@
 
 ## Start the wizard
 
-Click the command below to paste it into the terminal, then press **Enter**:
+Click the **Cloud Shell icon** next to the command below: it is typed into the terminal for you. Then press **Enter**.
 
 ```bash
 bash .cloudshell/start.sh

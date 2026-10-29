@@ -29,7 +29,7 @@ It is also a complete, production-tested reference for building one: streaming, 
 ## Deploy your own
 
 <p align="center">
-  <a href="https://ssh.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https://github.com/barissalihbabacan/Alfred&cloudshell_tutorial=.cloudshell/tutorial.md"><img src="./assets/readme/setup-button.svg" width="320" alt="Launch Alfred Setup (opens in Google Cloud Shell)"></a>
+  <a href="https://ssh.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https://github.com/barissalihbabacan/Alfred&cloudshell_tutorial=.cloudshell/tutorial.md&cloudshell_print=.cloudshell/welcome.txt"><img src="./assets/readme/setup-button.svg" width="320" alt="Launch Alfred Setup (opens in Google Cloud Shell)"></a>
 </p>
 
 <p align="center">
@@ -38,7 +38,7 @@ It is also a complete, production-tested reference for building one: streaming, 
 
 **Alfred Setup** is a terminal wizard written in Rust. It runs in Google Cloud Shell, so there is nothing to install on your machine. You need a Google account with a billing account (Cloud Functions require Firebase's Blaze plan) and whichever model keys you have; every key is optional and can be added later.
 
-1. Click **Launch Alfred Setup**. Cloud Shell clones this repository and opens a short tutorial: click its command, `bash .cloudshell/start.sh`, press **Enter**, and sign in or **Authorize** if asked. The wizard starts in the terminal.
+1. Click **Launch Alfred Setup**. Cloud Shell clones this repository and opens a short tutorial: click the Cloud Shell icon next to its command, `bash .cloudshell/start.sh`, which types it into the terminal, press **Enter**, and sign in or **Authorize** if asked. The wizard starts in the terminal.
 2. Enter a project ID (or press Ctrl+G for one), pick the billing account and the Firestore region, then your name, your Google account and the API keys you have.
 3. Press **Enter** on the review screen. The live log shows each step, from the project to the deploy.
 4. Finish the console steps the wizard lists at the end, such as enabling Google sign-in, then open `https://<project-id>.web.app`.

@@ -2,6 +2,7 @@
 // functions/lib/index.js icine paketler (functions/build.js).
 import { cosineSimilarity } from "../src/data/vector/cosine-similarity.js";
 import { generateDeterministicTitle } from "../src/data/firestore/conversation-title.js";
+import { PROFILE_OWNER } from "../src/alfred/cognitive/context/profile-owner.js";
 import {
   GET_CURRENT_TIME_TOOL_DEFINITION as TIME_TOOL_DEFINITION,
   runGetCurrentTimeTool
@@ -110,6 +111,20 @@ const ALLOWED_EMAIL = (process.env.ALLOWED_EMAIL || "").toLowerCase().trim();
 const ENFORCE_APP_CHECK =
   process.env.ENFORCE_APP_CHECK !== "false" && !process.env.FUNCTIONS_EMULATOR;
 
+// Ollama yalnizca OLLAMA_BASE_URL verilmisse kullanilir (functions/.env.<proje>).
+// Bos ise: /health onu yoklamaz, embedding ve bellek cikarimi onu atlar.
+function ollamaBaseUrl() {
+  return (process.env.OLLAMA_BASE_URL || "").trim();
+}
+
+// Web istemcisi redirectUri'yi her zaman kendi origin'inden gonderir; bu yalnizca
+// eksik geldiginde kullanilir. Proje, Functions calisma ortaminin verdigi
+// GCLOUD_PROJECT'ten gelir (sabit bir proje adi yok).
+function defaultGoogleRedirectUri() {
+  const projectId = (process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "").trim();
+  return projectId ? `https://${projectId}.web.app/auth/google/callback` : "";
+}
+
 // Izleme icin token'siz erisilebilen yollar: saglik kontrolu ve kok.
 function isAppCheckExempt(path) {
   return path.endsWith("/health") || path === "/" || path === "" || path === "/api" || path === "/api/";
@@ -197,7 +212,7 @@ async function getEmbedding(text, ollamaUrl, geminiKey) {
 }
 
 /**
- * Dispatches a server command to the Firestore command queue, where Barış's
+ * Dispatches a server command to the Firestore command queue, where the owner's
  * home server relay daemon (alfred-relay) picks it up, validates and executes it
  * locally on the home server, and writes back the structured output.
  */
@@ -211,7 +226,7 @@ async function dispatchServerCommandViaRelay(db, { host, command, args, userId }
 
   const TIMEOUT_MS = 20000;
   const docRef = await db.collection("server_commands").add({
-    userId: userId || "user_baris",
+    userId: userId || "owner",
     host: targetHost,
     command,
     args: (args && typeof args === "object" && !Array.isArray(args)) ? args : {},
@@ -411,10 +426,11 @@ export const api = onRequest({
       gemini: gizliOku(GEMINI_API_KEY, "GEMINI_API_KEY")
     };
 
-    // Only the Ollama path probes Ollama; it has no fallback.
+    // Only the Ollama path probes Ollama; it has no fallback. Without
+    // OLLAMA_BASE_URL it counts as unreachable (activeProvider "offline").
     let ollamaReachable = false;
-    if (llmProvider !== "groq") {
-      const ollamaUrl = process.env.OLLAMA_BASE_URL || "https://ollama.example.invalid";
+    const ollamaUrl = ollamaBaseUrl();
+    if (llmProvider !== "groq" && ollamaUrl) {
       try {
         const resp = await fetch(`${ollamaUrl.replace(/\/+$/, "")}/api/tags`, {
           signal: AbortSignal.timeout(4000)
@@ -630,7 +646,11 @@ export const api = onRequest({
         res.status(503).json({ error: "Google OAuth is not configured on the server." });
         return;
       }
-      const redirectUri = (req.query?.redirectUri || "https://butler-alfred.web.app/auth/google/callback").toString();
+      const redirectUri = (req.query?.redirectUri || defaultGoogleRedirectUri()).toString();
+      if (!redirectUri) {
+        res.status(400).json({ error: "'redirectUri' is required." });
+        return;
+      }
       const state = Buffer.from(JSON.stringify({ userId, redirectUri, timestamp: Date.now() })).toString("base64url");
       const url = buildGoogleAuthUrl(googleClientId, redirectUri, state);
       res.status(200).json({ success: true, url });
@@ -646,7 +666,11 @@ export const api = onRequest({
           return;
         }
 
-        const safeRedirectUri = redirectUri || "https://butler-alfred.web.app/auth/google/callback";
+        const safeRedirectUri = redirectUri || defaultGoogleRedirectUri();
+        if (!safeRedirectUri) {
+          res.status(400).json({ error: "'redirectUri' is required." });
+          return;
+        }
         const tokens = await exchangeCodeForTokens({
           code,
           clientId: googleClientId,
@@ -1075,7 +1099,7 @@ export const api = onRequest({
         }
 
         const geminiKey = gizliOku(GEMINI_API_KEY, "GEMINI_API_KEY");
-        const ollamaUrl = process.env.OLLAMA_BASE_URL || "https://ollama.example.invalid";
+        const ollamaUrl = ollamaBaseUrl();
         const tally = createMemoryWriteTally();
         const normalizedAction = action === "supersede" ? "supersede" : "create";
         const normalizedType = typeof memoryType === "string" && memoryType.trim()
@@ -1201,7 +1225,7 @@ export const api = onRequest({
     const tavilyKey = gizliOku(TAVILY_API_KEY, "TAVILY_API_KEY");
     const webSearchEnabled = isUsableApiKey(tavilyKey);
     const githubToken = process.env.GITHUB_TOKEN || "";
-    const ollamaUrl = process.env.OLLAMA_BASE_URL || "https://ollama.example.invalid";
+    const ollamaUrl = ollamaBaseUrl();
     const ollamaModel = process.env.OLLAMA_MODEL || "gemma4:12b-mlx";
 
     let convId = requestedConvId;
@@ -1621,7 +1645,7 @@ export const api = onRequest({
         });
     };
 
-    // Home server araçları: Barış'ın ev sunucusundaki alfred-relay arka plan
+    // Home server araçları: sahibin ev sunucusundaki alfred-relay arka plan
     // servisi Firestore üzerinden güvenli şekilde komutları koşturur.
     const activeTools = [
       TIME_TOOL_DEFINITION,
@@ -1789,6 +1813,9 @@ export const api = onRequest({
             requestBody.tools = activeTools;
           }
 
+          if (!ollamaUrl) {
+            throw new Error("Ollama is selected (ALFRED_LLM_PROVIDER=ollama) but OLLAMA_BASE_URL is not set.");
+          }
           llmMetrics.llm_calls++;
           llmMetrics.attempted_providers = [primary.id];
           const ollamaRes = await fetch(`${ollamaUrl.replace(/\/+$/, "")}/api/chat`, {
@@ -1975,7 +2002,7 @@ export const alfredCallable = onCall(
 );
 
 /**
- * Executes an automated multi-step morning briefing turn for Barış:
+ * Executes an automated multi-step morning briefing turn for the owner:
  * 1. Resolves Google tokens, GitHub token, and chat providers.
  * 2. Prepares active tools: Time, Calendar, Tasks, Gmail, GitHub, and Home Server.
  * 3. Builds a dedicated morning briefing prompt for the LLM.
@@ -2186,7 +2213,7 @@ async function executeMorningBriefing(userId) {
       await getMessaging().send({
         token: targetToken,
         notification: {
-          title: "🌅 Günaydın Barış — Sabah Brifingin Hazır",
+          title: PROFILE_OWNER.name ? `🌅 Günaydın ${PROFILE_OWNER.name} — Sabah Brifingin Hazır` : "🌅 Günaydın — Sabah Brifingin Hazır",
           body: teaser
         },
         data: {

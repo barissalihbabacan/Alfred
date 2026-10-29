@@ -116,11 +116,11 @@ describe("renderUserProfileBlock", () => {
 
   it("contains distinctive content from each users/*.md file", () => {
     // users/USER_PROFILE.md
-    expect(block).toContain("- Primary Languages: Turkish (Native), English (Fluent / Professional Working Proficiency)");
+    expect(block).toContain("- Primary Languages: TypeScript, JavaScript, Python");
     expect(block).toContain("3. Operational Quiet: Do not intrude with unsolicited conversational filler.");
     // users/PREFERENCES.md
     expect(block).toContain("- Conclusion First (Inverted Pyramid): State the primary answer");
-    expect(block).toContain('  - In Turkish: Address Barış as "Efendim" or "Barış Bey" with equal restraint.');
+    expect(block).toContain('  - In Turkish: Address Alex as "Efendim" with equal restraint.');
     // users/WORKING_STYLE.md
     expect(block).toContain("- Extend, Don't Compete: When an abstraction already exists");
     expect(block).toContain("Collaboration Contract with Alfred:");

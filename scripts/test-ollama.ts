@@ -36,7 +36,7 @@ async function runOllamaVerification(): Promise<void> {
   if (!health.reachable) {
     console.error(`\n✖ [Failed] Ollama server is unreachable at ${config.ollama.baseUrl}`);
     console.error(`  Details: ${health.error}`);
-    console.error("  Please ensure your Tailscale connection is active or check OLLAMA_BASE_URL.");
+    console.error("  Please check that Ollama is running and OLLAMA_BASE_URL points at it.");
     process.exit(1);
   }
 

@@ -18,9 +18,9 @@ describe("Canonical User Profile Layer", () => {
     expect(context).toBeDefined();
     expect(context.source).toBe("git");
     expect(context.sources.userProfile).toBe(fs.readFileSync(path.resolve(process.cwd(), "users/USER_PROFILE.md"), "utf8"));
-    expect(context.sources.userProfile).toContain("Barış Salih Babacan");
-    expect(context.sources.userProfile).toContain("Systems Architect");
-    expect(context.sources.preferences).toContain("British English");
+    expect(context.sources.userProfile).toContain("Alex Doe");
+    expect(context.sources.userProfile).toContain("Senior Software Engineer");
+    expect(context.sources.preferences).toContain("Conclusion First");
     expect(context.sources.workingStyle).toContain("vertical slices");
   });
 
@@ -56,7 +56,7 @@ describe("Canonical User Profile Layer", () => {
     const contextualPrompt = getAlfredSystemPrompt();
 
     expect(contextualPrompt).toContain("=== CANONICAL USER PROFILE (GIT AUTHORITATIVE) ===");
-    expect(contextualPrompt).toContain("- Barış Salih Babacan: Turkish native, fluent professional English.");
+    expect(contextualPrompt).toContain("- Alex Doe: Senior Software Engineer working on");
     expect(contextualPrompt).toContain("vertical slices");
     expect(contextualPrompt).toContain("- Push back on:");
   });
@@ -65,7 +65,7 @@ describe("Canonical User Profile Layer", () => {
     const prompt = getAlfredSystemPrompt();
 
     // Assistant anchors must remain present
-    expect(prompt).toContain("You are Alfred, Barış's personal AI assistant and software engineering partner.");
+    expect(prompt).toContain("You are Alfred, Alex's personal AI assistant and software engineering partner.");
     expect(prompt).toContain("an engineering peer, never a customer-service chatbot");
     expect(prompt).toContain("slang, emojis");
     expect(prompt).toContain("calmly and firmly push back");
@@ -74,7 +74,7 @@ describe("Canonical User Profile Layer", () => {
   it("5. should not allow user profile to replace or override the Alfred persona", () => {
     // Both sections must coexist with the persona preceding the profile
     const prompt = getAlfredSystemPrompt();
-    const personaIndex = prompt.indexOf("You are Alfred, Barış's personal AI assistant");
+    const personaIndex = prompt.indexOf("You are Alfred, Alex's personal AI assistant");
     const profileIndex = prompt.indexOf("=== CANONICAL USER PROFILE");
 
     expect(personaIndex).toBeGreaterThanOrEqual(0);
@@ -110,7 +110,7 @@ describe("Canonical User Profile Layer", () => {
     expect(serialized).not.toMatch(/AIza[0-9A-Za-z-_]{35}/);
     expect(serialized).not.toContain("GROQ_API_KEY");
     expect(serialized).not.toContain("password");
-    expect(serialized).not.toContain("100.64.0.53");
+    expect(serialized).not.toMatch(/\b\d{1,3}(?:\.\d{1,3}){3}\b/);
     expect(serialized).not.toMatch(/-----BEGIN [A-Z ]*PRIVATE KEY-----/);
   });
 

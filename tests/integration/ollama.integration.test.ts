@@ -3,17 +3,18 @@ import dotenv from "dotenv";
 import { OllamaProvider } from "../../src/ai/providers/ollama/ollama-provider.js";
 import { getAlfredSystemPrompt } from "../../src/ai/prompts/alfred-persona.js";
 import { OFFLINE } from "./prerequisites.js";
+import { DEFAULT_OLLAMA_BASE_URL } from "../../src/core/config/ai.config.js";
 
 dotenv.config();
 
-const baseUrl = process.env.OLLAMA_BASE_URL?.trim() || "http://100.64.0.53:11434";
+const baseUrl = process.env.OLLAMA_BASE_URL?.trim() || DEFAULT_OLLAMA_BASE_URL;
 const model = process.env.OLLAMA_MODEL?.trim() || "gemma4:12b-mlx";
 
-// Talks to a real Ollama server (default: the Tailscale MacBook). Never runs with
+// Talks to a real Ollama server (OLLAMA_BASE_URL, default http://localhost:11434). Never runs with
 // ALFRED_OFFLINE=1; otherwise it is skipped when the server is unreachable.
 describe.skipIf(OFFLINE)("Ollama API Live Integration Tests", () => {
   it(
-    "should connect to live Tailscale Ollama server, verify health, and complete chat",
+    "should connect to a live Ollama server, verify health, and complete chat",
     async ({ skip }) => {
       const provider = new OllamaProvider({
         config: { baseUrl, defaultModel: model, timeoutMs: 60000 }

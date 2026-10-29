@@ -27,11 +27,18 @@ functions/lib/
 .env.test
 .env.production
 !.env.example
-!functions/.env.*
 .secret.local
+# Per-project Cloud Functions config (functions/.env.<projectId>, loaded by
+# `firebase deploy --project <projectId>`) belongs to each instance, not the
+# template; functions/.env.example documents the keys.
+functions/.env.*
+!functions/.env.example
 
 # Firebase credentials and cache
 .firebase/
+# Active project / aliases: each instance runs `firebase use <projectId>` (or
+# passes --project), so no project is committed.
+.firebaserc
 *-debug.log
 firebase-debug.log*
 firestore-debug.log*
@@ -100,3 +107,7 @@ firestore-backup*.json.gpg
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/
+
+# Owner-only local copies (e.g. a real users/ profile kept out of the template:
+# local/profile/). Never committed.
+/local/

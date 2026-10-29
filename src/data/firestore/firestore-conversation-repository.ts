@@ -32,8 +32,9 @@ export function getFirestoreDb(): Firestore {
   if (existingApps.length > 0 && existingApps[0]) {
     app = existingApps[0];
   } else {
-    // Check service account from environment or fallback to project ID
-    const projectId = process.env.FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT || "butler-alfred";
+    // Check service account from environment or fallback to project ID. With no
+    // project configured the Admin SDK detects it from the credentials.
+    const projectId = process.env.FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || undefined;
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
     const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
 
@@ -50,7 +51,7 @@ export function getFirestoreDb(): Firestore {
         projectId
       });
     } else {
-      app = initializeApp({ projectId });
+      app = initializeApp(projectId ? { projectId } : {});
     }
   }
 

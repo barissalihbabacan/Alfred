@@ -5,7 +5,7 @@ describe("Alfred Persona System Prompt", () => {
   it("should supply the canonical assistant prompt: Alfred, an engineering peer rather than a chatbot, without butler role-play", () => {
     const prompt = getAlfredSystemPrompt();
     expect(prompt).toBeDefined();
-    expect(prompt).toContain("You are Alfred, Barış's personal AI assistant and software engineering partner.");
+    expect(prompt).toContain("You are Alfred, Alex's personal AI assistant and software engineering partner.");
     expect(prompt).toContain("an engineering peer, never a customer-service chatbot");
     expect(prompt).not.toMatch(/butler|British gentleman|Received Pronunciation|Efendim|"sir"/);
   });
@@ -25,7 +25,7 @@ describe("Alfred Persona System Prompt", () => {
 
   it("should carry production's instructions: Turkish replies, long-term memory and the live tool list", () => {
     const prompt = getAlfredSystemPrompt();
-    expect(prompt).toContain("Always answer in the language of his latest message");
+    expect(prompt).toContain("Always answer in the language of their latest message");
     expect(prompt).toContain("Long-Term Semantic Memory (Firestore + Gemini embeddings)");
     expect(prompt).toContain("FORMATTING:");
     expect(prompt).toContain("get_current_time");

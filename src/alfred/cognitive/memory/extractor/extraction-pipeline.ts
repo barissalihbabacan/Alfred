@@ -21,6 +21,7 @@ import {
   buildMemoryExtractionUserPrompt,
   parseMemoryExtractionPayload
 } from "../../../../ai/prompts/memory-extraction.js";
+import { PROFILE_OWNER, ownerLabel } from "../../context/profile-owner.js";
 
 /**
  * How many earlier messages of the conversation the extraction model sees.
@@ -35,8 +36,11 @@ export const DEFAULT_EXTRACTION_MAX_MESSAGES = 10;
  */
 export const MEMORY_EXTRACTION_BUDGET_MS = 10_000;
 
-/** Whose facts are extracted; the prompt names him in the third person. */
-export const DEFAULT_EXTRACTION_USER_NAME = "Barış";
+/**
+ * Whose facts are extracted; the prompt names them in the third person. The
+ * owner named in users/USER_PROFILE.md ("the user" when it names nobody).
+ */
+export const DEFAULT_EXTRACTION_USER_NAME = ownerLabel(PROFILE_OWNER.name);
 
 /**
  * Messages that mean "don't store anything from this turn". Matched exactly

@@ -34,7 +34,6 @@ If you discover a security vulnerability in Alfred, please **do not** open a pub
 Instead, please report the vulnerability confidentially via:
 
 - **GitHub Private Vulnerability Reporting**: [Report a vulnerability](https://github.com/barissalihbabacan/Alfred/security/advisories/new)
-- **Email**: Directly contact the maintainer at [owner@example.invalid](mailto:owner@example.invalid) with the subject `[SECURITY] Alfred Vulnerability Report`.
 
 Please include:
 - A description of the vulnerability.

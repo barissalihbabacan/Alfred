@@ -3,13 +3,19 @@
  * scripts/init-profile.ts
  *
  * Interactive / programmatic generator that renders templates from `templates/`
- * into `users/` and `docs/persona/`.
+ * into `users/*.md` and the condensed profile digest the system prompt carries
+ * (`src/alfred/cognitive/context/user-profile.digest.md`, with its sha256
+ * lines), then regenerates `user-profile.generated.ts`.
+ *
+ * The committed users/*.md are this script's `--defaults` output (a neutral
+ * example profile, rendered with `--date 2026-10-29`); each installation
+ * renders its own.
  *
  * Usage:
  *   npx tsx scripts/init-profile.ts               # Interactive prompt
- *   npx tsx scripts/init-profile.ts --defaults    # Non-interactive with sensible defaults
+ *   npx tsx scripts/init-profile.ts --defaults    # Non-interactive with the neutral example defaults
  *   npx tsx scripts/init-profile.ts --dry-run     # Preview rendered output without writing
- *   npx tsx scripts/init-profile.ts --name "Barış" --full-name "Barış Salih Babacan" ...
+ *   npx tsx scripts/init-profile.ts --name "Ada" --full-name "Ada Lovelace" ...
  */
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -37,16 +43,16 @@ export interface ProfileAnswers {
 }
 
 export const DEFAULT_ANSWERS: ProfileAnswers = {
-  USER_NAME: "Barış",
-  USER_FULL_NAME: "Barış Salih Babacan",
-  USER_ROLE: "Systems Architect & Senior Software Engineer",
-  USER_DOMAIN: "High-performance distributed systems, agentic AI cognitive architectures, voice/audio engineering",
-  ENGINEERING_LEVEL: "Principal / Lead / Senior (Expert — no elementary tutorials or boilerplate needed)",
-  PRIMARY_LANGUAGES: "TypeScript, JavaScript (ESM), Node.js 22+, Python",
-  CORE_STACKS: "Next.js (App Router), React, Firebase (Hosting, Cloud Functions 2nd Gen, Firestore), Google Cloud, Tailwind CSS 4, Vector search, Groq, Ollama",
-  ARCHITECTURAL_ORIENTATION: "Vertical slices, single source of truth (SSOT), strict type safety, zero loose any, explicit error handling, minimal focused diffs",
+  USER_NAME: "Alex",
+  USER_FULL_NAME: "Alex Doe",
+  USER_ROLE: "Senior Software Engineer",
+  USER_DOMAIN: "web applications, cloud backends and AI-assisted tooling",
+  ENGINEERING_LEVEL: "Senior",
+  PRIMARY_LANGUAGES: "TypeScript, JavaScript, Python",
+  CORE_STACKS: "Next.js, React, Node.js, Firebase (Hosting, Cloud Functions, Firestore), Google Cloud",
+  ARCHITECTURAL_ORIENTATION: "Vertical slices, single source of truth, strict type safety, explicit error handling, minimal focused diffs",
   PREFERRED_ADDRESS_TR: "Efendim",
-  PREFERRED_ADDRESS_EN: "sir",
+  PREFERRED_ADDRESS_EN: "Alex",
   PUSHBACK_SCENARIOS: [
     "- **Destructive Operations**: Dropping production or staging databases, deleting collections, or running irreversible shell commands without backups.",
     "- **Security Hazards**: Hardcoded secrets, disabled authentication or authorization checks, bypassed TLS/HTTPS, or exposed service accounts.",
@@ -61,6 +67,8 @@ export interface TemplateMapping {
   destFile: string;
 }
 
+// docs/persona/ALFRED_PERSONA.md is the persona spec shared by every
+// installation (it addresses the user as {{USER_NAME}}), so it is not rendered.
 export const TEMPLATE_MAPPINGS: readonly TemplateMapping[] = [
   {
     templateFile: join(repoRoot, "templates", "USER_PROFILE.template.md"),
@@ -73,12 +81,11 @@ export const TEMPLATE_MAPPINGS: readonly TemplateMapping[] = [
   {
     templateFile: join(repoRoot, "templates", "WORKING_STYLE.template.md"),
     destFile: join(repoRoot, "users", "WORKING_STYLE.md")
-  },
-  {
-    templateFile: join(repoRoot, "templates", "ALFRED_PERSONA.template.md"),
-    destFile: join(repoRoot, "docs", "persona", "ALFRED_PERSONA.md")
   }
 ];
+
+export const DIGEST_TEMPLATE_FILE = join(repoRoot, "templates", "user-profile.digest.template.md");
+const DIGEST_PATH = join(repoRoot, "src", "alfred", "cognitive", "context", "user-profile.digest.md");
 
 export function renderTemplate(templateContent: string, answers: ProfileAnswers): string {
   let result = templateContent;
@@ -92,28 +99,18 @@ export function renderTemplate(templateContent: string, answers: ProfileAnswers)
 const sha256 = (text: string): string => createHash("sha256").update(text, "utf8").digest("hex");
 
 /**
- * Updates hash lines in `src/alfred/cognitive/context/user-profile.digest.md`
- * so the digest remains valid for the rendered `users/*.md` files.
+ * Renders the digest template for `answers` and records the sha256 of each
+ * rendered users/*.md file, so the digest is current for exactly those files.
  */
-export function updateDigestHashes(renderedFiles: Record<string, string>): void {
-  const digestPath = join(repoRoot, "src", "alfred", "cognitive", "context", "user-profile.digest.md");
-  if (!existsSync(digestPath)) return;
-
-  const content = readFileSync(digestPath, "utf8");
-  const lines = content.split("\n");
-  const updatedLines = lines.map((line) => {
-    const match = /^<!--\s*sha256\s+(\S+)\s+([0-9a-f]{64})\s*-->$/.exec(line.trim());
-    if (match) {
-      const filename = match[1];
-      const newContent = renderedFiles[filename];
-      if (newContent !== undefined) {
-        return `<!-- sha256 ${filename} ${sha256(newContent)} -->`;
-      }
-    }
-    return line;
-  });
-
-  writeFileSync(digestPath, updatedLines.join("\n"), "utf8");
+export function renderDigest(
+  digestTemplate: string,
+  answers: ProfileAnswers,
+  renderedUsersFiles: Record<string, string>
+): string {
+  const hashLines = Object.entries(renderedUsersFiles)
+    .map(([file, text]) => `<!-- sha256 ${file} ${sha256(text)} -->`)
+    .join("\n");
+  return renderTemplate(digestTemplate, answers).replace("{{DIGEST_HASHES}}", hashLines);
 }
 
 function parseCliArgs(): {
@@ -140,6 +137,7 @@ function parseCliArgs(): {
     else if (arg === "--architecture" && i + 1 < args.length) flags.ARCHITECTURAL_ORIENTATION = args[++i];
     else if (arg === "--address-tr" && i + 1 < args.length) flags.PREFERRED_ADDRESS_TR = args[++i];
     else if (arg === "--address-en" && i + 1 < args.length) flags.PREFERRED_ADDRESS_EN = args[++i];
+    else if (arg === "--date" && i + 1 < args.length) flags.GENERATED_DATE = args[++i];
   }
 
   return { flags, useDefaults, dryRun };
@@ -152,8 +150,10 @@ async function promptUser(): Promise<ProfileAnswers> {
   if (!isInteractive) {
     return {
       ...DEFAULT_ANSWERS,
+      // A given name is also the English form of address unless one is given.
+      ...(flags.USER_NAME ? { PREFERRED_ADDRESS_EN: flags.USER_NAME } : {}),
       ...flags,
-      GENERATED_DATE: new Date().toISOString().slice(0, 10)
+      GENERATED_DATE: flags.GENERATED_DATE || new Date().toISOString().slice(0, 10)
     };
   }
 
@@ -179,7 +179,7 @@ async function promptUser(): Promise<ProfileAnswers> {
     const coreStacks = await ask("7. Core Tech Stacks & Frameworks", DEFAULT_ANSWERS.CORE_STACKS);
     const archOrientation = await ask("8. Architectural Orientation / Core Principles", DEFAULT_ANSWERS.ARCHITECTURAL_ORIENTATION);
     const addressTr = await ask("9. Preferred Address in Turkish (e.g. Efendim, Bey, abi)", DEFAULT_ANSWERS.PREFERRED_ADDRESS_TR);
-    const addressEn = await ask("10. Preferred Address in English (e.g. sir, first-name)", DEFAULT_ANSWERS.PREFERRED_ADDRESS_EN);
+    const addressEn = await ask("10. Preferred Address in English (e.g. first name, sir)", userName);
 
     return {
       USER_NAME: userName,
@@ -223,10 +223,8 @@ export async function runInitProfile(): Promise<void> {
     const templateContent = readFileSync(mapping.templateFile, "utf8");
     const rendered = renderTemplate(templateContent, answers);
 
-    if (mapping.destFile.includes("/users/")) {
-      const basename = mapping.destFile.split("/").pop()!;
-      renderedUsersFiles[basename] = rendered;
-    }
+    const basename = mapping.destFile.split("/").pop();
+    if (basename) renderedUsersFiles[basename] = rendered;
 
     if (dryRun) {
       console.log(`[DRY-RUN] Would write ${mapping.destFile} (${rendered.length} bytes)`);
@@ -237,13 +235,17 @@ export async function runInitProfile(): Promise<void> {
     }
   }
 
-  if (!dryRun) {
-    // Keep user-profile.digest.md in sync with the new sha256 checksums
-    updateDigestHashes(renderedUsersFiles);
+  const digest = renderDigest(readFileSync(DIGEST_TEMPLATE_FILE, "utf8"), answers, renderedUsersFiles);
+  if (dryRun) {
+    console.log(`[DRY-RUN] Would write ${DIGEST_PATH} (${digest.length} bytes)`);
+  } else {
+    // The digest is what the system prompt carries; render it from the same answers.
+    writeFileSync(DIGEST_PATH, digest, "utf8");
+    console.log(`✓ Wrote ${DIGEST_PATH}`);
 
     // Regenerate src/alfred/cognitive/context/user-profile.generated.ts
     syncUserProfileSourcesModule();
-    console.log("✓ Synchronized user-profile.generated.ts and user-profile.digest.md hashes.");
+    console.log("✓ Regenerated user-profile.generated.ts.");
     console.log("\nProfile initialization complete!");
   }
 }

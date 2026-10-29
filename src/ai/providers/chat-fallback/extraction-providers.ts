@@ -24,7 +24,7 @@ export const DEFAULT_EVREN_EXTRACTION_MODEL = DEFAULT_EVREN_MODEL;
 
 export type ExtractionProviderId = "evren" | "groq" | "gemini" | "ollama";
 
-/** Ollama's extraction timeout (it runs on Barış's own machine, over Tailscale). */
+/** Ollama's extraction timeout (it is self-hosted, often on a home machine). */
 export const OLLAMA_EXTRACTION_TIMEOUT_MS = 30_000;
 
 /** An OpenAI-compatible extraction request (EVREN, Groq or Gemini). */

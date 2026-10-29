@@ -89,7 +89,7 @@ export class SSHPathSandbox {
         sanitized = withoutSlash;
       } else if (withoutSlash.startsWith("home/")) {
         const parts = withoutSlash.split("/");
-        // e.g. parts[0]='home', parts[1]='baris', parts[2]='Belgeler'
+        // e.g. parts[0]='home', parts[1]='alfred', parts[2]='Belgeler'
         if (parts.length >= 3 && parts[2] === SANDBOX_ROOT_NAME) {
           sanitized = parts.slice(2).join("/");
         } else {

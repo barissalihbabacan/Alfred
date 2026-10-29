@@ -178,7 +178,7 @@ describe("SSHExecuteTool Unit Suite", () => {
         "../../etc",
         "/etc",
         "/var/log",
-        "/home/baris",
+        "/home/alfred",
         "Belgeler/../.ssh",
         "Belgeler/%2e%2e/secret",
         "Belgeler/\0invalid"
@@ -253,7 +253,7 @@ describe("SSHExecuteTool Unit Suite", () => {
 
       expect(result.host).toBe("home-server");
       expect(result.command).toBe("current_directory");
-      expect(result.currentDirectory).toBe("/home/baris");
+      expect(result.currentDirectory).toBe("/home/alfred");
       expect(mockClient.execCalls).toEqual(["pwd"]);
     });
 
@@ -265,7 +265,7 @@ describe("SSHExecuteTool Unit Suite", () => {
 
       expect(result.host).toBe("home-server");
       expect(result.command).toBe("identity");
-      expect(result.user).toBe("baris");
+      expect(result.user).toBe("alfred");
       expect(mockClient.execCalls).toEqual(["whoami"]);
     });
 

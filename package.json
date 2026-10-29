@@ -1,5 +1,5 @@
 {
-  "name": "butler-alfred",
+  "name": "alfred",
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
@@ -28,7 +28,7 @@
   "keywords": [
     "ai-agent",
     "executive-assistant",
-    "butler-alfred"
+    "personal-assistant"
   ],
   "author": "Barış Babacan",
   "devDependencies": {

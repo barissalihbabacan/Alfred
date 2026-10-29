@@ -135,7 +135,7 @@ describe("OllamaProvider Unit Tests", () => {
   });
 
   it("5. handles connection failure correctly and maps to NetworkError", async () => {
-    const connErr = Object.assign(new Error("connect ECONNREFUSED 100.64.0.53:11434"), {
+    const connErr = Object.assign(new Error("connect ECONNREFUSED 127.0.0.1:11434"), {
       code: "ECONNREFUSED"
     });
     mockFetch.mockRejectedValueOnce(connErr);
@@ -212,7 +212,7 @@ describe("OllamaProvider Unit Tests", () => {
     const parsedBody = JSON.parse(mockFetch.mock.calls[0][1].body);
     expect(parsedBody.messages[0].role).toBe("system");
     expect(parsedBody.messages[0].content).toBe(canonicalPrompt);
-    expect(parsedBody.messages[0].content).toContain("You are Alfred, Barış's personal AI assistant");
+    expect(parsedBody.messages[0].content).toContain("You are Alfred, Alex's personal AI assistant");
   });
 
   describe("Health & Diagnostics", () => {

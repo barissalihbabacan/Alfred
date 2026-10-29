@@ -8,7 +8,7 @@ import { resolveAppCheckDebugToken } from "../../apps/web/lib/app-check-debug";
 
 describe("resolveAppCheckDebugToken", () => {
   it("never enables debug mode on the production site", () => {
-    for (const hostname of ["butler-alfred.web.app", "butler-alfred.firebaseapp.com", "example.com"]) {
+    for (const hostname of ["demo-alfred.web.app", "demo-alfred.firebaseapp.com", "example.com"]) {
       expect(resolveAppCheckDebugToken({ hostname, nodeEnv: "production", envToken: undefined })).toBeUndefined();
       expect(resolveAppCheckDebugToken({ hostname, nodeEnv: "production", envToken: "some-token" })).toBeUndefined();
     }
@@ -30,7 +30,7 @@ describe("resolveAppCheckDebugToken", () => {
 
   it("skips debug mode on an insecure origin (no crypto.randomUUID there)", () => {
     expect(resolveAppCheckDebugToken({ hostname: "192.168.1.5", nodeEnv: "development", envToken: undefined, secureContext: false })).toBeUndefined();
-    expect(resolveAppCheckDebugToken({ hostname: "100.108.234.65", nodeEnv: "development", envToken: "t", secureContext: false })).toBeUndefined();
+    expect(resolveAppCheckDebugToken({ hostname: "100.64.0.42", nodeEnv: "development", envToken: "t", secureContext: false })).toBeUndefined();
     expect(resolveAppCheckDebugToken({ hostname: "localhost", nodeEnv: "development", envToken: undefined, secureContext: true })).toBe(true);
   });
 });

@@ -21,7 +21,7 @@ Firebase Hosting ── /api/** rewrite ──►  Cloud Function 2nd Gen `api` 
                                         Groq API (openai/gpt-oss-120b)      ◄── default
                                           ↓ unavailable, nothing streamed yet
                                         Gemini (gemini-3.8-flash)
-                                        MacBook Ollama over Tailscale        ◄── only if ALFRED_LLM_PROVIDER=ollama
+                                        self-hosted Ollama (OLLAMA_BASE_URL) ◄── only if ALFRED_LLM_PROVIDER=ollama
                                             │  tool calls: get_current_time (the only tool offered;
                                             │  server access over SSH is not connected)
                                             ▼
@@ -55,13 +55,13 @@ The Cognitive Layer (`src/alfred/cognitive/`) represents Alfred's understanding 
 - **Attention** (planned): Prioritization focus, interrupt handling, and relevance filtering.
 
 ### Canonical User Profile Layer (`users/`)
-The `users/` directory represents Alfred's equivalent of a long-term local "disk" storing consciously authored, version-controlled knowledge about its primary user (Barış).
+The `users/` directory represents Alfred's equivalent of a long-term local "disk" storing consciously authored, version-controlled knowledge about its primary user (the owner named in `users/USER_PROFILE.md`).
 
 #### Tripartite Storage Model & Single Source of Truth (SSOT)
 Alfred rigorously separates storage responsibilities across three distinct tiers:
 
 1. **Git / Local Repository (`users/`) — Canonical Authored Truth**:
-   - Contains stable, consciously authored, version-controlled baseline knowledge about Barış (`USER_PROFILE.md`), communication preferences (`PREFERENCES.md`), and working style (`WORKING_STYLE.md`).
+   - Contains stable, consciously authored, version-controlled baseline knowledge about the owner (`USER_PROFILE.md`), communication preferences (`PREFERENCES.md`), and working style (`WORKING_STYLE.md`).
    - **Runtime Status**: Read-only. Alfred never commits, rewrites, or mutates these files at runtime.
      - The system prompt carries a **reviewed digest** of the files, not the files verbatim: `src/alfred/cognitive/context/user-profile.digest.md`, hand-written from them (~620 tokens instead of ~2,000). The digest keeps the facts and rules that change Alfred's answers and leaves out what the persona and governor already say. Its header records the sha256 of each `users/*.md` file it was written from.
      - In production, the files and the digest are embedded at build time. `npm run generate:user-profile` writes `src/alfred/cognitive/context/user-profile.generated.ts`, and a unit test fails if it drifts from `users/*.md`.
@@ -283,14 +283,14 @@ Alfred Cognitive Core
     ▼                              ▼                          ▼                  ▼
   Groq (Default, Cloud)       Ollama (Optional)          OpenAI (Planned)   Anthropic / Google (Planned)
  openai/gpt-oss-120b         gemma4:12b-mlx on the
- + Whisper STT adapter       MacBook via Tailscale
+ + Whisper STT adapter       a self-hosted machine
 ```
 
 - **Groq** (`src/ai/providers/groq/`):
   - The default provider (`ALFRED_LLM_PROVIDER=groq`, `GROQ_MODEL` defaults to `openai/gpt-oss-120b`), with streaming completions and tool calling.
   - Also carries a Whisper speech-to-text adapter (`whisper-large-v3-turbo`), which production does not use.
 - **Ollama** (`src/ai/providers/ollama/`):
-  - An optional local provider running `gemma4:12b-mlx` on the MacBook over the private Tailscale network.
+  - An optional self-hosted provider (default model `gemma4:12b-mlx`) at `OLLAMA_BASE_URL` (default `http://localhost:11434` in `src/`; no default in production, where unset disables it).
   - Supports native chat completions, NDJSON streaming, parameter mapping and health diagnostics.
   - Only in the request path when `ALFRED_LLM_PROVIDER=ollama`.
 - **Production chat fallback** (`src/ai/providers/chat-fallback/`, bundled into `functions/index.js`): Groq and Gemini (OpenAI-compatible endpoint) both speak the OpenAI Chat Completions streaming format, so one request builder, one SSE parser and one tool loop serve them. A turn moves to the next provider only while nothing has been streamed to the user; it then restarts from the user's message with a system prompt that names the new provider. Details and the failover matrix are in `docs/PRODUCTION_INTERNALS.md` (**Chat provider fallback**). This path does not go through `getAIProvider()`; the `src/` Groq/Ollama providers are unchanged.

@@ -287,7 +287,7 @@ describe("Gmail Tool", () => {
           mimeType: "multipart/alternative",
           headers: [
             { name: "From", value: "can@example.com" },
-            { name: "To", value: "owner@example.invalid" },
+            { name: "To", value: "owner@gmail.com" },
             { name: "Subject", value: "Proje Durumu" },
             { name: "Date", value: "Sat, 24 Oct 2026 15:30:00 +0300" }
           ],

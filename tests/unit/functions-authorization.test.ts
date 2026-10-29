@@ -141,6 +141,28 @@ describe("Backend Authorization & Production Config Validation", () => {
       ).toThrow("Missing mandatory Firebase configuration in production environment");
     });
 
+    it("throws when the config targets a different project than the deploy", () => {
+      expect(() =>
+        validateProductionFirebaseConfig({
+          apiKey: "test-api-key",
+          projectId: "demo-alfred",
+          appId: "test-app-id",
+          deployProjectId: "demo-other"
+        })
+      ).toThrow('NEXT_PUBLIC_FIREBASE_PROJECT_ID is "demo-alfred" but this build is being deployed to "demo-other"');
+    });
+
+    it("succeeds when the config matches the deploy project", () => {
+      expect(() =>
+        validateProductionFirebaseConfig({
+          apiKey: "test-api-key",
+          projectId: "demo-alfred",
+          appId: "test-app-id",
+          deployProjectId: "demo-alfred"
+        })
+      ).not.toThrow();
+    });
+
     it("succeeds when all mandatory fields are provided", () => {
       expect(() =>
         validateProductionFirebaseConfig({

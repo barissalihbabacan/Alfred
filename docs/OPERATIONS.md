@@ -1,6 +1,6 @@
 # Operations — alerting and runbook
 
-Production (`butler-alfred`: Hosting + the `api` / `alfredCallable` Cloud Functions v2 on Cloud Run, us-central1) is watched by Cloud Monitoring alert policies that email the owner. Everything is defined in the repository and applied with one script:
+Production (your Firebase project, `<your-project-id>` below: Hosting + the `api` / `alfredCallable` Cloud Functions v2 on Cloud Run, us-central1) is watched by Cloud Monitoring alert policies that email the owner. Everything is defined in the repository and applied with one script:
 
 ```
 scripts/monitoring/
@@ -59,10 +59,10 @@ Prerequisites: `gcloud` (GA components are enough; notification channels are cre
 
 ```bash
 # 1. Review what would happen (read-only lookups only, nothing is changed)
-./scripts/monitoring/setup-alerts.sh --project butler-alfred --email <owner email>
+./scripts/monitoring/setup-alerts.sh --project <your-project-id> --email <owner email>
 
 # 2. Apply
-./scripts/monitoring/setup-alerts.sh --project butler-alfred --email <owner email> --apply
+./scripts/monitoring/setup-alerts.sh --project <your-project-id> --email <owner email> --apply
 ```
 
 The script is idempotent: it reuses an existing email channel for the same address, updates metrics that already exist (`gcloud logging metrics update --config-from-file`) and updates policies it finds by display name + the `managed_by=alfred-setup-alerts` label (`gcloud monitoring policies update --policy-from-file`). A policy on a brand-new log metric can be rejected for a minute until Monitoring sees the metric; the script retries creation up to 6 times, 20 s apart. After changing a JSON file, re-run step 2.
@@ -72,8 +72,8 @@ Check delivery once: console → Monitoring → Alerting → *Edit notification 
 Remove everything again (policies with the label, the metrics in `metrics/`, and with `--delete-channels` the channel the script created):
 
 ```bash
-./scripts/monitoring/teardown-alerts.sh --project butler-alfred                       # dry run
-./scripts/monitoring/teardown-alerts.sh --project butler-alfred --apply --delete-channels
+./scripts/monitoring/teardown-alerts.sh --project <your-project-id>                       # dry run
+./scripts/monitoring/teardown-alerts.sh --project <your-project-id> --apply --delete-channels
 ```
 
 ## Cost
@@ -84,14 +84,14 @@ Figures as published on Google's pricing pages in Sep 2026 — check <https://cl
 - **Log-based metrics**: user-defined log metrics are chargeable Monitoring metrics, **$0.258/MiB** ingested after the **first 150 MiB per billing account per month**, which is free. These counters write a few points per minute only while errors happen; they stay far inside the free tier. Creating them does not add log volume (Cloud Logging ingestion is unchanged; its first 50 GiB/project/month are free).
 - **`run.googleapis.com/request_count`** is a free system metric. Email notifications are free.
 
-## Deploy failures and GitHub notifications
+## Deploy failures
 
-`deploy.yml` runs on pushes to `main` (in practice: merging a PR). When a workflow run fails, GitHub emails the **user who triggered it** — for a merge, the person who merged, i.e. the owner — as long as *Settings → Notifications → System → Actions* is set to email (default: "Only notify for failed workflows"). For a single-owner repository that is sufficient, so no notification step was added to the workflow (it would need a third-party secret such as an SMTP or Slack token). Two gaps it leaves, both covered here:
+The template has no deploy workflow: each instance is deployed by hand with `npx firebase-tools deploy --project <your-project-id> ...` (CLAUDE.md, Deployment), so a failure shows up in that terminal. Two gaps it leaves, both covered by the alerts:
 
-- a deploy that the Firebase CLI reports as failed only partially, or a manual `firebase deploy` from a laptop → **Alfred: Cloud Functions deploy failed** (activity audit log);
+- a deploy that the Firebase CLI reports as failed only partially → **Alfred: Cloud Functions deploy failed** (activity audit log);
 - a deploy that "succeeds" but whose new revision cannot start or crashes at runtime → **Alfred: function container failed to start** and **5xx**.
 
-Keep the GitHub email notifications on; if someone else starts merging, they receive the failure email instead of the owner.
+If you add your own deploy workflow, GitHub emails the user who triggered a failed run as long as *Settings → Notifications → System → Actions* is set to email.
 
 ## Firestore backups
 
@@ -101,9 +101,10 @@ Firestore has no scheduled backup enabled (it is billed; this is the free altern
 2. The dump is encrypted with the `BACKUP_PASSPHRASE` secret (gpg, AES-256) and the plaintext is shredded.
 3. Only the encrypted file is kept, as the artifact `firestore-backup-YYYY-MM-DD.json.gpg`, for **90 days** (about 13 weekly backups).
 
-**One-time setup:** create the passphrase secret and keep the passphrase somewhere safe outside GitHub (a password manager). Without it the backups cannot be opened.
+**One-time setup (opt-in):** the workflow skips with a notice until both secrets exist. `FIREBASE_SERVICE_ACCOUNT` is the JSON key of a service account of your project that can read Firestore (the project id is taken from the key); keep the passphrase somewhere safe outside GitHub (a password manager). Without it the backups cannot be opened.
 
 ```bash
+gh secret set FIREBASE_SERVICE_ACCOUNT < service-account.json
 gh secret set BACKUP_PASSPHRASE
 ```
 
@@ -117,24 +118,13 @@ The JSON is `{ format: "alfred-firestore-backup/1", projectId, createdAt, collec
 
 **Caveats:** artifacts are deleted after 90 days, so a backup older than that is gone. GitHub pauses scheduled workflows in a public repository after 60 days without repository activity; a push re-enables them (the run history shows when the last one ran).
 
-## Preview channel
-
-`.github/workflows/preview.yml` deploys the web app of every pull request that touches `apps/**` (or the package files / `firebase.json`) to the Hosting channel **`preview`** and comments its URL on the PR (`https://butler-alfred--preview-<hash>.web.app`). It is **UI only**: `/api/**` there still reaches the production `api` function and its data, so a preview shows real conversations. The channel is fixed so the URL stays the same; each deploy extends it by 30 days.
-
-**One-time setup** (after the first preview deploy prints the URL), otherwise Google sign-in fails (`auth/unauthorized-domain`) and App Check rejects the requests:
-
-1. Firebase console → Authentication → Settings → *Authorized domains* → add `butler-alfred--preview-<hash>.web.app`.
-2. Google Cloud console → Security → reCAPTCHA → the key used by App Check → *Domains* → add the same domain.
-
-Sign in once on the preview URL (sessions are per domain). If no PR deploys for 30 days the channel expires and the next one gets a new `<hash>`: repeat the two steps for the new URL.
-
 ## Runbook (Türkçe)
 
-Her uyarı e-postası konuyu ve başlangıç log sorgusunu içerir. Loglar: Cloud Console → Logging → Logs Explorer, proje `butler-alfred`. Terminalden salt-okur sorgu:
+Her uyarı e-postası konuyu ve başlangıç log sorgusunu içerir. Loglar: Cloud Console → Logging → Logs Explorer, proje `<your-project-id>`. Terminalden salt-okur sorgu:
 
 ```bash
 gcloud logging read 'jsonPayload.event="llm_request" AND jsonPayload.outcome="error"' \
-  --project=butler-alfred --freshness=1h --limit=20 --format=json
+  --project=<your-project-id> --freshness=1h --limit=20 --format=json
 ```
 
 ### Sohbet yanıtı verilemedi (CRITICAL)
@@ -158,7 +148,7 @@ Kullanıcı bir hata mesajı gördü; yedek zincir (Groq → Gemini) tükendi ya
 ### App Check istekleri reddediyor (ERROR)
 1. `jsonPayload.event="app_check"` kayıtlarında `outcome` ve `path`'e bakın. Kendi yerel geliştirme oturumunuzsa (`npm run dev:web` üretim API'sine karşı, debug token kayıtlı değil) bekleneni budur, yok sayın.
 2. Gerçek tarayıcıdan geliyorsa: reklam engelleyici reCAPTCHA'yı engelliyor olabilir; sayfayı yenileyin.
-3. `invalid` çoğalıyorsa Firebase Console → App Check → reCAPTCHA Enterprise anahtarının ve alan adlarının (`butler-alfred.web.app`) hâlâ geçerli olduğunu kontrol edin.
+3. `invalid` çoğalıyorsa Firebase Console → App Check → reCAPTCHA Enterprise anahtarının ve alan adlarının (`<your-project-id>.web.app`) hâlâ geçerli olduğunu kontrol edin.
 4. Acil durumda korumayı geçici kapatmak mümkündür: `ENFORCE_APP_CHECK=false` ile deploy (ID token + UID kontrolü yine devrededir). Sorun giderilince geri açın.
 
 ### Cloud Functions deploy başarısız (ERROR)

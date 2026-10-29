@@ -11,12 +11,21 @@ export function validateProductionFirebaseConfig(config: {
   apiKey?: string;
   projectId?: string;
   appId?: string;
+  /** Project the build is being deployed to (GCLOUD_PROJECT in firebase.json predeploy). */
+  deployProjectId?: string;
 }): void {
   if (!config.apiKey || !config.projectId || !config.appId) {
     throw new Error(
       "Missing mandatory Firebase configuration in production environment. " +
       "Ensure NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_PROJECT_ID, " +
-      "and NEXT_PUBLIC_FIREBASE_APP_ID are set."
+      "and NEXT_PUBLIC_FIREBASE_APP_ID are set (apps/web/.env.local, see apps/web/.env.example)."
+    );
+  }
+  const deployProjectId = (config.deployProjectId || "").trim();
+  if (deployProjectId && deployProjectId !== config.projectId) {
+    throw new Error(
+      `NEXT_PUBLIC_FIREBASE_PROJECT_ID is "${config.projectId}" but this build is being deployed to ` +
+      `"${deployProjectId}". Point apps/web/.env.local at the project you deploy to.`
     );
   }
 }
@@ -25,8 +34,12 @@ const apiKey = (process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "").trim();
 const projectId = (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "").trim();
 const appId = (process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "").trim();
 
+// In the browser a production bundle without config fails loudly instead of
+// talking to no project. At build time the check is opt-in
+// (VALIDATE_FIREBASE_CONFIG=true, set by the firebase.json hosting predeploy
+// hook), so CI can build the export without any project configured.
 if (process.env.NODE_ENV === "production" && (typeof window !== "undefined" || process.env.VALIDATE_FIREBASE_CONFIG === "true")) {
-  validateProductionFirebaseConfig({ apiKey, projectId, appId });
+  validateProductionFirebaseConfig({ apiKey, projectId, appId, deployProjectId: process.env.GCLOUD_PROJECT });
 }
 
 const defaultAuthDomain = projectId ? `${projectId}.firebaseapp.com` : "";

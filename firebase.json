@@ -20,6 +20,9 @@
   ],
   "hosting": {
     "public": "apps/web/out",
+    "predeploy": [
+      "VALIDATE_FIREBASE_CONFIG=true npm --prefix \"$PROJECT_DIR\" run build:web"
+    ],
     "cleanUrls": true,
     "ignore": [
       "firebase.json",

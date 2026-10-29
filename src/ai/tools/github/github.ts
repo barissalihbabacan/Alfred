@@ -120,7 +120,7 @@ export function parseGitHubArgs(args: unknown, defaultRepo?: string | null): Par
     return {
       error: obj.repo
         ? "`repo` must look like \"owner/name\"."
-        : "No repository given and the active project has no GitHub repository. Ask Barış which repository to use."
+        : "No repository given and the active project has no GitHub repository. Ask the user which repository to use."
     };
   }
   const path = cleanPath(obj.path);
@@ -331,7 +331,7 @@ async function getJson(url: string, options: GitHubOptions, signal: AbortSignal)
   const headers: Record<string, string> = {
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
-    "User-Agent": "butler-alfred"
+    "User-Agent": "alfred-assistant"
   };
   if (options.token) headers.Authorization = `Bearer ${options.token}`;
   const res = await options.fetch(url, { method: "GET", headers, signal });

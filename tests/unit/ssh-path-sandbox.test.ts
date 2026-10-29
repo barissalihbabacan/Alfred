@@ -66,8 +66,8 @@ describe("SSHPathSandbox Suite", () => {
         "/var/log",
         "/tmp",
         "/home",
-        "/home/baris",
-        "/home/baris/.ssh",
+        "/home/alfred",
+        "/home/alfred/.ssh",
         "/usr",
         "/bin",
         "/root"
@@ -115,35 +115,35 @@ describe("SSHPathSandbox Suite", () => {
   });
 
   describe("isRealpathContained", () => {
-    const sandboxRoot = "/home/baris/Belgeler";
+    const sandboxRoot = "/home/alfred/Belgeler";
 
     it("returns true when target is identical to sandbox root", () => {
-      expect(SSHPathSandbox.isRealpathContained("/home/baris/Belgeler", sandboxRoot)).toBe(true);
-      expect(SSHPathSandbox.isRealpathContained("/home/baris/Belgeler/", sandboxRoot)).toBe(true);
+      expect(SSHPathSandbox.isRealpathContained("/home/alfred/Belgeler", sandboxRoot)).toBe(true);
+      expect(SSHPathSandbox.isRealpathContained("/home/alfred/Belgeler/", sandboxRoot)).toBe(true);
     });
 
     it("returns true for descendants inside the sandbox root", () => {
-      expect(SSHPathSandbox.isRealpathContained("/home/baris/Belgeler/project", sandboxRoot)).toBe(true);
-      expect(SSHPathSandbox.isRealpathContained("/home/baris/Belgeler/project/src", sandboxRoot)).toBe(true);
-      expect(SSHPathSandbox.isRealpathContained("/home/baris/Belgeler/notes.txt", sandboxRoot)).toBe(true);
+      expect(SSHPathSandbox.isRealpathContained("/home/alfred/Belgeler/project", sandboxRoot)).toBe(true);
+      expect(SSHPathSandbox.isRealpathContained("/home/alfred/Belgeler/project/src", sandboxRoot)).toBe(true);
+      expect(SSHPathSandbox.isRealpathContained("/home/alfred/Belgeler/notes.txt", sandboxRoot)).toBe(true);
     });
 
     it("returns false for targets outside the sandbox root", () => {
       expect(SSHPathSandbox.isRealpathContained("/etc", sandboxRoot)).toBe(false);
       expect(SSHPathSandbox.isRealpathContained("/etc/passwd", sandboxRoot)).toBe(false);
-      expect(SSHPathSandbox.isRealpathContained("/home/baris", sandboxRoot)).toBe(false);
-      expect(SSHPathSandbox.isRealpathContained("/home/baris/.ssh", sandboxRoot)).toBe(false);
+      expect(SSHPathSandbox.isRealpathContained("/home/alfred", sandboxRoot)).toBe(false);
+      expect(SSHPathSandbox.isRealpathContained("/home/alfred/.ssh", sandboxRoot)).toBe(false);
       expect(SSHPathSandbox.isRealpathContained("/tmp", sandboxRoot)).toBe(false);
     });
 
-    it("returns false for prefix collisions (e.g. /home/baris/Belgeler-other)", () => {
-      expect(SSHPathSandbox.isRealpathContained("/home/baris/Belgeler-other", sandboxRoot)).toBe(false);
-      expect(SSHPathSandbox.isRealpathContained("/home/baris/Belgeler_backup", sandboxRoot)).toBe(false);
+    it("returns false for prefix collisions (e.g. /home/alfred/Belgeler-other)", () => {
+      expect(SSHPathSandbox.isRealpathContained("/home/alfred/Belgeler-other", sandboxRoot)).toBe(false);
+      expect(SSHPathSandbox.isRealpathContained("/home/alfred/Belgeler_backup", sandboxRoot)).toBe(false);
     });
 
     it("handles empty or missing parameters safely", () => {
       expect(SSHPathSandbox.isRealpathContained("", sandboxRoot)).toBe(false);
-      expect(SSHPathSandbox.isRealpathContained("/home/baris/Belgeler", "")).toBe(false);
+      expect(SSHPathSandbox.isRealpathContained("/home/alfred/Belgeler", "")).toBe(false);
     });
   });
 });

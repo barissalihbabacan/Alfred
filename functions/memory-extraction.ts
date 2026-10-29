@@ -40,6 +40,8 @@ export interface CreateExtractAndPersistMemoriesDeps {
   memoryExtractionModel: string;
   geminiExtractionModel: string;
   persist?: (params: PersistMemoryCandidatesParams) => Promise<void>;
+  /** Whose facts are extracted; defaults to the owner named in users/USER_PROFILE.md. */
+  userName?: string;
 }
 
 export interface ExtractAndPersistMemoriesParams {
@@ -66,7 +68,8 @@ export function createExtractAndPersistMemories({
   errMessage,
   memoryExtractionModel,
   geminiExtractionModel,
-  persist = defaultPersist
+  persist = defaultPersist,
+  userName
 }: CreateExtractAndPersistMemoriesDeps) {
   const onProviderError = (e: ExtractionProviderError) => {
     if (e.provider === "ollama") {
@@ -112,7 +115,8 @@ export function createExtractAndPersistMemories({
       turn: {
         currentMessage: userMessage,
         assistantResponse,
-        recentMessages: recentHistory as ExtractionContextMessage[] | undefined
+        recentMessages: recentHistory as ExtractionContextMessage[] | undefined,
+        userName
       },
       call: (system, user) => callMemoryExtractionProviders({
         fetch: (url, init) => fetch(url, init),

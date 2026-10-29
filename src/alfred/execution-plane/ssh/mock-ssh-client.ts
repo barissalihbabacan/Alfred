@@ -115,7 +115,7 @@ export class MockSSHClient implements ISSHClient {
       const targetMatch = command.match(/TARGET=\$\(realpath -e -q -- '([^']+)'\)/);
       const targetPath = targetMatch ? targetMatch[1] : "Belgeler";
       const normTarget = targetPath.replace(/\\/g, "/").replace(/\/+$/, "");
-      const realSandboxRoot = "/home/baris/Belgeler";
+      const realSandboxRoot = "/home/alfred/Belgeler";
 
       // Symlink escape check
       if (this.mockSymlinks.has(normTarget)) {
@@ -150,8 +150,8 @@ export class MockSSHClient implements ISSHClient {
 
       // Build simulated LC_ALL=C ls -la --full-time output
       let lsOutput = `total ${dirEntries.length * 4}\n`;
-      lsOutput += `drwxr-xr-x 2 baris baris 4096 2026-09-01 12:00:00.000000000 +0000 .\n`;
-      lsOutput += `drwxr-xr-x 2 baris baris 4096 2026-09-01 12:00:00.000000000 +0000 ..\n`;
+      lsOutput += `drwxr-xr-x 2 alfred alfred 4096 2026-09-01 12:00:00.000000000 +0000 .\n`;
+      lsOutput += `drwxr-xr-x 2 alfred alfred 4096 2026-09-01 12:00:00.000000000 +0000 ..\n`;
 
       for (const entry of dirEntries) {
         const dateStr = entry.modifiedTime
@@ -159,14 +159,14 @@ export class MockSSHClient implements ISSHClient {
           : "2026-09-01 12:00:00.000000000 +0000";
 
         if (entry.type === "directory") {
-          lsOutput += `drwxr-xr-x 2 baris baris 4096 ${dateStr} ${entry.name}\n`;
+          lsOutput += `drwxr-xr-x 2 alfred alfred 4096 ${dateStr} ${entry.name}\n`;
         } else if (entry.type === "file") {
           const size = entry.size ?? 1024;
-          lsOutput += `-rw-r--r-- 1 baris baris ${size} ${dateStr} ${entry.name}\n`;
+          lsOutput += `-rw-r--r-- 1 alfred alfred ${size} ${dateStr} ${entry.name}\n`;
         } else if (entry.type === "symlink") {
-          lsOutput += `lrwxrwxrwx 1 baris baris 11 ${dateStr} ${entry.name} -> /mock/target\n`;
+          lsOutput += `lrwxrwxrwx 1 alfred alfred 11 ${dateStr} ${entry.name} -> /mock/target\n`;
         } else {
-          lsOutput += `?--------- 1 baris baris 0 ${dateStr} ${entry.name}\n`;
+          lsOutput += `?--------- 1 alfred alfred 0 ${dateStr} ${entry.name}\n`;
         }
       }
 
@@ -190,7 +190,7 @@ export class MockSSHClient implements ISSHClient {
     // 3. current_directory: pwd
     if (command === "pwd") {
       return {
-        stdout: "/home/baris\n",
+        stdout: "/home/alfred\n",
         stderr: "",
         exitCode: 0
       };
@@ -199,7 +199,7 @@ export class MockSSHClient implements ISSHClient {
     // 4. identity: whoami
     if (command === "whoami") {
       return {
-        stdout: "baris\n",
+        stdout: "alfred\n",
         stderr: "",
         exitCode: 0
       };
@@ -208,7 +208,7 @@ export class MockSSHClient implements ISSHClient {
     // 5. system_info: uname -a
     if (command === "uname -a") {
       return {
-        stdout: "Linux home-box 6.8.0-40-generic x86_64 GNU/Linux\n",
+        stdout: "Linux home-server 6.8.0-40-generic x86_64 GNU/Linux\n",
         stderr: "",
         exitCode: 0
       };

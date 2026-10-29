@@ -84,7 +84,7 @@ describe("1. the user profile is the reviewed digest of users/*.md", () => {
     const body = digestFile.split("\n").filter((line) => !line.startsWith("<!--")).join("\n").trim();
     expect(USER_PROFILE_DIGEST).toBe(body);
     expect(ALFRED_USER_PROFILE_BLOCK).toBe(renderUserProfileDigestBlock(body));
-    expect(ALFRED_USER_PROFILE_BLOCK.startsWith("=== CANONICAL USER PROFILE (GIT AUTHORITATIVE) ===\n- Barış Salih Babacan")).toBe(true);
+    expect(ALFRED_USER_PROFILE_BLOCK.startsWith("=== CANONICAL USER PROFILE (GIT AUTHORITATIVE) ===\n- Alex Doe")).toBe(true);
     expect(ALFRED_SYSTEM_PROMPT).toContain(`\n\n${ALFRED_USER_PROFILE_BLOCK}\n\n`);
     expect(ALFRED_SYSTEM_PROMPT.split("=== CANONICAL USER PROFILE (GIT AUTHORITATIVE) ===")).toHaveLength(2);
   });
@@ -97,9 +97,9 @@ describe("1. the user profile is the reviewed digest of users/*.md", () => {
   });
 
   it("carries distinctive content from each file", () => {
-    expect(ALFRED_SYSTEM_PROMPT).toContain("Systems architect, senior software engineer and lead developer"); // USER_PROFILE.md
-    expect(ALFRED_SYSTEM_PROMPT).toContain("bypassed HTTPS/TLS"); // PREFERENCES.md
-    expect(ALFRED_SYSTEM_PROMPT).toContain("extend existing abstractions (e.g. `AIProvider`, `getAlfredSystemPrompt()`)"); // WORKING_STYLE.md
+    expect(ALFRED_SYSTEM_PROMPT).toContain("Senior Software Engineer working on web applications"); // USER_PROFILE.md
+    expect(ALFRED_SYSTEM_PROMPT).toContain("bypassed TLS"); // PREFERENCES.md
+    expect(ALFRED_SYSTEM_PROMPT).toContain("extend existing abstractions instead of building competing layers"); // WORKING_STYLE.md
   });
 
   it("no longer renders the files verbatim, and the old hand-written summary is gone", () => {
@@ -133,7 +133,7 @@ describe("1. the user profile is the reviewed digest of users/*.md", () => {
 describe("2. formatting", () => {
   it("the persona allows the markdown the chat renders, and nothing else", () => {
     expect(ALFRED_PERSONA_PROMPT).toContain("FORMATTING:");
-    expect(ALFRED_PERSONA_PROMPT).toContain("Your replies appear in Barış's chat window, which renders markdown:");
+    expect(ALFRED_PERSONA_PROMPT).toContain("Your replies appear in Alex's chat window, which renders markdown:");
     expect(ALFRED_PERSONA_PROMPT).toContain("It does not render headings or tables, so never use them.");
     expect(ALFRED_PERSONA_PROMPT).toContain("lists and [links](https://…)");
     expect(ALFRED_PERSONA_PROMPT).toContain("- Conversation stays prose. Use a short list only for several parallel items or steps,");
@@ -164,7 +164,7 @@ describe("3. capability line matches what production runs", () => {
     expect(ALFRED_PERSONA_PROMPT).not.toContain("gemma4");
     expect(ALFRED_PERSONA_PROMPT).not.toContain("Whisper");
     expect(ALFRED_PERSONA_PROMPT).not.toContain("nomic-embed-text");
-    expect(ALFRED_PERSONA_PROMPT).toContain("speech recognition for dictated messages in Barış's browser (Web Speech API)");
+    expect(ALFRED_PERSONA_PROMPT).toContain("speech recognition for dictated messages in Alex's browser (Web Speech API)");
     expect(ALFRED_PERSONA_PROMPT).toContain("Long-Term Semantic Memory (Firestore + Gemini embeddings)");
     expect(GEMINI_EMBEDDING_MODEL).toBe("gemini-embedding-001");
     expect(functionsSource).toMatch(/generateEmbedding,[\s\S]*from "\.\.\/src\/ai\/embedding\/embedding-client\.js"/);
@@ -173,15 +173,15 @@ describe("3. capability line matches what production runs", () => {
   it("the governor's known pipeline matches the provider answering the turn", () => {
     const groq = describeRequestPipeline(GROQ);
     expect(groq).toContain("Firebase Cloud Function 2nd Gen (api, Cloud Run) → Groq API (openai/gpt-oss-120b) → SSE response.");
-    expect(groq).toContain("Ollama on the MacBook over Tailscale is an optional alternative provider, not in the default path.");
-    expect(groq).not.toContain("Tailscale Funnel");
+    expect(groq).toContain("Self-hosted Ollama is an optional alternative provider, not in the default path.");
+    expect(groq).not.toContain("→ self-hosted Ollama");
     const ollama = describeRequestPipeline(OLLAMA);
-    expect(ollama).toContain("→ Tailscale Funnel → MacBook Ollama (gemma4:12b-mlx) → SSE response.");
+    expect(ollama).toContain("→ self-hosted Ollama (gemma4:12b-mlx) → SSE response.");
     expect(ollama).not.toContain("Groq");
     for (const text of [groq, ollama]) expect(text).toContain("Gemini embeddings with Firestore as the source of truth");
 
     expect(CONVERSATIONAL_GOVERNOR_BLOCK).toContain(`- Current known pipeline: ${groq}`);
-    expect(CONVERSATIONAL_GOVERNOR_BLOCK).not.toContain("MacBook Ollama (gemma4:12b-mlx) / Groq");
+    expect(CONVERSATIONAL_GOVERNOR_BLOCK).not.toContain("Ollama (gemma4:12b-mlx) / Groq");
     expect(buildConversationalGovernorBlock(OLLAMA)).toContain(`- Current known pipeline: ${ollama}`);
     expect(buildAlfredSystemPrompt({ runtime: OLLAMA })).toContain(ollama);
   });
@@ -215,7 +215,7 @@ describe("3. capability line matches what production runs", () => {
 
   it("says server access is not connected and forbids inventing server state", () => {
     expect(ALFRED_PERSONA_PROMPT).toContain(
-      "- Not yet connected: access to Barış's servers over SSH"
+      "- Not yet connected: access to Alex's servers over SSH"
     );
     expect(ALFRED_PERSONA_PROMPT).toContain("say plainly that it is not connected yet");
     expect(ALFRED_PERSONA_PROMPT).toContain(
@@ -258,7 +258,7 @@ describe("3. capability line matches what production runs", () => {
   });
 
   it("keeps the core assistant rules (Turkish replies, unconnected services)", () => {
-    expect(ALFRED_PERSONA_PROMPT).toContain("Always answer in the language of his latest message, also after a tool call");
+    expect(ALFRED_PERSONA_PROMPT).toContain("Always answer in the language of their latest message, also after a tool call");
     expect(ALFRED_PERSONA_PROMPT).toContain("Google Calendar, Gmail, and external web search.");
   });
 });

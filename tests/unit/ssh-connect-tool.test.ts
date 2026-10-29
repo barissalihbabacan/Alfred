@@ -81,8 +81,8 @@ describe("SSHConnectTool Suite", () => {
 
       // Verify no sensitive keys or raw host IPs leaked
       const serialized = JSON.stringify(result);
-      expect(serialized).not.toContain("100.108.234.65");
-      expect(serialized).not.toContain("100.64.0.53");
+      // No IPv4 address of any configured host
+      expect(serialized).not.toMatch(/\b\d{1,3}(?:\.\d{1,3}){3}\b/);
       expect(serialized).not.toContain("privateKey");
       expect(serialized).not.toContain("id_ed25519");
     });

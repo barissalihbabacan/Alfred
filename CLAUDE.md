@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-B.U.T.L.E.R. Alfred — a personal AI executive-assistant/agent system for Barış (*Barış's Unified Task, Logic, Execution & Reasoning*). Alfred is a courteous, peer-level assistant persona (the butler role-play was dropped in Sep 2026, see `docs/persona/ALFRED_PERSONA.md`): a vendor-agnostic TypeScript core (`src/`) handles LLM providers, long-term memory, voice and tool execution; the production front end is a Next.js app built as a static export (see **Front end** below). Deployed through Firebase.
+B.U.T.L.E.R. Alfred — a personal AI executive-assistant/agent system; each installation serves one owner, named in `users/USER_PROFILE.md` (prompts take the name from there via `src/alfred/cognitive/context/profile-owner.ts`, never a constant). Alfred is a courteous, peer-level assistant persona (the butler role-play was dropped in Sep 2026, see `docs/persona/ALFRED_PERSONA.md`): a vendor-agnostic TypeScript core (`src/`) handles LLM providers, long-term memory, voice and tool execution; the production front end is a Next.js app built as a static export (see **Front end** below). Deployed through Firebase.
 
 ## Commands
 
@@ -29,8 +29,9 @@ npm run test:ollama
 npm run memory:reindex     # rebuild vector store from Firestore (source of truth)
 npm run backup:firestore -- --out backup.json   # JSON dump of every collection (needs ADC; CI runs it weekly, encrypted)
 
-# Canonical user profile (after editing users/*.md)
-# 1. update src/alfred/cognitive/context/user-profile.digest.md by hand to reflect the edit
+# Canonical user profile
+npm run profile:init            # render users/*.md + the digest from templates/ (interactive; --defaults --date 2026-10-29 = the committed example)
+# After editing users/*.md by hand: 1. update src/alfred/cognitive/context/user-profile.digest.md to reflect the edit
 npm run generate:user-profile   # re-embed users/*.md + digest; prints the new sha256 lines for the digest (exit 1 until pasted)
 npx vitest run tests/unit/functions-system-prompt.test.ts -u   # refresh the production prompt fixture
 
@@ -48,8 +49,8 @@ npm run deploy --prefix functions   # firebase deploy --only functions
 npm run relay              # needs a service-account key at ~/.config/alfred/home-relay-key.json (ALFRED_RELAY_KEY_PATH overrides)
 
 # Production alerting (Cloud Monitoring; see docs/OPERATIONS.md). Dry-run unless --apply.
-./scripts/monitoring/setup-alerts.sh --project butler-alfred --email <owner email> [--apply]
-./scripts/monitoring/teardown-alerts.sh --project butler-alfred [--apply] [--delete-channels]
+./scripts/monitoring/setup-alerts.sh --project <your-project-id> --email <owner email> [--apply]
+./scripts/monitoring/teardown-alerts.sh --project <your-project-id> [--apply] [--delete-channels]
 ```
 
 As of the last check (25 Oct 2026) `npm run test:unit` is 964 passing tests across 71 files, `npm run typecheck`, `npm run typecheck:tests` and `npx tsc -p apps/web/tsconfig.json --noEmit` are clean, `npm run build:web` succeeds and `npm run lint` has 0 errors and 0 warnings — keep all of them green (CI runs them all). Every rule in `eslint.config.js` is an error, including `no-explicit-any` (use `unknown` plus narrowing, and `errorMessage()` from `src/core/errors` for caught errors), so any lint finding fails CI. There is no Prettier: formatting is not enforced, so don't mass-reformat files.
@@ -59,8 +60,8 @@ As of the last check (25 Oct 2026) `npm run test:unit` is 964 passing tests acro
 | File | Needs | With `ALFRED_OFFLINE=1` (CI) |
 |---|---|---|
 | `groq.integration.test.ts` | `GROQ_API_KEY`, live Groq | skipped |
-| `ollama.integration.test.ts` | Ollama at `OLLAMA_BASE_URL` (default Tailscale MacBook) | skipped |
-| `production-chat-regression.test.ts` | production API; authenticated part also `ALFRED_TEST_ID_TOKEN` or `GOOGLE_APPLICATION_CREDENTIALS` | skipped (CI never hits production) |
+| `ollama.integration.test.ts` | Ollama at `OLLAMA_BASE_URL` (default `http://localhost:11434`) | skipped |
+| `production-chat-regression.test.ts` | `ALFRED_PROD_BASE_URL` (your deployed instance; skipped when unset); authenticated part also `ALFRED_TEST_ID_TOKEN`, or `GOOGLE_APPLICATION_CREDENTIALS` plus `NEXT_PUBLIC_FIREBASE_API_KEY` | skipped (CI never hits production) |
 | `ssh-home-server.integration.test.ts` | SSH to home-server over Tailscale + key | skipped |
 | `ssh-list-directory.integration.test.ts` | path-sandbox test: nothing (runs, with a client factory that refuses to connect); the rest: SSH to home-server, symlink test also runs on home-server itself | sandbox test runs, rest skipped |
 
@@ -80,7 +81,7 @@ Planned capabilities and the pattern for adding a tool to production are in `doc
 - `src/data/` — Firestore repositories, vector store, embedding providers, always through interfaces + factories (`getConversationRepository()`, `getVectorStore()`, `getEmbeddingProvider()`), each with an in-memory implementation for unit tests.
 - `src/core/` — config, errors (`errorMessage()`), a `StructuredLogger` that production does not use (`functions/index.js` has its own `logEvent()`).
 - `functions/` — the backend: plain JS, own `package.json`, ~1900-line `functions/index.js` with two entry points, `api` (`onRequest`, behind the `/api/**` Hosting rewrite) and `alfredCallable` (`onCall`). Parts of it import `src/` through the bundle (see **Functions bundle**); the rest is hand-written, so a behaviour change outside the shared modules often has to be made here **and** in `src/`.
-- `users/` — canonical, git-versioned profile of Barış, **read-only at runtime**. The prompt carries a hand-written digest of it (`src/alfred/cognitive/context/user-profile.digest.md`, which records each file's sha256), not the files. Editing `users/*.md` means updating the digest, pasting the hashes `npm run generate:user-profile` prints and refreshing the prompt fixture (see **Commands**); tests and `functions/build.js` fail until the hashes match.
+- `users/` — canonical, git-versioned user profile, **read-only at runtime**. The committed files are a neutral example ("Alex Doe") rendered from `templates/` by `npm run profile:init -- --defaults --date 2026-10-29` (`tests/unit/init-profile.test.ts` pins that); an installation renders its own. The prompt carries a digest of it (`src/alfred/cognitive/context/user-profile.digest.md`, which records each file's sha256), not the files. Editing `users/*.md` means updating the digest, pasting the hashes `npm run generate:user-profile` prints and refreshing the prompt fixture (see **Commands**); tests and `functions/build.js` fail until the hashes match.
 - `docs/persona/ALFRED_PERSONA.md` — canonical behavioural spec for Alfred (language rules, tone, pushback, response length). Consult it before changing `src/alfred/persona/` or `src/ai/prompts/`.
 - **Structured logs**: `api` emits `llm_request`, `llm_provider_fallback`, `llm_rate_limited`, `llm_stream_error`, `tool_call`, `memory_retrieval`, `memory_extraction`, `embedding_error` and `app_check` events (never API keys, ID tokens or user message text). The Cloud Monitoring alerts filter on these event names and fields: `tests/unit/monitoring-config.test.ts` fails if one disappears; when renaming, update `scripts/monitoring/metrics/*.json` and re-run the setup script (the owner applies it; CI never touches Monitoring).
 
@@ -88,8 +89,8 @@ Planned capabilities and the pattern for adding a tool to production are in `doc
 - `apps/web/` is the only front end: Next.js 16 (App Router, React 19, Turbopack for dev and build). `output: "export"`: **no server runtime** (no route handlers, SSR or middleware); anything needing a server goes in `functions/index.js`. It has its own `tsconfig.json` and **does not import from `src/`**.
 - `apps/web/next-env.d.ts` is generated and gitignored: `next dev` and `next build` rewrite it with different contents. The web typecheck in CI runs before the build, so it passes without the file; code that needs its types (e.g. image imports) would need the build first.
 - `components/VoiceChatPlayground.tsx` is the chat UI, `components/LoginScreen.tsx` the auth gate; `app/page.tsx` mounts the chat only after Firebase restores an allowed session.
-- All backend calls go through `lib/api.ts` (`apiFetch`, adds the ID token and App Check headers); the `/chat` SSE stream is parsed by `lib/sse.ts`. Don't call `fetch("/api/...")` directly. **Firebase Hosting buffers `/api/**` responses** (measured: every event of a turn arrived in the same millisecond), so `POST /chat` passes `stream: true` and goes straight to the function (`STREAM_API_BASE`: `https://us-central1-butler-alfred.cloudfunctions.net/api` in a production build, `/api` under `next dev`, `NEXT_PUBLIC_STREAM_API_BASE` overrides). It also escapes Hosting's 60 s request timeout. Everything else still goes through `/api`.
-- `npm run dev:web` proxies `/api/**` to `ALFRED_API_ORIGIN` (default the Functions emulator; `https://butler-alfred.web.app/api` for production, which needs the App Check debug token registered or requests get 401).
+- All backend calls go through `lib/api.ts` (`apiFetch`, adds the ID token and App Check headers); the `/chat` SSE stream is parsed by `lib/sse.ts`. Don't call `fetch("/api/...")` directly. **Firebase Hosting buffers `/api/**` responses** (measured: every event of a turn arrived in the same millisecond), so `POST /chat` passes `stream: true` and goes straight to the function (`STREAM_API_BASE`: `https://us-central1-<NEXT_PUBLIC_FIREBASE_PROJECT_ID>.cloudfunctions.net/api` in a production build, `/api` under `next dev`, `NEXT_PUBLIC_STREAM_API_BASE` overrides). It also escapes Hosting's 60 s request timeout. Everything else still goes through `/api`.
+- `npm run dev:web` proxies `/api/**` to `ALFRED_API_ORIGIN` (default the Functions emulator; `https://<your-project-id>.web.app/api` for production, which needs the App Check debug token registered or requests get 401).
 - It is a PWA: `public/manifest.json`, icons, and `public/firebase-messaging-sw.js` for FCM push (`lib/notifications.ts`; the function sends via `firebase-admin/messaging`).
 - Voice input is browser-only (`SpeechRecognition`); there is no server STT endpoint. Replies are not read aloud: the `speechSynthesis` "Seslendir" button was removed on 27 Sep 2026.
 - **Styling is Tailwind CSS 4.** Use classes, not `style={{…}}` (inline styles can't be overridden by media queries, which is what broke the phone layout); inline styles only for truly dynamic values. There is no `tailwind.config.ts`: the theme (colours `chat-*` / `butler-*` / `gold-*`, fonts, animations) is the `@theme` block in `app/globals.css`, and `postcss.config.mjs` only loads `@tailwindcss/postcss`. Custom variants `mobile:` (max-width 768px, must match `MOBILE_QUERY` in `VoiceChatPlayground.tsx`) and `touch:` are `@custom-variant`s there; full-height layouts use the `h-screen-safe` / `min-h-screen-safe` `@utility`s. v4 renamed parts of the scale (v3 `rounded` = v4 `rounded-sm`, `outline-none` = `outline-hidden`, important is a suffix: `hover:bg-x!`), and `hover:` only applies on devices that can hover. Tailwind only sees complete class names, so conditional classes must be whole literals, never concatenated fragments. Turbopack evaluates `postcss.config.mjs` with a wrong `import.meta.url`, so don't derive paths from it; `globals.css` sets the scan root with `@import "tailwindcss" source("..")`. `globals.css` otherwise keeps only base rules, CSS variables and the classes of `renderMarkdown()` output.
@@ -102,7 +103,7 @@ Production (`functions/index.js`) offers `get_current_time`, `ssh_connect` / `ss
 **SSH in production goes through a Firestore relay, not SSH from Cloud Run.** `dispatchServerCommandViaRelay()` checks the command against `ALLOWED_SSH_COMMANDS`, writes a `pending` doc to `server_commands` and waits up to 20 s on `onSnapshot`; `scripts/home-relay-daemon.ts` (`npm run relay`, on the home server, Admin SDK with its own service-account key, so `firestore.rules` stays deny-all) claims it (`processing`), re-validates it with `CommandRegistry` (`src/alfred/execution-plane/ssh/command-registry.ts`) and runs it locally, then writes `completed`/`failed`; the function deletes the doc. `ssh_connect` does not touch the relay (returns a static "connected"). A new whitelisted command therefore has to be added in `allowed-commands.ts` **and** `command-registry.ts`, and the daemon restarted. The direct-SSH code in `src/alfred/execution-plane/ssh/` (ssh2 client, path sandbox, hosts by alias only) is used by `src/` and the integration tests, not by production.
 
 ### Storage model — three tiers, one source of truth
-1. **Git (`users/`)** — authored baseline about Barış, read-only at runtime.
+1. **Git (`users/`)** — authored baseline about the user, read-only at runtime.
 2. **Firestore** — authoritative for conversation history (`conversations/{id}/messages/{id}`, atomic `sequence`) and long-term memory (`memory_vectors/{id}`).
 3. **Vector store** (`LocalFileVectorStore`) — a rebuildable cache, never the source of truth (`npm run memory:reindex`).
 
@@ -120,16 +121,16 @@ Preserve when editing memory code:
 - Replies are rendered as markdown in the chat, so the persona allows exactly what `apps/web/lib/markdown.ts` renders (bold, italic, code, lists, http(s) links; no headings or tables) and keeps conversation as prose (`ALFRED_PERSONA.md` §3). Adding a markdown feature to the renderer means updating that rule too.
 
 ### Auth — single-user, Google only
-- Google Sign-In only; any other UID is signed straight out (`auth/unauthorized-uid`). The allowed UID is defined once per runtime: `apps/web/lib/allowed-uid.ts` and `functions/index.js` (both overridable by env). The client check is UX only.
+- Google Sign-In only; any other UID is signed straight out (`auth/unauthorized-uid`). The allowed account comes from env only, with no committed default: `NEXT_PUBLIC_ALLOWED_UID` / `NEXT_PUBLIC_ALLOWED_EMAIL` (`apps/web/lib/allowed-uid.ts`) and `ALLOWED_UID` / `ALLOWED_EMAIL` (`functions/.env.<projectId>`, read by `functions/api.ts`); with neither set, access fails closed. The client check is UX only.
 - Real enforcement is server-side in `functions/index.js`: every request except `/` and `/health` needs a valid Firebase ID token (401) with the allowed UID (403), plus an App Check token (enforced; off in the emulator, `ENFORCE_APP_CHECK=false` disables it). The user is always the token's UID; a mismatched `userId` is rejected and another user's conversation is a 404.
 - Pinned by `tests/unit/uid-whitelist.test.ts`, `auth-error-messages.test.ts` and `web-api-client.test.ts`.
 
 ### Deployment
-- Firebase Hosting serves `apps/web/out` (build it first), rewrites `/api/**` to `api` and everything else to `index.html`. No App Hosting, no server runtime.
-- `.github/workflows/ci.yml` runs every check listed under **Commands** plus the functions bundle build/check on each PR (Node 22, no `.env`; `.nvmrc` pins the same major for `nvm use` locally). `deploy.yml` reuses it, then builds and runs `firebase deploy --only hosting,functions,firestore:rules,firestore:indexes` on pushes to `main`, so any red check blocks the deploy.
+- Firebase Hosting serves `apps/web/out`, rewrites `/api/**` to `api` and everything else to `index.html`. No App Hosting, no server runtime. The hosting `predeploy` hook in `firebase.json` rebuilds the web app with `VALIDATE_FIREBASE_CONFIG=true`, which fails if `NEXT_PUBLIC_FIREBASE_API_KEY` / `_PROJECT_ID` / `_APP_ID` are missing or `_PROJECT_ID` is not the project being deployed to; a plain `npm run build:web` (CI) skips that check.
+- This is a template: nothing project-specific is committed (no `.firebaserc`, no `functions/.env.<projectId>`, no deploy workflow). `.github/workflows/ci.yml` runs every check listed under **Commands** plus the functions bundle build/check on each PR and push to `main` (Node 22, no `.env`; `.nvmrc` pins the same major for `nvm use` locally); it never deploys.
+- **Deploying your own instance**: fill `apps/web/.env.local` (from `apps/web/.env.example`) and `functions/.env.<your-project-id>` (from `functions/.env.example`, no keys), create the secrets (see **Secrets**), then `npx firebase-tools deploy --project <your-project-id> --only hosting,functions,firestore:rules,firestore:indexes` (the predeploy hooks build the web app and the functions bundle). `firebase use <your-project-id>` (kept per directory by the CLI, or as an alias in your untracked `.firebaserc`) saves passing `--project`.
 - Rollback: `firebase hosting:rollback`.
-- `.github/workflows/preview.yml` deploys each PR's web app to the fixed Hosting channel `preview` and comments the URL (UI only: `/api/**` there is the production function and data). Its domain must be in Firebase Auth's authorized domains and the reCAPTCHA key (`docs/OPERATIONS.md`, "Preview channel").
-- `.github/workflows/backup.yml` dumps Firestore every Sunday, encrypts it with the `BACKUP_PASSPHRASE` secret and keeps it as a 90-day artifact (`docs/OPERATIONS.md`, "Firestore backups"). The dump script must never print document content: workflow logs are public once the repo is.
+- `.github/workflows/backup.yml` dumps Firestore every Sunday, encrypts it with the `BACKUP_PASSPHRASE` secret and keeps it as a 90-day artifact (`docs/OPERATIONS.md`, "Firestore backups"). Opt-in: it skips with a notice until the `FIREBASE_SERVICE_ACCOUNT` (key of your project, which also names the project) and `BACKUP_PASSPHRASE` secrets exist. The dump script must never print document content: workflow logs are public once the repo is.
 
 ### Setup
 Setup: the setup wizard is a Rust terminal UI (in progress on branch feat/setup-tui). crates/setup-core holds its pure logic (validators, wizard state, provisioning script generator); it has no web or wasm parts.

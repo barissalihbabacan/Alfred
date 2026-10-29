@@ -4,7 +4,7 @@
  * against Alfred's CommandRegistry, executes them locally on the home server,
  * and writes back the structured output.
  *
- * Runs on Barış's home server / local development host.
+ * Runs on the owner's home server / local development host.
  */
 
 import { initializeApp, cert, getApps } from "firebase-admin/app";
@@ -33,6 +33,8 @@ if (getApps().length === 0) {
 
 const db = getFirestore();
 const HOST_ID = "home-server";
+// Commands addressed to this machine's own hostname are also ours.
+const LOCAL_HOSTNAME = os.hostname().toLowerCase();
 const COMMAND_TIMEOUT_MS = 25000;
 
 console.log(`[Alfred Relay] Starting daemon for host '${HOST_ID}' (PID: ${process.pid})...`);
@@ -63,7 +65,7 @@ const unsubscribe = db.collection("server_commands")
       // Only handle pending commands for this host
       if (data.status !== "pending") continue;
       const targetHost = data.host || "home-server";
-      if (targetHost !== HOST_ID && targetHost !== "localhost" && targetHost !== "baris-IPXSB-H61") {
+      if (targetHost !== HOST_ID && targetHost !== "localhost" && targetHost.toLowerCase() !== LOCAL_HOSTNAME) {
         continue;
       }
 

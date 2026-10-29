@@ -6,7 +6,7 @@ import type { Auth } from "firebase/auth";
 // (the `api` Cloud Function), which rejects any ID token whose UID differs.
 const authMocks = vi.hoisted(() => {
   process.env.NEXT_PUBLIC_ALLOWED_UID = "test-owner-uid-123456";
-  process.env.NEXT_PUBLIC_ALLOWED_EMAIL = "owner@example.invalid";
+  process.env.NEXT_PUBLIC_ALLOWED_EMAIL = "owner@gmail.com";
   return {
     onAuthStateChanged: vi.fn(),
     signOut: vi.fn(async () => {}),
@@ -45,7 +45,7 @@ describe("Single-User Authorization (UID & Email Whitelist)", () => {
 
   it("defines the authorized UID and Email constants from environment", () => {
     expect(ALLOWED_UID).toBe("test-owner-uid-123456");
-    expect(ALLOWED_EMAIL).toBe("owner@example.invalid");
+    expect(ALLOWED_EMAIL).toBe("owner@gmail.com");
   });
 
   it("authorizes matching user and rejects unauthorized email or uid", () => {

@@ -6,4 +6,6 @@
 
   Tip: in the tutorial on the right, click the Cloud Shell icon next to the
   command; it is typed here for you. Then press Enter.
+  No tutorial on the right?  cloudshell launch-tutorial .cloudshell/tutorial.md
+  Sagda egitim yok mu?       cloudshell launch-tutorial .cloudshell/tutorial.md
 

@@ -29,7 +29,7 @@ Aynı zamanda böyle bir asistanın nasıl kurulacağına dair, production'da s�
 ## Kendi Alfred'ini kur
 
 <p align="center">
-  <a href="https://ssh.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https://github.com/barissalihbabacan/Alfred&cloudshell_tutorial=.cloudshell/tutorial.md&cloudshell_print=.cloudshell/welcome.txt"><img src="./assets/readme/tr/setup-button.svg" width="320" alt="Alfred Kurulumunu Başlat (Google Cloud Shell'de açılır)"></a>
+  <a href="https://ssh.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https://github.com/barissalihbabacan/Alfred&cloudshell_tutorial=.cloudshell/tutorial.md&cloudshell_print=.cloudshell/welcome.txt&show=terminal"><img src="./assets/readme/tr/setup-button.svg" width="320" alt="Alfred Kurulumunu Başlat (Google Cloud Shell'de açılır)"></a>
 </p>
 
 <p align="center">

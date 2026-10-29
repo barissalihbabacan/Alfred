@@ -18,6 +18,7 @@ body:
         - "src/alfred/ (Vector memory extraction / Persona / Prompt compiler)"
         - "src/data/ (Firestore vector persistence / Similarity)"
         - "apps/web/ (Next.js 16 UI / Voice Playground / PWA)"
+        - "Setup wizard (crates/, .cloudshell/, Cloud Shell install)"
         - "tooling/ (Scripts / Build / CI / Docker)"
         - "Other"
     validations:

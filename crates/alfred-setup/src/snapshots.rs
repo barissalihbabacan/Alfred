@@ -224,6 +224,11 @@ fn done_screen_lists_the_console_steps() {
     let screen = text(&buffer);
     assert!(screen.contains("https://alfred-x7k2qd.web.app"));
     assert!(screen.contains("authentication/providers"));
+    assert!(screen.contains("Sign-in method > Google > Enable"));
+    assert!(screen.contains("Add a model key"), "no chat key was entered");
+    assert!(screen.contains("secrets:set GEMINI_API_KEY --project alfred-x7k2qd"));
+    app.gemini.set("AIza-test");
+    assert!(!text(&render(&app)).contains("Add a model key"), "a chat key hides the step");
     assert!(screen.contains("you@gmail.com"));
     snapshot("7-done-en", &buffer);
 }

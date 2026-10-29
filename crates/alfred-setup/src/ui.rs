@@ -373,7 +373,7 @@ fn draw_done(frame: &mut Frame, app: &App, area: Rect) {
     let config = app.config();
     let url = format!("https://{}.web.app", config.project_id);
     let providers = format!("https://console.firebase.google.com/project/{}/authentication/providers", config.project_id);
-    let lines = vec![
+    let mut lines = vec![
         Line::from(format!("✓ {}", t.done_heading)).fg(GREEN).bold(),
         Line::default(),
         Line::from(vec![Span::styled(format!("{}  ", t.done_open), Style::new().fg(MUTED)), Span::styled(url, Style::new().fg(GOLD_LIGHT).bold())]),
@@ -381,9 +381,17 @@ fn draw_done(frame: &mut Frame, app: &App, area: Rect) {
         Line::from(t.done_next).fg(TEXT).bold(),
         Line::from(format!("  1. {}", t.done_step_google)).fg(TEXT),
         Line::from(format!("     {providers}")).fg(GOLD),
+        Line::from(format!("     {}", t.done_step_google_how)).fg(MUTED),
         Line::from(format!("  2. {} {}", t.done_step_signin, config.allowed_email)).fg(TEXT),
-        Line::from(format!("  3. {}", t.done_step_appcheck)).fg(MUTED),
     ];
+    let mut next = 3;
+    if !app.has_chat_key() {
+        lines.push(Line::from(format!("  {next}. {}", t.done_step_chat_key)).fg(YELLOW));
+        lines.push(Line::from(format!("     npx firebase-tools functions:secrets:set GEMINI_API_KEY --project {}", config.project_id)).fg(GOLD));
+        lines.push(Line::from(format!("     npx firebase-tools deploy --only functions --project {}", config.project_id)).fg(GOLD));
+        next += 1;
+    }
+    lines.push(Line::from(format!("  {next}. {}", t.done_step_appcheck)).fg(MUTED));
     frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), area);
 }
 

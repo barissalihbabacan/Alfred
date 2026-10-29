@@ -18,7 +18,11 @@ LOGO = [
 ]
 COMMAND = "bash .cloudshell/start.sh"
 
-lines = [""]
+# Clear the screen first, as `clear` would: Cloud Shell prints the clone log and a
+# timestamp before this file, which would push the logo out of line.
+CLEAR = f"{ESC}[H{ESC}[2J{ESC}[3J"
+
+lines = [CLEAR]
 lines += [f"  {GOLD}{row}{RESET}" for row in LOGO]
 lines += [
     "",

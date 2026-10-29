@@ -1,11 +1,15 @@
 
-  Alfred Setup
-  ------------
-  Start the setup wizard:      bash .cloudshell/start.sh
-  Kurulum sihirbazini baslat:  bash .cloudshell/start.sh
+  [1;38;5;220m █████  ██      ███████ ██████  ███████ ██████ [0m
+  [1;38;5;220m██   ██ ██      ██      ██   ██ ██      ██   ██[0m
+  [1;38;5;220m███████ ██      █████   ██████  █████   ██   ██[0m
+  [1;38;5;220m██   ██ ██      ██      ██   ██ ██      ██   ██[0m
+  [1;38;5;220m██   ██ ███████ ██      ██   ██ ███████ ██████ [0m
 
-  Tip: in the tutorial on the right, click the Cloud Shell icon next to the
-  command; it is typed here for you. Then press Enter.
-  No tutorial on the right?  cloudshell launch-tutorial .cloudshell/tutorial.md
-  Sagda egitim yok mu?       cloudshell launch-tutorial .cloudshell/tutorial.md
+  [1;97mStart the setup wizard / Kurulum sihirbazını başlat:[0m
+
+  [1;30;48;5;220m   bash .cloudshell/start.sh   [0m
+
+  [2mType or paste it below and press Enter. / Aşağıya yaz ya da yapıştır, Enter'a bas.[0m
+  [2mText too small? Settings (gear) > Text size, or Ctrl/Cmd and +.[0m
+  [2mYazı küçük mü? Ayarlar (dişli) > Text size, ya da Ctrl/Cmd ve +.[0m
 

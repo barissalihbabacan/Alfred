@@ -1,0 +1,22 @@
+[package]
+name = "alfred-setup"
+version = "0.1.0"
+edition = "2021"
+description = "Terminal setup wizard for Alfred: project, account, keys and a live deploy"
+license = "MIT"
+
+[[bin]]
+name = "alfred-setup"
+path = "src/main.rs"
+
+[dependencies]
+alfred-setup-core = { path = "../setup-core" }
+ratatui = "0.30"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

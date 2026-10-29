@@ -236,6 +236,10 @@ pub fn generate_cloud_shell_script(config: &SetupConfig) -> String {
     script.push_str("# Project-specific non-sensitive runtime configuration for Cloud Functions\n");
     script.push_str(&format!("ALLOWED_EMAIL={}\n", shell_quote(&config.allowed_email)));
     script.push_str(&format!("ALLOWED_UID={}\n", shell_quote(config.allowed_uid.trim())));
+    script.push_str("# The web app only starts App Check when NEXT_PUBLIC_RECAPTCHA_SITE_KEY is set,\n");
+    script.push_str("# which a fresh install does not have yet; enforcing it would reject every request.\n");
+    script.push_str("# Remove this line after setting up App Check (docs/OPERATIONS.md).\n");
+    script.push_str("ENFORCE_APP_CHECK=false\n");
     script.push_str("ALFRED_FUNCTIONS_ENV_EOF\n\n");
 
     script.push_str("echo \"📝 [Alfred Setup] Writing web app production configuration (apps/web/.env.production.local)...\"\n");
@@ -371,6 +375,22 @@ mod tests {
         assert!(script.contains("npm run build:web"));
         assert!(script.contains("apps/web/out/index.html"));
         assert!(script.contains("firebase-tools deploy --only hosting,functions,firestore:rules,firestore:indexes --non-interactive --force"));
+    }
+
+    #[test]
+    fn test_fresh_install_does_not_enforce_app_check() {
+        let config = SetupConfig {
+            project_id: "demo-alfred".to_string(),
+            allowed_email: "owner@gmail.com".to_string(),
+            ..Default::default()
+        };
+        let script = generate_cloud_shell_script(&config);
+        let functions_env = script
+            .split("cat << 'ALFRED_FUNCTIONS_ENV_EOF'")
+            .nth(1)
+            .and_then(|rest| rest.split("\nALFRED_FUNCTIONS_ENV_EOF\n").next())
+            .expect("functions env heredoc");
+        assert!(functions_env.lines().any(|line| line == "ENFORCE_APP_CHECK=false"));
     }
 
     #[test]

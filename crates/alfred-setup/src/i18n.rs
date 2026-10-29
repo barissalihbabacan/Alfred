@@ -67,6 +67,9 @@ pub struct Texts {
 
     pub account_heading: &'static str,
     pub account_intro: &'static str,
+    pub name: &'static str,
+    pub name_placeholder: &'static str,
+    pub name_hint: &'static str,
     pub email: &'static str,
     pub email_placeholder: &'static str,
     pub uid: &'static str,
@@ -134,6 +137,9 @@ pub static EN: Texts = Texts {
 
     account_heading: "Your account",
     account_intro: "Alfred is single-user: only this Google account can sign in.",
+    name: "Your name",
+    name_placeholder: "Alex Doe",
+    name_hint: "Alfred calls you by your first name; the full name goes into your profile.",
     email: "Google e-mail",
     email_placeholder: "you@gmail.com",
     uid: "Firebase Auth UID (optional)",
@@ -211,6 +217,9 @@ pub static TR: Texts = Texts {
 
     account_heading: "Hesabın",
     account_intro: "Alfred tek kullanıcılı: yalnızca bu Google hesabı giriş yapabilir.",
+    name: "Adın",
+    name_placeholder: "Ayşe Yılmaz",
+    name_hint: "Alfred sana ilk adınla hitap eder; tam adın profiline yazılır.",
     email: "Google e-postası",
     email_placeholder: "adin@gmail.com",
     uid: "Firebase Auth UID (isteğe bağlı)",
@@ -269,6 +278,9 @@ pub fn core_message(lang: Lang, message: &str) -> String {
     }
     const PREFIXES: &[(&str, &str)] = &[
         ("Project ID cannot be empty", "Proje ID'si boş olamaz."),
+        ("Name cannot be empty", "Ad boş olamaz."),
+        ("Name is too long", "Ad en fazla 80 karakter olabilir."),
+        ("Name cannot contain control characters", "Ad kontrol karakteri içeremez."),
         ("Project ID must be between 6 and 30", "Proje ID'si 6 ile 30 karakter arasında olmalı."),
         ("Project ID must start with a lowercase letter", "Proje ID'si küçük bir harfle başlamalı."),
         ("Project ID cannot end with a hyphen", "Proje ID'si tireyle bitemez."),
@@ -303,7 +315,9 @@ pub fn core_message(lang: Lang, message: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alfred_setup_core::validator::{validate_api_key, validate_email, validate_firebase_uid, validate_gcp_project_id};
+    use alfred_setup_core::validator::{
+        validate_api_key, validate_email, validate_firebase_uid, validate_gcp_project_id, validate_owner_name,
+    };
 
     #[test]
     fn picks_turkish_from_locale() {
@@ -320,6 +334,9 @@ mod tests {
             validate_gcp_project_id("Alfred-prod").unwrap_err(),
             validate_gcp_project_id("alfred-prod-").unwrap_err(),
             validate_gcp_project_id("alfred_prod").unwrap_err(),
+            validate_owner_name("").unwrap_err(),
+            validate_owner_name(&"x".repeat(81)).unwrap_err(),
+            validate_owner_name("a\tb").unwrap_err(),
             validate_email("").unwrap_err(),
             validate_email("not-an-email").unwrap_err(),
             validate_email("a b@gmail.com").unwrap_err(),

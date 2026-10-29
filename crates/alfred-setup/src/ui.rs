@@ -93,6 +93,7 @@ fn label(field: Field, app: &App) -> &'static str {
         Field::ProjectId => t.project_id,
         Field::Billing => t.billing,
         Field::Region => t.region,
+        Field::Name => t.name,
         Field::Email => t.email,
         Field::Uid => t.uid,
         Field::Evren => t.key_evren,
@@ -108,6 +109,7 @@ fn hint(field: Field, app: &App) -> &'static str {
         Field::ProjectId => t.project_id_hint,
         Field::Billing => t.billing_hint,
         Field::Region => t.region_hint,
+        Field::Name => t.name_hint,
         Field::Email => "",
         Field::Uid => t.uid_hint,
         Field::Evren => t.key_evren_hint,
@@ -121,6 +123,7 @@ fn placeholder(field: Field, app: &App) -> &'static str {
     let t = app.lang.texts();
     match field {
         Field::ProjectId => t.project_id_placeholder,
+        Field::Name => t.name_placeholder,
         Field::Email => t.email_placeholder,
         Field::Evren | Field::Groq | Field::Gemini | Field::Tavily => t.key_placeholder,
         _ => "",
@@ -235,6 +238,7 @@ fn draw_review(frame: &mut Frame, app: &App, area: Rect) {
         (t.project_id, config.project_id.clone()),
         (t.billing, billing),
         (t.region, REGIONS[app.region_idx].to_string()),
+        (t.name, config.owner_name.clone()),
         (t.email, config.allowed_email.clone()),
         (t.uid, uid),
         (t.key_evren, key(app.evren.value()).to_string()),

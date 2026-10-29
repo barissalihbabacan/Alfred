@@ -12,6 +12,9 @@ pub struct SetupConfig {
     pub ollama_url: Option<String>,
     pub firestore_region: Option<String>,
     pub billing_account_id: Option<String>,
+    /// The owner's name as Alfred should address them; empty keeps the example profile's defaults.
+    #[serde(default)]
+    pub owner_name: String,
 }
 
 /// Shell quoting helper following POSIX escaping rules.
@@ -273,7 +276,7 @@ pub fn generate_cloud_shell_script(config: &SetupConfig) -> String {
     script.push_str("npm ci --prefix functions\n\n");
 
     script.push_str("echo \"🧠 [Alfred Setup] Initializing user persona profile digest...\"\n");
-    script.push_str("npm run profile:init -- --defaults\n\n");
+    script.push_str(&profile_init_command(&config.owner_name));
 
     script.push_str("echo \"🏗️ [Alfred Setup] Building Next.js web application for production...\"\n");
     script.push_str("npm run build:web\n\n");
@@ -294,6 +297,21 @@ pub fn generate_cloud_shell_script(config: &SetupConfig) -> String {
     script.push_str("echo \"===================================================================\"\n");
 
     script
+}
+
+/// `npm run profile:init` for the owner: the first word becomes the short
+/// name Alfred uses, the whole name the full name. Always rewrites `users/`,
+/// which ships with an example profile.
+fn profile_init_command(owner_name: &str) -> String {
+    let full = owner_name.split_whitespace().collect::<Vec<_>>().join(" ");
+    match full.split(' ').next().filter(|first| !first.is_empty()) {
+        Some(first) => format!(
+            "npm run profile:init -- --defaults --name {} --full-name {}\n\n",
+            shell_quote(first),
+            shell_quote(&full)
+        ),
+        None => "npm run profile:init -- --defaults\n\n".to_string(),
+    }
 }
 
 fn generate_billing_autolink_snippet() -> &'static str {
@@ -325,6 +343,7 @@ mod tests {
             ollama_url: None,
             firestore_region: None,
             billing_account_id: None,
+            owner_name: String::new(),
         };
 
         let env = generate_env_file(&config);
@@ -348,6 +367,7 @@ mod tests {
             ollama_url: Some("http://custom-ollama:11434".to_string()),
             firestore_region: Some("europe-west1".to_string()),
             billing_account_id: Some("012345-6789AB-CDEF01".to_string()),
+            owner_name: String::new(),
         };
 
         let script = generate_cloud_shell_script(&config);
@@ -375,6 +395,26 @@ mod tests {
         assert!(script.contains("npm run build:web"));
         assert!(script.contains("apps/web/out/index.html"));
         assert!(script.contains("firebase-tools deploy --only hosting,functions,firestore:rules,firestore:indexes --non-interactive --force"));
+    }
+
+    #[test]
+    fn test_profile_is_rendered_with_the_owner_name() {
+        let config = SetupConfig {
+            project_id: "demo-alfred".to_string(),
+            allowed_email: "owner@gmail.com".to_string(),
+            owner_name: "  Ayşe   Nur Yılmaz ".to_string(),
+            ..Default::default()
+        };
+        let script = generate_cloud_shell_script(&config);
+        assert!(script.contains("npm run profile:init -- --defaults --name 'Ayşe' --full-name 'Ayşe Nur Yılmaz'"));
+
+        let hostile_name = "x'; touch /tmp/owned; echo '";
+        let hostile = SetupConfig { owner_name: hostile_name.to_string(), ..config.clone() };
+        let script = generate_cloud_shell_script(&hostile);
+        assert!(script.contains(&format!("--full-name {}", shell_quote(hostile_name))));
+
+        let unnamed = SetupConfig { owner_name: String::new(), ..config };
+        assert!(generate_cloud_shell_script(&unnamed).contains("npm run profile:init -- --defaults\n"));
     }
 
     #[test]
@@ -406,6 +446,7 @@ mod tests {
             ollama_url: None,
             firestore_region: None,
             billing_account_id: None,
+            owner_name: String::new(),
         };
 
         let script = generate_cloud_shell_script(&malicious_config);

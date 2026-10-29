@@ -7,7 +7,9 @@ use std::sync::mpsc::Receiver;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use alfred_setup_core::config_generator::{generate_cloud_shell_script, SetupConfig};
-use alfred_setup_core::validator::{validate_api_key, validate_email, validate_firebase_uid, validate_gcp_project_id};
+use alfred_setup_core::validator::{
+    validate_api_key, validate_email, validate_firebase_uid, validate_gcp_project_id, validate_owner_name,
+};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::deploy::{self, DeployEvent, DeployRun, STAGE_COUNT, SUCCESS_MARKER};
@@ -45,6 +47,7 @@ pub enum Field {
     ProjectId,
     Billing,
     Region,
+    Name,
     Email,
     Uid,
     Evren,
@@ -77,6 +80,7 @@ pub struct App {
     pub screen: Screen,
     pub focus: usize,
     pub project_id: TextInput,
+    pub name: TextInput,
     pub email: TextInput,
     pub uid: TextInput,
     pub evren: TextInput,
@@ -112,6 +116,7 @@ impl App {
             screen: Screen::Project,
             focus: 0,
             project_id: TextInput::default(),
+            name: TextInput::default(),
             email: TextInput::default(),
             uid: TextInput::default(),
             evren: TextInput::masked(),
@@ -137,7 +142,7 @@ impl App {
     pub fn fields(&self) -> Vec<Field> {
         match self.screen {
             Screen::Project => vec![Field::ProjectId, Field::Billing, Field::Region],
-            Screen::Account => vec![Field::Email, Field::Uid],
+            Screen::Account => vec![Field::Name, Field::Email, Field::Uid],
             Screen::Keys => match self.lang {
                 Lang::Tr => vec![Field::Evren, Field::Groq, Field::Gemini, Field::Tavily],
                 Lang::En => vec![Field::Groq, Field::Gemini, Field::Evren, Field::Tavily],
@@ -153,6 +158,7 @@ impl App {
     pub fn input(&self, field: Field) -> Option<&TextInput> {
         match field {
             Field::ProjectId => Some(&self.project_id),
+            Field::Name => Some(&self.name),
             Field::Email => Some(&self.email),
             Field::Uid => Some(&self.uid),
             Field::Evren => Some(&self.evren),
@@ -166,6 +172,7 @@ impl App {
     fn input_mut(&mut self, field: Field) -> Option<&mut TextInput> {
         match field {
             Field::ProjectId => Some(&mut self.project_id),
+            Field::Name => Some(&mut self.name),
             Field::Email => Some(&mut self.email),
             Field::Uid => Some(&mut self.uid),
             Field::Evren => Some(&mut self.evren),
@@ -180,6 +187,7 @@ impl App {
     pub fn error(&self, field: Field) -> Option<String> {
         let message = match field {
             Field::ProjectId => validate_gcp_project_id(self.project_id.value()).err(),
+            Field::Name => validate_owner_name(self.name.value()).err(),
             Field::Email => validate_email(self.email.value()).err(),
             Field::Uid => validate_firebase_uid(self.uid.value()).err(),
             Field::Evren => validate_api_key("evren", self.evren.value()).err(),
@@ -233,6 +241,7 @@ impl App {
             ollama_url: None,
             firestore_region: Some(REGIONS[self.region_idx].to_string()),
             billing_account_id: self.selected_billing().map(|b| b.id.clone()),
+            owner_name: self.name.value().split_whitespace().collect::<Vec<_>>().join(" "),
         }
     }
 

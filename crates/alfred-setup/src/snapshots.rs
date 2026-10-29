@@ -24,6 +24,7 @@ fn app(lang: Lang) -> App {
         BillingAccount { id: "0F1E2D-3C4B5A-697887".into(), name: "Side projects".into() },
     ]);
     app.project_id.set("alfred-x7k2qd");
+    app.name.set("Alex Doe");
     app.email.set("you@gmail.com");
     app
 }
@@ -98,6 +99,8 @@ fn account_screen_in_turkish() {
     let buffer = render(&app);
     let screen = text(&buffer);
     assert!(screen.contains("Hesabın"));
+    assert!(screen.contains("Adın"));
+    assert!(screen.contains("Alex Doe"));
     assert!(screen.contains("Google e-postası"));
     snapshot("2-account-tr", &buffer);
 }

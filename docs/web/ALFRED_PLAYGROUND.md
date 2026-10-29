@@ -3,7 +3,7 @@
 > **Document Status**: Current production architecture (Next.js static export), checked against the code on 24 Sep 2026
 > **Target Audience**: Developers, Operators
 > **Repository Target**: `apps/web/`
-> **Firebase Project**: `butler-alfred` (Display: `BUTLER Alfred`)
+> **Firebase Project**: your own (`<your-project-id>`); nothing project-specific is committed
 
 ---
 
@@ -106,7 +106,7 @@ npm ci
 # Hot-reload dev server on http://localhost:3000.
 # /api/** is proxied to ALFRED_API_ORIGIN (dev only; the export has no rewrites).
 npm run dev:web                                                     # → Functions emulator (default)
-ALFRED_API_ORIGIN=https://butler-alfred.web.app/api npm run dev:web  # → production API
+ALFRED_API_ORIGIN=https://<your-project-id>.web.app/api npm run dev:web  # → production API
 
 # Production build (static export to apps/web/out) and a local preview with
 # the real firebase.json rewrites and headers:
@@ -114,9 +114,9 @@ npm run build:web
 firebase serve --only hosting
 ```
 
-The default `ALFRED_API_ORIGIN` is `http://127.0.0.1:5001/butler-alfred/us-central1/api` (start it with `firebase emulators:start --only functions`; App Check is not enforced in the emulator). Sign-in needs `localhost` in Firebase Auth → Authorized domains. On `localhost` / `127.0.0.1` (and in `next dev`) App Check runs in debug mode (`lib/app-check-debug.ts`): it uses `NEXT_PUBLIC_APPCHECK_DEBUG_TOKEN` from `apps/web/.env.local` if set, otherwise the Firebase SDK generates a random per-browser debug token and prints it in the browser console. **Against the production API that token must be registered in the Firebase console** (App Check → Apps → Manage debug tokens), otherwise every call gets 401. The production site never enables debug mode; there is no `?debug_token=true` switch and no debug token in the repository.
+The default `ALFRED_API_ORIGIN` is `http://127.0.0.1:5001/<NEXT_PUBLIC_FIREBASE_PROJECT_ID or demo-alfred>/us-central1/api` (start it with `firebase emulators:start --only functions`; App Check is not enforced in the emulator). Sign-in needs `localhost` in Firebase Auth → Authorized domains. On `localhost` / `127.0.0.1` (and in `next dev`) App Check runs in debug mode (`lib/app-check-debug.ts`): it uses `NEXT_PUBLIC_APPCHECK_DEBUG_TOKEN` from `apps/web/.env.local` if set, otherwise the Firebase SDK generates a random per-browser debug token and prints it in the browser console. **Against the production API that token must be registered in the Firebase console** (App Check → Apps → Manage debug tokens), otherwise every call gets 401. The production site never enables debug mode; there is no `?debug_token=true` switch and no debug token in the repository.
 
-Web-only variables (`NEXT_PUBLIC_*`, `ALFRED_API_ORIGIN`) are read by Next.js from `apps/web/`, not from the repository root: copy `apps/web/.env.example` to `apps/web/.env.local` if you need to override them. The committed defaults in `lib/firebase.ts` / `lib/allowed-uid.ts` are what production uses.
+Web-only variables (`NEXT_PUBLIC_*`, `ALFRED_API_ORIGIN`) are read by Next.js from `apps/web/`, not from the repository root: copy `apps/web/.env.example` to `apps/web/.env.local` and fill in your project. `lib/firebase.ts` / `lib/allowed-uid.ts` have no project defaults: a production bundle without the Firebase config throws in the browser, and with no allowed UID/e-mail every sign-in is refused.
 
 Checks that CI runs on every PR:
 
@@ -135,8 +135,7 @@ npm run build:web
 ## 7. Deployment
 
 - `firebase.json` → `hosting.public: "apps/web/out"`, rewrites `/api/** → api` and `** → /index.html`; `Cache-Control: no-cache` everywhere except `/_next/static/**` (`public, max-age=31536000, immutable`).
-- `.github/workflows/deploy.yml` runs on pushes to `main` that touch app code (`apps/`, `src/`, `functions/`, Firebase config, package files or the workflows): the CI job above must pass, then it runs `npm ci`, `npm run build:web`, the functions bundle build and `firebase deploy --only hosting,functions,firestore:rules,firestore:indexes`.
-- Manual deploy: `npm run build:web && npx firebase-tools deploy --only hosting,functions,firestore:rules,firestore:indexes`.
+- There is no deploy workflow (this repository is a template). Deploy: `npx firebase-tools deploy --project <your-project-id> --only hosting,functions,firestore:rules,firestore:indexes`. The hosting predeploy hook rebuilds the export with `VALIDATE_FIREBASE_CONFIG=true` and fails if the `NEXT_PUBLIC_FIREBASE_*` config is missing or points at another project; the functions hook builds the bundle.
 - Rollback: `firebase hosting:rollback`, or Firebase console → Hosting → Release history → Roll back. This restores the previous static release without a rebuild; the Cloud Function is not affected.
 
 ---

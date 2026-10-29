@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Optimized `crates/setup-core` release profile (`opt-level = "z"`, `lto = true`), reducing Wasm bundle from 1.12 MB to 114 KB.
   - Added `rust-toolchain.toml` and GitHub Actions CI steps for `cargo test`, `cargo clippy -- -D warnings`, and `git diff --exit-code setup-ui/wasm`.
 
+### Changed
+
+- **Project-neutral template**: the repository no longer carries a Firebase project. `.firebaserc` and `functions/.env.<projectId>` are gitignored (each instance runs `firebase use <id>` / `--project <id>`; `functions/.env.example` documents the keys), the owner-specific `deploy.yml` and `preview.yml` workflows are removed, `backup.yml` is opt-in (`FIREBASE_SERVICE_ACCOUNT` + `BACKUP_PASSPHRASE`), the hosting predeploy hook validates the web config against the deploy target, and the Google OAuth fallback redirect is derived from the function's project.
+
 ## [0.1.0] - 2026-10-28
 
 ### Added

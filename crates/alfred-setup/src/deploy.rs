@@ -237,6 +237,13 @@ mod tests {
     }
 
     #[test]
+    fn billing_markers_are_not_mistaken_for_stages() {
+        use alfred_setup_core::config_generator::{BILLING_DISABLED_MARKER, BILLING_QUOTA_MARKER};
+        assert_eq!(stage_of(BILLING_QUOTA_MARKER), None);
+        assert_eq!(stage_of(BILLING_DISABLED_MARKER), None);
+    }
+
+    #[test]
     fn runs_a_script_with_secrets_only_in_its_environment() {
         let dir = std::env::temp_dir();
         let run = start(

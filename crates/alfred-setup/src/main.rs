@@ -20,7 +20,7 @@ use std::time::Duration;
 use ratatui::crossterm::event::{self, DisableBracketedPaste, EnableBracketedPaste, Event, KeyEventKind};
 use ratatui::crossterm::execute;
 
-use app::{App, Screen};
+use app::{Action, App, Screen};
 use i18n::Lang;
 
 struct Args {
@@ -65,6 +65,17 @@ fn run(app: &mut App) -> io::Result<()> {
                     Event::Paste(text) => app.on_paste(&text),
                     _ => {}
                 }
+            }
+            if app.take_action() == Some(Action::SwitchAccount) {
+                // gcloud's sign-in is interactive: hand it the real terminal.
+                let _ = execute!(io::stdout(), DisableBracketedPaste);
+                ratatui::restore();
+                if !app.demo {
+                    let _ = std::process::Command::new("gcloud").args(["auth", "login", "--update-adc"]).status();
+                }
+                terminal = ratatui::init();
+                execute!(io::stdout(), EnableBracketedPaste)?;
+                app.after_account_switch();
             }
         }
         Ok(())

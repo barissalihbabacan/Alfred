@@ -190,6 +190,33 @@ fn failed_deploy_points_to_the_log() {
 }
 
 #[test]
+fn billing_quota_failure_offers_another_account() {
+    use crate::app::{Action, Failure};
+    use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    let mut app = app(Lang::Tr);
+    app.fake_deploy(
+        &["ERROR: (gcloud.billing.projects.link) FAILED_PRECONDITION: Precondition check failed.", "[Alfred Setup] ERROR billing-quota-exceeded 01A2B3-C4D5E6-F7A8B9"],
+        Some(1),
+        Screen::Failed,
+        Some(3),
+    );
+    app.deploy.as_mut().unwrap().failure = Some(Failure::BillingQuota);
+    let buffer = render(&app);
+    let screen = text(&buffer);
+    assert!(screen.contains("yeni bir proje için yer kalmadı"));
+    assert!(screen.contains("B: başka bir faturalandırma hesabı seç"));
+    assert!(screen.contains("--billing-account=01A2B3-C4D5E6-F7A8B9"));
+    snapshot("6b-billing-quota-tr", &buffer);
+
+    app.on_key(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE));
+    assert_eq!(app.take_action(), Some(Action::SwitchAccount));
+    app.on_key(KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE));
+    assert_eq!(app.screen, Screen::Project);
+    assert_eq!(app.focused(), Some(crate::app::Field::Billing));
+    assert_eq!(app.project_id.value(), "alfred-x7k2qd", "the project ID is kept");
+}
+
+#[test]
 fn done_screen_lists_the_console_steps() {
     let mut app = app(Lang::En);
     app.fake_deploy(&[], Some(9), Screen::Done, Some(0));

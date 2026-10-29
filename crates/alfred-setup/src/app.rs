@@ -6,7 +6,9 @@ use std::path::PathBuf;
 use std::sync::mpsc::Receiver;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-use alfred_setup_core::config_generator::{generate_cloud_shell_script, SetupConfig};
+use alfred_setup_core::config_generator::{
+    generate_cloud_shell_script, SetupConfig, BILLING_DISABLED_MARKER, BILLING_QUOTA_MARKER,
+};
 use alfred_setup_core::validator::{
     validate_api_key, validate_email, validate_firebase_uid, validate_gcp_project_id, validate_owner_name,
 };
@@ -56,6 +58,22 @@ pub enum Field {
     Tavily,
 }
 
+/// Why a deploy stopped, when the script said so with a marker line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Failure {
+    /// The billing account has no room for another project.
+    BillingQuota,
+    /// Billing is still off after linking (permissions, closed account, ...).
+    BillingDisabled,
+}
+
+/// Work the main loop must do outside the TUI.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Action {
+    /// Leave the TUI, run `gcloud auth login`, come back to the project step.
+    SwitchAccount,
+}
+
 pub enum Billing {
     Loading(Receiver<Result<Vec<BillingAccount>, String>>),
     Loaded(Vec<BillingAccount>),
@@ -69,6 +87,7 @@ pub struct DeployState {
     pub stage: Option<usize>,
     pub succeeded: bool,
     pub exit_code: Option<i32>,
+    pub failure: Option<Failure>,
     pub scroll_up: usize,
     pub log_path: PathBuf,
     log: Option<BufWriter<File>>,
@@ -95,6 +114,7 @@ pub struct App {
     pub deploy: Option<DeployState>,
     pub quit_armed: bool,
     pub should_quit: bool,
+    pub pending_action: Option<Action>,
     pub demo: bool,
     pub repo_root: PathBuf,
     /// Repository the Cloud Shell launcher cloned (`ALFRED_SOURCE_REPO`).
@@ -131,6 +151,7 @@ impl App {
             deploy: None,
             quit_armed: false,
             should_quit: false,
+            pending_action: None,
             demo,
             repo_root,
             source_repo: std::env::var("ALFRED_SOURCE_REPO").ok().filter(|s| !s.trim().is_empty()),
@@ -272,6 +293,11 @@ impl App {
                     if line.contains(SUCCESS_MARKER) {
                         state.succeeded = true;
                     }
+                    if line.contains(BILLING_QUOTA_MARKER) {
+                        state.failure = Some(Failure::BillingQuota);
+                    } else if line.contains(BILLING_DISABLED_MARKER) {
+                        state.failure = Some(Failure::BillingDisabled);
+                    }
                     if let Some(log) = state.log.as_mut() {
                         let _ = writeln!(log, "{line}");
                     }
@@ -318,6 +344,7 @@ impl App {
             stage: None,
             succeeded: false,
             exit_code: None,
+            failure: None,
             scroll_up: 0,
             log_path,
             log,
@@ -346,12 +373,37 @@ impl App {
             stage,
             succeeded: screen == Screen::Done,
             exit_code,
+            failure: None,
             scroll_up: 0,
             log_path: PathBuf::from("/home/you/alfred-setup-alfred-x7k2qd.log"),
             log: None,
             run: None,
         });
         self.screen = screen;
+    }
+
+    /// The billing problem that stopped the last deploy, if any.
+    pub fn billing_failure(&self) -> Option<Failure> {
+        self.deploy.as_ref().and_then(|d| d.failure)
+    }
+
+    /// Back to the project step with a fresh billing account list; the
+    /// project ID is kept, so the next deploy resumes that project.
+    fn choose_other_billing(&mut self) {
+        self.billing = Billing::Loading(fetch_billing_accounts(self.demo));
+        self.billing_idx = 0;
+        self.show_errors = false;
+        self.screen = Screen::Project;
+        self.focus = self.fields().iter().position(|f| *f == Field::Billing).unwrap_or(0);
+    }
+
+    pub fn take_action(&mut self) -> Option<Action> {
+        self.pending_action.take()
+    }
+
+    /// Called by the main loop after `gcloud auth login` returns.
+    pub fn after_account_switch(&mut self) {
+        self.choose_other_billing();
     }
 
     fn step_is_valid(&self) -> bool {
@@ -440,6 +492,10 @@ impl App {
                 }
             }
             Screen::Failed => match key.code {
+                KeyCode::Char('b') | KeyCode::Char('B') if self.billing_failure().is_some() => self.choose_other_billing(),
+                KeyCode::Char('a') | KeyCode::Char('A') if self.billing_failure().is_some() => {
+                    self.pending_action = Some(Action::SwitchAccount);
+                }
                 KeyCode::Enter => self.start_deploy(),
                 KeyCode::Esc => self.screen = Screen::Review,
                 KeyCode::Char('q') | KeyCode::Char('Q') => self.should_quit = true,

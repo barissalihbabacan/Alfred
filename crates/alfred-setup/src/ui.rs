@@ -381,6 +381,7 @@ fn draw_done(frame: &mut Frame, app: &App, area: Rect) {
         Line::from(t.done_next).fg(TEXT).bold(),
         Line::from(format!("  1. {}", t.done_step_google)).fg(TEXT),
         Line::from(format!("     {providers}")).fg(GOLD),
+        Line::from(format!("     {}", t.done_step_google_how)).fg(MUTED),
         Line::from(format!("  2. {} {}", t.done_step_signin, config.allowed_email)).fg(TEXT),
         Line::from(format!("  3. {}", t.done_step_appcheck)).fg(MUTED),
     ];

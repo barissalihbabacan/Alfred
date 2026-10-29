@@ -224,6 +224,7 @@ fn done_screen_lists_the_console_steps() {
     let screen = text(&buffer);
     assert!(screen.contains("https://alfred-x7k2qd.web.app"));
     assert!(screen.contains("authentication/providers"));
+    assert!(screen.contains("Sign-in method > Google > Enable"));
     assert!(screen.contains("you@gmail.com"));
     snapshot("7-done-en", &buffer);
 }

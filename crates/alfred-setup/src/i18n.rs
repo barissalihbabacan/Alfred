@@ -113,6 +113,7 @@ pub struct Texts {
     pub done_open: &'static str,
     pub done_next: &'static str,
     pub done_step_google: &'static str,
+    pub done_step_google_how: &'static str,
     pub done_step_signin: &'static str,
     pub done_step_appcheck: &'static str,
 }
@@ -198,8 +199,9 @@ pub static EN: Texts = Texts {
 
     done_heading: "Alfred is live",
     done_open: "Open",
-    done_next: "Left to do",
-    done_step_google: "Enable Google sign-in:",
+    done_next: "To finish, do these steps in order:",
+    done_step_google: "Turn on Google sign-in in the Firebase console:",
+    done_step_google_how: "Get started > Sign-in method > Google > Enable > pick your e-mail > Save",
     done_step_signin: "Open the app and sign in with",
     done_step_appcheck: "Optional, later: turn on App Check (see docs/OPERATIONS.md).",
 };
@@ -285,8 +287,9 @@ pub static TR: Texts = Texts {
 
     done_heading: "Alfred yayında",
     done_open: "Aç",
-    done_next: "Kalan adımlar",
-    done_step_google: "Google ile girişi aç:",
+    done_next: "Kurulumu bitirmek için şu adımları sırayla yap:",
+    done_step_google: "Firebase konsolunda Google ile girişi aç:",
+    done_step_google_how: "Başlayın (Get started) > Sign-in method > Google > Enable > e-postanı seç > Save",
     done_step_signin: "Uygulamayı aç ve şu hesapla giriş yap:",
     done_step_appcheck: "İsteğe bağlı, sonra: App Check'i aç (bkz. docs/OPERATIONS.md).",
 };

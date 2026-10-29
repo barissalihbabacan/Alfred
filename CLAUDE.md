@@ -29,8 +29,9 @@ npm run test:ollama
 npm run memory:reindex     # rebuild vector store from Firestore (source of truth)
 npm run backup:firestore -- --out backup.json   # JSON dump of every collection (needs ADC; CI runs it weekly, encrypted)
 
-# Canonical user profile (after editing users/*.md)
-# 1. update src/alfred/cognitive/context/user-profile.digest.md by hand to reflect the edit
+# Canonical user profile
+npm run profile:init            # render users/*.md + the digest from templates/ (interactive; --defaults --date 2026-10-29 = the committed example)
+# After editing users/*.md by hand: 1. update src/alfred/cognitive/context/user-profile.digest.md to reflect the edit
 npm run generate:user-profile   # re-embed users/*.md + digest; prints the new sha256 lines for the digest (exit 1 until pasted)
 npx vitest run tests/unit/functions-system-prompt.test.ts -u   # refresh the production prompt fixture
 
@@ -59,7 +60,7 @@ As of the last check (25 Oct 2026) `npm run test:unit` is 964 passing tests acro
 | File | Needs | With `ALFRED_OFFLINE=1` (CI) |
 |---|---|---|
 | `groq.integration.test.ts` | `GROQ_API_KEY`, live Groq | skipped |
-| `ollama.integration.test.ts` | Ollama at `OLLAMA_BASE_URL` (default Tailscale MacBook) | skipped |
+| `ollama.integration.test.ts` | Ollama at `OLLAMA_BASE_URL` (default `http://localhost:11434`) | skipped |
 | `production-chat-regression.test.ts` | `ALFRED_PROD_BASE_URL` (your deployed instance; skipped when unset); authenticated part also `ALFRED_TEST_ID_TOKEN`, or `GOOGLE_APPLICATION_CREDENTIALS` plus `NEXT_PUBLIC_FIREBASE_API_KEY` | skipped (CI never hits production) |
 | `ssh-home-server.integration.test.ts` | SSH to home-server over Tailscale + key | skipped |
 | `ssh-list-directory.integration.test.ts` | path-sandbox test: nothing (runs, with a client factory that refuses to connect); the rest: SSH to home-server, symlink test also runs on home-server itself | sandbox test runs, rest skipped |
@@ -80,7 +81,7 @@ Planned capabilities and the pattern for adding a tool to production are in `doc
 - `src/data/` — Firestore repositories, vector store, embedding providers, always through interfaces + factories (`getConversationRepository()`, `getVectorStore()`, `getEmbeddingProvider()`), each with an in-memory implementation for unit tests.
 - `src/core/` — config, errors (`errorMessage()`), a `StructuredLogger` that production does not use (`functions/index.js` has its own `logEvent()`).
 - `functions/` — the backend: plain JS, own `package.json`, ~1900-line `functions/index.js` with two entry points, `api` (`onRequest`, behind the `/api/**` Hosting rewrite) and `alfredCallable` (`onCall`). Parts of it import `src/` through the bundle (see **Functions bundle**); the rest is hand-written, so a behaviour change outside the shared modules often has to be made here **and** in `src/`.
-- `users/` — canonical, git-versioned profile of Barış, **read-only at runtime**. The prompt carries a hand-written digest of it (`src/alfred/cognitive/context/user-profile.digest.md`, which records each file's sha256), not the files. Editing `users/*.md` means updating the digest, pasting the hashes `npm run generate:user-profile` prints and refreshing the prompt fixture (see **Commands**); tests and `functions/build.js` fail until the hashes match.
+- `users/` — canonical, git-versioned user profile, **read-only at runtime**. The committed files are a neutral example ("Alex Doe") rendered from `templates/` by `npm run profile:init -- --defaults --date 2026-10-29` (`tests/unit/init-profile.test.ts` pins that); an installation renders its own. The prompt carries a digest of it (`src/alfred/cognitive/context/user-profile.digest.md`, which records each file's sha256), not the files. Editing `users/*.md` means updating the digest, pasting the hashes `npm run generate:user-profile` prints and refreshing the prompt fixture (see **Commands**); tests and `functions/build.js` fail until the hashes match.
 - `docs/persona/ALFRED_PERSONA.md` — canonical behavioural spec for Alfred (language rules, tone, pushback, response length). Consult it before changing `src/alfred/persona/` or `src/ai/prompts/`.
 - **Structured logs**: `api` emits `llm_request`, `llm_provider_fallback`, `llm_rate_limited`, `llm_stream_error`, `tool_call`, `memory_retrieval`, `memory_extraction`, `embedding_error` and `app_check` events (never API keys, ID tokens or user message text). The Cloud Monitoring alerts filter on these event names and fields: `tests/unit/monitoring-config.test.ts` fails if one disappears; when renaming, update `scripts/monitoring/metrics/*.json` and re-run the setup script (the owner applies it; CI never touches Monitoring).
 
@@ -102,7 +103,7 @@ Production (`functions/index.js`) offers `get_current_time`, `ssh_connect` / `ss
 **SSH in production goes through a Firestore relay, not SSH from Cloud Run.** `dispatchServerCommandViaRelay()` checks the command against `ALLOWED_SSH_COMMANDS`, writes a `pending` doc to `server_commands` and waits up to 20 s on `onSnapshot`; `scripts/home-relay-daemon.ts` (`npm run relay`, on the home server, Admin SDK with its own service-account key, so `firestore.rules` stays deny-all) claims it (`processing`), re-validates it with `CommandRegistry` (`src/alfred/execution-plane/ssh/command-registry.ts`) and runs it locally, then writes `completed`/`failed`; the function deletes the doc. `ssh_connect` does not touch the relay (returns a static "connected"). A new whitelisted command therefore has to be added in `allowed-commands.ts` **and** `command-registry.ts`, and the daemon restarted. The direct-SSH code in `src/alfred/execution-plane/ssh/` (ssh2 client, path sandbox, hosts by alias only) is used by `src/` and the integration tests, not by production.
 
 ### Storage model — three tiers, one source of truth
-1. **Git (`users/`)** — authored baseline about Barış, read-only at runtime.
+1. **Git (`users/`)** — authored baseline about the user, read-only at runtime.
 2. **Firestore** — authoritative for conversation history (`conversations/{id}/messages/{id}`, atomic `sequence`) and long-term memory (`memory_vectors/{id}`).
 3. **Vector store** (`LocalFileVectorStore`) — a rebuildable cache, never the source of truth (`npm run memory:reindex`).
 

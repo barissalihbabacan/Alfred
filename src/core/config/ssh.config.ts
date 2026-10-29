@@ -38,12 +38,15 @@ export function getSSHConfig(): SSHConfig {
       ? Number(process.env.SSH_DEFAULT_TIMEOUT_MS)
       : DEFAULT_TIMEOUT_MS;
 
+  // No owner-specific defaults: the hostname falls back to the alias itself,
+  // resolved by ~/.ssh/config, /etc/hosts or MagicDNS. Further machines go in
+  // SSH_HOSTS_JSON.
   const homeServerHost: SSHHostConfig = {
     id: "home-server",
     name: "Home Development Server (Linux)",
-    hostname: process.env.SSH_HOME_SERVER_HOSTNAME || "100.108.234.65",
+    hostname: process.env.SSH_HOME_SERVER_HOSTNAME?.trim() || "home-server",
     port: Number(process.env.SSH_HOME_SERVER_PORT) || 22,
-    username: process.env.SSH_HOME_SERVER_USERNAME || "baris",
+    username: process.env.SSH_HOME_SERVER_USERNAME?.trim() || process.env.USER || "alfred",
     authMethod: "privateKey",
     privateKeyPath: process.env.SSH_HOME_SERVER_KEY_PATH || resolveDefaultHomeKey(),
     connectionTimeoutMs:
@@ -52,20 +55,8 @@ export function getSSHConfig(): SSHConfig {
         : defaultTimeoutMs
   };
 
-  const macbookHost: SSHHostConfig = {
-    id: "macbook-pro",
-    name: "Secondary Development Machine (MacBook Pro)",
-    hostname: process.env.SSH_MACBOOK_HOSTNAME || "100.64.0.53",
-    port: Number(process.env.SSH_MACBOOK_PORT) || 22,
-    username: process.env.SSH_MACBOOK_USERNAME || "you",
-    authMethod: "privateKey",
-    privateKeyPath: process.env.SSH_MACBOOK_KEY_PATH || resolveDefaultHomeKey(),
-    connectionTimeoutMs: defaultTimeoutMs
-  };
-
   const hosts: Record<string, SSHHostConfig> = {
-    "home-server": homeServerHost,
-    "macbook-pro": macbookHost
+    "home-server": homeServerHost
   };
 
   // Support additional hosts dynamically defined via JSON environment variable
@@ -103,12 +94,7 @@ export function getSSHConfig(): SSHConfig {
     "home server": "home-server",
     "dev-sunucum": "home-server",
     "dev sunucum": "home-server",
-    "devsunucum": "home-server",
-    "home-box": "home-server",
-    "macbook": "macbook-pro",
-    "macbook-pro": "macbook-pro",
-    "macbook pro": "macbook-pro",
-    "my-laptop": "macbook-pro"
+    "devsunucum": "home-server"
   };
 
   return {

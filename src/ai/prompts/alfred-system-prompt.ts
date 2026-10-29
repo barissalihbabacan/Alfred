@@ -214,8 +214,8 @@ export function renderSystemPromptUserProfileBlock(sources: UserProfileSources):
 
 /**
  * The request path as production actually runs it, for the governor's
- * "Current known pipeline" line. Groq is the default; Ollama on the MacBook
- * (over Tailscale) is only in the path when ALFRED_LLM_PROVIDER=ollama.
+ * "Current known pipeline" line. Groq is the default; a self-hosted Ollama
+ * (OLLAMA_BASE_URL) is only in the path when ALFRED_LLM_PROVIDER=ollama.
  */
 export function describeRequestPipeline(runtime: AlfredRuntime = DEFAULT_ALFRED_RUNTIME): string {
   const provider = (runtime.provider ?? "").trim().toLowerCase();
@@ -223,14 +223,14 @@ export function describeRequestPipeline(runtime: AlfredRuntime = DEFAULT_ALFRED_
   const front = "Browser (Next.js static export) → Firebase Hosting (/api rewrite) → Firebase Cloud Function 2nd Gen (api, Cloud Run)";
   const memory = "Long-term memory: Gemini embeddings with Firestore as the source of truth.";
   if (provider === "ollama") {
-    return `${front} → Tailscale Funnel → MacBook Ollama${model ? ` (${model})` : ""} → SSE response. ${memory}`;
+    return `${front} → self-hosted Ollama${model ? ` (${model})` : ""} → SSE response. ${memory}`;
   }
   const fallbackName = FALLBACK_PROVIDER_NAMES[provider];
   if (fallbackName) {
     return `${front} → ${fallbackName} API${model ? ` (${model})` : ""} → SSE response. ${memory} Groq is the primary provider; this turn fell back because Groq was unavailable.`;
   }
   const llm = provider === "evren" ? "EVREN API" : provider === "groq" || !provider ? "Groq API" : provider;
-  return `${front} → ${llm}${model ? ` (${model})` : ""} → SSE response. ${memory} Ollama on the MacBook over Tailscale is an optional alternative provider, not in the default path.`;
+  return `${front} → ${llm}${model ? ` (${model})` : ""} → SSE response. ${memory} Self-hosted Ollama is an optional alternative provider, not in the default path.`;
 }
 
 /**

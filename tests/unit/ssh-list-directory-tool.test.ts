@@ -70,7 +70,7 @@ describe("SSHListDirectoryTool Suite", () => {
     });
 
     it("refuses production's denied paths with production's error text", () => {
-      for (const path of ["..", "Belgeler/../x", "/etc", "/var/log", "/home/baris/Belgeler"]) {
+      for (const path of ["..", "Belgeler/../x", "/etc", "/var/log", "/home/alfred/Belgeler"]) {
         expect(tool.validateArgs({ host: "home-server", path })).toEqual({
           valid: false,
           error: `Access denied: Path '${path}' resolves outside the permitted 'Belgeler/' sandbox.`
@@ -152,7 +152,7 @@ describe("SSHListDirectoryTool Suite", () => {
         "../../",
         "/etc",
         "/var/log",
-        "/home/baris",
+        "/home/alfred",
         "Belgeler/../.ssh"
       ];
 
@@ -173,8 +173,8 @@ describe("SSHListDirectoryTool Suite", () => {
       const result = await tool.execute({ host: "home-server", path: "Belgeler" });
       const serialized = JSON.stringify(result);
 
-      expect(serialized).not.toContain("100.108.234.65");
-      expect(serialized).not.toContain("100.64.0.53");
+      // No IPv4 address of any configured host
+      expect(serialized).not.toMatch(/\b\d{1,3}(?:\.\d{1,3}){3}\b/);
       expect(serialized).not.toContain("privateKey");
       expect(serialized).not.toContain("id_ed25519");
     });

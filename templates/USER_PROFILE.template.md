@@ -20,9 +20,9 @@
 
 - **Engineering Level**: {{ENGINEERING_LEVEL}}
 - **Core Stacks & Competencies**:
-{{CORE_STACKS}}
+  - {{CORE_STACKS}}
 - **Architectural Orientation**:
-{{ARCHITECTURAL_ORIENTATION}}
+  - {{ARCHITECTURAL_ORIENTATION}}
 
 ---
 

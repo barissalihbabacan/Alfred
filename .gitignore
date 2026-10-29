@@ -107,3 +107,7 @@ firestore-backup*.json.gpg
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/
+
+# Owner-only local copies (e.g. a real users/ profile kept out of the template:
+# local/profile/). Never committed.
+/local/

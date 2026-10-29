@@ -269,7 +269,7 @@ const HOSTS: unknown[] = [
   "   ",
   "dev-sunucum",
   "macbook",
-  "root@100.108.234.65",
+  "root@100.64.0.42",
   "home-server; rm -rf /",
   "ev-sunucusu-ğüşİ",
   0,

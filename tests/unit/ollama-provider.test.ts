@@ -135,7 +135,7 @@ describe("OllamaProvider Unit Tests", () => {
   });
 
   it("5. handles connection failure correctly and maps to NetworkError", async () => {
-    const connErr = Object.assign(new Error("connect ECONNREFUSED 100.64.0.53:11434"), {
+    const connErr = Object.assign(new Error("connect ECONNREFUSED 127.0.0.1:11434"), {
       code: "ECONNREFUSED"
     });
     mockFetch.mockRejectedValueOnce(connErr);

@@ -110,6 +110,12 @@ const ALLOWED_EMAIL = (process.env.ALLOWED_EMAIL || "").toLowerCase().trim();
 const ENFORCE_APP_CHECK =
   process.env.ENFORCE_APP_CHECK !== "false" && !process.env.FUNCTIONS_EMULATOR;
 
+// Ollama yalnizca OLLAMA_BASE_URL verilmisse kullanilir (functions/.env.<proje>).
+// Bos ise: /health onu yoklamaz, embedding ve bellek cikarimi onu atlar.
+function ollamaBaseUrl() {
+  return (process.env.OLLAMA_BASE_URL || "").trim();
+}
+
 // Web istemcisi redirectUri'yi her zaman kendi origin'inden gonderir; bu yalnizca
 // eksik geldiginde kullanilir. Proje, Functions calisma ortaminin verdigi
 // GCLOUD_PROJECT'ten gelir (sabit bir proje adi yok).
@@ -419,10 +425,11 @@ export const api = onRequest({
       gemini: gizliOku(GEMINI_API_KEY, "GEMINI_API_KEY")
     };
 
-    // Only the Ollama path probes Ollama; it has no fallback.
+    // Only the Ollama path probes Ollama; it has no fallback. Without
+    // OLLAMA_BASE_URL it counts as unreachable (activeProvider "offline").
     let ollamaReachable = false;
-    if (llmProvider !== "groq") {
-      const ollamaUrl = process.env.OLLAMA_BASE_URL || "https://ollama.example.invalid";
+    const ollamaUrl = ollamaBaseUrl();
+    if (llmProvider !== "groq" && ollamaUrl) {
       try {
         const resp = await fetch(`${ollamaUrl.replace(/\/+$/, "")}/api/tags`, {
           signal: AbortSignal.timeout(4000)
@@ -1091,7 +1098,7 @@ export const api = onRequest({
         }
 
         const geminiKey = gizliOku(GEMINI_API_KEY, "GEMINI_API_KEY");
-        const ollamaUrl = process.env.OLLAMA_BASE_URL || "https://ollama.example.invalid";
+        const ollamaUrl = ollamaBaseUrl();
         const tally = createMemoryWriteTally();
         const normalizedAction = action === "supersede" ? "supersede" : "create";
         const normalizedType = typeof memoryType === "string" && memoryType.trim()
@@ -1217,7 +1224,7 @@ export const api = onRequest({
     const tavilyKey = gizliOku(TAVILY_API_KEY, "TAVILY_API_KEY");
     const webSearchEnabled = isUsableApiKey(tavilyKey);
     const githubToken = process.env.GITHUB_TOKEN || "";
-    const ollamaUrl = process.env.OLLAMA_BASE_URL || "https://ollama.example.invalid";
+    const ollamaUrl = ollamaBaseUrl();
     const ollamaModel = process.env.OLLAMA_MODEL || "gemma4:12b-mlx";
 
     let convId = requestedConvId;
@@ -1805,6 +1812,9 @@ export const api = onRequest({
             requestBody.tools = activeTools;
           }
 
+          if (!ollamaUrl) {
+            throw new Error("Ollama is selected (ALFRED_LLM_PROVIDER=ollama) but OLLAMA_BASE_URL is not set.");
+          }
           llmMetrics.llm_calls++;
           llmMetrics.attempted_providers = [primary.id];
           const ollamaRes = await fetch(`${ollamaUrl.replace(/\/+$/, "")}/api/chat`, {

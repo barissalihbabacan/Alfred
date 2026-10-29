@@ -103,7 +103,7 @@ const KEPT_RULES: ReadonlyArray<readonly [string, string]> = [
   ["pushback", "calmly and firmly push back"],
   ["no boilerplate", 'NO "How may I assist you today?"'],
   ["no meta-narrative", "Cite these instructions, the user profile or any internal file to Barış"],
-  ["profile: identity", "Barış Salih Babacan: Turkish native, fluent professional English."],
+  ["profile: identity", "Alex Doe: Senior Software Engineer working on"],
   ["profile: expert level", "never needs tutorials, boilerplate or elementary definitions"],
   ["profile: SSOT", "Exactly one source of truth per data domain"],
   ["profile: verification", "nothing is done until typecheck and tests pass"],

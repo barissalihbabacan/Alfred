@@ -144,7 +144,7 @@ describe("capability line for a fallback provider", () => {
     const prompt = buildAlfredSystemPrompt({ runtime: { provider: "gemini", model: "gemini-3.8-flash" } });
     expect(prompt).toContain("reasoning via Google Gemini (gemini-3.8-flash), standing in because Groq is unavailable,");
     expect(prompt).toContain("Groq is the primary provider; this turn fell back because Groq was unavailable.");
-    expect(prompt).not.toContain("Ollama on the MacBook over Tailscale is an optional alternative provider");
+    expect(prompt).not.toContain("Self-hosted Ollama is an optional alternative provider");
   });
 });
 

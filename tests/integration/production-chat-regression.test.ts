@@ -144,7 +144,7 @@ describe.skipIf(OFFLINE || !BASE || !hasCredentials)("Production Chat SSE Regres
       expect(events.find((e) => e.type === "error")).toBeUndefined();
 
       // 2. Must NOT contain fallback copy or internal network details
-      expect(accumulatedContent).not.toContain("100.64.0.53");
+      expect(accumulatedContent).not.toMatch(/\b\d{1,3}(?:\.\d{1,3}){3}\b/);
       expect(accumulatedContent).not.toContain("To enable live reasoning");
       expect(accumulatedContent).not.toContain("please ensure the Ollama server is running");
       expect(accumulatedContent).not.toContain("Indeed, sir. You mentioned:");

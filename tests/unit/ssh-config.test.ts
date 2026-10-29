@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   getSSHConfig,
   normalizeHostId,
@@ -60,8 +60,7 @@ describe("SSH Configuration & Allowlist Suite", () => {
         "homeserver",
         "dev-sunucum",
         "dev sunucum",
-        "devsunucum",
-        "home-box"
+        "devsunucum"
       ];
 
       for (const alias of homeAliases) {
@@ -70,19 +69,29 @@ describe("SSH Configuration & Allowlist Suite", () => {
         expect(resolved?.id).toBe("home-server");
         expect(isHostAllowed(alias)).toBe(true);
       }
+    });
 
-      const macbookAliases = [
-        "macbook",
-        "macbook-pro",
-        "macbook pro",
-        "my-laptop"
-      ];
+    it("takes the home-server address from env, never from the model", () => {
+      vi.stubEnv("SSH_HOME_SERVER_HOSTNAME", "100.64.0.42");
+      vi.stubEnv("SSH_HOME_SERVER_USERNAME", "owner");
+      try {
+        const resolved = resolveSSHHost("Home Server");
+        expect(resolved?.hostname).toBe("100.64.0.42");
+        expect(resolved?.username).toBe("owner");
+        // The address itself is not an approved identifier.
+        expect(resolveSSHHost("100.64.0.42")).toBeNull();
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
 
-      for (const alias of macbookAliases) {
-        const resolved = resolveSSHHost(alias);
-        expect(resolved).not.toBeNull();
-        expect(resolved?.id).toBe("macbook-pro");
-        expect(isHostAllowed(alias)).toBe(true);
+    it("resolves extra hosts from SSH_HOSTS_JSON by their id only", () => {
+      vi.stubEnv("SSH_HOSTS_JSON", JSON.stringify({ NAS: { hostname: "nas.lan", username: "me" } }));
+      try {
+        expect(resolveSSHHost("nas")?.hostname).toBe("nas.lan");
+        expect(isHostAllowed("nas.lan")).toBe(false);
+      } finally {
+        vi.unstubAllEnvs();
       }
     });
 
@@ -90,8 +99,8 @@ describe("SSH Configuration & Allowlist Suite", () => {
       const invalidHosts = [
         "unknown-server",
         "192.168.1.100",
-        "100.108.234.65", // Direct IP is disallowed: only approved logical identifiers
-        "100.64.0.53",
+        "100.64.0.42", // Direct IP is disallowed: only approved logical identifiers
+        "macbook-pro",
         "localhost",
         "google.com",
         "aws-ec2",

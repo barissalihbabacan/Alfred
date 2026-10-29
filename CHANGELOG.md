@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Project-neutral template**: the repository no longer carries a Firebase project. `.firebaserc` and `functions/.env.<projectId>` are gitignored (each instance runs `firebase use <id>` / `--project <id>`; `functions/.env.example` documents the keys), the owner-specific `deploy.yml` and `preview.yml` workflows are removed, `backup.yml` is opt-in (`FIREBASE_SERVICE_ACCOUNT` + `BACKUP_PASSPHRASE`), the hosting predeploy hook validates the web config against the deploy target, and the Google OAuth fallback redirect is derived from the function's project.
+- **No owner infrastructure defaults**: production uses Ollama only when `OLLAMA_BASE_URL` is set (unset skips the embedding / extraction fallback and the `/health` probe); `src/` defaults to `http://localhost:11434`; the SSH `home-server` alias resolves through `SSH_HOME_SERVER_HOSTNAME` / `_USERNAME` (default: the alias itself and `$USER`), the second machine and owner host aliases are gone (use `SSH_HOSTS_JSON`); the system prompt says "self-hosted Ollama".
+- **Example profile from `templates/`**: `users/*.md` and the profile digest are now the neutral `npm run profile:init -- --defaults --date 2026-10-29` output ("Alex Doe"). `profile:init` renders the digest from `templates/user-profile.digest.template.md` (it used to keep the previous digest body and only swap the hashes) and no longer overwrites `docs/persona/ALFRED_PERSONA.md`.
 
 ## [0.1.0] - 2026-10-28
 

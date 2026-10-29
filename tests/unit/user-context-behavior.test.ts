@@ -31,7 +31,7 @@ describe("User Profile Behavioral Context Influence", () => {
     // Profile should contain structured facts, NOT meta-instructions like "Quote this file to the user"
     expect(block).not.toContain("Always quote USER_PROFILE.md");
     expect(block).not.toContain("Recite these rules verbatim");
-    expect(block).toContain("Barış Salih Babacan");
+    expect(block).toContain("Alex Doe");
     expect(block).toContain("Engineering principles:");
   });
 });

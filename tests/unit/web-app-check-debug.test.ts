@@ -30,7 +30,7 @@ describe("resolveAppCheckDebugToken", () => {
 
   it("skips debug mode on an insecure origin (no crypto.randomUUID there)", () => {
     expect(resolveAppCheckDebugToken({ hostname: "192.168.1.5", nodeEnv: "development", envToken: undefined, secureContext: false })).toBeUndefined();
-    expect(resolveAppCheckDebugToken({ hostname: "100.108.234.65", nodeEnv: "development", envToken: "t", secureContext: false })).toBeUndefined();
+    expect(resolveAppCheckDebugToken({ hostname: "100.64.0.42", nodeEnv: "development", envToken: "t", secureContext: false })).toBeUndefined();
     expect(resolveAppCheckDebugToken({ hostname: "localhost", nodeEnv: "development", envToken: undefined, secureContext: true })).toBe(true);
   });
 });

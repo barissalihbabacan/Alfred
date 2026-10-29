@@ -18,9 +18,9 @@ describe("Canonical User Profile Layer", () => {
     expect(context).toBeDefined();
     expect(context.source).toBe("git");
     expect(context.sources.userProfile).toBe(fs.readFileSync(path.resolve(process.cwd(), "users/USER_PROFILE.md"), "utf8"));
-    expect(context.sources.userProfile).toContain("Barış Salih Babacan");
-    expect(context.sources.userProfile).toContain("Systems Architect");
-    expect(context.sources.preferences).toContain("British English");
+    expect(context.sources.userProfile).toContain("Alex Doe");
+    expect(context.sources.userProfile).toContain("Senior Software Engineer");
+    expect(context.sources.preferences).toContain("Conclusion First");
     expect(context.sources.workingStyle).toContain("vertical slices");
   });
 
@@ -56,7 +56,7 @@ describe("Canonical User Profile Layer", () => {
     const contextualPrompt = getAlfredSystemPrompt();
 
     expect(contextualPrompt).toContain("=== CANONICAL USER PROFILE (GIT AUTHORITATIVE) ===");
-    expect(contextualPrompt).toContain("- Barış Salih Babacan: Turkish native, fluent professional English.");
+    expect(contextualPrompt).toContain("- Alex Doe: Senior Software Engineer working on");
     expect(contextualPrompt).toContain("vertical slices");
     expect(contextualPrompt).toContain("- Push back on:");
   });
@@ -110,7 +110,7 @@ describe("Canonical User Profile Layer", () => {
     expect(serialized).not.toMatch(/AIza[0-9A-Za-z-_]{35}/);
     expect(serialized).not.toContain("GROQ_API_KEY");
     expect(serialized).not.toContain("password");
-    expect(serialized).not.toContain("100.64.0.53");
+    expect(serialized).not.toMatch(/\b\d{1,3}(?:\.\d{1,3}){3}\b/);
     expect(serialized).not.toMatch(/-----BEGIN [A-Z ]*PRIVATE KEY-----/);
   });
 

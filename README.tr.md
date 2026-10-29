@@ -47,6 +47,12 @@ Cloud Shell oturumu geçicidir; önemli olan her şey senin Google Cloud projend
 
 Alfred tasarım gereği tek kullanıcılı: giriş yapabilen tek hesap, burada girdiğin hesaptır.
 
+### Ne kadar tutar
+
+Blaze planı kullandıkça öde, ama tek kullanıcılı bir Alfred Firebase'in ücretsiz kotalarının neredeyse tamamen içinde kalır. Geliştiricinin kendi kurulumu **Ekim 2026'da ₺5,60** tuttu: tek kullanıcı, her gün kullanım, geliştirme sırasındaki deploy'lar dahil. 914 fonksiyon çağrısı yaptı (kota: ayda 2 milyon); ayın son haftasında Firestore'da günde en çok 881 okuma ve 102 yazma oldu (kota: günde 50 bin ve 20 bin). Toplamın ₺3,96'sı Cloud Functions, ₺1,65'i diğer Google Cloud hizmetleri (örneğin her deploy'daki build ve imaj depolama). Model ve arama API'leri (EVREN, Groq, Gemini, Tavily) Google Cloud'a değil kendi sağlayıcılarına faturalanır; ücretsiz katmanlarında bir maliyeti yoktur.
+
+Yine de bir bütçe uyarısı kur (Google Cloud konsolu → **Billing** → **Budgets & alerts**, örneğin 5 dolar); beklenmedik bir artış olursa e-postana gelir.
+
 ### Yerelde çalıştır
 
 Geliştirme için Node.js 22 (`nvm use`) ve Firebase CLI gerekir.

@@ -47,6 +47,12 @@ The Cloud Shell session is temporary; everything that matters is created in your
 
 Alfred is single-user by design: the account you enter is the only one that can sign in.
 
+### What it costs
+
+The Blaze plan is pay-as-you-go, but a single-user Alfred stays almost entirely inside Firebase's no-cost quotas. The author's own instance cost **₺5.60 (well under $1) for October 2026**: one user, used daily, development deploys included. It made 914 function calls (quota: 2M/month) and, in the last week of the month, peaked at 881 Firestore reads and 102 writes a day (quotas: 50K and 20K/day). Of the total, ₺3.96 was Cloud Functions and ₺1.65 other Google Cloud services (such as the build and image storage behind each deploy). Model and search APIs (EVREN, Groq, Gemini, Tavily) are billed by their providers, not Google Cloud; on their free tiers they cost nothing.
+
+Set a budget alert anyway (Google Cloud console → **Billing** → **Budgets & alerts**, e.g. $5), so an unexpected spike reaches your inbox.
+
 ### Run locally
 
 For development you need Node.js 22 (`nvm use`) and the Firebase CLI.

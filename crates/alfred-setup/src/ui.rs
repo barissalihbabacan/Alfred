@@ -3,7 +3,7 @@
 use ratatui::layout::{Constraint, Layout, Margin, Position, Rect};
 use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Gauge, Paragraph, Wrap};
+use ratatui::widgets::{Block, BorderType, Paragraph, Wrap};
 use ratatui::Frame;
 
 use crate::app::{App, Billing, Failure, Field, Screen, REGIONS};
@@ -17,6 +17,8 @@ const FAINT: Color = Color::Rgb(90, 99, 117);
 const GREEN: Color = Color::Rgb(16, 185, 129);
 const RED: Color = Color::Rgb(239, 68, 68);
 const YELLOW: Color = Color::Rgb(234, 179, 8);
+const TRACK: Color = Color::Rgb(38, 52, 77);
+const INK: Color = Color::Rgb(20, 24, 32);
 
 pub fn draw(frame: &mut Frame, app: &App) {
     let t = app.lang.texts();
@@ -273,6 +275,24 @@ fn draw_review(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), area);
 }
 
+/// A one-row progress bar drawn with background colours only. ratatui's
+/// `Gauge` fills with the `█` glyph, which many web terminals (Cloud Shell)
+/// draw shorter than the cell, so the label's cells looked taller than the bar.
+fn progress_line(width: u16, ratio: f64, label: &str, fill: Color) -> Line<'static> {
+    let width = usize::from(width);
+    let filled = ((ratio.clamp(0.0, 1.0) * width as f64).round() as usize).min(width);
+    let label: Vec<char> = label.chars().take(width).collect();
+    let label_start = (width - label.len()) / 2;
+    let spans: Vec<Span<'static>> = (0..width)
+        .map(|x| {
+            let symbol = x.checked_sub(label_start).and_then(|i| label.get(i)).copied().unwrap_or(' ');
+            let style = if x < filled { Style::new().bg(fill).fg(INK) } else { Style::new().bg(TRACK).fg(TEXT) };
+            Span::styled(symbol.to_string(), style)
+        })
+        .collect();
+    Line::from(spans)
+}
+
 fn draw_deploy(frame: &mut Frame, app: &App, area: Rect) {
     let t = app.lang.texts();
     let Some(state) = app.deploy.as_ref() else { return };
@@ -317,7 +337,7 @@ fn draw_deploy(frame: &mut Frame, app: &App, area: Rect) {
     let ratio = done as f64 / STAGE_COUNT as f64;
     let gauge_color = if failed { RED } else { GOLD };
     frame.render_widget(
-        Gauge::default().ratio(ratio).label(format!("{done}/{STAGE_COUNT}")).gauge_style(Style::new().fg(gauge_color).bg(Color::Rgb(38, 52, 77))),
+        Paragraph::new(progress_line(gauge.width, ratio, &format!("{done}/{STAGE_COUNT}"), gauge_color)),
         Rect { height: 1, ..gauge },
     );
 
@@ -365,4 +385,21 @@ fn draw_done(frame: &mut Frame, app: &App, area: Rect) {
         Line::from(format!("  3. {}", t.done_step_appcheck)).fg(MUTED),
     ];
     frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), area);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn progress_line_uses_no_block_glyphs_and_centres_the_label() {
+        let line = progress_line(20, 0.5, "4/9", GOLD);
+        let text: String = line.spans.iter().map(|span| span.content.as_ref()).collect();
+        assert_eq!(text.chars().count(), 20);
+        assert!(!text.contains('█'));
+        assert_eq!(text.trim(), "4/9");
+        assert_eq!(text.find("4/9"), Some(8));
+        assert_eq!(line.spans[9].style.bg, Some(GOLD), "the filled half");
+        assert_eq!(line.spans[10].style.bg, Some(TRACK), "the empty half");
+    }
 }

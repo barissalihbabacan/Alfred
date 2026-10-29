@@ -20,10 +20,10 @@ npm run setup:ui
 
 ## 2. Open Web Preview
 
-Once the server starts:
+The wizard server binds securely to localhost (`127.0.0.1:8080`). Google Cloud Shell Web Preview automatically proxies preview requests directly to localhost:
 1. In the top-right corner of Google Cloud Shell, click the **Web Preview** icon (`eye` or `window with arrow`).
 2. Select **Preview on port 8080**.
-3. The visual Setup-UI will open in a new tab.
+3. The visual Setup-UI will open securely in a new browser tab.
 
 ---
 

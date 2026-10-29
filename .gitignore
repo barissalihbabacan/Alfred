@@ -96,7 +96,6 @@ test_output/
 # Firestore backups (decrypted or not) never belong in the repository.
 firestore-backup*.json
 firestore-backup*.json.gpg
-.provision-temp.sh
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/

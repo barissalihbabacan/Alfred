@@ -326,18 +326,35 @@ async function executeProvisioning() {
   }, 1000);
 
   try {
+    const setupToken = document.querySelector('meta[name="setup-token"]')?.getAttribute("content") || "";
+
     const res = await fetch("/api/provision", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Setup-Token": setupToken
+      },
       body: JSON.stringify({
-        script: wizard.get_provisioning_script(),
-        env: wizard.get_env_file(),
-        projectId
+        config: {
+          project_id: projectId,
+          allowed_email: inputAllowedEmail.value.trim(),
+          allowed_uid: inputAllowedUid.value.trim(),
+          groq_api_key: inputGroqKey.value.trim(),
+          gemini_api_key: inputGeminiKey.value.trim(),
+          tavily_api_key: inputTavilyKey.value.trim(),
+          evren_api_key: inputEvrenKey.value.trim() || null,
+          ollama_url: inputOllamaUrl.value.trim() || null
+        }
       })
     });
 
     if (!res.ok) {
-      throw new Error(`Server returned HTTP ${res.status}`);
+      let errText = `Server returned HTTP ${res.status}`;
+      try {
+        const errJson = await res.json();
+        if (errJson?.error) errText = errJson.error;
+      } catch {}
+      throw new Error(errText);
     }
 
     if (!res.body) {
@@ -346,50 +363,77 @@ async function executeProvisioning() {
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    let fullOutput = "";
+    let lineBuffer = "";
+    let resultJson = null;
+
+    function processLine(rawLine) {
+      const line = rawLine.trim();
+      if (!line) return;
+
+      if (line.startsWith("__ALFRED_RESULT__")) {
+        try {
+          resultJson = JSON.parse(line.slice("__ALFRED_RESULT__".length).trim());
+        } catch {}
+        return;
+      }
+
+      if (line.includes("Deploying to Firebase")) {
+        consoleStageText.textContent = "🚀 Deploying Web App & Cloud Functions...";
+      } else if (line.includes("Provisioning Secret Manager vault")) {
+        consoleStageText.textContent = "🛡️ Writing Secret Manager credentials...";
+      } else if (line.includes("Ensuring Firebase is enabled") || line.includes("Adding Firebase resources")) {
+        consoleStageText.textContent = "🔥 Configuring Firebase project...";
+      } else if (line.includes("Enabling required Google Cloud")) {
+        consoleStageText.textContent = "🔑 Enabling Cloud APIs & Firestore...";
+      } else if (line.includes("Linking") || line.includes("billing account")) {
+        consoleStageText.textContent = "💳 Linking Google Cloud billing account...";
+      } else if (line.includes("Creating it in Google Cloud") || line.includes("Create in progress")) {
+        consoleStageText.textContent = "🚀 Creating Google Cloud project...";
+      }
+    }
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
 
       const chunk = decoder.decode(value, { stream: true });
-      fullOutput += chunk;
-      consoleOutput.textContent = fullOutput;
+      consoleOutput.textContent += chunk;
       consoleOutput.scrollTop = consoleOutput.scrollHeight;
 
-      // Update stage badge based on cumulative output
-      if (fullOutput.includes("Deploying to Firebase")) {
-        consoleStageText.textContent = "🚀 Deploying Web App & Cloud Functions...";
-      } else if (fullOutput.includes("Provisioning Secret Manager vault")) {
-        consoleStageText.textContent = "🛡️ Writing Secret Manager credentials...";
-      } else if (fullOutput.includes("Ensuring Firebase is enabled") || fullOutput.includes("Adding Firebase resources")) {
-        consoleStageText.textContent = "🔥 Configuring Firebase project...";
-      } else if (fullOutput.includes("Enabling required Google Cloud")) {
-        consoleStageText.textContent = "🔑 Enabling Cloud APIs & Firestore...";
-      } else if (fullOutput.includes("Linking") || fullOutput.includes("billing account")) {
-        consoleStageText.textContent = "💳 Linking Google Cloud billing account...";
-      } else if (fullOutput.includes("Creating it in Google Cloud") || fullOutput.includes("Create in progress")) {
-        consoleStageText.textContent = "🚀 Creating Google Cloud project...";
+      lineBuffer += chunk;
+      const lines = lineBuffer.split("\n");
+      lineBuffer = lines.pop() || "";
+      for (const line of lines) {
+        processLine(line);
       }
     }
 
-    // Flush any remaining decoder stream bytes
-    fullOutput += decoder.decode();
-    consoleOutput.textContent = fullOutput;
+    // Flush any remaining decoder stream bytes and buffer
+    lineBuffer += decoder.decode();
+    if (lineBuffer) {
+      const lines = lineBuffer.split("\n");
+      for (const line of lines) {
+        processLine(line);
+      }
+    }
 
-    // Check completion status from accumulated stream
-    const isSuccess = fullOutput.includes("[SUCCESS]") || fullOutput.includes("successfully provisioned and deployed");
+    // Determine completion strictly from __ALFRED_RESULT__
+    const isSuccess = resultJson?.ok === true;
 
     if (isSuccess) {
       consoleDot.className = "live-dot done";
       consoleStageText.textContent = "✨ Setup & Deployment Completed!";
       executionStatus.className = "execution-status success";
-      executionStatus.innerHTML = `🎉 <strong>Alfred is live!</strong> Open your application: <a href="https://${escapeHtml(projectId)}.web.app" target="_blank" style="color:var(--gold); text-decoration:underline;">https://${escapeHtml(projectId)}.web.app</a>`;
+      const appUrl = resultJson?.url || `https://${escapeHtml(projectId)}.web.app`;
+      executionStatus.innerHTML = `🎉 <strong>Alfred is live!</strong> Open your application: <a href="${escapeHtml(appUrl)}" target="_blank" style="color:var(--gold); text-decoration:underline;">${escapeHtml(appUrl)}</a>`;
     } else {
       consoleDot.className = "live-dot error";
       consoleStageText.textContent = "⚠️ Deployment encountered an error";
       executionStatus.className = "execution-status error";
-      executionStatus.textContent = "Check the live console above for error details or run the script directly in your Cloud Shell terminal.";
+      const errDetail = resultJson?.exitCode !== undefined
+        ? ` (script exit code: ${resultJson.exitCode})`
+        : (resultJson?.error ? `: ${resultJson.error}` : "");
+      executionStatus.textContent = `Setup failed${errDetail}. Inspect the terminal output above for details.`;
     }
   } catch (err) {
     consoleDot.className = "live-dot error";

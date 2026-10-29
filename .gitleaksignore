@@ -1,41 +1,30 @@
-# Gitleaks findings reviewed on 29 Oct 2026. Each entry is a fingerprint
-# (commit:file:rule:line). Add a new one only after reviewing the finding;
-# never ignore a live credential, rotate it instead.
-
-# Real Groq key committed to .env.example on 6 Sep 2026. Revoked in the Groq
-# console and replaced in Secret Manager on 29 Oct 2026; the old secret
-# version was destroyed.
-620f63bb9f7fa1a6af87652355935f7854403e4b:.env.example:generic-api-key:24
-
-# App Check debug token committed on 8 Sep 2026, removed from the code by
-# f6c82b1. No debug tokens are registered for the app (checked 29 Oct 2026),
-# so it no longer passes App Check.
-bf436d681d5888ff9a158fb5469743fe49485ead:apps/web/lib/firebase.ts:generic-api-key:37
-bf436d681d5888ff9a158fb5469743fe49485ead:apps/web/public/firebase-app.js:generic-api-key:48
+# Gitleaks findings reviewed after the history rewrite (29 Oct 2026). Each entry
+# is a fingerprint (commit:file:rule:line). Add one only after reviewing the
+# finding; never ignore a live credential, rotate it instead.
 
 # Firebase web config API key and reCAPTCHA site key: public by design, shipped
-# to every browser (see CLAUDE.md, "Notes for future sessions").
-e65ea9a5f3fa7294d982d3cbe06e8f68c44d3b51:apps/web/lib/firebase.ts:gcp-api-key:9
-e65ea9a5f3fa7294d982d3cbe06e8f68c44d3b51:apps/web/public/firebase-app.js:gcp-api-key:17
-e65ea9a5f3fa7294d982d3cbe06e8f68c44d3b51:.env.example:gcp-api-key:66
-e65ea9a5f3fa7294d982d3cbe06e8f68c44d3b51:.env.example:generic-api-key:74
-e65ea9a5f3fa7294d982d3cbe06e8f68c44d3b51:.env.example:generic-api-key:75
-c74e9e4d15affc59702b0e6fafc3ce97c3c9c60c:apps/web/public/firebase-messaging-sw.js:gcp-api-key:6
-1adacca12d62d40eb1fb43aaea5c9cf9194ce40b:tests/integration/production-chat-regression.test.ts:gcp-api-key:17
+# to every browser.
+3918a1c82200b8e4ab5138d786c09b0f7453a005:.env.example:gcp-api-key:66
+3918a1c82200b8e4ab5138d786c09b0f7453a005:.env.example:generic-api-key:74
+3918a1c82200b8e4ab5138d786c09b0f7453a005:.env.example:generic-api-key:75
+3918a1c82200b8e4ab5138d786c09b0f7453a005:apps/web/lib/firebase.ts:gcp-api-key:9
+3918a1c82200b8e4ab5138d786c09b0f7453a005:apps/web/public/firebase-app.js:gcp-api-key:17
+deb61165824bb7b672d7aa9de1e878acf4415096:apps/web/public/firebase-messaging-sw.js:gcp-api-key:6
 
-# Fake credentials in unit tests: PrivacyFilter and memory extraction must
-# reject them.
-378ee544b27e50e61239e67b763d78797cf34a3d:tests/unit/privacy-filter.test.ts:github-pat:25
-378ee544b27e50e61239e67b763d78797cf34a3d:tests/unit/privacy-filter.test.ts:github-oauth:26
-378ee544b27e50e61239e67b763d78797cf34a3d:tests/unit/privacy-filter.test.ts:gitlab-pat:27
-378ee544b27e50e61239e67b763d78797cf34a3d:tests/unit/privacy-filter.test.ts:private-key:28
-378ee544b27e50e61239e67b763d78797cf34a3d:tests/unit/privacy-filter.test.ts:jwt:31
-378ee544b27e50e61239e67b763d78797cf34a3d:tests/unit/privacy-filter.test.ts:gcp-api-key:33
-378ee544b27e50e61239e67b763d78797cf34a3d:tests/unit/privacy-filter.test.ts:generic-api-key:41
-84aca3eac885c3296be6eb199d7710474aa00b30:tests/unit/memory-extraction.test.ts:github-pat:55
-84aca3eac885c3296be6eb199d7710474aa00b30:tests/unit/memory-extraction.test.ts:generic-api-key:461
-bacf2507b1792c2e9eed00b9f405f3db0ca1f95e:tests/unit/functions-embedding-contract.test.ts:generic-api-key:276
-
-# Fake keys ("gsk_test123", "AIzaSy_test123") in the setup-core Rust tests.
-e28f990a7f1224da396051f0fe79e27b8fd5c619:crates/setup-core/src/config_generator.rs:generic-api-key:132
-e28f990a7f1224da396051f0fe79e27b8fd5c619:crates/setup-core/src/config_generator.rs:generic-api-key:153
+# Fake credentials in tests and examples: PrivacyFilter, memory extraction and
+# the setup-core validators must handle them.
+1934bf1f55d6106723c0f47f67d5e26563b894fb:tests/unit/privacy-filter.test.ts:gcp-api-key:33
+1934bf1f55d6106723c0f47f67d5e26563b894fb:tests/unit/privacy-filter.test.ts:generic-api-key:41
+1934bf1f55d6106723c0f47f67d5e26563b894fb:tests/unit/privacy-filter.test.ts:github-oauth:26
+1934bf1f55d6106723c0f47f67d5e26563b894fb:tests/unit/privacy-filter.test.ts:github-pat:25
+1934bf1f55d6106723c0f47f67d5e26563b894fb:tests/unit/privacy-filter.test.ts:gitlab-pat:27
+1934bf1f55d6106723c0f47f67d5e26563b894fb:tests/unit/privacy-filter.test.ts:jwt:31
+1934bf1f55d6106723c0f47f67d5e26563b894fb:tests/unit/privacy-filter.test.ts:private-key:28
+2a8ecb9d5dd0c39306c0f52879dfdb06d742f844:tests/integration/production-chat-regression.test.ts:gcp-api-key:17
+8f62940ea3491caee3c555284e8942d235f9250e:tests/unit/memory-extraction.test.ts:generic-api-key:461
+8f62940ea3491caee3c555284e8942d235f9250e:tests/unit/memory-extraction.test.ts:github-pat:55
+c0be24a9391f437f2760d3abf714eeef3d7eca75:crates/setup-core/src/state.rs:generic-api-key:193
+c0be24a9391f437f2760d3abf714eeef3d7eca75:crates/setup-core/src/state.rs:generic-api-key:194
+e5cb273bfc0d784ce62e37a54d0fad09b4227b46:crates/setup-core/src/config_generator.rs:generic-api-key:132
+e5cb273bfc0d784ce62e37a54d0fad09b4227b46:crates/setup-core/src/config_generator.rs:generic-api-key:153
+ebc09c5848a1886adb0c8bd8b0435f4dc0cea5f9:tests/unit/functions-embedding-contract.test.ts:generic-api-key:276

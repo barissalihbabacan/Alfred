@@ -8,6 +8,8 @@ on:
     branches:
       - main
     paths:
+      - "crates/**"
+      - "setup-ui/**"
       - "tests/**"
       - "scripts/**"
       - "users/**"

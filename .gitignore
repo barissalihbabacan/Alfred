@@ -27,6 +27,7 @@ functions/lib/
 .env.test
 .env.production
 !.env.example
+!functions/.env.*
 .secret.local
 
 # Firebase credentials and cache

@@ -29,7 +29,7 @@ It is also a complete, production-tested reference for building one: streaming, 
 ## Deploy your own
 
 <p align="center">
-  <a href="https://shell.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https://github.com/barissalihbabacan/Alfred&cloudshell_git_branch=main&cloudshell_workspace=.&cloudshell_print=.cloudshell/welcome.txt&cloudshell_tutorial=.cloudshell/tutorial.md&show=terminal"><img src="./assets/readme/setup-button.svg" width="320" alt="Launch Alfred Setup (opens in Google Cloud Shell)"></a>
+  <a href="https://shell.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https://github.com/barissalihbabacan/Alfred&cloudshell_git_branch=main&cloudshell_print=.cloudshell/welcome.txt&cloudshell_tutorial=.cloudshell/tutorial.md&show=terminal"><img src="./assets/readme/setup-button.svg" width="320" alt="Launch Alfred Setup (opens in Google Cloud Shell)"></a>
 </p>
 
 <p align="center">

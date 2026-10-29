@@ -287,7 +287,21 @@ pub fn generate_cloud_shell_script(config: &SetupConfig) -> String {
 
     script.push_str("echo \"🚀 [Alfred Setup] Deploying to Firebase (Hosting, Functions & Security Rules)...\"\n");
     script.push_str("npx --yes firebase-tools use \"$PROJECT_ID\"\n");
-    script.push_str("npx --yes firebase-tools deploy --only hosting,functions,firestore:rules,firestore:indexes --non-interactive --force\n\n");
+    // Hosting uploads 200 files at once by default; from Cloud Shell that has
+    // dropped uploads ("Failed to make request ... retries exhausted"), so the
+    // script uploads fewer at a time (a caller's value wins) and retries the deploy.
+    script.push_str("export FIREBASE_HOSTING_UPLOAD_CONCURRENCY=\"${FIREBASE_HOSTING_UPLOAD_CONCURRENCY:-8}\"\n");
+    script.push_str(&format!("for attempt in $(seq 1 {DEPLOY_ATTEMPTS}); do\n"));
+    script.push_str("  if npx --yes firebase-tools deploy --only hosting,functions,firestore:rules,firestore:indexes --non-interactive --force; then\n");
+    script.push_str("    break\n");
+    script.push_str("  fi\n");
+    script.push_str(&format!("  if [ \"$attempt\" -eq {DEPLOY_ATTEMPTS} ]; then\n"));
+    script.push_str("    echo \"[Alfred Setup] ERROR deploy-failed after $attempt attempts\" >&2\n");
+    script.push_str("    exit 1\n");
+    script.push_str("  fi\n");
+    script.push_str(&format!("  echo \"[Alfred Setup] Deploy attempt $attempt/{DEPLOY_ATTEMPTS} failed; retrying in 15 s...\"\n"));
+    script.push_str("  sleep 15\n");
+    script.push_str("done\n\n");
 
     script.push_str("echo \"\"\n");
     script.push_str("echo \"===================================================================\"\n");
@@ -346,6 +360,9 @@ fn billing_link_snippet(billing_account_id: &str) -> String {
 /// billing: every API enabled afterwards would fail with a less clear error.
 /// Printed when the billing account has no room for another project; the
 /// wizard offers another billing account or Google account. Exit code 3.
+/// How many times the script runs `firebase deploy` before giving up.
+pub const DEPLOY_ATTEMPTS: u32 = 3;
+
 pub const BILLING_QUOTA_MARKER: &str = "[Alfred Setup] ERROR billing-quota-exceeded";
 /// Printed when billing is still off after linking. Exit code 1.
 pub const BILLING_DISABLED_MARKER: &str = "[Alfred Setup] ERROR billing-not-enabled";
@@ -433,6 +450,8 @@ mod tests {
         assert!(script.contains("npm run build:web"));
         assert!(script.contains("apps/web/out/index.html"));
         assert!(script.contains("firebase-tools deploy --only hosting,functions,firestore:rules,firestore:indexes --non-interactive --force"));
+        assert!(script.contains("FIREBASE_HOSTING_UPLOAD_CONCURRENCY=\"${FIREBASE_HOSTING_UPLOAD_CONCURRENCY:-8}\""));
+        assert!(script.contains("for attempt in $(seq 1 3); do"));
     }
 
     #[test]

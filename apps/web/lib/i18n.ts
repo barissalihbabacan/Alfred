@@ -93,6 +93,7 @@ const tr = {
   "googleCallback.loading": "Yükleniyor…",
 
   "state.idle": "Hazır",
+  "state.noModelKey": "Model anahtarı yok",
   "state.listening": "Dinliyor",
   "state.transcribing": "Çözümleniyor",
   "state.thinking": "Düşünüyor",
@@ -223,6 +224,7 @@ const tr = {
 
   "model.selectTitle": "Model ve sağlayıcı seçin",
   "model.menuHeading": "Model & Sağlayıcı Seçimi",
+  "model.noApiKey": "API anahtarı yok",
 
   "export.title": "Mevcut sohbeti Markdown (.md) dosyası olarak indir",
   "export.button": ".md İndir",
@@ -396,6 +398,7 @@ const en: Dictionary = {
   "googleCallback.loading": "Loading…",
 
   "state.idle": "Ready",
+  "state.noModelKey": "No model key",
   "state.listening": "Listening",
   "state.transcribing": "Transcribing",
   "state.thinking": "Thinking",
@@ -526,6 +529,7 @@ const en: Dictionary = {
 
   "model.selectTitle": "Choose a model and provider",
   "model.menuHeading": "Model & Provider",
+  "model.noApiKey": "No API key",
 
   "export.title": "Download this chat as a Markdown (.md) file",
   "export.button": "Download .md",

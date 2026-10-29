@@ -92,9 +92,6 @@ export const CHAT_MODEL_OPTIONS: readonly ModelOption[] = [
 
 export type ModelProvider = ModelOption["provider"];
 
-/** Anahtari olmayan saglayicinin seceneklerinde gosterilen kisa not. */
-export const NO_API_KEY_HINT = "API anahtarı yok";
-
 /**
  * `/health` yanitindaki `availableProviders`: anahtari tanimli saglayicilar.
  * Alan yoksa (Ollama yolu, eski sunucu) null: bilinmiyor, hepsi secilebilir.

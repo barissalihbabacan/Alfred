@@ -8,7 +8,6 @@ import { errorMessage as messageOf, isAbortError } from "../lib/errors";
 import { formatRateLimitStatus, normalizeRateLimitWaitMs } from "../lib/rate-limit";
 import {
   CHAT_MODEL_OPTIONS,
-  NO_API_KEY_HINT,
   findSelectableModelOption,
   formatProviderFallbackStatus,
   isModelOptionAvailable,
@@ -1411,6 +1410,8 @@ export default function VoiceChatPlayground() {
   // The provider of the last turn wins; before the first turn, the one /health
   // says the next turn starts on (a fallback provider when Groq has no key).
   const engineProvider = chatProvider ?? health?.activeProvider ?? null;
+  // No provider has a usable key: "Ready" would promise answers that cannot come.
+  const noModelKey = state === "Idle" && health?.activeProvider === "offline";
   const engineText =
     health?.activeProvider === "ollama"
       ? { name: "Ollama", detail: modelLabel, active: true }
@@ -1859,7 +1860,7 @@ export default function VoiceChatPlayground() {
                         type="button"
                         onClick={() => handleSelectModelOption(option)}
                         disabled={!available}
-                        title={available ? undefined : NO_API_KEY_HINT}
+                        title={available ? undefined : t("model.noApiKey")}
                         className={cx(
                           "flex w-full cursor-pointer items-start justify-between gap-2.5 rounded-lg border-none px-2.5 py-2 text-left [transition:background_0.15s] disabled:cursor-not-allowed disabled:opacity-45",
                           isSelected
@@ -1876,7 +1877,7 @@ export default function VoiceChatPlayground() {
                               {option.badge[lang]}
                             </span>
                             {!available && (
-                              <span className="text-[10px] font-medium text-chat-faint">{NO_API_KEY_HINT}</span>
+                              <span className="text-[10px] font-medium text-chat-faint">{t("model.noApiKey")}</span>
                             )}
                           </div>
                           <span className="truncate text-[11px] text-chat-subtle">
@@ -2012,17 +2013,18 @@ export default function VoiceChatPlayground() {
 
             <div
               className="flex h-7 items-center justify-center gap-1.5 rounded-full border border-white/8 bg-white/4 px-2.5 text-[12px] text-chat-muted mobile:w-7 mobile:px-0"
-              title={t("state.title", { state: t(STATE_LABELS[state]) })}
+              title={noModelKey ? t("settings.noProvider") : t("state.title", { state: t(STATE_LABELS[state]) })}
             >
               <span className={cx(
                 "h-2 w-2 rounded-full",
+                noModelKey ? "bg-status-thinking" :
                 state === "Listening" ? "bg-danger" :
                 state === "Thinking" ? "bg-status-thinking" :
                 state === "Streaming" ? "bg-gold" :
                 state === "Error" ? "bg-danger" : "bg-success",
                 state !== "Idle" && "animate-alfred-pulse"
               )} />
-              <span className="mobile:hidden">{t(STATE_LABELS[state])}</span>
+              <span className="mobile:hidden">{noModelKey ? t("state.noModelKey") : t(STATE_LABELS[state])}</span>
             </div>
           </div>
         </header>

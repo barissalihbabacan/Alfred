@@ -7,56 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Removed
+## [0.1.0] - 2026-10-29
 
-- Removed: browser-based Setup-UI and its local server; the setup wizard moves to a terminal UI.
+First public release. A personal AI assistant for exactly one person, deployed into that person's own Firebase project.
 
 ### Added
 
-- **Setup-UI Hardening & Zero-Touch Provisioning Wizard**:
-  - Bound setup server strictly to `127.0.0.1` (loopback) with session token protection (`X-Setup-Token`).
-  - Disallowed client-supplied scripts; bash generation is performed server-side by the Rust Wasm engine (`crates/setup-core`).
-  - Implemented POSIX shell escaping (`shell_quote`) and secret-free script generation passing keys via Secret Manager stdin.
-  - Isolated script execution in temporary directories (`fs.mkdtempSync`) with `0700` permissions.
-  - 5-step wizard with real-time log streaming, billing account selector, Firestore region selection, and Post-Deployment Checklist.
-- **Fail-Closed Authorization & Zero-Touch Onboarding**:
-  - Added `verifyUserAuthorization` in `src/core/permissions/authorization.ts` enforcing strict fail-closed access.
-  - Zero-touch onboarding: allows verified email sign-in when `ALLOWED_UID` is unconfigured.
-  - Dynamic Firebase client SDK configuration and project ID resolution without hardcoded defaults.
-- **CI Hardening**:
-  - Added `rust-toolchain.toml` and GitHub Actions CI steps for `cargo test` and `cargo clippy -- -D warnings`.
+- **Conversation:** English and Turkish replies in the user's language, streamed over Server-Sent Events, rendered as Markdown with linked sources; a Next.js 16 static-export web app that installs as a PWA, with browser voice input.
+- **Provider failover:** EVREN → Groq → Gemini. A rate limit or error before the first streamed token restarts the whole turn on the next provider; after the first token the provider is fixed. Groq 429s wait the real requested time only within a 25 s turn budget.
+- **Long-term memory:** after each reply, an isolated extraction step stores durable facts and preferences, never attributes the assistant's words to the user and rejects anything that looks like a secret. Memories can be reviewed, added and retracted in the app; each project workspace has its own memory.
+- **Tools**, offered only when configured: `web_search` (Tavily, one search per question), `read_url`, `github` (read-only), `google_calendar`, `google_tasks`, `gmail` (including drafts and sending), `get_current_time` (several cities per call), and whitelisted commands on a home server through a Firestore relay with no open ports.
+- **Morning briefing** every day at 09:00 (Europe/Istanbul) as a push notification.
+- **Alfred Setup** (`crates/alfred-setup`): a Rust terminal wizard for project, billing account, Firestore region, owner name and Google account, API keys and a live deploy, in English and Turkish. API keys go to Secret Manager and never into the provisioning script. The README's **Launch Alfred Setup** button opens it in Google Cloud Shell through a custom image (`.cloudshell/`); `npm run setup -- --demo` runs it locally without deploying.
+- **Owner name from the profile:** prompts and the morning briefing address the owner by the name in `users/USER_PROFILE.md`, set by `npm run profile:init -- --name … --full-name …`; prompts refer to the user with neutral pronouns.
+
+### Security
+
+- Google Sign-In for a single owner, enforced on the server with a verified ID token and App Check; authorization fails closed when no owner is configured, and a verified e-mail is accepted when no UID is set.
+- LLM, search and OAuth keys live only in Secret Manager. Structured logs never contain message text, keys or tokens; Cloud Monitoring alerts are built on them.
+- Firestore rules deny all client access. Gitleaks, CodeQL and Dependabot run on the repository.
 
 ### Changed
 
-- **Project-neutral template**: the repository no longer carries a Firebase project. `.firebaserc` and `functions/.env.<projectId>` are gitignored (each instance runs `firebase use <id>` / `--project <id>`; `functions/.env.example` documents the keys), the owner-specific `deploy.yml` and `preview.yml` workflows are removed, `backup.yml` is opt-in (`FIREBASE_SERVICE_ACCOUNT` + `BACKUP_PASSPHRASE`), the hosting predeploy hook validates the web config against the deploy target, and the Google OAuth fallback redirect is derived from the function's project.
-- **No owner infrastructure defaults**: production uses Ollama only when `OLLAMA_BASE_URL` is set (unset skips the embedding / extraction fallback and the `/health` probe); `src/` defaults to `http://localhost:11434`; the SSH `home-server` alias resolves through `SSH_HOME_SERVER_HOSTNAME` / `_USERNAME` (default: the alias itself and `$USER`), the second machine and owner host aliases are gone (use `SSH_HOSTS_JSON`); the system prompt says "self-hosted Ollama".
-- **Example profile from `templates/`**: `users/*.md` and the profile digest are now the neutral `npm run profile:init -- --defaults --date 2026-10-29` output ("Alex Doe"). `profile:init` renders the digest from `templates/user-profile.digest.template.md` (it used to keep the previous digest body and only swap the hashes) and no longer overwrites `docs/persona/ALFRED_PERSONA.md`.
-- **Owner name from the profile**: the system prompt, the memory-extraction prompt and the morning-briefing push name the owner from `users/USER_PROFILE.md` (`PROFILE_OWNER` in `src/alfred/cognitive/context/profile-owner.ts`, so `profile:init --name` sets it) instead of a hard-coded name; tool descriptions say "the user"; the web app's description is neutral and the chat export uses the signed-in Google name.
+- The repository is a project-neutral template: no Firebase project, deploy workflow, profile or infrastructure of the original owner. `.firebaserc` and `functions/.env.<projectId>` stay local (`functions/.env.example` documents the keys), the weekly Firestore backup workflow is opt-in, and the hosting predeploy hook checks the web config against the deploy target.
+- Ollama is used only when `OLLAMA_BASE_URL` is set; the SSH home-server host comes from `SSH_HOME_SERVER_HOSTNAME` (or `SSH_HOSTS_JSON`).
+- Fresh installs start with `ENFORCE_APP_CHECK=false` until a reCAPTCHA key is configured.
 
-## [0.1.0] - 2026-10-28
+### Removed
 
-### Added
+- The browser-based setup UI and its local server, replaced by the terminal wizard.
 
-- **Cognitive Architecture & Senior Persona**: Honest, technically disciplined conversational partner with reasoned objection logic against destructive commands (dropping production databases, skipping tests, arbitrary execution).
-- **Multi-Tier Model Failover Chain**: Zero-downtime turn-level failover:
-  - Global stack: Groq (`gpt-oss-120b`) → Google Gemini (`gemini-3.8-flash`) → Local Ollama (`gemma4:12b`).
-  - Turkish national stack: TÜBİTAK BİLGEM EVREN LLM (`qwen3.8-flash-next`, 15M free tokens/day).
-- **Autonomous Long-Term Vector Memory**: Post-turn autonomous fact extraction pipeline with Gemini 768-dimensional embeddings, regex/heuristic secret scrubbers, and atomic Firestore batch deduplication/supersession.
-- **Fact-Checked Web Search & Tools**:
-  - Live Tavily search integration with automated news topic routing and clickable markdown citations.
-  - Multi-city timezone and Daylight Saving Time (DST) calculation tool (up to 6 cities per call).
-- **Web Application & Voice UI (`apps/web`)**: Next.js 16 App Router frontend with voice input (microphone), dark-mode butler theme, Server-Sent Events (SSE) streaming with live thought disclosure, and PWA capabilities.
-- **Enterprise Security & Zero Trust**:
-  - Dual-whitelist gateway authorization (`ALLOWED_EMAIL` + `ALLOWED_UID`).
-  - Firebase App Check attestation token enforcement.
-  - Zero-trust Firestore security rules (`allow read, write: if false;`).
-  - Gitleaks automated credential/secret scanner and CodeQL static application security testing (SAST).
-  - Dependabot automated weekly dependency vulnerability patching.
-- **Community & Governance Infrastructure**:
-  - Contributor Covenant Code of Conduct (`CODE_OF_CONDUCT.md`).
-  - Comprehensive contributing guide (`CONTRIBUTING.md`).
-  - Coordinated vulnerability disclosure policy (`SECURITY.md`).
-  - Structured GitHub Issue Forms for bug reports and feature requests.
-  - Pull request template with comprehensive pre-merge verification checklist.
-  - GitHub branch protection on `main` enforcing 1 review and `Typecheck & Unit Tests` passing.
-- **Testing & Verification**: 72 test suites, 968 unit tests, and differential regression invariants. 100% strict TypeScript (98.8% TS, 0% JS, 0% Python on GitHub).
+[Unreleased]: https://github.com/barissalihbabacan/Alfred/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/barissalihbabacan/Alfred/releases/tag/v0.1.0

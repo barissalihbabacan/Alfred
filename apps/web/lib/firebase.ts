@@ -7,22 +7,44 @@ import {
 } from "firebase/app-check";
 import { resolveAppCheckDebugToken } from "./app-check-debug";
 
-const defaultAuthDomain = "butler-alfred.firebaseapp.com";
+export function validateProductionFirebaseConfig(config: {
+  apiKey?: string;
+  projectId?: string;
+  appId?: string;
+}): void {
+  if (!config.apiKey || !config.projectId || !config.appId) {
+    throw new Error(
+      "Missing mandatory Firebase configuration in production environment. " +
+      "Ensure NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_PROJECT_ID, " +
+      "and NEXT_PUBLIC_FIREBASE_APP_ID are set."
+    );
+  }
+}
+
+const apiKey = (process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "").trim();
+const projectId = (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "").trim();
+const appId = (process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "").trim();
+
+if (process.env.NODE_ENV === "production" && (typeof window !== "undefined" || process.env.VALIDATE_FIREBASE_CONFIG === "true")) {
+  validateProductionFirebaseConfig({ apiKey, projectId, appId });
+}
+
+const defaultAuthDomain = projectId ? `${projectId}.firebaseapp.com` : "";
+const defaultStorageBucket = projectId ? `${projectId}.firebasestorage.app` : "";
 
 // Firebase web yapilandirmasi. apiKey herkese acik web config anahtaridir, gizli degildir.
 export const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyB2v-fk_DTVTRu4s2yuxScH-c9gSdNcRGQ",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || defaultAuthDomain,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "butler-alfred",
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "butler-alfred.firebasestorage.app",
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "653487811677",
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:653487811677:web:1b53984d38a210428a31b4"
+  apiKey,
+  authDomain: (process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "").trim() || defaultAuthDomain,
+  projectId,
+  storageBucket: (process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "").trim() || defaultStorageBucket,
+  messagingSenderId: (process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "").trim(),
+  appId
 };
 
 export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-const RECAPTCHA_SITE_KEY =
-  process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || "6LfKoK8tAAAAAEo28kTSEBZWJpKK7-JMV9CZNYIX";
+const RECAPTCHA_SITE_KEY = (process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || "").trim();
 
 // App Check (reCAPTCHA Enterprise) yalnizca tarayicida baslatilir. Statik
 // export sirasinda bu modul Node'da da degerlendirilir; orada hicbir sey yapilmaz.
@@ -44,6 +66,7 @@ if (typeof window !== "undefined") {
     (self as AppCheckDebugGlobal).FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken;
   }
 
+  // RECAPTCHA_SITE_KEY yoksa App Check'i baslatma (hata vermeden gec)
   if (RECAPTCHA_SITE_KEY && RECAPTCHA_SITE_KEY !== "dummy-recaptcha-site-key") {
     try {
       appCheckInstance = initializeAppCheck(app, {

@@ -64,6 +64,7 @@ import {
   SSH_EXECUTE_TOOL_DEFINITION
 } from "../src/ai/tools/ssh/ssh-tool-definitions.js";
 import { ALLOWED_SSH_COMMANDS } from "../src/alfred/execution-plane/ssh/allowed-commands.js";
+import { verifyUserAuthorization as coreVerifyUserAuthorization } from "../src/core/permissions/authorization.js";
 import { onRequest, onCall, HttpsError } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { setGlobalOptions } from "firebase-functions/v2";
@@ -100,8 +101,8 @@ const TAVILY_API_KEY = defineSecret("TAVILY_API_KEY");
 const GOOGLE_OAUTH_CLIENT_ID = defineSecret("GOOGLE_OAUTH_CLIENT_ID");
 const GOOGLE_OAUTH_CLIENT_SECRET = defineSecret("GOOGLE_OAUTH_CLIENT_SECRET");
 
-const ALLOWED_UID = process.env.ALLOWED_UID || "test-owner-uid-123456";
-const ALLOWED_EMAIL = (process.env.ALLOWED_EMAIL || "owner@example.invalid").toLowerCase().trim();
+const ALLOWED_UID = (process.env.ALLOWED_UID || "").trim();
+const ALLOWED_EMAIL = (process.env.ALLOWED_EMAIL || "").toLowerCase().trim();
 
 // App Check zorunlulugu varsayilan olarak ACIK (24 Eyl: canli trafigin tamami
 // "valid" idi). Emulatorde kapali; gerekirse ENFORCE_APP_CHECK=false ile
@@ -152,6 +153,23 @@ function msSince(start) {
 
 function errMessage(err) {
   return String(err?.message || err || "unknown error").slice(0, 300);
+}
+
+export function verifyUserAuthorization(
+  authenticatedUid: string | null | undefined,
+  authenticatedEmail: string | null | undefined,
+  isEmailVerified: boolean,
+  configuredUid: string = ALLOWED_UID,
+  configuredEmail: string = ALLOWED_EMAIL
+) {
+  return coreVerifyUserAuthorization(
+    authenticatedUid,
+    authenticatedEmail,
+    isEmailVerified,
+    configuredUid,
+    configuredEmail,
+    () => logEvent("ERROR", "auth", "Authorization not configured on backend.")
+  );
 }
 
 // Embedding cagrilari (Gemini -> Ollama -> hata) src/ai/embedding/embedding-client.ts
@@ -442,12 +460,10 @@ export const api = onRequest({
   }
 
   // Dual verification: UID and/or Email
-  const uidMatches = !ALLOWED_UID || authenticatedUid === ALLOWED_UID;
-  const emailMatches = !ALLOWED_EMAIL || (authenticatedEmail === ALLOWED_EMAIL && isEmailVerified);
-
-  if (!uidMatches || !emailMatches) {
-    console.warn(`[Auth] Forbidden: UID ${authenticatedUid} (email: ${authenticatedEmail}) attempted access`);
-    res.status(403).json({ error: "Forbidden: Unauthorized account." });
+  const authCheck = verifyUserAuthorization(authenticatedUid, authenticatedEmail, isEmailVerified);
+  if (!authCheck.authorized) {
+    console.warn(`[Auth] ${authCheck.status === 503 ? "Unconfigured" : "Forbidden"}: UID ${authenticatedUid} (email: ${authenticatedEmail}) attempted access`);
+    res.status(authCheck.status || 403).json({ error: authCheck.error || "Forbidden: Unauthorized account." });
     return;
   }
 
@@ -1942,11 +1958,13 @@ export const alfredCallable = onCall(
     const uid = request.auth?.uid;
     const email = (request.auth?.token?.email || "").toLowerCase().trim();
     const isEmailVerified = Boolean(request.auth?.token?.email_verified);
-    const uidMatches = !ALLOWED_UID || uid === ALLOWED_UID;
-    const emailMatches = !ALLOWED_EMAIL || (email === ALLOWED_EMAIL && isEmailVerified);
+    const authCheck = verifyUserAuthorization(uid, email, isEmailVerified);
 
-    if (!uidMatches || !emailMatches) {
-      throw new HttpsError("permission-denied", "Unauthorized account.");
+    if (!authCheck.authorized) {
+      if (authCheck.status === 503) {
+        throw new HttpsError("unavailable", authCheck.error || "Authorization not configured on backend.");
+      }
+      throw new HttpsError("permission-denied", authCheck.error || "Unauthorized account.");
     }
     return {
       status: "ok",
@@ -2232,7 +2250,25 @@ export const scheduledMorningBriefing = onSchedule(
       scheduleTime: event.scheduleTime
     });
     try {
-      const result = await executeMorningBriefing(ALLOWED_UID);
+      let targetUid = ALLOWED_UID;
+      if (!targetUid) {
+        if (ALLOWED_EMAIL) {
+          try {
+            const userRecord = await getAuth().getUserByEmail(ALLOWED_EMAIL);
+            targetUid = userRecord.uid;
+          } catch (userErr) {
+            logEvent("ERROR", "scheduler", "Could not find user for ALLOWED_EMAIL", {
+              email: ALLOWED_EMAIL,
+              error: errMessage(userErr)
+            });
+            return;
+          }
+        } else {
+          logEvent("ERROR", "scheduler", "Neither ALLOWED_UID nor ALLOWED_EMAIL configured for scheduled briefing.");
+          return;
+        }
+      }
+      const result = await executeMorningBriefing(targetUid);
       logger.info("[Scheduler] Morning briefing finished successfully.", {
         conversationId: result?.conversationId,
         pushSentCount: result?.pushSentCount,

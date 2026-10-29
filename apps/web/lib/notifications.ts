@@ -1,4 +1,4 @@
-import { app } from "./firebase";
+import { app, firebaseConfig } from "./firebase";
 import { apiFetch, ensureOk } from "./api";
 
 let messagingPromise: Promise<import("firebase/messaging").Messaging | null> | null = null;
@@ -33,7 +33,17 @@ export function getNotificationPermissionState(): NotificationPermission | "unsu
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (typeof window === "undefined" || !("serviceWorker" in navigator)) return null;
   try {
-    const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js", {
+    const params = new URLSearchParams();
+    if (firebaseConfig.apiKey) params.set("apiKey", firebaseConfig.apiKey);
+    if (firebaseConfig.projectId) params.set("projectId", firebaseConfig.projectId);
+    if (firebaseConfig.authDomain) params.set("authDomain", firebaseConfig.authDomain);
+    if (firebaseConfig.storageBucket) params.set("storageBucket", firebaseConfig.storageBucket);
+    if (firebaseConfig.messagingSenderId) params.set("messagingSenderId", firebaseConfig.messagingSenderId);
+    if (firebaseConfig.appId) params.set("appId", firebaseConfig.appId);
+    const queryString = params.toString();
+    const swUrl = queryString ? `/firebase-messaging-sw.js?${queryString}` : "/firebase-messaging-sw.js";
+
+    const registration = await navigator.serviceWorker.register(swUrl, {
       scope: "/"
     });
     return registration;

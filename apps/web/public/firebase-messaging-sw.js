@@ -2,40 +2,22 @@
 importScripts("https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js");
 
+const searchParams = new URL(location.href).searchParams;
+const projectId = searchParams.get("projectId") || "";
+
 const firebaseConfig = {
-  apiKey: "AIzaSyB2v-fk_DTVTRu4s2yuxScH-c9gSdNcRGQ",
-  authDomain: "butler-alfred.firebaseapp.com",
-  projectId: "butler-alfred",
-  storageBucket: "butler-alfred.firebasestorage.app",
-  messagingSenderId: "653487811677",
-  appId: "1:653487811677:web:1b53984d38a210428a31b4"
+  apiKey: searchParams.get("apiKey") || "",
+  authDomain: searchParams.get("authDomain") || (projectId ? `${projectId}.firebaseapp.com` : ""),
+  projectId,
+  storageBucket: searchParams.get("storageBucket") || (projectId ? `${projectId}.firebasestorage.app` : ""),
+  messagingSenderId: searchParams.get("messagingSenderId") || "",
+  appId: searchParams.get("appId") || ""
 };
 
-firebase.initializeApp(firebaseConfig);
-const messaging = firebase.messaging();
-
-messaging.onBackgroundMessage((payload) => {
-  console.log("[firebase-messaging-sw.js] Arka plan bildirimi alındı:", payload);
-
-  const title = payload.notification?.title || payload.data?.title || "Alfred";
-  const body = payload.notification?.body || payload.data?.body || "Yeni bir bildirim var.";
-  const url = payload.data?.url || payload.fcmOptions?.link || "/";
-
-  const options = {
-    body,
-    icon: "/icon-192.png",
-    badge: "/icon-192.png",
-    vibrate: [200, 100, 200],
-    tag: payload.data?.tag || "alfred-notification",
-    renotify: true,
-    data: {
-      url,
-      timestamp: Date.now()
-    }
-  };
-
-  self.registration.showNotification(title, options);
-});
+if (firebaseConfig.apiKey && firebaseConfig.projectId) {
+  firebase.initializeApp(firebaseConfig);
+  firebase.messaging();
+}
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();

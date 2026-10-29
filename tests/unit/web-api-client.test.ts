@@ -48,7 +48,8 @@ describe("Web API client (apps/web/lib/api.ts)", () => {
     // vitest runs with NODE_ENV=test, like next dev: stay on the /api proxy.
     expect(STREAM_API_BASE).toBe("/api");
     const source = (await import("node:fs")).readFileSync(new URL("../../apps/web/lib/api.ts", import.meta.url), "utf8");
-    expect(source).toContain('process.env.NODE_ENV === "production" ? "https://us-central1-butler-alfred.cloudfunctions.net/api" : API_BASE');
+    expect(source).toContain('process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID');
+    expect(source).toContain('https://us-central1-${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}.cloudfunctions.net/api');
   });
 
   it("refuses to call an authenticated endpoint before the session is restored", async () => {

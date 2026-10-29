@@ -98,7 +98,7 @@ export default function LoginScreen() {
                     <li>Proje destek e-postasını seçip <strong>Save (Kaydet)</strong> butonuna tıklayın.</li>
                   </ol>
                   <a
-                    href="https://console.firebase.google.com/project/butler-alfred/authentication/providers"
+                    href={`https://console.firebase.google.com/project/${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "butler-alfred"}/authentication/providers`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-gold underline"

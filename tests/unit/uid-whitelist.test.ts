@@ -4,13 +4,17 @@ import type { Auth } from "firebase/auth";
 // The browser-side allow-list in apps/web/lib/auth.ts is exercised against a
 // mocked Firebase Auth SDK. Server-side enforcement lives in functions/index.js
 // (the `api` Cloud Function), which rejects any ID token whose UID differs.
-const authMocks = vi.hoisted(() => ({
-  onAuthStateChanged: vi.fn(),
-  signOut: vi.fn(async () => {}),
-  signInWithPopup: vi.fn(),
-  signInWithRedirect: vi.fn(async () => {}),
-  getRedirectResult: vi.fn()
-}));
+const authMocks = vi.hoisted(() => {
+  process.env.NEXT_PUBLIC_ALLOWED_UID = "test-owner-uid-123456";
+  process.env.NEXT_PUBLIC_ALLOWED_EMAIL = "owner@example.invalid";
+  return {
+    onAuthStateChanged: vi.fn(),
+    signOut: vi.fn(async () => {}),
+    signInWithPopup: vi.fn(),
+    signInWithRedirect: vi.fn(async () => {}),
+    getRedirectResult: vi.fn()
+  };
+});
 
 vi.mock("firebase/auth", async (importOriginal) => {
   const actual = await importOriginal<typeof import("firebase/auth")>();
@@ -25,6 +29,7 @@ import {
   ALLOWED_UID,
   ALLOWED_EMAIL,
   isAuthorizedUser,
+  checkUserAuthorization,
   getAuthErrorDetails,
   subscribeAuthState,
   signInWithGoogle,
@@ -38,7 +43,7 @@ describe("Single-User Authorization (UID & Email Whitelist)", () => {
     vi.clearAllMocks();
   });
 
-  it("defines the authorized UID and Email constants", () => {
+  it("defines the authorized UID and Email constants from environment", () => {
     expect(ALLOWED_UID).toBe("test-owner-uid-123456");
     expect(ALLOWED_EMAIL).toBe("owner@example.invalid");
   });
@@ -48,6 +53,45 @@ describe("Single-User Authorization (UID & Email Whitelist)", () => {
     expect(isAuthorizedUser({ uid: ALLOWED_UID, email: "intruder@example.com" })).toBe(false);
     expect(isAuthorizedUser({ uid: "wrong_uid", email: ALLOWED_EMAIL })).toBe(false);
     expect(isAuthorizedUser(null)).toBe(false);
+  });
+
+  it("fails closed when neither UID nor Email is configured", () => {
+    expect(checkUserAuthorization({ uid: "any-uid", email: "any@example.com" }, "", "")).toBe(false);
+    expect(checkUserAuthorization(null, "", "")).toBe(false);
+  });
+
+  it("authorizes by verified email when UID is not configured", () => {
+    expect(
+      checkUserAuthorization(
+        { uid: "new-user-uid", email: "owner@example.com" },
+        "",
+        "owner@example.com"
+      )
+    ).toBe(true);
+    expect(
+      checkUserAuthorization(
+        { uid: "new-user-uid", email: "stranger@example.com" },
+        "",
+        "owner@example.com"
+      )
+    ).toBe(false);
+  });
+
+  it("authorizes by UID when email is not configured", () => {
+    expect(
+      checkUserAuthorization(
+        { uid: "admin-uid", email: "any@example.com" },
+        "admin-uid",
+        ""
+      )
+    ).toBe(true);
+    expect(
+      checkUserAuthorization(
+        { uid: "wrong-uid", email: "any@example.com" },
+        "admin-uid",
+        ""
+      )
+    ).toBe(false);
   });
 
   it("provides Turkish user-facing error message for unauthorized UIDs", () => {

@@ -11,10 +11,10 @@ import {
   UserCredential
 } from "firebase/auth";
 import { app } from "./firebase";
-import { ALLOWED_UID, ALLOWED_EMAIL, isAuthorizedUser } from "./allowed-uid";
+import { ALLOWED_UID, ALLOWED_EMAIL, isAuthorizedUser, checkUserAuthorization } from "./allowed-uid";
 import { errorCode, errorWithCode, readErrorProp } from "./errors";
 
-export { ALLOWED_UID, ALLOWED_EMAIL, isAuthorizedUser };
+export { ALLOWED_UID, ALLOWED_EMAIL, isAuthorizedUser, checkUserAuthorization };
 
 let authInstance: Auth | null = null;
 let googleProviderInstance: GoogleAuthProvider | null = null;

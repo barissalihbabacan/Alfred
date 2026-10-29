@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { getAuthErrorDetails, getFriendlyAuthErrorMessage, ALLOWED_UID } from "../../apps/web/lib/auth.js";
 
 describe("Firebase Auth User-Friendly Error Messages", () => {
-  it("exports the required single-user ALLOWED_UID", () => {
-    expect(ALLOWED_UID).toBe("test-owner-uid-123456");
+  it("exports the ALLOWED_UID string", () => {
+    expect(typeof ALLOWED_UID).toBe("string");
   });
   it("translates auth/popup-closed-by-user gracefully", () => {
     const err = { code: "auth/popup-closed-by-user", message: "Firebase: Error (auth/popup-closed-by-user)." };

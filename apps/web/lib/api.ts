@@ -22,7 +22,9 @@ export const API_BASE = "/api";
  */
 export const STREAM_API_BASE =
   process.env.NEXT_PUBLIC_STREAM_API_BASE ||
-  (process.env.NODE_ENV === "production" ? "https://us-central1-butler-alfred.cloudfunctions.net/api" : API_BASE);
+  (process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    ? `https://us-central1-${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}.cloudfunctions.net/api`
+    : API_BASE);
 
 export class ApiError extends Error {
   readonly status: number;

@@ -6,7 +6,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Gauge, Paragraph, Wrap};
 use ratatui::Frame;
 
-use crate::app::{App, Billing, Field, Screen, REGIONS};
+use crate::app::{App, Billing, Failure, Field, Screen, REGIONS};
 use crate::deploy::STAGE_COUNT;
 
 const GOLD: Color = Color::Rgb(201, 164, 92);
@@ -82,6 +82,7 @@ fn footer_line(app: &App) -> Line<'static> {
         Screen::Review => t.footer_review,
         Screen::Deploying => t.footer_deploy,
         Screen::Done => t.footer_done,
+        Screen::Failed if app.billing_failure().is_some() => t.footer_billing_failed,
         Screen::Failed => t.footer_failed,
     };
     Line::from(hint).fg(MUTED)
@@ -325,6 +326,19 @@ fn draw_deploy(frame: &mut Frame, app: &App, area: Rect) {
         let code = state.exit_code.map_or("?".to_string(), |c| c.to_string());
         let message = t.deploy_failed.replace("{code}", &code).replace("{log}", &state.log_path.display().to_string());
         log_lines.push(Line::from(message).fg(RED));
+        if let Some(failure) = state.failure {
+            let (title, why) = match failure {
+                Failure::BillingQuota => (t.billing_quota_title, t.billing_quota_why),
+                Failure::BillingDisabled => (t.billing_disabled_title, t.billing_disabled_why),
+            };
+            let account = app.selected_billing().map(|b| b.id.clone()).unwrap_or_default();
+            log_lines.push(Line::from(title).fg(YELLOW).bold());
+            log_lines.push(Line::from(why).fg(TEXT));
+            log_lines.push(Line::from(t.billing_options).fg(GOLD).bold());
+            log_lines.push(Line::from(t.billing_free_slot).fg(MUTED));
+            log_lines.push(Line::from(format!("  gcloud billing projects list --billing-account={account}")).fg(MUTED));
+            log_lines.push(Line::default());
+        }
     }
     let visible = (log.height.saturating_sub(2) as usize).saturating_sub(log_lines.len());
     let end = state.lines.len().saturating_sub(state.scroll_up);

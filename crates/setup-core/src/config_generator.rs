@@ -106,22 +106,14 @@ pub fn generate_cloud_shell_script(config: &SetupConfig) -> String {
     script.push_str("gcloud config set project \"$PROJECT_ID\"\n\n");
 
     script.push_str("# 2. Billing Account Association\n");
-    if let Some(ref ba_id) = config.billing_account_id {
-        let ba_trimmed = ba_id.trim();
-        if !ba_trimmed.is_empty() {
-            script.push_str(&format!("TARGET_BILLING_ACCOUNT={}\n", shell_quote(ba_trimmed)));
-            script.push_str("if ! gcloud billing projects describe \"$PROJECT_ID\" --format=\"value(billingAccountName)\" 2>/dev/null | grep -q \"/\"; then\n");
-            script.push_str("  echo \"💳 [Alfred Setup] Linking selected billing account: $TARGET_BILLING_ACCOUNT...\"\n");
-            script.push_str("  gcloud billing projects link \"$PROJECT_ID\" --billing-account=\"$TARGET_BILLING_ACCOUNT\" 2>/dev/null || true\n");
-            script.push_str("else\n");
-            script.push_str("  echo \"💳 [Alfred Setup] Billing account is already linked to project $PROJECT_ID.\"\n");
-            script.push_str("fi\n\n");
-        } else {
-            script.push_str(generate_billing_autolink_snippet());
-        }
-    } else {
-        script.push_str(generate_billing_autolink_snippet());
+    script.push_str("billing_enabled() {\n");
+    script.push_str("  [ \"$(gcloud billing projects describe \"$PROJECT_ID\" --format=\"value(billingEnabled)\" 2>/dev/null)\" = \"True\" ]\n");
+    script.push_str("}\n");
+    match config.billing_account_id.as_deref().map(str::trim).filter(|id| !id.is_empty()) {
+        Some(ba_id) => script.push_str(&billing_link_snippet(ba_id)),
+        None => script.push_str(generate_billing_autolink_snippet()),
     }
+    script.push_str(BILLING_REQUIRED_CHECK);
 
     script.push_str("echo \"🔑 [Alfred Setup] Enabling required Google Cloud and Firebase APIs...\"\n");
     script.push_str("gcloud services enable \\\n");
@@ -314,6 +306,45 @@ fn profile_init_command(owner_name: &str) -> String {
     }
 }
 
+/// Links the chosen billing account, showing gcloud's errors and retrying a
+/// few times: a project that was created seconds ago is not always visible to
+/// the billing API yet.
+fn billing_link_snippet(billing_account_id: &str) -> String {
+    let mut s = format!("TARGET_BILLING_ACCOUNT={}\n", shell_quote(billing_account_id));
+    s.push_str("if billing_enabled; then\n");
+    s.push_str("  echo \"💳 [Alfred Setup] Billing account is already linked to project $PROJECT_ID.\"\n");
+    s.push_str("else\n");
+    s.push_str("  echo \"💳 [Alfred Setup] Linking selected billing account: $TARGET_BILLING_ACCOUNT...\"\n");
+    s.push_str("  for attempt in 1 2 3 4 5; do\n");
+    s.push_str("    if link_output=\"$(gcloud billing projects link \"$PROJECT_ID\" --billing-account=\"$TARGET_BILLING_ACCOUNT\" 2>&1)\"; then\n");
+    s.push_str("      echo \"$link_output\"\n");
+    s.push_str("      break\n");
+    s.push_str("    fi\n");
+    s.push_str("    echo \"$link_output\"\n");
+    s.push_str("    case \"$link_output\" in\n");
+    s.push_str("      *\"quota exceeded\"*)\n");
+    s.push_str("        echo \"  This billing account already has as many linked projects as its quota allows.\"\n");
+    s.push_str("        echo \"  See its projects: gcloud billing projects list --billing-account=$TARGET_BILLING_ACCOUNT\"\n");
+    s.push_str("        echo \"  Unlink one you no longer need, or ask for more: https://support.google.com/code/contact/billing_quota_increase\"\n");
+    s.push_str(&format!("        echo \"{BILLING_QUOTA_MARKER} $TARGET_BILLING_ACCOUNT\"\n"));
+    s.push_str("        exit 3 ;;\n");
+    s.push_str("    esac\n");
+    s.push_str("    [ \"$attempt\" = 5 ] || { echo \"  Linking failed (attempt $attempt of 5); retrying in 10 s...\"; sleep 10; }\n");
+    s.push_str("  done\n");
+    s.push_str("fi\n");
+    s
+}
+
+/// Stops the script with the likely causes when the project still has no
+/// billing: every API enabled afterwards would fail with a less clear error.
+/// Printed when the billing account has no room for another project; the
+/// wizard offers another billing account or Google account. Exit code 3.
+pub const BILLING_QUOTA_MARKER: &str = "[Alfred Setup] ERROR billing-quota-exceeded";
+/// Printed when billing is still off after linking. Exit code 1.
+pub const BILLING_DISABLED_MARKER: &str = "[Alfred Setup] ERROR billing-not-enabled";
+
+const BILLING_REQUIRED_CHECK: &str = "if ! billing_enabled; then\n  echo \"❌ [Alfred Setup] Billing is not enabled on project $PROJECT_ID, so its APIs cannot be turned on.\"\n  echo \"   Common causes: the billing account already has as many linked projects as its quota allows\"\n  echo \"   (unlink an old project or request more), or your account may not link projects to it\"\n  echo \"   (it needs the Billing Account User role).\"\n  echo \"   Link it at https://console.cloud.google.com/billing/linkedaccount?project=$PROJECT_ID\"\n  echo \"   and run the setup again with the same project ID; finished steps are skipped.\"\n  echo \"[Alfred Setup] ERROR billing-not-enabled\"\n  exit 1\nfi\n\n";
+
 fn generate_billing_autolink_snippet() -> &'static str {
     "if ! gcloud billing projects describe \"$PROJECT_ID\" --format=\"value(billingAccountName)\" 2>/dev/null | grep -q \"/\"; then\n  echo \"💳 [Alfred Setup] Linking open Google Cloud billing account...\"\n  for ba in $(gcloud billing accounts list --filter=\"open=true\" --format=\"value(ACCOUNT_ID)\" 2>/dev/null); do\n    echo \"  Attempting to link billing account $ba...\"\n    if gcloud billing projects link \"$PROJECT_ID\" --billing-account=\"$ba\" 2>/dev/null; then\n      echo \"  ✓ Successfully linked billing account: $ba\"\n      break\n    fi\n  done\nelse\n  echo \"💳 [Alfred Setup] Billing account is already linked to project $PROJECT_ID.\"\nfi\n\n"
 }
@@ -415,6 +446,36 @@ mod tests {
 
         let unnamed = SetupConfig { owner_name: String::new(), ..config };
         assert!(generate_cloud_shell_script(&unnamed).contains("npm run profile:init -- --defaults\n"));
+    }
+
+    #[test]
+    fn test_billing_link_errors_are_visible_and_stop_the_script() {
+        let config = SetupConfig {
+            project_id: "demo-alfred".to_string(),
+            allowed_email: "owner@gmail.com".to_string(),
+            billing_account_id: Some("012345-6789AB-CDEF01".to_string()),
+            ..Default::default()
+        };
+        let script = generate_cloud_shell_script(&config);
+        let link_line = script
+            .lines()
+            .find(|line| line.contains("gcloud billing projects link"))
+            .expect("link command");
+        assert!(!link_line.contains("2>/dev/null"), "gcloud's error must be visible: {link_line}");
+        assert!(!link_line.contains("|| true"), "a failed link must not be ignored: {link_line}");
+        assert!(script.contains("for attempt in 1 2 3 4 5"));
+        assert!(script.contains("*\"quota exceeded\"*)"), "a billing quota error stops the retries");
+        assert!(script.contains(&format!("echo \"{BILLING_QUOTA_MARKER} $TARGET_BILLING_ACCOUNT\"")));
+        assert!(script.contains("exit 3"));
+        assert!(script.contains(BILLING_DISABLED_MARKER));
+
+        let check = script.find("if ! billing_enabled; then").expect("billing check");
+        let enable_apis = script.find("gcloud services enable").expect("enable APIs");
+        assert!(check < enable_apis, "billing must be verified before enabling APIs");
+        assert!(script[check..enable_apis].contains("exit 1"));
+
+        let autolink = generate_cloud_shell_script(&SetupConfig { billing_account_id: None, ..config });
+        assert!(autolink.contains("if ! billing_enabled; then"), "the auto-link path is checked too");
     }
 
     #[test]

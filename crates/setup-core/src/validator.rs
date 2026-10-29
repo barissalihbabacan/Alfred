@@ -249,7 +249,7 @@ mod tests {
 
     #[test]
     fn test_validate_gcp_project_id() {
-        assert!(validate_gcp_project_id("butler-alfred").is_ok());
+        assert!(validate_gcp_project_id("demo-alfred").is_ok());
         assert!(validate_gcp_project_id("my-project-123").is_ok());
         assert!(validate_gcp_project_id("123-bad").is_err());
         assert!(validate_gcp_project_id("bad-").is_err());
@@ -263,7 +263,7 @@ mod tests {
 
     #[test]
     fn test_validate_email() {
-        assert!(validate_email("owner@example.invalid").is_ok());
+        assert!(validate_email("owner@gmail.com").is_ok());
         assert!(validate_email("john.doe@gmail.com").is_ok());
         // Genuine names that previously triggered false positives
         assert!(validate_email("isik@gmail.com").is_ok());

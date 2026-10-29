@@ -333,8 +333,8 @@ mod tests {
     #[test]
     fn test_generate_env_file() {
         let config = SetupConfig {
-            project_id: "butler-alfred".to_string(),
-            allowed_email: "owner@example.invalid".to_string(),
+            project_id: "demo-alfred".to_string(),
+            allowed_email: "owner@gmail.com".to_string(),
             allowed_uid: "test-owner-uid-123456".to_string(),
             groq_api_key: "gsk_test123".to_string(),
             gemini_api_key: "AIzaSy_test".to_string(),
@@ -347,7 +347,7 @@ mod tests {
         };
 
         let env = generate_env_file(&config);
-        assert!(env.contains("ALLOWED_EMAIL='owner@example.invalid'"));
+        assert!(env.contains("ALLOWED_EMAIL='owner@gmail.com'"));
         assert!(env.contains("ALLOWED_UID='test-owner-uid-123456'"));
         assert!(env.contains("GROQ_API_KEY='gsk_test123'"));
         assert!(env.contains("GEMINI_API_KEY='AIzaSy_test'"));
@@ -357,8 +357,8 @@ mod tests {
     #[test]
     fn test_generate_cloud_shell_script_is_secret_free() {
         let config = SetupConfig {
-            project_id: "butler-alfred".to_string(),
-            allowed_email: "owner@example.invalid".to_string(),
+            project_id: "demo-alfred".to_string(),
+            allowed_email: "owner@gmail.com".to_string(),
             allowed_uid: "test-owner-uid-123456".to_string(),
             groq_api_key: "gsk_super_secret_raw_key".to_string(),
             gemini_api_key: "AIza_super_secret_raw_key".to_string(),
@@ -380,7 +380,7 @@ mod tests {
 
         // Script reads from environment safely
         assert!(script.contains("create_or_update_secret \"GROQ_API_KEY\" \"${GROQ_API_KEY:-}\""));
-        assert!(script.contains("PROJECT_ID='butler-alfred'"));
+        assert!(script.contains("PROJECT_ID='demo-alfred'"));
         assert!(script.contains("FIRESTORE_REGION='europe-west1'"));
         assert!(script.contains("TARGET_BILLING_ACCOUNT='012345-6789AB-CDEF01'"));
 

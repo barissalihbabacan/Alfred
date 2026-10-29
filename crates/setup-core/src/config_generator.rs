@@ -12,6 +12,13 @@ pub struct SetupConfig {
     pub ollama_url: Option<String>,
 }
 
+/// Shell quoting helper following POSIX escaping rules.
+/// Wraps any string in single quotes and safely escapes existing single quotes.
+pub fn shell_quote(s: &str) -> String {
+    let escaped = s.replace('\'', r"'\''");
+    format!("'{}'", escaped)
+}
+
 /// Generates the standard root `.env` file content from the SetupConfig.
 pub fn generate_env_file(config: &SetupConfig) -> String {
     let mut out = String::new();
@@ -20,42 +27,44 @@ pub fn generate_env_file(config: &SetupConfig) -> String {
     out.push_str("# ==============================================================================\n\n");
 
     out.push_str("# --- Single-User Authorization ---------------------------------------------------\n");
-    out.push_str(&format!("ALLOWED_EMAIL=\"{}\"\n", config.allowed_email));
+    out.push_str(&format!("ALLOWED_EMAIL={}\n", shell_quote(&config.allowed_email)));
     if config.allowed_uid.trim().is_empty() {
-        out.push_str("ALLOWED_UID=\"\"\n# Note: ALLOWED_UID is empty and will automatically bind to the first login from ALLOWED_EMAIL.\n\n");
+        out.push_str("ALLOWED_UID=''\n# Note: ALLOWED_UID is empty and will be authorized via verified email.\n\n");
     } else {
-        out.push_str(&format!("ALLOWED_UID=\"{}\"\n\n", config.allowed_uid.trim()));
+        out.push_str(&format!("ALLOWED_UID={}\n\n", shell_quote(config.allowed_uid.trim())));
     }
 
     out.push_str("# --- Model Providers ------------------------------------------------------------\n");
-    out.push_str("ALFRED_LLM_PROVIDER=groq\n");
-    out.push_str(&format!("GROQ_API_KEY=\"{}\"\n", config.groq_api_key));
-    out.push_str("GROQ_MODEL=openai/gpt-oss-120b\n");
-    out.push_str(&format!("GEMINI_API_KEY=\"{}\"\n", config.gemini_api_key));
-    out.push_str("EMBEDDING_PROVIDER=gemini\n");
-    out.push_str("EMBEDDING_MODEL=gemini-embedding-001\n");
+    out.push_str("ALFRED_LLM_PROVIDER='groq'\n");
+    out.push_str(&format!("GROQ_API_KEY={}\n", shell_quote(&config.groq_api_key)));
+    out.push_str("GROQ_MODEL='openai/gpt-oss-120b'\n");
+    out.push_str(&format!("GEMINI_API_KEY={}\n", shell_quote(&config.gemini_api_key)));
+    out.push_str("EMBEDDING_PROVIDER='gemini'\n");
+    out.push_str("EMBEDDING_MODEL='gemini-embedding-001'\n");
     out.push_str("EMBEDDING_DIMENSION=768\n\n");
 
     out.push_str("# --- Fact-Checked Web Search ----------------------------------------------------\n");
-    out.push_str(&format!("TAVILY_API_KEY=\"{}\"\n\n", config.tavily_api_key));
+    out.push_str(&format!("TAVILY_API_KEY={}\n\n", shell_quote(&config.tavily_api_key)));
 
     if let Some(ref evren) = config.evren_api_key {
         if !evren.trim().is_empty() {
             out.push_str("# --- Optional Turkish National LLM (TÜBİTAK BİLGEM) ----------------------------\n");
-            out.push_str(&format!("EVREN_API_KEY=\"{}\"\n", evren.trim()));
-            out.push_str("EVREN_MODEL=qwen3.8-flash-next\n\n");
+            out.push_str(&format!("EVREN_API_KEY={}\n", shell_quote(evren.trim())));
+            out.push_str("EVREN_MODEL='qwen3.8-flash-next'\n\n");
         }
     }
 
     let ollama_url = config.ollama_url.as_deref().unwrap_or("http://localhost:11434");
     out.push_str("# --- Optional Local Ollama Fallback ---------------------------------------------\n");
-    out.push_str(&format!("OLLAMA_BASE_URL=\"{}\"\n", ollama_url));
-    out.push_str("OLLAMA_MODEL=gemma4:12b\n");
+    out.push_str(&format!("OLLAMA_BASE_URL={}\n", shell_quote(ollama_url)));
+    out.push_str("OLLAMA_MODEL='gemma4:12b'\n");
 
     out
 }
 
-/// Generates an idempotent Google Cloud Shell provisioning script.
+/// Generates an idempotent, injection-safe, secret-free Google Cloud Shell provisioning script.
+/// API keys are NOT hardcoded into the script text; they are retrieved from environment variables
+/// or prompted interactively if not set.
 pub fn generate_cloud_shell_script(config: &SetupConfig) -> String {
     let mut script = String::new();
     script.push_str("#!/usr/bin/env bash\n");
@@ -63,10 +72,10 @@ pub fn generate_cloud_shell_script(config: &SetupConfig) -> String {
 
     script.push_str("# ==============================================================================\n");
     script.push_str("# Alfred — Automated Google Cloud Shell Provisioning Script\n");
-    script.push_str(&format!("# Target Project: {}\n", config.project_id));
+    script.push_str(&format!("# Target Project: {}\n", config.project_id.trim()));
     script.push_str("# ==============================================================================\n\n");
 
-    script.push_str(&format!("PROJECT_ID=\"{}\"\n\n", config.project_id.trim()));
+    script.push_str(&format!("PROJECT_ID={}\n\n", shell_quote(config.project_id.trim())));
 
     script.push_str("# 1. Google Cloud Project Setup (Auto-creates if project does not exist)\n");
     script.push_str("if ! gcloud projects describe \"$PROJECT_ID\" >/dev/null 2>&1; then\n");
@@ -75,7 +84,7 @@ pub fn generate_cloud_shell_script(config: &SetupConfig) -> String {
     script.push_str("fi\n\n");
 
     script.push_str("echo \"🦇 [Alfred Setup] Configuring Google Cloud project...\"\n");
-    script.push_str(&format!("gcloud config set project \"{}\"\n\n", config.project_id.trim()));
+    script.push_str("gcloud config set project \"$PROJECT_ID\"\n\n");
 
     script.push_str("# 2. Billing Account Association (Auto-links available billing account)\n");
     script.push_str("if ! gcloud billing projects describe \"$PROJECT_ID\" --format=\"value(billingAccountName)\" 2>/dev/null | grep -q \"/\"; then\n");
@@ -128,19 +137,58 @@ pub fn generate_cloud_shell_script(config: &SetupConfig) -> String {
     script.push_str("  fi\n");
     script.push_str("}\n\n");
 
-    script.push_str("echo \"🛡️ [Alfred Setup] Provisioning Secret Manager vault...\"\n");
-    script.push_str(&format!("create_or_update_secret \"GROQ_API_KEY\" \"{}\"\n", config.groq_api_key.trim()));
-    script.push_str(&format!("create_or_update_secret \"GEMINI_API_KEY\" \"{}\"\n", config.gemini_api_key.trim()));
-    script.push_str(&format!("create_or_update_secret \"TAVILY_API_KEY\" \"{}\"\n", config.tavily_api_key.trim()));
-    let evren_val = config.evren_api_key.as_deref().unwrap_or("").trim();
-    script.push_str(&format!("create_or_update_secret \"EVREN_API_KEY\" \"{}\"\n", evren_val));
-    script.push_str("create_or_update_secret \"GOOGLE_OAUTH_CLIENT_ID\" \"\"\n");
-    script.push_str("create_or_update_secret \"GOOGLE_OAUTH_CLIENT_SECRET\" \"\"\n");
+    script.push_str("# Helper to prompt for secret interactively if not provided via environment\n");
+    script.push_str("prompt_secret_if_interactive() {\n");
+    script.push_str("  local var_name=\"$1\"\n");
+    script.push_str("  local prompt_label=\"$2\"\n");
+    script.push_str("  local current_val=\"${!var_name:-}\"\n");
+    script.push_str("  if [ -z \"$current_val\" ] && [ -t 0 ]; then\n");
+    script.push_str("    echo -n \"🔑 Enter $prompt_label (leave empty to skip): \"\n");
+    script.push_str("    read -r -s input_val\n");
+    script.push_str("    echo \"\"\n");
+    script.push_str("    printf -v \"$var_name\" '%s' \"$input_val\"\n");
+    script.push_str("  fi\n");
+    script.push_str("}\n\n");
 
-    script.push_str("\necho \"📝 [Alfred Setup] Writing local environment config (.env)...\"\n");
-    script.push_str("cat << 'EOF' > .env\n");
-    script.push_str(&generate_env_file(config));
-    script.push_str("EOF\n\n");
+    script.push_str("prompt_secret_if_interactive \"GROQ_API_KEY\" \"Groq API Key\"\n");
+    script.push_str("prompt_secret_if_interactive \"GEMINI_API_KEY\" \"Google Gemini API Key\"\n");
+    script.push_str("prompt_secret_if_interactive \"TAVILY_API_KEY\" \"Tavily API Key\"\n");
+    script.push_str("prompt_secret_if_interactive \"EVREN_API_KEY\" \"TÜBİTAK EVREN API Key\"\n\n");
+
+    script.push_str("echo \"🛡️ [Alfred Setup] Provisioning Secret Manager vault...\"\n");
+    script.push_str("create_or_update_secret \"GROQ_API_KEY\" \"${GROQ_API_KEY:-}\"\n");
+    script.push_str("create_or_update_secret \"GEMINI_API_KEY\" \"${GEMINI_API_KEY:-}\"\n");
+    script.push_str("create_or_update_secret \"TAVILY_API_KEY\" \"${TAVILY_API_KEY:-}\"\n");
+    script.push_str("create_or_update_secret \"EVREN_API_KEY\" \"${EVREN_API_KEY:-}\"\n");
+    script.push_str("create_or_update_secret \"GOOGLE_OAUTH_CLIENT_ID\" \"${GOOGLE_OAUTH_CLIENT_ID:-}\"\n");
+    script.push_str("create_or_update_secret \"GOOGLE_OAUTH_CLIENT_SECRET\" \"${GOOGLE_OAUTH_CLIENT_SECRET:-}\"\n\n");
+
+    script.push_str("echo \"📝 [Alfred Setup] Writing local environment config (.env)...\"\n");
+    script.push_str("cat << 'ALFRED_ENV_EOF' > .env\n");
+    script.push_str("# ==============================================================================\n");
+    script.push_str("# Alfred — Generated by Setup-UI (Rust WebAssembly Core)\n");
+    script.push_str("# ==============================================================================\n\n");
+    script.push_str(&format!("ALLOWED_EMAIL={}\n", shell_quote(&config.allowed_email)));
+    if config.allowed_uid.trim().is_empty() {
+        script.push_str("ALLOWED_UID=''\n# Note: ALLOWED_UID is empty and will be authorized via verified email.\n\n");
+    } else {
+        script.push_str(&format!("ALLOWED_UID={}\n\n", shell_quote(config.allowed_uid.trim())));
+    }
+    script.push_str("ALFRED_LLM_PROVIDER='groq'\n");
+    script.push_str("GROQ_MODEL='openai/gpt-oss-120b'\n");
+    script.push_str("EMBEDDING_PROVIDER='gemini'\n");
+    script.push_str("EMBEDDING_MODEL='gemini-embedding-001'\n");
+    script.push_str("EMBEDDING_DIMENSION=768\n\n");
+    let ollama_url = config.ollama_url.as_deref().unwrap_or("http://localhost:11434");
+    script.push_str(&format!("OLLAMA_BASE_URL={}\n", shell_quote(ollama_url)));
+    script.push_str("OLLAMA_MODEL='gemma4:12b'\n");
+    script.push_str("ALFRED_ENV_EOF\n\n");
+
+    script.push_str("# Append non-empty environment secrets to root .env if provided\n");
+    script.push_str("if [ -n \"${GROQ_API_KEY:-}\" ]; then echo \"GROQ_API_KEY='${GROQ_API_KEY}'\" >> .env; fi\n");
+    script.push_str("if [ -n \"${GEMINI_API_KEY:-}\" ]; then echo \"GEMINI_API_KEY='${GEMINI_API_KEY}'\" >> .env; fi\n");
+    script.push_str("if [ -n \"${TAVILY_API_KEY:-}\" ]; then echo \"TAVILY_API_KEY='${TAVILY_API_KEY}'\" >> .env; fi\n");
+    script.push_str("if [ -n \"${EVREN_API_KEY:-}\" ]; then echo \"EVREN_API_KEY='${EVREN_API_KEY}'\" >> .env; echo \"EVREN_MODEL='qwen3.8-flash-next'\" >> .env; fi\n\n");
 
     script.push_str("if [ ! -f \"users/USER_PROFILE.md\" ]; then\n");
     script.push_str("  echo \"🧠 [Alfred Setup] Initializing user persona profile digest...\"\n");
@@ -148,13 +196,13 @@ pub fn generate_cloud_shell_script(config: &SetupConfig) -> String {
     script.push_str("fi\n\n");
 
     script.push_str("echo \"🚀 [Alfred Setup] Deploying to Firebase (Hosting, Functions & Security Rules)...\"\n");
-    script.push_str(&format!("npx --yes firebase-tools use \"{}\"\n", config.project_id.trim()));
+    script.push_str("npx --yes firebase-tools use \"$PROJECT_ID\"\n");
     script.push_str("npx --yes firebase-tools deploy --only hosting,functions,firestore:rules,firestore:indexes --force\n\n");
 
     script.push_str("echo \"\"\n");
     script.push_str("echo \"===================================================================\"\n");
     script.push_str("echo \"✨ Alfred has been successfully provisioned and deployed!\"\n");
-    script.push_str(&format!("echo \"🌐 Open your application: https://{}.web.app\"\n", config.project_id));
+    script.push_str("echo \"🌐 Open your application: https://${PROJECT_ID}.web.app\"\n");
     script.push_str("echo \"===================================================================\"\n");
 
     script
@@ -163,6 +211,16 @@ pub fn generate_cloud_shell_script(config: &SetupConfig) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_shell_quote() {
+        assert_eq!(shell_quote("hello"), "'hello'");
+        assert_eq!(shell_quote("it's a test"), r"'it'\''s a test'");
+        assert_eq!(shell_quote("$(whoami)"), r"'$(whoami)'");
+        assert_eq!(shell_quote("`id`"), r"'`id`'");
+        assert_eq!(shell_quote("a; b && c"), r"'a; b && c'");
+        assert_eq!(shell_quote(""), "''");
+    }
 
     #[test]
     fn test_generate_env_file() {
@@ -178,62 +236,71 @@ mod tests {
         };
 
         let env = generate_env_file(&config);
-        assert!(env.contains("ALLOWED_EMAIL=\"owner@example.invalid\""));
-        assert!(env.contains("ALLOWED_UID=\"test_uid_123456789\""));
-        assert!(env.contains("GROQ_API_KEY=\"gsk_test123\""));
-        assert!(env.contains("EVREN_API_KEY=\"evren_test123\""));
-        assert!(env.contains("OLLAMA_BASE_URL=\"http://localhost:11434\""));
+        assert!(env.contains("ALLOWED_EMAIL='owner@example.invalid'"));
+        assert!(env.contains("ALLOWED_UID='test_uid_123456789'"));
+        assert!(env.contains("GROQ_API_KEY='gsk_test123'"));
+        assert!(env.contains("EVREN_API_KEY='evren_test123'"));
+        assert!(env.contains("OLLAMA_BASE_URL='http://localhost:11434'"));
 
         let mut config_no_uid = config.clone();
         config_no_uid.allowed_uid = String::new();
         let env_no_uid = generate_env_file(&config_no_uid);
-        assert!(env_no_uid.contains("ALLOWED_UID=\"\""));
-        assert!(env_no_uid.contains("automatically bind"));
+        assert!(env_no_uid.contains("ALLOWED_UID=''"));
     }
 
     #[test]
-    fn test_generate_cloud_shell_script() {
+    fn test_generate_cloud_shell_script_is_secret_free() {
+        let real_secret = "gsk_super_secret_never_appear_in_script_body";
+        let gemini_secret = "AIzaSy_super_secret_gemini_key_12345";
         let config = SetupConfig {
             project_id: "butler-alfred".to_string(),
             allowed_email: "owner@example.invalid".to_string(),
             allowed_uid: "test_uid_123456789".to_string(),
-            groq_api_key: "gsk_test123".to_string(),
-            gemini_api_key: "AIzaSy_test123".to_string(),
+            groq_api_key: real_secret.to_string(),
+            gemini_api_key: gemini_secret.to_string(),
             tavily_api_key: "tvly-test123".to_string(),
-            evren_api_key: None,
+            evren_api_key: Some("evren_test123".to_string()),
             ollama_url: None,
         };
 
         let script = generate_cloud_shell_script(&config);
-        assert!(script.contains("PROJECT_ID=\"butler-alfred\""));
-        assert!(script.contains("gcloud config set project \"butler-alfred\""));
-        assert!(script.contains("create_or_update_secret \"GROQ_API_KEY\""));
+
+        // Crucial security invariant: the script NEVER embeds raw secrets
+        assert!(!script.contains(real_secret));
+        assert!(!script.contains(gemini_secret));
+        assert!(!script.contains("tvly-test123"));
+        assert!(!script.contains("evren_test123"));
+
+        // Script reads from environment variables
+        assert!(script.contains("create_or_update_secret \"GROQ_API_KEY\" \"${GROQ_API_KEY:-}\""));
+        assert!(script.contains("create_or_update_secret \"GEMINI_API_KEY\" \"${GEMINI_API_KEY:-}\""));
+        assert!(script.contains("prompt_secret_if_interactive"));
+
+        // Script uses shell quoted project ID and heredoc
+        assert!(script.contains("PROJECT_ID='butler-alfred'"));
+        assert!(script.contains("cat << 'ALFRED_ENV_EOF' > .env"));
         assert!(script.contains("users/USER_PROFILE.md"));
-        assert!(script.contains("https://butler-alfred.web.app"));
+        assert!(script.contains("https://${PROJECT_ID}.web.app"));
     }
 
     #[test]
-    fn test_create_or_update_secret_logic() {
-        let config = SetupConfig {
-            project_id: "test-proj".to_string(),
-            allowed_email: "test@example.com".to_string(),
-            allowed_uid: "uid123".to_string(),
-            groq_api_key: "gsk_live".to_string(),
+    fn test_generate_cloud_shell_script_injection_safety() {
+        let injection_config = SetupConfig {
+            project_id: "proj$(whoami)".to_string(),
+            allowed_email: "user' ; rm -rf / ; '@gmail.com".to_string(),
+            allowed_uid: "uid`id`".to_string(),
+            groq_api_key: "".to_string(),
             gemini_api_key: "".to_string(),
             tavily_api_key: "".to_string(),
             evren_api_key: None,
-            ollama_url: None,
+            ollama_url: Some("http://localhost:11434'; rm -rf / ; '".to_string()),
         };
 
-        let script = generate_cloud_shell_script(&config);
-        // Verify unset fallback is used for unconfigured secrets on creation
-        assert!(script.contains("initial_val=\"unset\""));
-        // Verify that existing secrets are preserved when value is empty or unset
-        assert!(script.contains("Secret $secret_name already exists; preserving existing secret version."));
-        // Verify placeholder is not used anywhere
-        assert!(!script.contains("placeholder"));
-        // Verify empty secrets for OAuth are passed as ""
-        assert!(script.contains("create_or_update_secret \"GOOGLE_OAUTH_CLIENT_ID\" \"\""));
-        assert!(script.contains("create_or_update_secret \"GOOGLE_OAUTH_CLIENT_SECRET\" \"\""));
+        let script = generate_cloud_shell_script(&injection_config);
+        // All variables in generated script MUST be single quoted via shell_quote
+        assert!(script.contains(&format!("PROJECT_ID={}", shell_quote(&injection_config.project_id))));
+        assert!(script.contains(&format!("ALLOWED_EMAIL={}", shell_quote(&injection_config.allowed_email))));
+        assert!(script.contains(&format!("ALLOWED_UID={}", shell_quote(&injection_config.allowed_uid))));
+        assert!(script.contains(&format!("OLLAMA_BASE_URL={}", shell_quote(injection_config.ollama_url.as_ref().unwrap()))));
     }
 }

@@ -26,7 +26,7 @@ describe("Setup Wizard Server (serve-setup-ui)", () => {
       throw new Error("Invalid email");
     }),
     wasm_validate_uid: vi.fn((uid: string) => uid),
-    wasm_validate_api_key: vi.fn((_p: string, key: string) => key),
+    wasm_validate_api_key: vi.fn((_p: string, key: string) => ({ value: key, warnings: [] })),
     wasm_generate_script: vi.fn(() => "#!/usr/bin/env bash\necho 'SERVER_GENERATED_SCRIPT'")
   };
 

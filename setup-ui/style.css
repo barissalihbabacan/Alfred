@@ -312,6 +312,11 @@ body {
   color: var(--success);
 }
 
+.validation-message.warning {
+  display: block;
+  color: #f59e0b;
+}
+
 /* Info Box */
 .info-box {
   display: flex;

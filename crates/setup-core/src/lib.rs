@@ -25,8 +25,16 @@ pub fn wasm_validate_uid(uid: &str) -> Result<String, JsValue> {
 }
 
 #[wasm_bindgen]
-pub fn wasm_validate_api_key(provider: &str, key: &str) -> Result<String, JsValue> {
-    validator::validate_api_key(provider, key)
+pub fn wasm_validate_api_key(provider: &str, key: &str) -> Result<JsValue, JsValue> {
+    let outcome = validator::validate_api_key(provider, key)
+        .map_err(|e| JsValue::from_str(&e))?;
+    serde_wasm_bindgen::to_value(&outcome)
+        .map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+#[wasm_bindgen]
+pub fn wasm_validate_ollama_url(url: &str) -> Result<String, JsValue> {
+    validator::validate_ollama_url(url)
         .map_err(|e| JsValue::from_str(&e))
 }
 

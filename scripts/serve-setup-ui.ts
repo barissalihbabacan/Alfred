@@ -21,7 +21,8 @@ export interface SetupWasmModule {
   wasm_validate_project_id: (id: string) => string;
   wasm_validate_email: (email: string) => string;
   wasm_validate_uid: (uid: string) => string;
-  wasm_validate_api_key: (provider: string, key: string) => string;
+  wasm_validate_api_key: (provider: string, key: string) => unknown;
+  wasm_validate_ollama_url?: (url: string) => string;
   wasm_generate_script: (config: unknown) => string;
 }
 

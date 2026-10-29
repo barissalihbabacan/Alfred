@@ -3,6 +3,7 @@ import init, {
   wasm_validate_email,
   wasm_validate_uid,
   wasm_validate_api_key,
+  wasm_validate_ollama_url,
   wasm_generate_env,
   wasm_generate_script,
   WasmWizard
@@ -107,7 +108,7 @@ function bindEvents() {
     wizard.set_allowed_uid(val);
     if (!val) {
       valAllowedUid.className = "validation-message valid";
-      valAllowedUid.textContent = "ℹ️ (Optional) Will auto-bind on first sign-in";
+      valAllowedUid.textContent = "ℹ️ (Optional) UID boşsa yetki doğrulanmış e-posta ile verilir";
     } else {
       validateField(valAllowedUid, () => wasm_validate_uid(val));
     }
@@ -161,7 +162,13 @@ function bindEvents() {
   });
 
   inputOllamaUrl.addEventListener("input", (e) => {
-    wizard.set_ollama_url(e.target.value.trim());
+    const val = e.target.value.trim();
+    wizard.set_ollama_url(val);
+    if (val) {
+      validateField(valOllamaUrl, () => wasm_validate_ollama_url(val));
+    } else {
+      clearValidation(valOllamaUrl);
+    }
   });
 
   btnPrev.addEventListener("click", () => {
@@ -210,7 +217,12 @@ function bindEvents() {
 
 function validateField(elem, validatorFn) {
   try {
-    validatorFn();
+    const outcome = validatorFn();
+    if (outcome && typeof outcome === "object" && Array.isArray(outcome.warnings) && outcome.warnings.length > 0) {
+      elem.className = "validation-message warning";
+      elem.textContent = `⚠️ ${outcome.warnings.join(" ")}`;
+      return;
+    }
     elem.className = "validation-message valid";
     elem.textContent = "✓ Valid";
   } catch (err) {
@@ -293,7 +305,7 @@ function populateReview() {
     </div>
     <div class="summary-card">
       <div class="summary-label">Firebase Auth UID</div>
-      <div class="summary-value">${allowedUid ? escapeHtml(allowedUid) : "<span style='color:var(--gold)'>Auto-bind on first sign-in</span>"}</div>
+      <div class="summary-value">${allowedUid ? escapeHtml(allowedUid) : "<span style='color:var(--gold)'>UID boşsa yetki doğrulanmış e-posta ile verilir</span>"}</div>
     </div>
     <div class="summary-card">
       <div class="summary-label">Model Providers</div>

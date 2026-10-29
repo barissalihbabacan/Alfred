@@ -32,7 +32,7 @@ The wizard server binds securely to localhost (`127.0.0.1:8080`). Google Cloud S
 Follow the 4 steps in the visual wizard:
 
 1. **GCP & Firebase Project**: Enter a project ID or click **✨ Auto-Generate**. Alfred's provisioning script will automatically create the Google Cloud project and enable Firebase for you!
-2. **User Authorization**: Enter your Google Email. The Firebase Auth UID is optional and will automatically bind to your account on first sign-in.
+2. **User Authorization**: Enter your Google Email. The Firebase Auth UID is optional — UID boş bırakılırsa yetki doğrulanmış e-posta ile verilir.
 3. **API Keys**: Enter your Groq (`gsk_...`), Gemini (`AIzaSy...`), and Tavily (`tvly-...`) API keys.
 4. **Deploy**: Click **🚀 Execute Setup & Deploy Now** or copy the generated provisioning script.
 

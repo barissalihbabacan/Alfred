@@ -9,9 +9,10 @@ https://ssh.cloud.google.com/cloudshell/editor
   ?cloudshell_git_repo=https://github.com/<owner>/<repo>
   &cloudshell_tutorial=.cloudshell/tutorial.md
   &cloudshell_print=.cloudshell/welcome.txt
+  &show=terminal
 ```
 
-Cloud Shell clones the repository and opens `.cloudshell/tutorial.md` next to the terminal ([Open in Cloud Shell](https://docs.cloud.google.com/shell/docs/open-in-cloud-shell)). Its first step is one command, `bash .cloudshell/start.sh`: the Cloud Shell icon next to it types it into the terminal, and the user presses Enter. `cloudshell_print` also prints `.cloudshell/welcome.txt` in the terminal, so the command is visible there even if the tutorial panel is overlooked. Cloud Shell offers no documented way to type or run a command by itself for repositories not owned by Google; only a custom image could (see History).
+Cloud Shell clones the repository and opens `.cloudshell/tutorial.md` next to the terminal ([Open in Cloud Shell](https://docs.cloud.google.com/shell/docs/open-in-cloud-shell)). Its first step is one command, `bash .cloudshell/start.sh`: the Cloud Shell icon next to it types it into the terminal, and the user presses Enter. `cloudshell_print` also prints `.cloudshell/welcome.txt` in the terminal, so the command is visible there even if the tutorial panel is overlooked. `show=terminal` keeps the Editor closed: with the Editor loading too, the tutorial panel did not open (the clone finished first), while `cloudshell launch-tutorial .cloudshell/tutorial.md` opened it next to the terminal, so `welcome.txt` names that command as the fallback. Cloud Shell offers no documented way to type or run a command by itself for repositories not owned by Google; only a custom image could (see History).
 
 Cloud Shell opens repositories not owned by Google in a temporary environment whose home directory is deleted when the session ends, without the user's credentials until they sign in. Everything that matters is created in the user's own Google Cloud project, so the install itself does not depend on the session; files the wizard writes locally (`.env`, `functions/.env.<project>`, `apps/web/.env.production.local`, `users/*.md`, the deploy log) are lost afterwards.
 

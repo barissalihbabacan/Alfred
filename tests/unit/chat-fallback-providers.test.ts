@@ -6,6 +6,7 @@ import {
   DEFAULT_GEMINI_CHAT_MODEL,
   EVREN_CHAT_COMPLETIONS_URL,
   applyChatModelPreference,
+  availableChatProviders,
   buildChatRequestBody,
   buildChatRequestHeaders,
   getChatProviderConfig,
@@ -111,6 +112,26 @@ describe("resolveChatProviders", () => {
 
   it("still falls back when EVREN and Groq have no key", () => {
     expect(resolveChatProviders({ gemini: "AQ.test" }).providers.map((p) => p.id)).toEqual(["gemini"]);
+  });
+});
+
+describe("availableChatProviders (what the web selector may offer)", () => {
+  it("lists every provider with a usable key, in the natural order", () => {
+    expect(availableChatProviders(KEYS)).toEqual(["evren", "groq", "gemini"]);
+    expect(availableChatProviders({ gemini: KEYS.gemini, evren: KEYS.evren })).toEqual(["evren", "gemini"]);
+  });
+
+  it("leaves out placeholder and missing keys (an EVREN-only install offers only EVREN)", () => {
+    expect(availableChatProviders({ evren: KEYS.evren, groq: "unset", gemini: "none" })).toEqual(["evren"]);
+    expect(availableChatProviders({ groq: "  ", gemini: null })).toEqual([]);
+  });
+
+  it("agrees with /chat: a pick of an available provider always resolves to it first", () => {
+    const keys = { evren: KEYS.evren, groq: "unset" };
+    for (const id of availableChatProviders(keys)) {
+      const env = applyChatModelPreference({ CHAT_FALLBACK_ORDER: "groq" }, { provider: id });
+      expect(resolveChatProviders(keys, env).providers[0]?.id).toBe(id);
+    }
   });
 });
 

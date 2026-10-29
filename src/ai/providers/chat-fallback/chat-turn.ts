@@ -161,8 +161,9 @@ export interface ChatTurnOutcome {
   model: string;
 }
 
-/** The error message when no provider has a usable key (the former Groq-only message). */
-export const NO_PROVIDER_CONFIGURED_MESSAGE = "GROQ_API_KEY is not configured in Cloud Functions environment.";
+/** The user-facing error when no provider of the turn's chain has a usable key. */
+export const NO_PROVIDER_CONFIGURED_MESSAGE =
+  "Bu istek için API anahtarı tanımlı bir model sağlayıcısı yok. EVREN, Groq ya da Gemini anahtarını kurulum sihirbazıyla veya Secret Manager'da (firebase functions:secrets:set) ekleyip yeniden deploy edin.";
 
 function errorBodyMessage(errText: string): string {
   try {

@@ -4,6 +4,8 @@
  * works on escaped text.
  */
 
+import { DEFAULT_LANG, translate, type Lang } from "./i18n";
+
 function escapeHtml(str: string): string {
   return String(str)
     .replace(/&/g, "&amp;")
@@ -262,8 +264,21 @@ function extractTables(html: string): { html: string; tables: string[] } {
   return { html: outLines.join("\n"), tables };
 }
 
-export function renderMarkdown(text: string, sources?: readonly WebSearchCitationSource[] | null): string {
+/**
+ * `lang` only picks the labels of the copy buttons and the quote header; the
+ * message text itself is never translated.
+ */
+export function renderMarkdown(
+  text: string,
+  sources?: readonly WebSearchCitationSource[] | null,
+  lang: Lang = DEFAULT_LANG
+): string {
   if (!text) return "";
+
+  // Dictionary texts: plain words, safe inside the onclick's quoted string.
+  const copyLabel = translate(lang, "markdown.copy");
+  const copiedLabel = translate(lang, "markdown.copied");
+  const quoteLabel = translate(lang, "markdown.quote");
 
   // Completely remove <think>...</think> or unclosed <think>... from display
   let cleanText = text.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim();
@@ -296,7 +311,7 @@ export function renderMarkdown(text: string, sources?: readonly WebSearchCitatio
       <div class="code-container">
         <div class="code-header">
           <span lang="en">${language}</span>
-          <button class="copy-code-btn" onclick="navigator.clipboard.writeText(decodeURIComponent('${copyPayload(cleanCode)}')).then(()=>this.innerHTML='<span style=\\'color:#10b981;\\'>Kopyalandı</span>')"><svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' style='display:inline-block;margin-right:4px;'><rect x='9' y='9' width='13' height='13' rx='2' ry='2'/><path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/></svg>Kopyala</button>
+          <button class="copy-code-btn" onclick="navigator.clipboard.writeText(decodeURIComponent('${copyPayload(cleanCode)}')).then(()=>this.innerHTML='<span style=\\'color:#10b981;\\'>${copiedLabel}</span>')"><svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' style='display:inline-block;margin-right:4px;'><rect x='9' y='9' width='13' height='13' rx='2' ry='2'/><path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/></svg>${copyLabel}</button>
         </div>
         <pre class="code-content"><code>${cleanCode}</code></pre>
       </div>
@@ -433,7 +448,7 @@ export function renderMarkdown(text: string, sources?: readonly WebSearchCitatio
 
     const isMultiLine = rawLines.length >= 2 || plainQuoteText.length > 80;
     const headerHtml = isMultiLine
-      ? `<div class="md-blockquote-header"><span class="md-blockquote-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block mr-1 text-gold"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Taslak / Alıntı</span><button type="button" class="copy-code-btn" onclick="navigator.clipboard.writeText(decodeURIComponent('${copyPayload(plainQuoteText)}')).then(()=>this.innerHTML='<span style=\\'color:#10b981;\\'>Kopyalandı</span>')"><svg width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' style='display:inline-block;margin-right:4px;'><rect x='9' y='9' width='13' height='13' rx='2' ry='2'/><path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/></svg>Kopyala</button></div>`
+      ? `<div class="md-blockquote-header"><span class="md-blockquote-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block mr-1 text-gold"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>${quoteLabel}</span><button type="button" class="copy-code-btn" onclick="navigator.clipboard.writeText(decodeURIComponent('${copyPayload(plainQuoteText)}')).then(()=>this.innerHTML='<span style=\\'color:#10b981;\\'>${copiedLabel}</span>')"><svg width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' style='display:inline-block;margin-right:4px;'><rect x='9' y='9' width='13' height='13' rx='2' ry='2'/><path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/></svg>${copyLabel}</button></div>`
       : "";
 
     blockquotes.push(`

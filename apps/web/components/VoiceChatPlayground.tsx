@@ -8,7 +8,6 @@ import { errorMessage as messageOf, isAbortError } from "../lib/errors";
 import { formatRateLimitStatus, normalizeRateLimitWaitMs } from "../lib/rate-limit";
 import {
   CHAT_MODEL_OPTIONS,
-  NO_API_KEY_HINT,
   findSelectableModelOption,
   formatProviderFallbackStatus,
   isModelOptionAvailable,
@@ -19,6 +18,9 @@ import {
 } from "../lib/providers";
 import { linkCitationsInText, renderMarkdown, type WebSearchCitationSource } from "../lib/markdown";
 import { extractToolNames, toolBadgeLabel, toolStatusText } from "../lib/tools";
+import { LOCALES, SPEECH_LOCALES, translate, type Lang, type MessageKey } from "../lib/i18n";
+import { useI18n } from "../lib/use-i18n";
+import LanguageToggle from "./LanguageToggle";
 import {
   getNotificationPermissionState,
   requestPushPermissionAndToken,
@@ -36,14 +38,14 @@ export type AssistantState =
   | "Streaming"
   | "Error";
 
-/** Üst çubuktaki durum rozetinde gösterilen Türkçe etiketler. */
-const STATE_LABELS: Record<AssistantState, string> = {
-  Idle: "Hazır",
-  Listening: "Dinliyor",
-  Transcribing: "Çözümleniyor",
-  Thinking: "Düşünüyor",
-  Streaming: "Yanıtlıyor",
-  Error: "Hata"
+/** Üst çubuktaki durum rozetinin etiketleri. */
+const STATE_LABELS: Record<AssistantState, MessageKey> = {
+  Idle: "state.idle",
+  Listening: "state.listening",
+  Transcribing: "state.transcribing",
+  Thinking: "state.thinking",
+  Streaming: "state.streaming",
+  Error: "state.error"
 };
 
 interface Message {
@@ -106,45 +108,45 @@ interface MemoryItem {
   updatedAt?: string | null;
 }
 
-const MEMORY_TYPE_LABELS: Record<string, string> = {
-  user_preference: "Tercih",
-  technical_preference: "Teknik Tercih",
-  project_fact: "Proje",
-  architectural_decision: "Mimari Karar",
-  user_fact: "Kişisel",
-  personal_fact: "Kişisel",
-  decision: "Karar",
-  workflow: "İş Akışı",
-  workflow_rule: "İş Akışı",
-  constraint: "Kısıt",
-  relationship: "İlişki",
-  general: "Genel"
+const MEMORY_TYPE_LABELS: Record<string, MessageKey> = {
+  user_preference: "memoryType.preference",
+  technical_preference: "memoryType.technicalPreference",
+  project_fact: "memoryType.project",
+  architectural_decision: "memoryType.architecturalDecision",
+  user_fact: "memoryType.personal",
+  personal_fact: "memoryType.personal",
+  decision: "memoryType.decision",
+  workflow: "memoryType.workflow",
+  workflow_rule: "memoryType.workflow",
+  constraint: "memoryType.constraint",
+  relationship: "memoryType.relationship",
+  general: "memoryType.general"
 };
 
-function memoryTypeLabel(type: string): string {
-  return MEMORY_TYPE_LABELS[type] || type;
+function memoryTypeLabel(type: string, lang: Lang): string {
+  return Object.hasOwn(MEMORY_TYPE_LABELS, type) ? translate(lang, MEMORY_TYPE_LABELS[type]) : type;
 }
 
-/** Sunucunun varsayılan İngilizce başlığını ("New Conversation") Türkçe gösterir. */
-function displayConversationTitle(title?: string | null): string {
-  if (!title || title === "New Conversation") return "Yeni Sohbet";
+/** Sunucunun varsayılan başlığını ("New Conversation") arayüz dilinde gösterir. */
+function displayConversationTitle(title: string | null | undefined, lang: Lang): string {
+  if (!title || title === "New Conversation") return translate(lang, "conversation.new");
   return title;
 }
 
-function sourceDomain(url?: string): string {
-  if (!url) return "Kaynak";
+function sourceDomain(url: string | undefined, lang: Lang): string {
+  if (!url) return translate(lang, "common.source");
   try {
     return new URL(url).hostname.replace(/^www\./i, "");
   } catch {
-    return "Kaynak";
+    return translate(lang, "common.source");
   }
 }
 
-function formatDateShort(iso?: string | null): string {
+function formatDateShort(iso: string | null | undefined, lang: Lang): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric" });
+  return d.toLocaleDateString(LOCALES[lang], { day: "2-digit", month: "short", year: "numeric" });
 }
 
 // Minimal Web Speech API typings: TypeScript's DOM lib does not ship
@@ -174,14 +176,15 @@ function getSpeechRecognitionCtor(): SpeechRecognitionCtor | undefined {
   return w.SpeechRecognition || w.webkitSpeechRecognition;
 }
 
-/** "Düşünüyor..." yerine gosterilen, saniyede bir guncellenen Groq bekleme durumu. */
+/** "Thinking..." yerine gosterilen, saniyede bir guncellenen Groq bekleme durumu. */
 function RateLimitNotice({ until, provider }: { until: number; provider?: string }) {
+  const { lang } = useI18n();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 500);
     return () => clearInterval(timer);
   }, [until]);
-  return <span role="status">{formatRateLimitStatus(until - now, provider)}</span>;
+  return <span role="status">{formatRateLimitStatus(until - now, provider, lang)}</span>;
 }
 
 function fallbackCopy(text: string) {
@@ -209,8 +212,6 @@ const ACTIVE_PROJECT_KEY = "alfred_active_project_id";
 const PROJECT_COLORS = ["#c5a059", "#3b82f6", "#10b981", "#a855f7", "#f97316", "#ec4899"];
 // Must match the `mobile` custom variant in apps/web/app/globals.css.
 const MOBILE_QUERY = "(max-width: 768px)";
-// Voice input (SpeechRecognition) listens for Turkish; there is no language picker.
-const STT_LANG = "tr-TR";
 // Eski surumlerin tarayiciya yazdigi anahtarlar. API anahtarlari artik yalnizca
 // sunucuda (Secret Manager) tutuluyor; Ollama URL alani da artik yok.
 const LEGACY_STORAGE_KEYS = ["alfred_groq_api_key", "alfred_gemini_api_key", "alfred_ollama_url"];
@@ -259,6 +260,7 @@ interface ActiveTurn {
 
 export default function VoiceChatPlayground() {
   const { user, logout } = useAuth();
+  const { lang, t } = useI18n();
   const currentUserId = user?.uid || null;
 
   const [state, setState] = useState<AssistantState>("Idle");
@@ -615,24 +617,24 @@ export default function VoiceChatPlayground() {
 
     try {
       if (notificationState === "granted" && fcmToken) {
-        const sendTest = confirm("Bildirimler bu cihazda aktif!\n\nCihazınıza anında bir test bildirimi göndermek istiyor musunuz?\n\n(İptal'e basarak bildirimleri bu cihazda kapatma seçeneğini görebilirsiniz)");
+        const sendTest = confirm(t("notify.confirmTest"));
         if (sendTest) {
-          const res = await sendTestPushNotification();
+          const res = await sendTestPushNotification(lang);
           alert(res.message);
         } else {
-          const disable = confirm("Bildirimler bu cihaz için devre dışı bırakılsın mı?");
+          const disable = confirm(t("notify.confirmDisable"));
           if (disable) {
             await removeFcmTokenFromBackend(fcmToken);
             localStorage.removeItem("alfred_fcm_token");
             setFcmToken(null);
             setNotificationState(getNotificationPermissionState());
-            alert("Bildirim kaydı başarıyla kaldırıldı.");
+            alert(t("notify.removed"));
           }
         }
       } else {
-        const { token, error } = await requestPushPermissionAndToken();
+        const { token, error } = await requestPushPermissionAndToken(lang);
         if (error || !token) {
-          alert("Bildirim izni alınamadı: " + (error || "Bilinmeyen hata"));
+          alert(t("notify.permissionFailed", { error: error || t("notify.unknownError") }));
           setNotificationState(getNotificationPermissionState());
           return;
         }
@@ -643,15 +645,15 @@ export default function VoiceChatPlayground() {
         setNotificationState("granted");
 
         try {
-          await sendTestPushNotification();
+          await sendTestPushNotification(lang);
         } catch (_testErr) {
           // İlk test hatası yutulabilir
         }
 
-        alert("Bildirimler başarıyla açıldı! Cihazınıza ilk test bildirimi gönderildi.");
+        alert(t("notify.enabled"));
       }
     } catch (err: unknown) {
-      alert("Hata: " + ((err as Error)?.message || String(err)));
+      alert(t("common.error", { message: (err as Error)?.message || String(err) }));
     } finally {
       setNotificationLoading(false);
     }
@@ -745,7 +747,7 @@ export default function VoiceChatPlayground() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setProjectFormError(typeof data?.error === "string" ? data.error : "Proje kaydedilemedi.");
+        setProjectFormError(typeof data?.error === "string" ? data.error : t("project.saveFailed"));
         return;
       }
       await fetchProjects();
@@ -756,15 +758,15 @@ export default function VoiceChatPlayground() {
       }
       setShowProjectModal(false);
     } catch {
-      setProjectFormError("Sunucuya bağlanılamadı.");
+      setProjectFormError(t("common.serverUnreachable"));
     } finally {
       setSavingProject(false);
     }
-  }, [projectFormName, projectFormDesc, projectFormRepo, projectFormColor, editingProjectId, savingProject, fetchProjects, handleNewConversation]);
+  }, [projectFormName, projectFormDesc, projectFormRepo, projectFormColor, editingProjectId, savingProject, fetchProjects, handleNewConversation, t]);
 
   const handleDeleteProject = useCallback(async (e: React.MouseEvent, proj: ProjectItem) => {
     e.stopPropagation();
-    if (!window.confirm(`"${proj.name}" projesini ve bu projeye özel anıları silmek istediğinizden emin misiniz?`)) return;
+    if (!window.confirm(t("project.confirmDelete", { name: proj.name }))) return;
     try {
       const res = await apiFetch(`/projects?projectId=${encodeURIComponent(proj.id)}`, {
         method: "DELETE"
@@ -780,7 +782,7 @@ export default function VoiceChatPlayground() {
     } catch (err) {
       console.warn("Failed to delete project:", err);
     }
-  }, [activeProjectId, handleNewConversation]);
+  }, [activeProjectId, handleNewConversation, t]);
 
   const handleOpenMemoryModal = useCallback(() => {
     setShowMemoryModal(true);
@@ -811,7 +813,7 @@ export default function VoiceChatPlayground() {
       if (!res.ok) {
         setMemoryFeedback({
           kind: "err",
-          text: typeof data?.error === "string" ? data.error : "Anı kaydedilirken hata oluştu."
+          text: typeof data?.error === "string" ? data.error : t("memory.saveFailed")
         });
         return;
       }
@@ -819,18 +821,18 @@ export default function VoiceChatPlayground() {
       setNewMemoryOpen(false);
       const outcomeText =
         data?.outcome === "superseded"
-          ? "Benzer eski anı güncellenerek yeni anı kaydedildi."
+          ? t("memory.superseded")
           : data?.outcome === "duplicate"
-            ? "Bu bilgi zaten uzun süreli bellekte mevcut."
-            : "Yeni anı vektörleştirilip belleğe kaydedildi.";
+            ? t("memory.duplicate")
+            : t("memory.created");
       setMemoryFeedback({ kind: "ok", text: outcomeText });
       await fetchMemories();
     } catch {
-      setMemoryFeedback({ kind: "err", text: "Sunucuya bağlanılamadı." });
+      setMemoryFeedback({ kind: "err", text: t("common.serverUnreachable") });
     } finally {
       setCreatingMemory(false);
     }
-  }, [newMemoryContent, newMemoryType, newMemoryProjectId, newMemorySupersede, creatingMemory, fetchMemories]);
+  }, [newMemoryContent, newMemoryType, newMemoryProjectId, newMemorySupersede, creatingMemory, fetchMemories, t]);
 
   const handleDeleteMemory = useCallback(async (docId: string) => {
     setDeletingMemoryId(docId);
@@ -891,7 +893,7 @@ export default function VoiceChatPlayground() {
   const handleStartRenameConversation = (e: React.MouseEvent, conv: ConversationSummary) => {
     e.stopPropagation();
     setRenamingConvId(conv.id);
-    setRenamingTitle(displayConversationTitle(conv.title));
+    setRenamingTitle(displayConversationTitle(conv.title, lang));
   };
 
   const handleSaveRenameConversation = async (id: string) => {
@@ -918,15 +920,15 @@ export default function VoiceChatPlayground() {
     const currentConv = conversations.find((c) => c.id === conversationId);
     const title = currentConv?.title && currentConv.title !== "New Conversation"
       ? currentConv.title
-      : "Alfred Sohbeti";
+      : t("export.defaultTitle");
     const activeProj = activeProjectId ? projects.find((p) => p.id === activeProjectId) : null;
-    const dateStr = new Date().toLocaleString("tr-TR");
-    const userLabel = user?.displayName || user?.email?.split("@")[0] || "Kullanıcı";
+    const dateStr = new Date().toLocaleString(LOCALES[lang]);
+    const userLabel = user?.displayName || user?.email?.split("@")[0] || t("common.userFallback");
     const lines: string[] = [
       `# ${title}`,
       "",
-      `- **Tarih:** ${dateStr}`,
-      ...(activeProj ? [`- **Proje:** ${activeProj.name}`] : []),
+      `- **${t("export.date")}:** ${dateStr}`,
+      ...(activeProj ? [`- **${t("export.project")}:** ${activeProj.name}`] : []),
       `- **Model:** ${providerDisplayName(engineProvider || "evren")} (${modelLabel})`,
       "",
       "---",
@@ -939,7 +941,7 @@ export default function VoiceChatPlayground() {
       const cleanBody = m.text.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, "").trim() || m.text;
       lines.push(roleHeader, "", cleanBody, "");
       if (m.sources && m.sources.length > 0) {
-        lines.push("**Kaynaklar:**");
+        lines.push(`**${t("common.sources")}**`);
         m.sources.forEach((src, i) => {
           lines.push(`${i + 1}. [${src.title || src.source || src.url}](${src.url})`);
         });
@@ -956,7 +958,7 @@ export default function VoiceChatPlayground() {
       .replace(/[^a-z0-9ğüşıöç\s-_]+/gi, "")
       .trim()
       .replace(/\s+/g, "-")
-      .slice(0, 60) || "alfred-sohbet";
+      .slice(0, 60) || t("export.slugFallback");
     a.href = url;
     a.download = `${safeSlug}.md`;
     document.body.appendChild(a);
@@ -967,7 +969,7 @@ export default function VoiceChatPlayground() {
 
   const handleDeleteConversation = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (!window.confirm("Bu sohbeti silmek istediğinizden emin misiniz?")) return;
+    if (!window.confirm(t("conversation.confirmDelete"))) return;
 
     try {
       const res = await apiFetch(`/chat?conversationId=${encodeURIComponent(id)}`, {
@@ -983,7 +985,7 @@ export default function VoiceChatPlayground() {
       await fetchConversations();
     } catch (err) {
       console.error("Delete conversation failed:", err);
-      alert("Sohbet silinirken bir hata oluştu.");
+      alert(t("conversation.deleteFailed"));
     }
   };
 
@@ -1104,7 +1106,7 @@ export default function VoiceChatPlayground() {
       await ensureOk(res);
 
       if (!res.body) {
-        throw new Error("Yanıt akışı alınamadı.");
+        throw new Error(t("chat.noStream"));
       }
 
       const reader = res.body.getReader();
@@ -1129,14 +1131,14 @@ export default function VoiceChatPlayground() {
             updateAssistant({ rateLimitUntil: undefined });
             break;
           case "tool_call": {
-            // A slow tool (web_search) says what it is doing instead of "Düşünüyor...".
+            // A slow tool (web_search) says what it is doing instead of "Thinking...".
             // Any text emitted before a tool call in the same round is discarded, matching the server.
             accumulatedText = "";
             for (const tName of extractToolNames(event)) {
               if (!usedTools.includes(tName)) usedTools.push(tName);
               if (!toolStatuses[tName]) toolStatuses[tName] = "running";
             }
-            const status = toolStatusText(event);
+            const status = toolStatusText(event, lang);
             setState("Thinking");
             updateAssistant({
               text: "",
@@ -1204,7 +1206,7 @@ export default function VoiceChatPlayground() {
               text: "",
               isThinking: true,
               rateLimitUntil: undefined,
-              providerNotice: formatProviderFallbackStatus(event.from, event.to, event.reason)
+              providerNotice: formatProviderFallbackStatus(event.from, event.to, event.reason, lang)
             });
             break;
           case "chunk": {
@@ -1231,7 +1233,7 @@ export default function VoiceChatPlayground() {
               ? linkCitationsInText(accumulatedText, searchSources)
               : accumulatedText;
             updateAssistant({
-              text: finalText || "*(Yanıt boş)*",
+              text: finalText || t("chat.emptyReply"),
               isThinking: false,
               rateLimitUntil: undefined,
               providerNotice: undefined,
@@ -1243,7 +1245,7 @@ export default function VoiceChatPlayground() {
           }
           case "error":
             throw new ChatStreamError(
-              event.error || "Akış sırasında bir hata oluştu.",
+              event.error || t("chat.streamError"),
               event.code,
               event.retryAfterMs,
               event.limitType
@@ -1267,7 +1269,7 @@ export default function VoiceChatPlayground() {
         if (accumulatedText) {
           updateAssistant({ text: accumulatedText, isThinking: false });
         } else {
-          throw new Error("Bağlantı yanıt tamamlanmadan kapandı.");
+          throw new Error(t("chat.closedEarly"));
         }
       }
     } catch (err: unknown) {
@@ -1278,14 +1280,14 @@ export default function VoiceChatPlayground() {
         if (!wasFinished) {
           updateAssistant({
             text: accumulatedText
-              ? accumulatedText + "\n\n*(Yanıt kullanıcı tarafından durduruldu)*"
-              : "*Yanıt durduruldu.*",
+              ? accumulatedText + "\n\n" + t("chat.stoppedByUser")
+              : t("chat.stopped"),
             isThinking: false,
             rateLimitUntil: undefined
           });
         }
       } else if (!wasFinished) {
-        const msg = messageOf(err, "İletişim sırasında bir hata oluştu.");
+        const msg = messageOf(err, t("chat.commError"));
         if (isCurrent()) {
           setState("Error");
           setErrorMessage(msg);
@@ -1298,7 +1300,7 @@ export default function VoiceChatPlayground() {
           }
         }
         updateAssistant({
-          text: accumulatedText || (rateLimited ? msg : "İletişim sırasında bir hata oluştu."),
+          text: accumulatedText || (rateLimited ? msg : t("chat.commError")),
           isThinking: false,
           rateLimitUntil: undefined,
           providerNotice: undefined,
@@ -1355,13 +1357,14 @@ export default function VoiceChatPlayground() {
 
     const SpeechRec = getSpeechRecognitionCtor();
     if (!SpeechRec) {
-      alert("Tarayıcınız Web Speech API mikrofon girişini desteklemiyor.");
+      alert(t("chat.speechUnsupported"));
       return;
     }
 
     const rec = new SpeechRec();
     recognitionRef.current = rec;
-    rec.lang = STT_LANG;
+    // Voice input listens in the UI language.
+    rec.lang = SPEECH_LOCALES[lang];
     rec.interimResults = false;
 
     rec.onstart = () => {
@@ -1403,18 +1406,20 @@ export default function VoiceChatPlayground() {
   };
 
   const isBusy = state === "Thinking" || state === "Streaming";
-  const displayName = user?.displayName || user?.email?.split("@")[0] || "Yönetici";
+  const displayName = user?.displayName || user?.email?.split("@")[0] || t("common.ownerFallback");
   // The provider of the last turn wins; before the first turn, the one /health
   // says the next turn starts on (a fallback provider when Groq has no key).
   const engineProvider = chatProvider ?? health?.activeProvider ?? null;
+  // No provider has a usable key: "Ready" would promise answers that cannot come.
+  const noModelKey = state === "Idle" && health?.activeProvider === "offline";
   const engineText =
     health?.activeProvider === "ollama"
       ? { name: "Ollama", detail: modelLabel, active: true }
       : health?.activeProvider === "offline" && !chatProvider
-        ? { name: "Çevrimdışı", detail: "Kullanılabilir yapay zeka sağlayıcısı yok", active: false }
+        ? { name: t("settings.offline"), detail: t("settings.noProvider"), active: false }
         : engineProvider && engineProvider !== "groq"
           ? { name: providerDisplayName(engineProvider), detail: modelLabel, active: true }
-          : { name: "Groq Bulut", detail: modelLabel, active: true };
+          : { name: t("settings.groqCloud"), detail: modelLabel, active: true };
 
   return (
     <div className="flex h-screen-safe w-full overflow-hidden bg-chat-bg font-sans leading-[normal] text-chat-text">
@@ -1448,7 +1453,7 @@ export default function VoiceChatPlayground() {
                   <span className="text-[14px] font-bold tracking-[0.04em] text-chat-text">Alfred</span>
                   <span className="rounded-full border border-gold/35 bg-gold/15 px-[5px] py-px text-[9px] font-bold tracking-[0.04em] text-gold">AI</span>
                 </div>
-                <span className="text-[10px] font-medium tracking-[0.02em] text-chat-faint">Yönetici Zekası</span>
+                <span className="text-[10px] font-medium tracking-[0.02em] text-chat-faint">{t("app.sidebarTagline")}</span>
               </div>
             </div>
           </div>
@@ -1467,7 +1472,7 @@ export default function VoiceChatPlayground() {
                   <line x1="12" y1="5" x2="12" y2="19" />
                   <line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
-                <span>Yeni Sohbet</span>
+                <span>{t("conversation.new")}</span>
               </div>
               {/* No ⌘K hint on phones or touch screens. */}
               <span className="rounded-sm border border-white/10 bg-white/6 px-[5px] py-0.5 text-[10px] font-semibold text-chat-faint mobile:hidden touch:hidden">⌘K</span>
@@ -1479,7 +1484,7 @@ export default function VoiceChatPlayground() {
                 type="text"
                 value={conversationSearch}
                 onChange={(e) => setConversationSearch(e.target.value)}
-                placeholder="Sohbetlerde ara..."
+                placeholder={t("conversation.search")}
                 className="w-full rounded-[9px] border border-white/10 bg-black/30 py-1.5 pl-8 pr-7 text-[12px] text-chat-text placeholder:text-chat-subtle outline-none transition focus:border-gold/50 focus:bg-black/50"
               />
               <svg
@@ -1501,7 +1506,7 @@ export default function VoiceChatPlayground() {
                   type="button"
                   onClick={() => setConversationSearch("")}
                   className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-chat-subtle hover:text-chat-text"
-                  title="Aramayı temizle"
+                  title={t("conversation.clearSearch")}
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="18" y1="6" x2="6" y2="18" />
@@ -1518,13 +1523,13 @@ export default function VoiceChatPlayground() {
           {/* Projects Section */}
           <div className="flex items-center justify-between px-2 pb-1 pt-1.5">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-chat-faint">
-              Projeler
+              {t("project.section")}
             </span>
             <button
               type="button"
               onClick={handleOpenNewProjectModal}
               className="flex h-5 w-5 cursor-pointer items-center justify-center rounded-md border border-white/10 bg-white/5 text-gold hover:bg-gold/15"
-              title="Yeni Proje Oluştur"
+              title={t("project.create")}
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="12" y1="5" x2="12" y2="19" />
@@ -1545,7 +1550,7 @@ export default function VoiceChatPlayground() {
           >
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <span className="h-2 w-2 shrink-0 rounded-full bg-gold/70" />
-              <span className="truncate">Genel Çalışma Alanı</span>
+              <span className="truncate">{t("project.general")}</span>
             </div>
           </div>
 
@@ -1573,7 +1578,7 @@ export default function VoiceChatPlayground() {
                   type="button"
                   onClick={(e) => handleOpenEditProjectModal(e, proj)}
                   className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-chat-subtle opacity-0 [transition:all_0.15s_ease] hover:bg-white/10! hover:text-chat-text! hover:opacity-100! group-hover:opacity-70 touch:opacity-70"
-                  title="Projeyi Düzenle"
+                  title={t("project.edit")}
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M12 20h9" />
@@ -1584,7 +1589,7 @@ export default function VoiceChatPlayground() {
                   type="button"
                   onClick={(e) => handleDeleteProject(e, proj)}
                   className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-chat-subtle opacity-0 [transition:all_0.15s_ease] hover:bg-danger/15! hover:text-danger! hover:opacity-100! group-hover:opacity-70 touch:opacity-70"
-                  title="Projeyi Sil"
+                  title={t("project.delete")}
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M3 6h18" />
@@ -1600,8 +1605,8 @@ export default function VoiceChatPlayground() {
 
           <div className="truncate px-2 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wider text-chat-faint">
             {activeProjectId
-              ? `${projects.find((p) => p.id === activeProjectId)?.name || "Proje"} Sohbetleri`
-              : "Geçmiş Sohbetler"}
+              ? t("conversation.projectHistory", { project: projects.find((p) => p.id === activeProjectId)?.name || t("project.fallbackName") })
+              : t("conversation.history")}
           </div>
 
           {conversationsLoading ? (
@@ -1630,10 +1635,10 @@ export default function VoiceChatPlayground() {
                 <div className="px-2 py-3 text-center">
                   <p className="truncate text-[12px] text-chat-faint">
                     {q
-                      ? "Eşleşen sohbet bulunamadı."
+                      ? t("conversation.noMatch")
                       : activeProjectId
-                      ? "Bu projede henüz sohbet yok."
-                      : "Henüz kayıtlı sohbet yok."}
+                      ? t("conversation.noneInProject")
+                      : t("conversation.none")}
                   </p>
                   {q && (
                     <button
@@ -1641,7 +1646,7 @@ export default function VoiceChatPlayground() {
                       onClick={() => setConversationSearch("")}
                       className="mt-1.5 text-[11px] text-gold hover:underline"
                     >
-                      Aramayı temizle
+                      {t("conversation.clearSearch")}
                     </button>
                   )}
                 </div>
@@ -1688,7 +1693,7 @@ export default function VoiceChatPlayground() {
                     />
                   ) : (
                     <span className="truncate">
-                      {displayConversationTitle(conv.title)}
+                      {displayConversationTitle(conv.title, lang)}
                     </span>
                   )}
                 </div>
@@ -1698,7 +1703,7 @@ export default function VoiceChatPlayground() {
                     type="button"
                     onClick={(e) => handleStartRenameConversation(e, conv)}
                     className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-chat-subtle opacity-0 [transition:all_0.15s_ease] hover:bg-white/10! hover:text-chat-text! hover:opacity-100! group-hover:opacity-70 touch:opacity-70"
-                    title="Sohbeti Yeniden Adlandır"
+                    title={t("conversation.rename")}
                   >
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M12 20h9" />
@@ -1709,7 +1714,7 @@ export default function VoiceChatPlayground() {
                     type="button"
                     onClick={(e) => handleDeleteConversation(e, conv.id)}
                     className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-chat-subtle opacity-0 [transition:all_0.15s_ease] hover:bg-danger/15! hover:text-danger! hover:opacity-100! group-hover:opacity-70 touch:opacity-70"
-                    title="Sohbeti Sil"
+                    title={t("conversation.delete")}
                   >
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M3 6h18" />
@@ -1729,7 +1734,7 @@ export default function VoiceChatPlayground() {
         <div className="flex items-center justify-between border-t border-white/8 bg-chat-sidebar px-3.5 py-3">
           <button
             onClick={() => setShowAccountModal(true)}
-            title="Hesap Bilgileri"
+            title={t("sidebar.account")}
             className="flex min-w-0 items-center gap-2.5 border-none bg-transparent p-0 text-left text-inherit"
           >
             <div className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[linear-gradient(135deg,#c5a059,#8c6d32)] text-[12px] font-bold text-chat-ink">
@@ -1746,14 +1751,14 @@ export default function VoiceChatPlayground() {
             </div>
             <div className="flex min-w-0 flex-col">
               <span className="overflow-hidden text-ellipsis text-[13px] font-semibold">{displayName}</span>
-              <span className="text-[11px] text-chat-faint">Google ile Doğrulandı</span>
+              <span className="text-[11px] text-chat-faint">{t("sidebar.verified")}</span>
             </div>
           </button>
           <div className="flex shrink-0 items-center gap-1">
             <button
               onClick={handleOpenMemoryModal}
               className="flex cursor-pointer items-center border-none bg-transparent p-1 text-chat-subtle hover:text-gold"
-              title="Uzun Süreli Bellek Yönetimi"
+              title={t("sidebar.memory")}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <ellipse cx="12" cy="5" rx="9" ry="3" />
@@ -1764,7 +1769,7 @@ export default function VoiceChatPlayground() {
             <button
               onClick={() => setShowSettingsModal(true)}
               className="flex cursor-pointer items-center border-none bg-transparent p-1 text-chat-subtle hover:text-chat-text"
-              title="Ayarlar"
+              title={t("sidebar.settings")}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="3" />
@@ -1774,7 +1779,7 @@ export default function VoiceChatPlayground() {
             <button
               onClick={handleSignOut}
               className="flex cursor-pointer items-center border-none bg-transparent p-1 text-chat-subtle"
-              title="Güvenli Çıkış Yap"
+              title={t("sidebar.signOut")}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -1795,7 +1800,7 @@ export default function VoiceChatPlayground() {
               id="sidebarToggleBtn"
               onClick={() => setSidebarOpen((prev) => !prev)}
               className="flex cursor-pointer items-center justify-center rounded-lg border-none bg-transparent px-2 py-1.5 text-chat-muted [transition:background_0.15s,color_0.15s]"
-              title="Kenar Çubuğunu Aç/Kapat"
+              title={t("sidebar.toggle")}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
@@ -1810,7 +1815,7 @@ export default function VoiceChatPlayground() {
                   setModelMenuOpen((prev) => !prev);
                 }}
                 className="flex min-w-0 cursor-pointer select-none items-center gap-2 rounded-lg border border-transparent px-2.5 py-1.5 text-[14px] font-semibold text-chat-text [transition:background_0.15s,border-color_0.15s] hover:border-white/10 hover:bg-white/5"
-                title="Model ve sağlayıcı seçin"
+                title={t("model.selectTitle")}
               >
                 <span className="rounded-sm border border-gold/35 bg-gold/12 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-gold">
                   {providerDisplayName(engineProvider || "evren")}
@@ -1840,7 +1845,7 @@ export default function VoiceChatPlayground() {
                   className="absolute left-0 top-[calc(100%+6px)] z-80 flex w-[320px] max-w-[calc(100vw-24px)] flex-col gap-1 rounded-xl border border-white/12 bg-chat-modal p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.65)]"
                 >
                   <div className="px-2.5 pb-1 pt-1.5 text-[10px] font-bold uppercase tracking-wider text-chat-faint">
-                    Model &amp; Sağlayıcı Seçimi
+                    {t("model.menuHeading")}
                   </div>
                   {CHAT_MODEL_OPTIONS.map((option) => {
                     const available = isModelOptionAvailable(option, availableProviders);
@@ -1855,7 +1860,7 @@ export default function VoiceChatPlayground() {
                         type="button"
                         onClick={() => handleSelectModelOption(option)}
                         disabled={!available}
-                        title={available ? undefined : NO_API_KEY_HINT}
+                        title={available ? undefined : t("model.noApiKey")}
                         className={cx(
                           "flex w-full cursor-pointer items-start justify-between gap-2.5 rounded-lg border-none px-2.5 py-2 text-left [transition:background_0.15s] disabled:cursor-not-allowed disabled:opacity-45",
                           isSelected
@@ -1869,14 +1874,14 @@ export default function VoiceChatPlayground() {
                               {option.label}
                             </span>
                             <span className="rounded-sm border border-white/12 bg-white/6 px-1.5 py-px text-[10px] font-medium text-chat-muted">
-                              {option.badge}
+                              {option.badge[lang]}
                             </span>
                             {!available && (
-                              <span className="text-[10px] font-medium text-chat-faint">{NO_API_KEY_HINT}</span>
+                              <span className="text-[10px] font-medium text-chat-faint">{t("model.noApiKey")}</span>
                             )}
                           </div>
                           <span className="truncate text-[11px] text-chat-subtle">
-                            {option.description}
+                            {option.description[lang]}
                           </span>
                         </div>
                         {isSelected && (
@@ -1917,7 +1922,7 @@ export default function VoiceChatPlayground() {
                     type="button"
                     onClick={(e) => handleOpenEditProjectModal(e, activeProj)}
                     className="flex max-w-[180px] cursor-pointer items-center gap-1.5 rounded-full border border-gold/35 bg-gold/12 px-2.5 py-1 text-[12px] font-medium text-gold"
-                    title={`Aktif Proje: ${activeProj.name} (Düzenlemek için tıklayın)`}
+                    title={t("project.activeTitle", { name: activeProj.name })}
                   >
                     <span
                       className="h-2 w-2 shrink-0 rounded-full"
@@ -1931,7 +1936,7 @@ export default function VoiceChatPlayground() {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-white/4 text-chat-muted hover:border-gold/35 hover:text-gold"
-                      title={`GitHub Deposunu Aç: ${repoHref}`}
+                      title={t("project.openRepo", { url: repoHref })}
                     >
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" />
@@ -1946,14 +1951,14 @@ export default function VoiceChatPlayground() {
                 type="button"
                 onClick={handleExportMarkdown}
                 className="flex h-7 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-white/8 bg-white/4 px-2.5 text-[12px] font-medium text-chat-muted [transition:border-color_0.15s,color_0.15s,background_0.15s] hover:border-gold/35 hover:bg-gold/10 hover:text-gold mobile:w-7 mobile:px-0"
-                title="Mevcut sohbeti Markdown (.md) dosyası olarak indir"
+                title={t("export.title")}
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                   <polyline points="7 10 12 15 17 10" />
                   <line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
-                <span className="mobile:hidden">.md İndir</span>
+                <span className="mobile:hidden">{t("export.button")}</span>
               </button>
             )}
 
@@ -1962,14 +1967,14 @@ export default function VoiceChatPlayground() {
                 type="button"
                 onClick={handleInstallApp}
                 className="flex h-7 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-gold/40 bg-gold/15 px-2.5 text-[12px] font-medium text-gold hover:bg-gold/25 mobile:w-7 mobile:px-0"
-                title="Alfred'i telefona yükle (PWA)"
+                title={t("install.title")}
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                   <polyline points="7 10 12 15 17 10" />
                   <line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
-                <span className="mobile:hidden">Yükle</span>
+                <span className="mobile:hidden">{t("common.install")}</span>
               </button>
             )}
 
@@ -1985,8 +1990,8 @@ export default function VoiceChatPlayground() {
               )}
               title={
                 notificationState === "granted" && fcmToken
-                  ? "Bildirimler aktif (Test için tıklayın)"
-                  : "Bildirimleri etkinleştir"
+                  ? t("notify.activeTitle")
+                  : t("notify.enableTitle")
               }
             >
               {notificationLoading ? (
@@ -2008,17 +2013,18 @@ export default function VoiceChatPlayground() {
 
             <div
               className="flex h-7 items-center justify-center gap-1.5 rounded-full border border-white/8 bg-white/4 px-2.5 text-[12px] text-chat-muted mobile:w-7 mobile:px-0"
-              title={`Durum: ${STATE_LABELS[state]}`}
+              title={noModelKey ? t("settings.noProvider") : t("state.title", { state: t(STATE_LABELS[state]) })}
             >
               <span className={cx(
                 "h-2 w-2 rounded-full",
+                noModelKey ? "bg-status-thinking" :
                 state === "Listening" ? "bg-danger" :
                 state === "Thinking" ? "bg-status-thinking" :
                 state === "Streaming" ? "bg-gold" :
                 state === "Error" ? "bg-danger" : "bg-success",
                 state !== "Idle" && "animate-alfred-pulse"
               )} />
-              <span className="mobile:hidden">{STATE_LABELS[state]}</span>
+              <span className="mobile:hidden">{noModelKey ? t("state.noModelKey") : t(STATE_LABELS[state])}</span>
             </div>
           </div>
         </header>
@@ -2051,14 +2057,14 @@ export default function VoiceChatPlayground() {
                     className="h-full w-full object-cover object-[center_20%]"
                   />
                 </div>
-                <h1 className="mb-2 text-[24px] font-semibold">İyi günler, efendim.</h1>
+                <h1 className="mb-2 text-[24px] font-semibold">{t("welcome.title")}</h1>
                 <p className="text-[14px] text-chat-muted">
-                  Alfred hizmetinizde. Bugün ne üzerinde çalışıyoruz?
+                  {t("welcome.subtitle")}
                 </p>
                 <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
                   <button
                     type="button"
-                    onClick={() => handleSendMessage("Günaydın Alfred, bugünün sabah brifingini hazırlar mısın?")}
+                    onClick={() => handleSendMessage(t("welcome.briefingPrompt"))}
                     className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-gold/30 bg-gold/10 px-4 py-2 text-[13px] font-medium text-gold shadow-sm transition hover:border-gold/60 hover:bg-gold/20"
                   >
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -2072,18 +2078,18 @@ export default function VoiceChatPlayground() {
                       <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
                       <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
                     </svg>
-                    <span>Sabah Brifingi Al</span>
+                    <span>{t("welcome.briefing")}</span>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => handleSendMessage("Günü kapatalım Alfred, bugünün özetini, tamamlananları ve yarına kalanları çıkarır mısın?")}
+                    onClick={() => handleSendMessage(t("welcome.wrapUpPrompt"))}
                     className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-indigo-400/30 bg-indigo-500/10 px-4 py-2 text-[13px] font-medium text-indigo-300 shadow-sm transition hover:border-indigo-400/60 hover:bg-indigo-500/20 hover:text-indigo-200"
                   >
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
                     </svg>
-                    <span>Günü Kapat</span>
+                    <span>{t("welcome.wrapUp")}</span>
                   </button>
                 </div>
               </div>
@@ -2128,10 +2134,10 @@ export default function VoiceChatPlayground() {
                                 )}
                                 title={
                                   status === "error"
-                                    ? `${toolBadgeLabel(toolName)} (Hata)`
+                                    ? t("tool.badge.error", { tool: toolBadgeLabel(toolName, lang) })
                                     : status === "running"
-                                    ? `${toolBadgeLabel(toolName)} (Çalışıyor...)`
-                                    : `${toolBadgeLabel(toolName)} (Başarılı)`
+                                    ? t("tool.badge.running", { tool: toolBadgeLabel(toolName, lang) })
+                                    : t("tool.badge.success", { tool: toolBadgeLabel(toolName, lang) })
                                 }
                               >
                                 {status === "error" ? (
@@ -2149,7 +2155,7 @@ export default function VoiceChatPlayground() {
                                     <polyline points="20 6 9 17 4 12" />
                                   </svg>
                                 )}
-                                <span>{toolBadgeLabel(toolName)}</span>
+                                <span>{toolBadgeLabel(toolName, lang)}</span>
                               </span>
                             );
                           })}
@@ -2196,7 +2202,7 @@ export default function VoiceChatPlayground() {
                             }}
                             className="cursor-pointer rounded-md px-2.5 py-1 text-chat-muted transition hover:bg-white/5 hover:text-chat-text"
                           >
-                            İptal
+                            {t("chat.cancel")}
                           </button>
                           <button
                             type="button"
@@ -2204,7 +2210,7 @@ export default function VoiceChatPlayground() {
                             onClick={() => handleEditAndResend(msg.id, editingText)}
                             className="cursor-pointer rounded-md bg-gold px-3 py-1 font-medium text-chat-ink transition hover:bg-gold-light disabled:cursor-not-allowed disabled:opacity-50"
                           >
-                            Kaydet ve Gönder
+                            {t("chat.saveAndSend")}
                           </button>
                         </div>
                       </div>
@@ -2217,8 +2223,8 @@ export default function VoiceChatPlayground() {
                               setEditingMessageId(msg.id);
                               setEditingText(msg.text);
                             }}
-                            title="Mesajı Düzenle"
-                            aria-label="Mesajı Düzenle"
+                            title={t("chat.editMessage")}
+                            aria-label={t("chat.editMessage")}
                             className="opacity-0 group-hover/user-msg:opacity-100 transition-opacity p-1.5 rounded-full text-chat-muted hover:text-gold hover:bg-white/5"
                           >
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -2228,7 +2234,7 @@ export default function VoiceChatPlayground() {
                           </button>
                         )}
                         <div className="rounded-[20px_20px_4px_20px] bg-chat-surface px-[18px] py-3 text-[15px] leading-[1.55] text-chat-text [word-break:break-word]">
-                          <div className="[&_ol]:my-2 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-5 [&_p+p]:mt-2.5 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }} />
+                          <div className="[&_ol]:my-2 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-5 [&_p+p]:mt-2.5 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text, null, lang) }} />
                         </div>
                       </div>
                     )
@@ -2244,19 +2250,19 @@ export default function VoiceChatPlayground() {
                           ) : msg.providerNotice ? (
                             <span role="status">{msg.providerNotice}</span>
                           ) : (
-                            <span>Düşünüyor...</span>
+                            <span>{t("chat.thinking")}</span>
                           )}
                         </div>
                       ) : (
                         // Preflight strips list markers and paragraph margins; restore both here.
-                        <div className="[&_ol]:my-2 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-5 [&_p+p]:mt-2.5 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }} />
+                        <div className="[&_ol]:my-2 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-5 [&_p+p]:mt-2.5 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text, null, lang) }} />
                       )}
                     </div>
                   )}
 
                   {msg.role === "assistant" && !msg.isThinking && msg.sources && msg.sources.length > 0 && (
                     <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                      <span className="text-[11px] font-semibold text-chat-subtle">Kaynaklar:</span>
+                      <span className="text-[11px] font-semibold text-chat-subtle">{t("common.sources")}</span>
                       {msg.sources.slice(0, 6).map((src, idx) => (
                         <a
                           key={(src.url || "") + idx}
@@ -2267,7 +2273,7 @@ export default function VoiceChatPlayground() {
                           className="inline-flex max-w-[220px] items-center gap-1.5 rounded-full border border-white/10 bg-white/4 px-2.5 py-0.5 text-[11px] text-chat-muted no-underline [transition:border-color_0.15s,background_0.15s,color_0.15s] hover:border-gold/40 hover:bg-gold/10 hover:text-gold"
                         >
                           <span className="font-semibold text-gold">[{idx + 1}]</span>
-                          <span className="truncate">{src.title || src.source || sourceDomain(src.url)}</span>
+                          <span className="truncate">{src.title || src.source || sourceDomain(src.url, lang)}</span>
                         </a>
                       ))}
                     </div>
@@ -2295,14 +2301,14 @@ export default function VoiceChatPlayground() {
                           }
                         }}
                         className="inline-flex cursor-pointer items-center gap-1 border-none bg-transparent px-1.5 py-0.5 text-[12px] text-chat-subtle"
-                        title="Kopyala"
+                        title={t("chat.copy")}
                       >
                         {copiedId === msg.id ? (
                           <span className="inline-flex animate-copy-pop items-center gap-1 text-success">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                               <polyline points="20 6 9 17 4 12" />
                             </svg>
-                            <span>Kopyalandı</span>
+                            <span>{t("chat.copied")}</span>
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1">
@@ -2310,7 +2316,7 @@ export default function VoiceChatPlayground() {
                               <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
                               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                             </svg>
-                            <span>Kopyala</span>
+                            <span>{t("chat.copy")}</span>
                           </span>
                         )}
                       </button>
@@ -2349,13 +2355,13 @@ export default function VoiceChatPlayground() {
             <textarea
               id="chat-message-input"
               name="message"
-              aria-label="Alfred'e mesaj yazın"
+              aria-label={t("chat.inputLabel")}
               ref={textareaRef}
               value={inputText}
               onChange={handleTextareaInput}
               onKeyDown={handleKeyDown}
               onFocus={() => adjustTextareaHeight(textareaRef.current)}
-              placeholder="Alfred'e mesaj yazın..."
+              placeholder={t("chat.inputPlaceholder")}
               className="max-h-[55vh] min-h-[36px] min-w-0 flex-1 resize-none overflow-hidden border-none bg-transparent px-0 py-1.5 text-[15px] leading-relaxed text-chat-text outline-hidden placeholder:text-[#757575] [field-sizing:content] mobile:max-h-[55vh] mobile:min-h-[36px] mobile:w-full mobile:flex-none mobile:px-1 mobile:text-[16px] mobile:leading-normal"
             />
 
@@ -2367,7 +2373,7 @@ export default function VoiceChatPlayground() {
                   "flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border-none text-[17px] [transition:background_0.15s,color_0.15s]",
                   isRecording ? "animate-alfred-pulse-fast bg-danger text-white" : "bg-transparent text-chat-muted hover:bg-white/6 hover:text-chat-text"
                 )}
-                title="Sesli Konuşma"
+                title={t("chat.voice")}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
@@ -2382,7 +2388,7 @@ export default function VoiceChatPlayground() {
                   type="button"
                   onClick={handleStopStreaming}
                   className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border-none bg-danger/15 text-danger [transition:background_0.15s,color_0.15s] hover:bg-danger/25"
-                  title="Durdur"
+                  title={t("chat.stop")}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="4" y="4" width="16" height="16" rx="2" />
@@ -2399,7 +2405,7 @@ export default function VoiceChatPlayground() {
                       ? "cursor-pointer bg-gold text-chat-ink shadow-[0_2px_8px_rgba(197,160,89,0.35)] hover:bg-gold-light"
                       : "cursor-not-allowed bg-transparent text-chat-faint"
                   )}
-                  title="Gönder"
+                  title={t("chat.send")}
                 >
                   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="12" y1="19" x2="12" y2="5" />
@@ -2411,7 +2417,7 @@ export default function VoiceChatPlayground() {
           </div>
 
           <p className="pointer-events-auto mt-2 hidden text-center text-[11px] text-chat-faint md:block">
-            Alfred — Kişisel Yapay Zeka ve Yönetici Asistanı
+            Alfred — {t("app.tagline")}
           </p>
         </div>
       </main>
@@ -2427,11 +2433,11 @@ export default function VoiceChatPlayground() {
             className="w-full max-w-[460px] rounded-2xl border border-white/10 bg-chat-modal p-6 shadow-[0_20px_50px_rgba(0,0,0,0.6)]"
           >
             <div className="mb-3.5 flex items-center justify-between">
-              <h3 className="text-[16px] font-semibold">Sistem &amp; Model Yapılandırması</h3>
+              <h3 className="text-[16px] font-semibold">{t("settings.title")}</h3>
               <button
                 onClick={() => setShowSettingsModal(false)}
                 className="flex cursor-pointer items-center border-none bg-transparent text-chat-subtle"
-                title="Kapat"
+                title={t("common.close")}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18" />
@@ -2441,12 +2447,12 @@ export default function VoiceChatPlayground() {
             </div>
 
             <p className="mb-4 text-[13px] leading-normal text-chat-muted">
-              Üst çubuktaki seçiciden istediğiniz modeli seçebilirsiniz; seçilen sağlayıcı yanıt veremezse istek otomatik olarak yedek sağlayıcı zincirine (<code className="inline-code">EVREN → Groq → Gemini</code>) aktarılır.
+              {t("settings.intro").split("{chain}")[0]}<code className="inline-code">EVREN → Groq → Gemini</code>{t("settings.intro").split("{chain}")[1]}
             </p>
 
             <div className="mb-3.5">
               <label className="mb-1.5 block text-[12px] font-semibold text-chat-muted">
-                Aktif Motor:
+                {t("settings.engine")}
               </label>
               <div className="flex items-center justify-between rounded-lg border border-gold bg-gold/10 px-3 py-2.5 text-[13px] text-gold">
                 <div className="flex items-center gap-2">
@@ -2466,18 +2472,23 @@ export default function VoiceChatPlayground() {
                 </div>
                 <span className={cx("flex items-center gap-[5px] text-[11px] font-semibold", engineText.active ? "text-success" : "text-danger")}>
                   <span className={cx("inline-block h-1.5 w-1.5 rounded-full", engineText.active ? "bg-success" : "bg-danger")} />
-                  {health ? (engineText.active ? "Aktif" : "Kapalı") : "Bilinmiyor"}
+                  {health ? (engineText.active ? t("common.active") : t("settings.engineOff")) : t("settings.engineUnknown")}
                 </span>
               </div>
             </div>
 
             <div className="mb-3.5">
               <label className="mb-1.5 block text-[12px] font-semibold text-chat-muted">
-                API Anahtarları:
+                {t("settings.keys")}
               </label>
               <p className="m-0 text-[12px] leading-normal text-chat-subtle">
-                Groq ve Gemini anahtarları sunucuda Google Secret Manager&apos;da tutulur; tarayıcıda saklanmaz.
+                {t("settings.keysDetail")}
               </p>
+            </div>
+
+            <div className="mb-3.5 flex items-center justify-between gap-3">
+              <span className="text-[12px] font-semibold text-chat-muted">{t("settings.language")}</span>
+              <LanguageToggle />
             </div>
 
             <div className="mt-5 flex justify-end">
@@ -2485,7 +2496,7 @@ export default function VoiceChatPlayground() {
                 onClick={() => setShowSettingsModal(false)}
                 className="cursor-pointer rounded-lg border-none bg-gold px-[18px] py-2 text-[13px] font-semibold text-black"
               >
-                Tamam
+                {t("common.ok")}
               </button>
             </div>
           </div>
@@ -2513,13 +2524,13 @@ export default function VoiceChatPlayground() {
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-[16px] font-semibold text-chat-text">Uzun Süreli Bellek</h3>
+                    <h3 className="text-[16px] font-semibold text-chat-text">{t("memory.title")}</h3>
                     <span className="shrink-0 whitespace-nowrap rounded-full border border-gold/35 bg-gold/12 px-2 py-0.5 text-[11px] font-semibold text-gold">
-                      {memoryItems.length} kayıt
+                      {t("memory.count", { count: memoryItems.length })}
                     </span>
                   </div>
                   <p className="truncate text-[11.5px] text-chat-subtle">
-                    Firestore + Gemini semantik vektör belleğinde saklanan aktif bilgiler
+                    {t("memory.subtitle")}
                   </p>
                 </div>
               </div>
@@ -2529,7 +2540,7 @@ export default function VoiceChatPlayground() {
                   onClick={() => void fetchMemories()}
                   disabled={memoriesLoading}
                   className="flex shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded-lg border border-white/10 bg-white/4 px-2.5 py-1.5 text-[12px] text-chat-muted hover:bg-white/8 hover:text-chat-text"
-                  title="Yenile"
+                  title={t("memory.refresh")}
                 >
                   <svg
                     width="13"
@@ -2545,7 +2556,7 @@ export default function VoiceChatPlayground() {
                     <polyline points="23 4 23 10 17 10" />
                     <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
                   </svg>
-                  <span className="mobile:hidden">Yenile</span>
+                  <span className="mobile:hidden">{t("memory.refresh")}</span>
                 </button>
                 <button
                   type="button"
@@ -2559,19 +2570,19 @@ export default function VoiceChatPlayground() {
                       ? "border-gold bg-gold/20 text-gold"
                       : "border-gold/40 bg-gold/12 text-gold hover:bg-gold/20"
                   )}
-                  title="Manuel olarak yeni bellek kaydı ekle"
+                  title={t("memory.addTitle")}
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
                     <line x1="12" y1="5" x2="12" y2="19" />
                     <line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
-                  <span>Anı Ekle</span>
+                  <span>{t("memory.add")}</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowMemoryModal(false)}
                   className="flex shrink-0 cursor-pointer items-center rounded-lg border-none bg-transparent p-1.5 text-chat-subtle hover:text-chat-text"
-                  title="Kapat"
+                  title={t("common.close")}
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="18" y1="6" x2="6" y2="18" />
@@ -2608,7 +2619,7 @@ export default function VoiceChatPlayground() {
               >
                 <div className="flex items-center justify-between">
                   <label htmlFor="new-memory-content-input" className="text-[12px] font-semibold text-gold">
-                    Yeni Bellek Kaydı (Doğrudan Vektörleştirilir)
+                    {t("memory.newLabel")}
                   </label>
                   <span className="text-[11px] text-chat-faint">
                     {newMemoryContent.trim().length}/600
@@ -2621,7 +2632,7 @@ export default function VoiceChatPlayground() {
                   maxLength={600}
                   value={newMemoryContent}
                   onChange={(e) => setNewMemoryContent(e.target.value)}
-                  placeholder={`Ör: ${displayName} yeni TypeScript projelerinde paket yöneticisi olarak pnpm kullanmayı tercih ediyor.`}
+                  placeholder={t("memory.placeholder", { name: displayName })}
                   className="w-full resize-none rounded-lg border border-white/12 bg-black/25 px-3 py-2 text-[13px] leading-normal text-chat-text outline-hidden focus:border-gold/50"
                 />
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2629,12 +2640,12 @@ export default function VoiceChatPlayground() {
                     <select
                       id="new-memory-project-select"
                       name="newMemoryProjectId"
-                      aria-label="Bellek kapsamı (proje)"
+                      aria-label={t("memory.scopeLabel")}
                       value={newMemoryProjectId}
                       onChange={(e) => setNewMemoryProjectId(e.target.value)}
                       className="cursor-pointer rounded-lg border border-white/12 bg-chat-surface px-2.5 py-1.5 text-[12px] text-chat-text outline-hidden"
                     >
-                      <option value="">🌐 Genel Bellek</option>
+                      <option value="">{t("memory.globalScope")}</option>
                       {projects.map((p) => (
                         <option key={p.id} value={p.id}>
                           📁 {p.name}
@@ -2644,19 +2655,19 @@ export default function VoiceChatPlayground() {
                     <select
                       id="new-memory-type-select"
                       name="newMemoryType"
-                      aria-label="Bellek kategorisi"
+                      aria-label={t("memory.categoryLabel")}
                       value={newMemoryType}
                       onChange={(e) => setNewMemoryType(e.target.value)}
                       className="cursor-pointer rounded-lg border border-white/12 bg-chat-surface px-2.5 py-1.5 text-[12px] text-chat-text outline-hidden"
                     >
-                      <option value="user_preference">Tercih</option>
-                      <option value="technical_preference">Teknik Tercih</option>
-                      <option value="project_fact">Proje Bilgisi</option>
-                      <option value="architectural_decision">Mimari Karar</option>
-                      <option value="user_fact">Kişisel Bilgi</option>
-                      <option value="workflow">İş Akışı</option>
-                      <option value="constraint">Kısıt</option>
-                      <option value="general">Genel</option>
+                      <option value="user_preference">{t("memoryType.preference")}</option>
+                      <option value="technical_preference">{t("memoryType.technicalPreference")}</option>
+                      <option value="project_fact">{t("memoryType.option.projectFact")}</option>
+                      <option value="architectural_decision">{t("memoryType.architecturalDecision")}</option>
+                      <option value="user_fact">{t("memoryType.option.personalFact")}</option>
+                      <option value="workflow">{t("memoryType.workflow")}</option>
+                      <option value="constraint">{t("memoryType.constraint")}</option>
+                      <option value="general">{t("memoryType.general")}</option>
                     </select>
                     <label className="flex cursor-pointer select-none items-center gap-1.5 text-[11.5px] text-chat-muted">
                       <input
@@ -2667,7 +2678,7 @@ export default function VoiceChatPlayground() {
                         onChange={(e) => setNewMemorySupersede(e.target.checked)}
                         className="accent-gold"
                       />
-                      <span>Benzer eski anıyı güncelle</span>
+                      <span>{t("memory.supersede")}</span>
                     </label>
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -2676,14 +2687,14 @@ export default function VoiceChatPlayground() {
                       onClick={() => setNewMemoryOpen(false)}
                       className="cursor-pointer rounded-lg border border-white/10 bg-transparent px-2.5 py-1.5 text-[12px] text-chat-muted hover:text-chat-text"
                     >
-                      İptal
+                      {t("common.cancel")}
                     </button>
                     <button
                       type="submit"
                       disabled={creatingMemory || newMemoryContent.trim().length < 5}
                       className="cursor-pointer rounded-lg border-none bg-gold px-3 py-1.5 text-[12px] font-semibold text-black disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {creatingMemory ? "Kaydediliyor..." : "Belleğe Kaydet"}
+                      {creatingMemory ? t("common.saving") : t("memory.save")}
                     </button>
                   </div>
                 </div>
@@ -2701,20 +2712,20 @@ export default function VoiceChatPlayground() {
                   id="memory-search-input"
                   name="memorySearch"
                   type="search"
-                  aria-label="Bellekte ara"
+                  aria-label={t("memory.searchLabel")}
                   value={memorySearch}
                   onChange={(e) => setMemorySearch(e.target.value)}
-                  placeholder="Bellek kayıtlarında ara (ör. tercih, proje, teknoloji)..."
+                  placeholder={t("memory.searchPlaceholder")}
                   className="w-full border-none bg-transparent text-[13px] text-chat-text outline-hidden placeholder:text-chat-faint"
                 />
               </div>
 
               {projects.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="mr-1 text-[11px] font-semibold text-chat-faint">Kapsam:</span>
+                  <span className="mr-1 text-[11px] font-semibold text-chat-faint">{t("memory.scope")}</span>
                   {[
-                    { id: "all", label: "Tüm Kapsamlar" },
-                    { id: "global", label: "🌐 Genel Bellek" },
+                    { id: "all", label: t("memory.allScopes") },
+                    { id: "global", label: t("memory.globalScope") },
                     ...projects.map((p) => ({ id: p.id, label: `📁 ${p.name}` }))
                   ].map((scope) => (
                     <button
@@ -2736,14 +2747,14 @@ export default function VoiceChatPlayground() {
 
               <div className="flex flex-wrap items-center gap-1.5">
                 {[
-                  { id: "all", label: "Tümü" },
-                  { id: "user_preference", label: "Tercih" },
-                  { id: "technical_preference", label: "Teknik" },
-                  { id: "project_fact", label: "Proje" },
-                  { id: "architectural_decision", label: "Mimari" },
-                  { id: "user_fact", label: "Kişisel" },
-                  { id: "workflow", label: "İş Akışı" },
-                  { id: "general", label: "Genel" }
+                  { id: "all", label: t("memoryType.filter.all") },
+                  { id: "user_preference", label: t("memoryType.preference") },
+                  { id: "technical_preference", label: t("memoryType.filter.technical") },
+                  { id: "project_fact", label: t("memoryType.project") },
+                  { id: "architectural_decision", label: t("memoryType.filter.architecture") },
+                  { id: "user_fact", label: t("memoryType.personal") },
+                  { id: "workflow", label: t("memoryType.workflow") },
+                  { id: "general", label: t("memoryType.general") }
                 ].map((tab) => (
                   <button
                     key={tab.id}
@@ -2774,29 +2785,30 @@ export default function VoiceChatPlayground() {
                   ))}
                 </div>
               ) : (() => {
-                const q = memorySearch.trim().toLocaleLowerCase("tr-TR");
+                const locale = LOCALES[lang];
+                const q = memorySearch.trim().toLocaleLowerCase(locale);
                 const filtered = memoryItems.filter((item) => {
                   if (memoryProjectFilter === "global" && item.projectId) return false;
                   if (memoryProjectFilter !== "all" && memoryProjectFilter !== "global" && item.projectId !== memoryProjectFilter) return false;
                   if (memoryTypeFilter !== "all" && item.memoryType !== memoryTypeFilter) return false;
                   if (!q) return true;
                   return (
-                    item.content.toLocaleLowerCase("tr-TR").includes(q) ||
-                    memoryTypeLabel(item.memoryType).toLocaleLowerCase("tr-TR").includes(q)
+                    item.content.toLocaleLowerCase(locale).includes(q) ||
+                    memoryTypeLabel(item.memoryType, lang).toLocaleLowerCase(locale).includes(q)
                   );
                 });
                 if (filtered.length === 0) {
                   return (
                     <div className="flex flex-col items-center justify-center rounded-xl border border-white/8 bg-white/2 px-4 py-10 text-center text-[13px] text-chat-subtle">
                       {memoryItems.length === 0
-                        ? "Henüz kaydedilmiş aktif bir uzun süreli bellek bulunmuyor."
-                        : "Arama veya filtreyle eşleşen bellek kaydı bulunamadı."}
+                        ? t("memory.empty")
+                        : t("memory.noMatch")}
                     </div>
                   );
                 }
                 return filtered.map((item) => {
                   const projName = item.projectId
-                    ? projects.find((p) => p.id === item.projectId)?.name || "Proje"
+                    ? projects.find((p) => p.id === item.projectId)?.name || t("project.fallbackName")
                     : null;
                   return (
                   <div
@@ -2806,14 +2818,14 @@ export default function VoiceChatPlayground() {
                     <div className="flex min-w-0 flex-1 flex-col gap-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="rounded-sm border border-gold/30 bg-gold/12 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-gold">
-                          {memoryTypeLabel(item.memoryType)}
+                          {memoryTypeLabel(item.memoryType, lang)}
                         </span>
                         <span className="rounded-sm border border-white/12 bg-white/6 px-1.5 py-0.5 text-[10px] font-medium text-chat-muted">
-                          {projName ? `📁 ${projName}` : "🌐 Genel"}
+                          {projName ? `📁 ${projName}` : t("memory.globalBadge")}
                         </span>
                         {item.createdAt && (
                           <span className="text-[11px] text-chat-faint">
-                            {formatDateShort(item.createdAt)}
+                            {formatDateShort(item.createdAt, lang)}
                           </span>
                         )}
                       </div>
@@ -2826,7 +2838,7 @@ export default function VoiceChatPlayground() {
                       disabled={deletingMemoryId === item.docId}
                       onClick={() => void handleDeleteMemory(item.docId)}
                       className="flex shrink-0 cursor-pointer items-center gap-1 rounded-lg border border-transparent bg-transparent px-2 py-1 text-[11.5px] text-chat-subtle [transition:all_0.15s] hover:border-danger/30 hover:bg-danger/12 hover:text-danger disabled:opacity-50"
-                      title="Bu bellek kaydını sil (unut)"
+                      title={t("memory.forgetTitle")}
                     >
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M3 6h18" />
@@ -2834,7 +2846,7 @@ export default function VoiceChatPlayground() {
                         <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                       </svg>
                       <span className="mobile:hidden">
-                        {deletingMemoryId === item.docId ? "Siliniyor..." : "Unut"}
+                        {deletingMemoryId === item.docId ? t("memory.deleting") : t("memory.forget")}
                       </span>
                     </button>
                   </div>
@@ -2859,13 +2871,13 @@ export default function VoiceChatPlayground() {
           >
             <div className="flex items-center justify-between">
               <h3 className="text-[16px] font-semibold text-chat-text">
-                {editingProjectId ? "Projeyi Düzenle" : "Yeni Proje Oluştur"}
+                {editingProjectId ? t("project.edit") : t("project.create")}
               </h3>
               <button
                 type="button"
                 onClick={() => setShowProjectModal(false)}
                 className="flex cursor-pointer items-center border-none bg-transparent p-1 text-chat-subtle hover:text-chat-text"
-                title="Kapat"
+                title={t("common.close")}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18" />
@@ -2875,7 +2887,7 @@ export default function VoiceChatPlayground() {
             </div>
 
             <p className="m-0 text-[12.5px] leading-normal text-chat-subtle">
-              Her projenin kendine özel sohbet geçmişi, mimari bağlamı ve diğer projelerden izole uzun süreli semantik belleği bulunur.
+              {t("project.intro")}
             </p>
 
             {projectFormError && (
@@ -2886,7 +2898,7 @@ export default function VoiceChatPlayground() {
 
             <div className="flex flex-col gap-1.5">
               <label htmlFor="project-name-input" className="text-[12px] font-semibold text-chat-muted">
-                Proje Adı
+                {t("project.name")}
               </label>
               <input
                 id="project-name-input"
@@ -2896,14 +2908,14 @@ export default function VoiceChatPlayground() {
                 maxLength={80}
                 value={projectFormName}
                 onChange={(e) => setProjectFormName(e.target.value)}
-                placeholder="Ör: Alfred, Otonom İHA, Finans API..."
+                placeholder={t("project.namePlaceholder")}
                 className="w-full rounded-xl border border-white/12 bg-black/25 px-3 py-2 text-[13.5px] text-chat-text outline-hidden focus:border-gold/50"
               />
             </div>
 
             <div className="flex flex-col gap-1.5">
               <label htmlFor="project-repo-input" className="text-[12px] font-semibold text-chat-muted">
-                GitHub Depo Bağlantısı (İsteğe Bağlı)
+                {t("project.repo")}
               </label>
               <input
                 id="project-repo-input"
@@ -2925,7 +2937,7 @@ export default function VoiceChatPlayground() {
 
             <div className="flex flex-col gap-1.5">
               <label htmlFor="project-desc-input" className="text-[12px] font-semibold text-chat-muted">
-                Proje Talimatları &amp; Mimari Bağlam (İsteğe Bağlı)
+                {t("project.instructions")}
               </label>
               <textarea
                 id="project-desc-input"
@@ -2934,13 +2946,13 @@ export default function VoiceChatPlayground() {
                 maxLength={1500}
                 value={projectFormDesc}
                 onChange={(e) => setProjectFormDesc(e.target.value)}
-                placeholder="Ör: Next.js 16 + Firebase Cloud Functions + Firestore tabanlı proje. Kod örneklerinde TypeScript ve ESM kullan..."
+                placeholder={t("project.instructionsPlaceholder")}
                 className="w-full resize-none rounded-xl border border-white/12 bg-black/25 px-3 py-2 text-[13px] leading-normal text-chat-text outline-hidden focus:border-gold/50"
               />
             </div>
 
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[12px] font-semibold text-chat-muted">Renk Etiketi:</span>
+              <span className="text-[12px] font-semibold text-chat-muted">{t("project.color")}</span>
               <div className="flex items-center gap-2">
                 {PROJECT_COLORS.map((col) => (
                   <button
@@ -2952,7 +2964,7 @@ export default function VoiceChatPlayground() {
                       projectFormColor === col ? "scale-110 border-white" : "border-transparent opacity-70 hover:opacity-100"
                     )}
                     style={{ backgroundColor: col }}
-                    aria-label={`Renk ${col}`}
+                    aria-label={t("project.colorLabel", { color: col })}
                   />
                 ))}
               </div>
@@ -2964,14 +2976,14 @@ export default function VoiceChatPlayground() {
                 onClick={() => setShowProjectModal(false)}
                 className="cursor-pointer rounded-xl border border-white/12 bg-transparent px-4 py-2 text-[13px] text-chat-muted hover:text-chat-text"
               >
-                İptal
+                {t("common.cancel")}
               </button>
               <button
                 type="submit"
                 disabled={savingProject || projectFormName.trim().length < 2}
                 className="cursor-pointer rounded-xl border-none bg-gold px-4 py-2 text-[13px] font-semibold text-black disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {savingProject ? "Kaydediliyor..." : editingProjectId ? "Güncelle" : "Projeyi Oluştur"}
+                {savingProject ? t("common.saving") : editingProjectId ? t("project.update") : t("project.submitCreate")}
               </button>
             </div>
           </form>
@@ -2988,9 +3000,9 @@ export default function VoiceChatPlayground() {
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-[420px] rounded-2xl border border-white/10 bg-chat-modal p-6 shadow-[0_20px_50px_rgba(0,0,0,0.6)]"
           >
-            <h3 className="mb-3.5 text-[16px] font-semibold">Hesap Bilgileri</h3>
+            <h3 className="mb-3.5 text-[16px] font-semibold">{t("account.title")}</h3>
             <div className="mb-3 flex items-center justify-between gap-3 rounded-[10px] border border-white/8 bg-white/3 p-3.5">
-              <span className="text-[13px] text-chat-muted">Aktif Kullanıcı:</span>
+              <span className="text-[13px] text-chat-muted">{t("account.activeUser")}</span>
               <strong className="overflow-hidden text-ellipsis text-[13px]">{user?.email || "-"}</strong>
             </div>
 
@@ -2998,16 +3010,16 @@ export default function VoiceChatPlayground() {
             <div className="mb-[18px] flex flex-col gap-2 rounded-[10px] border border-white/8 bg-white/3 p-3.5">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex flex-col">
-                  <span className="text-[13px] font-semibold text-chat-text">Google Workspace (Takvim, Görevler, Gmail)</span>
+                  <span className="text-[13px] font-semibold text-chat-text">{t("account.google")}</span>
                   <span className="text-[11px] text-chat-subtle">
                     {googleConnected
-                      ? (googleEmail ? `${googleEmail} bağlı` : "Bağlantı aktif")
-                      : "Tek tıkla bağlanın, Alfred ajandanızı ve e-postalarınızı yönetsin"}
+                      ? (googleEmail ? t("account.googleConnectedAs", { email: googleEmail }) : t("account.googleConnected"))
+                      : t("account.googlePitch")}
                   </span>
                 </div>
                 {googleConnected ? (
                   <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-400">
-                    Bağlı
+                    {t("common.connected")}
                   </span>
                 ) : (
                   <button
@@ -3022,17 +3034,17 @@ export default function VoiceChatPlayground() {
                         if (data?.url) {
                           window.location.href = data.url;
                         } else {
-                          alert("Google OAuth URL alınamadı.");
+                          alert(t("account.googleUrlFailed"));
                         }
                       } catch (err: unknown) {
-                        alert("Hata: " + ((err as Error)?.message || String(err)));
+                        alert(t("common.error", { message: (err as Error)?.message || String(err) }));
                       } finally {
                         setGoogleConnecting(false);
                       }
                     }}
                     className="cursor-pointer rounded-lg border border-gold/40 bg-gold/15 px-3 py-1.5 text-[12px] font-semibold text-gold hover:bg-gold/25 disabled:opacity-50"
                   >
-                    {googleConnecting ? "Açılıyor…" : "Google'a Bağlan"}
+                    {googleConnecting ? t("common.opening") : t("account.googleConnect")}
                   </button>
                 )}
               </div>
@@ -3041,18 +3053,18 @@ export default function VoiceChatPlayground() {
                   <button
                     type="button"
                     onClick={async () => {
-                      if (!confirm("Google Takvim ve Görevler bağlantısını kesmek istiyor musunuz?")) return;
+                      if (!confirm(t("account.googleConfirmDisconnect"))) return;
                       try {
                         await apiFetch("/auth/google/disconnect", { method: "DELETE" });
                         setGoogleConnected(false);
                         setGoogleEmail(null);
                       } catch (_err) {
-                        alert("Bağlantı kesilemedi.");
+                        alert(t("account.googleDisconnectFailed"));
                       }
                     }}
                     className="cursor-pointer border-none bg-transparent p-0 text-[11px] text-red-400/80 hover:text-red-400 hover:underline"
                   >
-                    Bağlantıyı Kaldır
+                    {t("account.googleDisconnect")}
                   </button>
                 </div>
               )}
@@ -3062,16 +3074,16 @@ export default function VoiceChatPlayground() {
             <div className="mb-[18px] flex flex-col gap-2 rounded-[10px] border border-white/8 bg-white/3 p-3.5">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex flex-col">
-                  <span className="text-[13px] font-semibold text-chat-text">Anlık Bildirimler (FCM & PWA)</span>
+                  <span className="text-[13px] font-semibold text-chat-text">{t("account.push")}</span>
                   <span className="text-[11px] text-chat-subtle">
                     {notificationState === "granted" && fcmToken
-                      ? "Cihazınız bildirim almaya hazır"
-                      : "Görev, alarm ve arka plan bildirimleri için izni açın"}
+                      ? t("account.pushReady")
+                      : t("account.pushPitch")}
                   </span>
                 </div>
                 {notificationState === "granted" && fcmToken ? (
                   <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-400">
-                    Aktif
+                    {t("common.active")}
                   </span>
                 ) : (
                   <button
@@ -3080,7 +3092,7 @@ export default function VoiceChatPlayground() {
                     onClick={handleToggleNotifications}
                     className="cursor-pointer rounded-lg border border-gold/40 bg-gold/15 px-3 py-1.5 text-[12px] font-semibold text-gold hover:bg-gold/25 disabled:opacity-50"
                   >
-                    {notificationLoading ? "Açılıyor…" : "Bildirimleri Aç"}
+                    {notificationLoading ? t("common.opening") : t("account.pushEnable")}
                   </button>
                 )}
               </div>
@@ -3091,32 +3103,32 @@ export default function VoiceChatPlayground() {
                     type="button"
                     onClick={async () => {
                       try {
-                        const res = await sendTestPushNotification();
+                        const res = await sendTestPushNotification(lang);
                         alert(res.message);
                       } catch (err: unknown) {
-                        alert("Hata: " + ((err as Error)?.message || String(err)));
+                        alert(t("common.error", { message: (err as Error)?.message || String(err) }));
                       }
                     }}
                     className="cursor-pointer rounded-md border border-white/12 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-gold hover:bg-white/10"
                   >
-                    Test Bildirimi Gönder
+                    {t("account.pushTest")}
                   </button>
                   <button
                     type="button"
                     onClick={async () => {
-                      if (!confirm("Bildirimler bu cihaz için devre dışı bırakılsın mı?")) return;
+                      if (!confirm(t("notify.confirmDisable"))) return;
                       try {
                         await removeFcmTokenFromBackend(fcmToken);
                         localStorage.removeItem("alfred_fcm_token");
                         setFcmToken(null);
                         setNotificationState(getNotificationPermissionState());
                       } catch (_err) {
-                        alert("Kaldırılamadı.");
+                        alert(t("notify.removeFailed"));
                       }
                     }}
                     className="cursor-pointer border-none bg-transparent p-0 text-[11px] text-red-400/80 hover:text-red-400 hover:underline"
                   >
-                    Bildirimleri Kapat
+                    {t("account.pushDisable")}
                   </button>
                 </div>
               )}
@@ -3124,15 +3136,15 @@ export default function VoiceChatPlayground() {
               {deferredInstallPrompt && (
                 <div className="mt-1 flex items-center justify-between rounded-lg border border-gold/30 bg-gold/10 p-2.5">
                   <div className="flex flex-col">
-                    <span className="text-[12px] font-medium text-gold">Telefon Uygulaması (PWA)</span>
-                    <span className="text-[10px] text-chat-subtle">Ana ekranınıza tam ekran Alfred uygulamasını kurun</span>
+                    <span className="text-[12px] font-medium text-gold">{t("account.pwa")}</span>
+                    <span className="text-[10px] text-chat-subtle">{t("account.pwaDetail")}</span>
                   </div>
                   <button
                     type="button"
                     onClick={handleInstallApp}
                     className="cursor-pointer rounded-lg bg-gold px-3 py-1 text-[11px] font-bold text-black hover:bg-gold-light"
                   >
-                    Yükle
+                    {t("common.install")}
                   </button>
                 </div>
               )}
@@ -3142,13 +3154,13 @@ export default function VoiceChatPlayground() {
                 onClick={handleSignOut}
                 className="cursor-pointer rounded-lg border border-danger/30 bg-transparent px-3.5 py-2 text-[13px] text-danger"
               >
-                Oturumu Kapat
+                {t("account.signOut")}
               </button>
               <button
                 onClick={() => setShowAccountModal(false)}
                 className="cursor-pointer rounded-lg border border-white/12 bg-transparent px-3.5 py-2 text-[13px] text-chat-text"
               >
-                Kapat
+                {t("common.close")}
               </button>
             </div>
           </div>

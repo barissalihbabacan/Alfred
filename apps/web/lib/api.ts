@@ -1,6 +1,7 @@
 import type { User } from "firebase/auth";
 import { getAppCheckToken } from "./firebase";
 import { getFirebaseAuth } from "./auth";
+import { getLang, translate } from "./i18n";
 
 /**
  * Tum backend cagrilari buradan gecer. Hedef, Firebase Hosting'in /api/**
@@ -87,7 +88,7 @@ export async function apiFetch(
   if (!anonymous) {
     const user = deps.getUser();
     if (!user) {
-      throw new ApiError(401, "Oturum henüz doğrulanmadı.");
+      throw new ApiError(401, translate(getLang(), "api.notSignedIn"));
     }
     // getIdToken() suresi dolmus token'i kendiliginden yeniler.
     headers.set("Authorization", `Bearer ${await user.getIdToken()}`);
@@ -107,5 +108,5 @@ export async function apiFetch(
 export async function ensureOk(res: Response): Promise<Response> {
   if (res.ok) return res;
   const data = await res.json().catch(() => ({} as { error?: string }));
-  throw new ApiError(res.status, data?.error || `Sunucu hatası (${res.status})`);
+  throw new ApiError(res.status, data?.error || translate(getLang(), "api.serverError", { status: res.status }));
 }

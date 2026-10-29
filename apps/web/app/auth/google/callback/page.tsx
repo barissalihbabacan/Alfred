@@ -4,9 +4,12 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { apiFetch, ensureOk } from "../../../../lib/api";
 import { getFirebaseAuth, subscribeAuthState } from "../../../../lib/auth";
+import { getLang, translate } from "../../../../lib/i18n";
+import { useI18n } from "../../../../lib/use-i18n";
 
 function GoogleAuthCallbackContent() {
   const searchParams = useSearchParams();
+  const { t } = useI18n();
   const [status, setStatus] = useState<"processing" | "success" | "error">("processing");
   const [errorMessage, setErrorMessage] = useState<string>("");
 
@@ -18,13 +21,13 @@ function GoogleAuthCallbackContent() {
 
     if (error) {
       setStatus("error");
-      setErrorMessage(`Google yetkilendirme hatası: ${error}`);
+      setErrorMessage(translate(getLang(), "googleCallback.providerError", { error }));
       return;
     }
 
     if (!code) {
       setStatus("error");
-      setErrorMessage("Yetkilendirme kodu (code) bulunamadı.");
+      setErrorMessage(translate(getLang(), "googleCallback.missingCode"));
       return;
     }
 
@@ -48,7 +51,7 @@ function GoogleAuthCallbackContent() {
       } catch (err: unknown) {
         if (cancelled) return;
         setStatus("error");
-        setErrorMessage((err as Error)?.message || "Google hesabı bağlanırken bir hata oluştu.");
+        setErrorMessage((err as Error)?.message || translate(getLang(), "googleCallback.failed"));
       }
     };
 
@@ -67,7 +70,7 @@ function GoogleAuthCallbackContent() {
       const auth = getFirebaseAuth();
       if (!auth.currentUser) {
         setStatus("error");
-        setErrorMessage("Butler Alfred oturumunuz bulunamadı. Lütfen önce uygulamaya giriş yapın.");
+        setErrorMessage(translate(getLang(), "googleCallback.noSession"));
       }
     }, 6000);
 
@@ -83,9 +86,9 @@ function GoogleAuthCallbackContent() {
       {status === "processing" && (
         <div className="flex flex-col items-center gap-4">
           <div className="h-10 w-10 animate-spin-bounce rounded-full border-[3px] border-white/20 border-t-gold" />
-          <h2 className="text-[16px] font-semibold text-gold-light">Google Hesabı Doğrulanıyor</h2>
+          <h2 className="text-[16px] font-semibold text-gold-light">{t("googleCallback.verifying")}</h2>
           <p className="text-[12.5px] text-chat-muted">
-            Takvim ve Görev izinleri kaydediliyor, lütfen bekleyin…
+            {t("googleCallback.saving")}
           </p>
         </div>
       )}
@@ -97,9 +100,9 @@ function GoogleAuthCallbackContent() {
               <polyline points="20 6 9 17 4 12" />
             </svg>
           </div>
-          <h2 className="text-[16px] font-semibold text-emerald-300">Bağlantı Başarılı!</h2>
+          <h2 className="text-[16px] font-semibold text-emerald-300">{t("googleCallback.success")}</h2>
           <p className="text-[12.5px] text-chat-muted">
-            Google Takvim ve Görevler başarıyla bağlandı. Yönlendiriliyorsunuz…
+            {t("googleCallback.successDetail")}
           </p>
         </div>
       )}
@@ -113,13 +116,13 @@ function GoogleAuthCallbackContent() {
               <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
           </div>
-          <h2 className="text-[16px] font-semibold text-red-300">Bağlantı Kurulamadı</h2>
+          <h2 className="text-[16px] font-semibold text-red-300">{t("googleCallback.errorTitle")}</h2>
           <p className="text-[12px] text-red-200/80">{errorMessage}</p>
           <button
             onClick={() => { window.location.href = "/"; }}
             className="mt-2 cursor-pointer rounded-xl border border-white/12 bg-white/5 px-4 py-2 text-[13px] text-chat-text hover:bg-white/10"
           >
-            Ana Sayfaya Dön
+            {t("googleCallback.home")}
           </button>
         </div>
       )}
@@ -127,19 +130,22 @@ function GoogleAuthCallbackContent() {
   );
 }
 
+function LoadingFallback() {
+  const { t } = useI18n();
+  return (
+    <div className="w-full max-w-[400px] rounded-2xl border border-white/10 bg-chat-modal p-6 text-center shadow-[0_20px_50px_rgba(0,0,0,0.6)] backdrop-blur-md">
+      <div className="flex flex-col items-center gap-4">
+        <div className="h-10 w-10 animate-spin-bounce rounded-full border-[3px] border-white/20 border-t-gold" />
+        <h2 className="text-[16px] font-semibold text-gold-light">{t("googleCallback.loading")}</h2>
+      </div>
+    </div>
+  );
+}
+
 export default function GoogleAuthCallbackPage() {
   return (
     <div className="min-h-screen-safe flex flex-col items-center justify-center bg-butler-bg p-4 text-chat-text">
-      <Suspense
-        fallback={
-          <div className="w-full max-w-[400px] rounded-2xl border border-white/10 bg-chat-modal p-6 text-center shadow-[0_20px_50px_rgba(0,0,0,0.6)] backdrop-blur-md">
-            <div className="flex flex-col items-center gap-4">
-              <div className="h-10 w-10 animate-spin-bounce rounded-full border-[3px] border-white/20 border-t-gold" />
-              <h2 className="text-[16px] font-semibold text-gold-light">Yükleniyor…</h2>
-            </div>
-          </div>
-        }
-      >
+      <Suspense fallback={<LoadingFallback />}>
         <GoogleAuthCallbackContent />
       </Suspense>
     </div>

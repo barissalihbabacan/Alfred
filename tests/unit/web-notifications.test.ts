@@ -49,9 +49,10 @@ describe("Web Notifications client (apps/web/lib/notifications.ts)", () => {
   it("handles requestPushPermissionAndToken when Notification is unsupported", async () => {
     // @ts-expect-error simulation
     delete globalThis.Notification;
-    const res = await requestPushPermissionAndToken();
+    const res = await requestPushPermissionAndToken("tr");
     expect(res.token).toBeNull();
     expect(res.error).toBe("Tarayıcınız bildirimleri desteklemiyor.");
+    expect((await requestPushPermissionAndToken("en")).error).toBe("Your browser does not support notifications.");
   });
 
   it("handles requestPushPermissionAndToken when user denies permission", async () => {
@@ -60,7 +61,7 @@ describe("Web Notifications client (apps/web/lib/notifications.ts)", () => {
       requestPermission: vi.fn(async () => "denied" as NotificationPermission),
       permission: "denied"
     };
-    const res = await requestPushPermissionAndToken();
+    const res = await requestPushPermissionAndToken("tr");
     expect(res.token).toBeNull();
     expect(res.error).toBe("Bildirim izni verilmedi.");
   });
@@ -98,7 +99,7 @@ describe("Web Notifications client (apps/web/lib/notifications.ts)", () => {
       new Response(JSON.stringify({ success: true, message: "1 cihaza test bildirimi başarıyla gönderildi." }), { status: 200 })
     );
 
-    const res = await sendTestPushNotification();
+    const res = await sendTestPushNotification("tr");
 
     expect(apiFetchSpy).toHaveBeenCalledTimes(1);
     const [path, init] = apiFetchSpy.mock.calls[0];

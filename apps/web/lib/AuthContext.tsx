@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { User } from "firebase/auth";
 import {
   subscribeAuthState,
@@ -11,6 +11,7 @@ import {
   getAuthErrorDetails,
   AuthErrorInfo
 } from "./auth";
+import { useI18n } from "./use-i18n";
 
 interface AuthContextType {
   user: User | null;
@@ -28,7 +29,14 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<AuthErrorInfo | null>(null);
+  // The raw error; it is described in the current UI language at render, so a
+  // language switch also translates a banner that is already showing.
+  const [rawError, setError] = useState<{ cause: unknown } | null>(null);
+  const { lang } = useI18n();
+  const error = useMemo(
+    () => (rawError ? getAuthErrorDetails(rawError.cause, lang) : null),
+    [rawError, lang]
+  );
 
   useEffect(() => {
     const unsubscribe = subscribeAuthState(
@@ -36,12 +44,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(currentUser);
         setLoading(false);
       },
-      () => setError(getAuthErrorDetails({ code: "auth/unauthorized-uid" }))
+      () => setError({ cause: { code: "auth/unauthorized-uid" } })
     );
 
     // Yonlendirmeli giristen donuste olusan hatalar (ornegin Safari'de
     // "missing initial state") yalnizca getRedirectResult ile yakalanir.
-    checkRedirectResult().catch((err) => setError(getAuthErrorDetails(err)));
+    checkRedirectResult().catch((err) => setError({ cause: err }));
 
     return () => unsubscribe();
   }, []);
@@ -54,7 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return await signInWithGoogle();
     } catch (err: unknown) {
       console.error("[Auth] Google Sign-In error:", err);
-      setError(getAuthErrorDetails(err));
+      setError({ cause: err });
       return null;
     }
   }, []);
@@ -65,7 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await signInWithGoogleRedirect();
     } catch (err: unknown) {
       console.error("[Auth] Direct redirect sign-in error:", err);
-      setError(getAuthErrorDetails(err));
+      setError({ cause: err });
     }
   }, []);
 
@@ -75,7 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await signOutCurrentUser();
       setUser(null);
     } catch (err: unknown) {
-      setError(getAuthErrorDetails(err));
+      setError({ cause: err });
     }
   }, []);
 

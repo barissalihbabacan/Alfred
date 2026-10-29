@@ -87,6 +87,38 @@ export const CHAT_MODEL_OPTIONS: readonly ModelOption[] = [
   }
 ];
 
+export type ModelProvider = ModelOption["provider"];
+
+/** Anahtari olmayan saglayicinin seceneklerinde gosterilen kisa not. */
+export const NO_API_KEY_HINT = "API anahtarı yok";
+
+/**
+ * `/health` yanitindaki `availableProviders`: anahtari tanimli saglayicilar.
+ * Alan yoksa (Ollama yolu, eski sunucu) null: bilinmiyor, hepsi secilebilir.
+ */
+export function parseAvailableProviders(value: unknown): ModelProvider[] | null {
+  if (!Array.isArray(value)) return null;
+  const providers = [...new Set(CHAT_MODEL_OPTIONS.map((o) => o.provider))];
+  return providers.filter((id) => value.includes(id));
+}
+
+/** Secenek secilebilir mi; `available` null ise (bilinmiyor) her secenek. */
+export function isModelOptionAvailable(option: ModelOption, available: readonly ModelProvider[] | null): boolean {
+  return available === null || available.includes(option.provider);
+}
+
+/**
+ * Kayitli secimin hala gecerli secenegi; bilinmeyen kimlik ya da anahtari
+ * kalmamis saglayici icin undefined (varsayilan zincire donulur).
+ */
+export function findSelectableModelOption(
+  id: string | null | undefined,
+  available: readonly ModelProvider[] | null
+): ModelOption | undefined {
+  const option = id ? CHAT_MODEL_OPTIONS.find((o) => o.id === id) : undefined;
+  return option && isModelOptionAvailable(option, available) ? option : undefined;
+}
+
 /** Saglayici kimliginin gorunen adi; bilinmeyen kimlik oldugu gibi, bos ise "Groq". */
 export function providerDisplayName(id: unknown): string {
   if (typeof id !== "string" || !id.trim()) return "Groq";

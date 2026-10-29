@@ -364,9 +364,15 @@ describe("runChatTurnWithFallback", () => {
     expect(h.types()).toEqual([]);
   });
 
-  it("fails with the former message when no provider has a key", async () => {
+  it("fails with a user-facing message, not a Groq-only one, when no provider has a key", async () => {
     const h = harness([], { keys: {} });
-    await expect(h.run()).rejects.toThrow(NO_PROVIDER_CONFIGURED_MESSAGE);
+    const err = await h.run().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toBe(NO_PROVIDER_CONFIGURED_MESSAGE);
+    expect(toChatTurnErrorEvent(err)).toEqual({ type: "error", error: NO_PROVIDER_CONFIGURED_MESSAGE });
+    expect(NO_PROVIDER_CONFIGURED_MESSAGE).not.toContain("GROQ_API_KEY");
+    expect(NO_PROVIDER_CONFIGURED_MESSAGE).toMatch(/API anahtarı/);
+    expect(h.types()).toEqual([]);
   });
 
   it("EVREN primary happy path and fallback to Groq when EVREN is configured", async () => {

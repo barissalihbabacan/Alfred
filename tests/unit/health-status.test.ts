@@ -15,6 +15,7 @@ describe("buildHealthStatus (the /health answer)", () => {
       status: "ok",
       activeProvider: "evren",
       model: DEFAULT_EVREN_MODEL,
+      availableProviders: ["evren", "groq", "gemini"],
       providerStatus: { groqConfigured: true, ollamaReachable: false, modelReady: true }
     });
   });
@@ -24,6 +25,7 @@ describe("buildHealthStatus (the /health answer)", () => {
       status: "ok",
       activeProvider: "groq",
       model: GROQ_MODEL,
+      availableProviders: ["groq", "gemini"],
       providerStatus: { groqConfigured: true, ollamaReachable: false, modelReady: true }
     });
   });
@@ -45,6 +47,7 @@ describe("buildHealthStatus (the /health answer)", () => {
     expect(health).toEqual({
       status: "ok",
       activeProvider: "offline",
+      availableProviders: [],
       providerStatus: { groqConfigured: false, ollamaReachable: false, modelReady: false }
     });
   });
@@ -59,6 +62,19 @@ describe("buildHealthStatus (the /health answer)", () => {
 
     const custom = buildHealthStatus({ llmProvider: "groq", keys: KEYS, env: { GROQ_MODEL: "custom/model" } });
     expect(custom.model).toBe("custom/model");
+  });
+
+  it("lists only the providers with a usable key, so the selector can hide the rest", () => {
+    const evrenOnly = buildHealthStatus({
+      llmProvider: "groq",
+      keys: { evren: "evren_llm_test", groq: "unset", gemini: "" }
+    });
+    expect(evrenOnly.activeProvider).toBe("evren");
+    expect(evrenOnly.availableProviders).toEqual(["evren"]);
+
+    // CHAT_FALLBACK_ORDER does not limit the choice: a pick moves its provider to the front.
+    const trimmed = buildHealthStatus({ llmProvider: "groq", keys: { evren: "evren_llm_test", ...KEYS }, env: { CHAT_FALLBACK_ORDER: "groq" } });
+    expect(trimmed.availableProviders).toEqual(["evren", "groq", "gemini"]);
   });
 
   it("on the Ollama path reports Ollama only when it is reachable, never a Groq it would not use", () => {

@@ -53,6 +53,15 @@ The Blaze plan is pay-as-you-go, but a single-user Alfred stays almost entirely 
 
 Set a budget alert anyway (Google Cloud console → **Billing** → **Budgets & alerts**, e.g. $5), so an unexpected spike reaches your inbox.
 
+### Permissions and data
+
+Everything runs in your own Google Cloud project; nothing is sent to the author.
+
+- **Google (optional, only if you connect it in the app):** `calendar.events`, `tasks`, `gmail.readonly`, `gmail.compose` and `userinfo.email`. The tokens are stored in your Firestore. **Alfred can send e-mail on your behalf** (`gmail` tool, `send_message`) without a separate confirmation step, as well as create drafts. E-mails it reads are untrusted text that could try to steer the model (prompt injection), so connect Gmail only if you accept that; disconnecting in the app removes the tokens.
+- **GitHub (optional):** read-only, with a token you set as `GITHUB_TOKEN`.
+- **Model providers:** each turn sends the conversation, your profile digest, recalled memories and any tool results (for example an e-mail you asked about) to the provider that answers it: EVREN, Groq or Gemini, depending on which keys you set. Long-term memory extraction also goes to one of them, and memory embeddings to Gemini when a Gemini key is set.
+- **Web search (optional):** the search query goes to Tavily.
+
 ### Run locally
 
 For development you need Node.js 22 (`nvm use`) and the Firebase CLI.
@@ -144,7 +153,7 @@ Each of these came from a measurement or an incident, and most are pinned by a t
 ## Security model
 
 - Google Sign-In only, a single allowed owner, enforced on the server. The client-side check is only for UX.
-- Every request carries a verified ID token and an App Check token. The user is always the token's UID, never a request field.
+- Every request carries a verified ID token, plus an App Check token once App Check is set up (a fresh install starts with it off). The user is always the token's UID, never a request field.
 - LLM, search and OAuth keys are bound from Secret Manager; there are none in the repository or the browser.
 - Structured logs record events, providers and timings, but never message text, keys or tokens. Cloud Monitoring alerts are built on those events ([OPERATIONS.md](docs/OPERATIONS.md)).
 - An optional weekly workflow exports Firestore encrypted once you add its secrets; Gitleaks, CodeQL and Dependabot guard the repository.

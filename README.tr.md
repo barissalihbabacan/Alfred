@@ -53,6 +53,15 @@ Blaze planı kullandıkça öde, ama tek kullanıcılı bir Alfred Firebase'in �
 
 Yine de bir bütçe uyarısı kur (Google Cloud konsolu → **Billing** → **Budgets & alerts**, örneğin 5 dolar); beklenmedik bir artış olursa e-postana gelir.
 
+### İzinler ve veri
+
+Her şey senin Google Cloud projende çalışır; geliştiriciye hiçbir veri gitmez.
+
+- **Google (isteğe bağlı, yalnızca uygulamada bağlarsan):** `calendar.events`, `tasks`, `gmail.readonly`, `gmail.compose` ve `userinfo.email`. Token'lar senin Firestore'unda saklanır. **Alfred senin adına e-posta gönderebilir** (`gmail` aracı, `send_message`); ayrı bir onay adımı yoktur, taslak da oluşturabilir. Okuduğu e-postalar modeli yönlendirmeye çalışabilecek güvenilmeyen metinlerdir (prompt injection); Gmail'i bunu kabul ediyorsan bağla. Uygulamada bağlantıyı kesmek token'ları siler.
+- **GitHub (isteğe bağlı):** yalnızca okuma, `GITHUB_TOKEN` olarak verdiğin token ile.
+- **Model sağlayıcıları:** her tur; sohbeti, profil özetini, hatırlanan anıları ve araç sonuçlarını (örneğin sorduğun bir e-postayı) o turu cevaplayan sağlayıcıya gönderir: hangi anahtarları verdiysen EVREN, Groq ya da Gemini. Uzun süreli bellek çıkarımı da bunlardan birine, bellek embedding'leri ise Gemini anahtarı varsa Gemini'ye gider.
+- **Web araması (isteğe bağlı):** arama sorgusu Tavily'ye gider.
+
 ### Yerelde çalıştır
 
 Geliştirme için Node.js 22 (`nvm use`) ve Firebase CLI gerekir.
@@ -148,7 +157,7 @@ Bunların her biri bir ölçümden ya da bir olaydan çıktı; çoğu bir testle
 ## Güvenlik modeli
 
 - Yalnızca Google ile giriş ve tek bir izinli sahip; kontrol sunucuda yapılır, istemcideki kontrol yalnızca kullanıcı deneyimi içindir.
-- Her istek doğrulanmış bir ID token'ı ve App Check token'ı taşır. Kullanıcı her zaman token'daki UID'dir, istekteki bir alan değil.
+- Her istek doğrulanmış bir ID token'ı, App Check kurulduktan sonra da App Check token'ı taşır (yeni kurulumda App Check kapalı başlar). Kullanıcı her zaman token'daki UID'dir, istekteki bir alan değil.
 - LLM, arama ve OAuth anahtarları Secret Manager'dan bağlanır; repoda da tarayıcıda da anahtar yoktur.
 - Yapılandırılmış log'lar olayları, sağlayıcıları ve süreleri kaydeder; mesaj metnini, anahtarları ve token'ları asla kaydetmez. Cloud Monitoring alarmları bu olaylar üzerine kurulu ([OPERATIONS.md](docs/OPERATIONS.md)).
 - İsteğe bağlı haftalık bir workflow, secret'larını eklediğinde Firestore'u şifreli olarak yedekler; repoyu Gitleaks, CodeQL ve Dependabot korur.

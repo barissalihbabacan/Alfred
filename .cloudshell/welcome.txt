@@ -1,11 +1,32 @@
+[H[2J[3J
+  [1;38;5;220m █████  ██      ███████ ██████  ███████ ██████ [0m
+  [1;38;5;220m██   ██ ██      ██      ██   ██ ██      ██   ██[0m
+  [1;38;5;220m███████ ██      █████   ██████  █████   ██   ██[0m
+  [1;38;5;220m██   ██ ██      ██      ██   ██ ██      ██   ██[0m
+  [1;38;5;220m██   ██ ███████ ██      ██   ██ ███████ ██████ [0m
 
-  Alfred Setup
-  ------------
-  Start the setup wizard:      bash .cloudshell/start.sh
-  Kurulum sihirbazini baslat:  bash .cloudshell/start.sh
+  [1;97mWelcome to Alfred Setup[0m
 
-  Tip: in the tutorial on the right, click the Cloud Shell icon next to the
-  command; it is typed here for you. Then press Enter.
-  No tutorial on the right?  cloudshell launch-tutorial .cloudshell/tutorial.md
-  Sagda egitim yok mu?       cloudshell launch-tutorial .cloudshell/tutorial.md
+  This wizard installs your own Alfred in a Google Cloud project: it sets up
+  the project, billing, Firebase, Firestore and your API keys, then builds
+  and deploys the web app. It takes about 15 minutes; a billing account is
+  required. Sign in or press Authorize if Cloud Shell asks.
+
+  [1;97mStart the wizard:[0m  [1;30;48;5;220m   bash .cloudshell/start.sh   [0m
+  [2mType or paste it below and press Enter.[0m
+  [2mText too small? Settings (gear) > Text size, or Ctrl/Cmd and +.[0m
+
+  [2m────────────────────────────────────────────────────────────────────────────[0m
+
+  [1;97mAlfred Kurulumuna hoş geldin[0m
+
+  Bu sihirbaz kendi Alfred'ini bir Google Cloud projesine kurar: projeyi,
+  faturalandırmayı, Firebase'i, Firestore'u ve API anahtarlarını ayarlar,
+  ardından web uygulamasını derleyip yayınlar. Yaklaşık 15 dakika sürer;
+  bir faturalandırma hesabı gerekir. Cloud Shell isterse giriş yap ya da
+  Authorize'a bas.
+
+  [1;97mSihirbazı başlat:[0m  [1;30;48;5;220m   bash .cloudshell/start.sh   [0m
+  [2mAşağıya yaz ya da yapıştır, Enter'a bas.[0m
+  [2mYazı küçük mü? Ayarlar (dişli) > Text size, ya da Ctrl/Cmd ve +.[0m
 

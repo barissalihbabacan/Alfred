@@ -29,7 +29,7 @@ Aynı zamanda böyle bir asistanın nasıl kurulacağına dair, production'da s�
 ## Kendi Alfred'ini kur
 
 <p align="center">
-  <a href="https://ssh.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https://github.com/barissalihbabacan/Alfred&cloudshell_image=ghcr.io/barissalihbabacan/alfred-setup&shellonly=true&cloudshell_tutorial=.cloudshell/tutorial.md"><img src="./assets/readme/tr/setup-button.svg" width="320" alt="Alfred Kurulumunu Başlat (Google Cloud Shell'de açılır)"></a>
+  <a href="https://ssh.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https://github.com/barissalihbabacan/Alfred&cloudshell_tutorial=.cloudshell/tutorial.md"><img src="./assets/readme/tr/setup-button.svg" width="320" alt="Alfred Kurulumunu Başlat (Google Cloud Shell'de açılır)"></a>
 </p>
 
 <p align="center">
@@ -38,7 +38,7 @@ Aynı zamanda böyle bir asistanın nasıl kurulacağına dair, production'da s�
 
 **Alfred Kurulumu**, Rust ile yazılmış bir terminal sihirbazı. Google Cloud Shell'de çalıştığı için bilgisayarına hiçbir şey kurman gerekmez. Faturalandırma hesabı olan bir Google hesabı (Cloud Functions, Firebase'in Blaze planını gerektirir) ve elindeki model anahtarları yeterli; anahtarların hepsi isteğe bağlı, sonradan da eklenebilir.
 
-1. **Alfred Kurulumunu Başlat** butonuna tıkla. Cloud Shell, Alfred'in kurulum imajını açar ve ona güvenip güvenmediğini sorar: **Trust** seç (sorulursa **Authorize**'a da bas). Sihirbaz terminalde kendiliğinden başlar.
+1. **Alfred Kurulumunu Başlat** butonuna tıkla. Cloud Shell bu repoyu klonlar ve kısa bir tutorial açar: oradaki `bash .cloudshell/start.sh` komutuna tıkla, **Enter**'a bas ve istenirse giriş yap ya da **Authorize**'a bas. Sihirbaz terminalde başlar.
 2. Bir proje ID'si gir (ya da Ctrl+G ile ürettir), faturalandırma hesabını ve Firestore bölgesini seç; ardından adını, Google hesabını ve elindeki API anahtarlarını yaz.
 3. Özet ekranında **Enter**'a bas. Canlı log, projeden deploy'a kadar her adımı gösterir.
 4. Sihirbazın sonunda listelediği konsol adımlarını (örneğin Google ile girişi açmak) tamamla, ardından `https://<proje-id>.web.app` adresini aç.

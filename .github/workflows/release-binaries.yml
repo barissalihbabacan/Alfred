@@ -1,0 +1,55 @@
+name: Release binaries
+
+# Builds the alfred-setup wizard for Cloud Shell (Linux x86_64, static musl) and
+# attaches it, with a SHA256SUMS file, to the GitHub release. .cloudshell/start.sh
+# downloads both from the latest release.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build and upload to (e.g. v0.1.0)
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: alfred-setup (x86_64-unknown-linux-musl)
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      TARGET: x86_64-unknown-linux-musl
+    steps:
+      - name: Checkout the release tag
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install the musl target and linker
+        run: |
+          rustup target add "$TARGET"
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Build
+        run: cargo build --release --locked --target "$TARGET" --manifest-path crates/alfred-setup/Cargo.toml
+
+      - name: Package with checksums
+        run: |
+          mkdir dist
+          cp "crates/alfred-setup/target/$TARGET/release/alfred-setup" "dist/alfred-setup-$TARGET"
+          cd dist
+          sha256sum "alfred-setup-$TARGET" > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Upload to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" dist/* --clobber --repo "$GITHUB_REPOSITORY"

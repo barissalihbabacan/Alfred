@@ -2,22 +2,11 @@ name: CI (Typecheck & Unit Tests)
 
 on:
   pull_request:
-  # Pushes to main that deploy.yml's path filter ignores (tests, scripts,
-  # tooling config) are still verified here; deploy.yml covers the rest.
+  # Every push to main is verified too. There is no deploy workflow in this
+  # template: each instance deploys itself (see CLAUDE.md, Deployment).
   push:
     branches:
       - main
-    paths:
-      - "crates/**"
-      - "setup-ui/**"
-      - "tests/**"
-      - "scripts/**"
-      - "users/**"
-      - "tsconfig.json"
-      - "tsconfig.tests.json"
-      - "vitest.config.ts"
-      - "eslint.config.js"
-      - "rust-toolchain.toml"
   workflow_call:
   workflow_dispatch:
 
@@ -79,7 +68,9 @@ jobs:
         run: npm run check:bundle --prefix functions
 
       # apps/web is the production front end (static export served by Hosting),
-      # so a broken web build must fail CI and therefore block the deploy.
+      # so a broken web build must fail CI. No NEXT_PUBLIC_FIREBASE_* values are
+      # set here: the build-time config check only runs on deploy (firebase.json
+      # hosting predeploy sets VALIDATE_FIREBASE_CONFIG=true).
       - name: Web Typecheck
         run: npx tsc -p apps/web/tsconfig.json --noEmit
 

@@ -2,24 +2,27 @@ import { describe, it, expect, afterAll } from "vitest";
 import { ALLOWED_UID } from "../../apps/web/lib/allowed-uid.js";
 import { OFFLINE } from "./prerequisites.js";
 
-// Runs against production (https://butler-alfred.web.app). Every /api endpoint
-// except /health requires a Firebase ID token for ALLOWED_UID, so the chat
-// tests need credentials. They are resolved in this order:
+// Runs against a deployed instance: ALFRED_PROD_BASE_URL (e.g.
+// https://<your-project-id>.web.app). Without it nothing here runs. Every /api
+// endpoint except /health requires a Firebase ID token for ALLOWED_UID
+// (NEXT_PUBLIC_ALLOWED_UID), so the chat tests need credentials. They are
+// resolved in this order:
 //   1. ALFRED_TEST_ID_TOKEN — a Firebase ID token for the allowed user
 //      (e.g. copied from the browser: `await firebase.auth().currentUser.getIdToken()`).
-//   2. GOOGLE_APPLICATION_CREDENTIALS — a service-account key for butler-alfred;
-//      a custom token is minted for ALLOWED_UID and exchanged for an ID token.
+//   2. GOOGLE_APPLICATION_CREDENTIALS — a service-account key for that project
+//      plus NEXT_PUBLIC_FIREBASE_API_KEY; a custom token is minted for
+//      ALLOWED_UID and exchanged for an ID token.
 // Without either, the authenticated tests are skipped (the unauthenticated
 // checks still run). With ALFRED_OFFLINE=1 (CI) nothing here runs: CI must
 // never hit production.
 
-const BASE = process.env.ALFRED_PROD_BASE_URL || "https://butler-alfred.web.app";
-// Public Firebase web config key (same value as apps/web/lib/firebase.ts); not a secret.
-const FIREBASE_WEB_API_KEY =
-  process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyB2v-fk_DTVTRu4s2yuxScH-c9gSdNcRGQ";
+const BASE = (process.env.ALFRED_PROD_BASE_URL || "").trim().replace(/\/+$/, "");
+// Public Firebase web config key of the target project; not a secret.
+const FIREBASE_WEB_API_KEY = (process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "").trim();
 
 const hasCredentials = Boolean(
-  process.env.ALFRED_TEST_ID_TOKEN || process.env.GOOGLE_APPLICATION_CREDENTIALS
+  process.env.ALFRED_TEST_ID_TOKEN ||
+    (process.env.GOOGLE_APPLICATION_CREDENTIALS && FIREBASE_WEB_API_KEY)
 );
 
 async function getIdToken(): Promise<string> {
@@ -29,7 +32,8 @@ async function getIdToken(): Promise<string> {
   const { getAuth } = await import("firebase-admin/auth");
   const app =
     getApps().find((a) => a.name === "prod-regression") ??
-    initializeApp({ credential: applicationDefault(), projectId: "butler-alfred" }, "prod-regression");
+    // The project comes from the service-account key.
+    initializeApp({ credential: applicationDefault() }, "prod-regression");
   const customToken = await getAuth(app).createCustomToken(ALLOWED_UID);
 
   const res = await fetch(
@@ -47,7 +51,7 @@ async function getIdToken(): Promise<string> {
   return body.idToken;
 }
 
-describe.skipIf(OFFLINE)("Production API auth gate (no credentials needed)", () => {
+describe.skipIf(OFFLINE || !BASE)("Production API auth gate (no credentials needed)", () => {
   it("rejects unauthenticated conversation reads with 401", async () => {
     const res = await fetch(`${BASE}/api/conversations`);
     expect(res.status).toBe(401);
@@ -75,7 +79,7 @@ describe.skipIf(OFFLINE)("Production API auth gate (no credentials needed)", () 
   });
 });
 
-describe.skipIf(OFFLINE || !hasCredentials)("Production Chat SSE Regression Tests (authenticated)", () => {
+describe.skipIf(OFFLINE || !BASE || !hasCredentials)("Production Chat SSE Regression Tests (authenticated)", () => {
   const createdConversations: string[] = [];
 
   afterAll(async () => {

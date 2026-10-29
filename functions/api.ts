@@ -110,6 +110,14 @@ const ALLOWED_EMAIL = (process.env.ALLOWED_EMAIL || "").toLowerCase().trim();
 const ENFORCE_APP_CHECK =
   process.env.ENFORCE_APP_CHECK !== "false" && !process.env.FUNCTIONS_EMULATOR;
 
+// Web istemcisi redirectUri'yi her zaman kendi origin'inden gonderir; bu yalnizca
+// eksik geldiginde kullanilir. Proje, Functions calisma ortaminin verdigi
+// GCLOUD_PROJECT'ten gelir (sabit bir proje adi yok).
+function defaultGoogleRedirectUri() {
+  const projectId = (process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "").trim();
+  return projectId ? `https://${projectId}.web.app/auth/google/callback` : "";
+}
+
 // Izleme icin token'siz erisilebilen yollar: saglik kontrolu ve kok.
 function isAppCheckExempt(path) {
   return path.endsWith("/health") || path === "/" || path === "" || path === "/api" || path === "/api/";
@@ -630,7 +638,11 @@ export const api = onRequest({
         res.status(503).json({ error: "Google OAuth is not configured on the server." });
         return;
       }
-      const redirectUri = (req.query?.redirectUri || "https://butler-alfred.web.app/auth/google/callback").toString();
+      const redirectUri = (req.query?.redirectUri || defaultGoogleRedirectUri()).toString();
+      if (!redirectUri) {
+        res.status(400).json({ error: "'redirectUri' is required." });
+        return;
+      }
       const state = Buffer.from(JSON.stringify({ userId, redirectUri, timestamp: Date.now() })).toString("base64url");
       const url = buildGoogleAuthUrl(googleClientId, redirectUri, state);
       res.status(200).json({ success: true, url });
@@ -646,7 +658,11 @@ export const api = onRequest({
           return;
         }
 
-        const safeRedirectUri = redirectUri || "https://butler-alfred.web.app/auth/google/callback";
+        const safeRedirectUri = redirectUri || defaultGoogleRedirectUri();
+        if (!safeRedirectUri) {
+          res.status(400).json({ error: "'redirectUri' is required." });
+          return;
+        }
         const tokens = await exchangeCodeForTokens({
           code,
           clientId: googleClientId,

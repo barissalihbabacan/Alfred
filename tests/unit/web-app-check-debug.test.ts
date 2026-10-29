@@ -8,7 +8,7 @@ import { resolveAppCheckDebugToken } from "../../apps/web/lib/app-check-debug";
 
 describe("resolveAppCheckDebugToken", () => {
   it("never enables debug mode on the production site", () => {
-    for (const hostname of ["butler-alfred.web.app", "butler-alfred.firebaseapp.com", "example.com"]) {
+    for (const hostname of ["demo-alfred.web.app", "demo-alfred.firebaseapp.com", "example.com"]) {
       expect(resolveAppCheckDebugToken({ hostname, nodeEnv: "production", envToken: undefined })).toBeUndefined();
       expect(resolveAppCheckDebugToken({ hostname, nodeEnv: "production", envToken: "some-token" })).toBeUndefined();
     }

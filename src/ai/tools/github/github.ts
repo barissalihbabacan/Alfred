@@ -331,7 +331,7 @@ async function getJson(url: string, options: GitHubOptions, signal: AbortSignal)
   const headers: Record<string, string> = {
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
-    "User-Agent": "butler-alfred"
+    "User-Agent": "alfred-assistant"
   };
   if (options.token) headers.Authorization = `Bearer ${options.token}`;
   const res = await options.fetch(url, { method: "GET", headers, signal });

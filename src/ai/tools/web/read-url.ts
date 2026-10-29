@@ -289,7 +289,7 @@ export async function runReadUrlTool(args: unknown, options: ReadUrlOptions): Pr
         redirect: "manual",
         signal,
         headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; ButlerAlfred/1.0; +https://butler-alfred.web.app)",
+          "User-Agent": "Mozilla/5.0 (compatible; Alfred/1.0; +https://github.com/barissalihbabacan/Alfred)",
           Accept: "text/html,application/xhtml+xml,text/plain;q=0.9,application/json;q=0.8,*/*;q=0.5",
           "Accept-Language": "tr-TR,tr;q=0.9,en;q=0.8"
         }

@@ -11,8 +11,8 @@
 # Dry-run by default: it only runs read-only lookups and prints what it would
 # create or update. Pass --apply to make changes.
 #
-#   ./scripts/monitoring/setup-alerts.sh --project butler-alfred --email you@example.com
-#   ./scripts/monitoring/setup-alerts.sh --project butler-alfred --email you@example.com --apply
+#   ./scripts/monitoring/setup-alerts.sh --project <your-project-id> --email you@example.com
+#   ./scripts/monitoring/setup-alerts.sh --project <your-project-id> --email you@example.com --apply
 #
 # See docs/OPERATIONS.md for what each alert means and what to do about it.
 set -euo pipefail

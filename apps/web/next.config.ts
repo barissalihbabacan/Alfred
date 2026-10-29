@@ -8,14 +8,16 @@ import type { NextConfig } from "next";
  *
  * `next dev` sirasinda ayni /api/** yollari ALFRED_API_ORIGIN'e proxy'lenir,
  * boylece yerel gelistirmede de istekler ayni origin'den gider (CORS ve DELETE
- * preflight sorunu olmaz). Varsayilan hedef Functions emulator'udur; canli
- * backend'e baglanmak icin ALFRED_API_ORIGIN=https://butler-alfred.web.app/api
- * verilebilir.
+ * preflight sorunu olmaz). Varsayilan hedef Functions emulator'udur (proje
+ * NEXT_PUBLIC_FIREBASE_PROJECT_ID'den, yoksa `demo-alfred`); canli backend'e
+ * baglanmak icin ALFRED_API_ORIGIN=https://<proje-id>.web.app/api verilebilir.
  */
 const isDev = process.env.NODE_ENV === "development";
 
+const emulatorProjectId = (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "").trim() || "demo-alfred";
+
 const apiOrigin = (
-  process.env.ALFRED_API_ORIGIN || "http://127.0.0.1:5001/butler-alfred/us-central1/api"
+  process.env.ALFRED_API_ORIGIN || `http://127.0.0.1:5001/${emulatorProjectId}/us-central1/api`
 ).replace(/\/+$/, "");
 
 const nextConfig: NextConfig = {

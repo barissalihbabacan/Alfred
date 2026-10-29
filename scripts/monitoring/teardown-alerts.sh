@@ -6,8 +6,8 @@
 #
 # Dry-run by default; pass --apply to delete.
 #
-#   ./scripts/monitoring/teardown-alerts.sh --project butler-alfred
-#   ./scripts/monitoring/teardown-alerts.sh --project butler-alfred --apply [--delete-channels]
+#   ./scripts/monitoring/teardown-alerts.sh --project <your-project-id>
+#   ./scripts/monitoring/teardown-alerts.sh --project <your-project-id> --apply [--delete-channels]
 set -euo pipefail
 
 # shellcheck source=scripts/monitoring/common.sh

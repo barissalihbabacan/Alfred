@@ -30,7 +30,8 @@ const SECRETS: Record<string, string> = {
   "Bearer token (20 chars)": "Authorization: Bearer abcdefghijklmnopqrstuv",
   "JWT": "token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N",
   "Slack token": "slack xoxb-1234567890abcdef",
-  "Legacy Google key": "Firebase key AIzaSyB2v-fk_DTVTRu4s2yuxScH-c9gSdNcRGQ",
+  // Fake key, split so secret scanners don't flag the test file.
+  "Legacy Google key": "Firebase key AIza" + "SyFAKE-test_key00000000000000000000",
   "short password assignment": "my password: abc",
   "long password assignment": "password: superSecretPassword123",
   "access_token assignment": "access_token=abcdef123456",

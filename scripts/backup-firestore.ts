@@ -5,7 +5,8 @@
  *
  * Credentials: Application Default Credentials (GOOGLE_APPLICATION_CREDENTIALS,
  * set by google-github-actions/auth in .github/workflows/backup.yml). The
- * project id comes from the credentials, GCLOUD_PROJECT or .firebaserc.
+ * project id comes from GCLOUD_PROJECT / GOOGLE_CLOUD_PROJECT (the auth action
+ * exports the key's project) or, locally, from your untracked .firebaserc.
  *
  * Prints document counts only, never document content: the workflow log of a
  * public repository is public. The workflow encrypts the file before storing it.
@@ -29,7 +30,7 @@ async function main(): Promise<void> {
   const outIdx = args.indexOf("--out");
   const out = outIdx !== -1 && args[outIdx + 1] ? args[outIdx + 1] : "firestore-backup.json";
   const projectId = process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || projectIdFromFirebaserc();
-  if (!projectId) throw new Error("No project id: set GCLOUD_PROJECT or .firebaserc projects.default.");
+  if (!projectId) throw new Error("No project id: set GCLOUD_PROJECT=<your-project-id> or run `firebase use <your-project-id>` with an alias in .firebaserc.");
 
   initializeApp({ credential: applicationDefault(), projectId });
   const db = getFirestore();

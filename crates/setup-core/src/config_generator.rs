@@ -108,16 +108,24 @@ pub fn generate_cloud_shell_script(config: &SetupConfig) -> String {
     script.push_str("# Helper to create or update secrets in Google Secret Manager\n");
     script.push_str("create_or_update_secret() {\n");
     script.push_str("  local secret_name=\"$1\"\n");
-    script.push_str("  local secret_value=\"${2:-placeholder}\"\n");
-    script.push_str("  if [ -z \"$secret_value\" ]; then\n");
-    script.push_str("    secret_value=\"placeholder\"\n");
-    script.push_str("  fi\n");
+    script.push_str("  local secret_value=\"${2:-}\"\n");
     script.push_str("  if ! gcloud secrets describe \"$secret_name\" >/dev/null 2>&1; then\n");
     script.push_str("    echo \"  Creating secret container: $secret_name...\"\n");
     script.push_str("    gcloud secrets create \"$secret_name\" --replication-policy=automatic\n");
+    script.push_str("    local initial_val=\"$secret_value\"\n");
+    script.push_str("    if [ -z \"$initial_val\" ]; then\n");
+    script.push_str("      initial_val=\"unset\"\n");
+    script.push_str("    fi\n");
+    script.push_str("    echo \"  Initializing version for: $secret_name...\"\n");
+    script.push_str("    printf '%s' \"$initial_val\" | gcloud secrets versions add \"$secret_name\" --data-file=-\n");
+    script.push_str("  else\n");
+    script.push_str("    if [ -n \"$secret_value\" ] && [ \"$secret_value\" != \"unset\" ]; then\n");
+    script.push_str("      echo \"  Updating secret with user-provided key: $secret_name...\"\n");
+    script.push_str("      printf '%s' \"$secret_value\" | gcloud secrets versions add \"$secret_name\" --data-file=-\n");
+    script.push_str("    else\n");
+    script.push_str("      echo \"  Secret $secret_name already exists; preserving existing secret version.\"\n");
+    script.push_str("    fi\n");
     script.push_str("  fi\n");
-    script.push_str("  echo \"  Writing secret version: $secret_name...\"\n");
-    script.push_str("  printf '%s' \"$secret_value\" | gcloud secrets versions add \"$secret_name\" --data-file=-\n");
     script.push_str("}\n\n");
 
     script.push_str("echo \"🛡️ [Alfred Setup] Provisioning Secret Manager vault...\"\n");
@@ -141,7 +149,7 @@ pub fn generate_cloud_shell_script(config: &SetupConfig) -> String {
 
     script.push_str("echo \"🚀 [Alfred Setup] Deploying to Firebase (Hosting, Functions & Security Rules)...\"\n");
     script.push_str(&format!("npx --yes firebase-tools use \"{}\"\n", config.project_id.trim()));
-    script.push_str("npx --yes firebase-tools deploy --only hosting,functions,firestore:rules,firestore:indexes\n\n");
+    script.push_str("npx --yes firebase-tools deploy --only hosting,functions,firestore:rules,firestore:indexes --force\n\n");
 
     script.push_str("echo \"\"\n");
     script.push_str("echo \"===================================================================\"\n");
@@ -202,5 +210,30 @@ mod tests {
         assert!(script.contains("create_or_update_secret \"GROQ_API_KEY\""));
         assert!(script.contains("users/USER_PROFILE.md"));
         assert!(script.contains("https://butler-alfred.web.app"));
+    }
+
+    #[test]
+    fn test_create_or_update_secret_logic() {
+        let config = SetupConfig {
+            project_id: "test-proj".to_string(),
+            allowed_email: "test@example.com".to_string(),
+            allowed_uid: "uid123".to_string(),
+            groq_api_key: "gsk_live".to_string(),
+            gemini_api_key: "".to_string(),
+            tavily_api_key: "".to_string(),
+            evren_api_key: None,
+            ollama_url: None,
+        };
+
+        let script = generate_cloud_shell_script(&config);
+        // Verify unset fallback is used for unconfigured secrets on creation
+        assert!(script.contains("initial_val=\"unset\""));
+        // Verify that existing secrets are preserved when value is empty or unset
+        assert!(script.contains("Secret $secret_name already exists; preserving existing secret version."));
+        // Verify placeholder is not used anywhere
+        assert!(!script.contains("placeholder"));
+        // Verify empty secrets for OAuth are passed as ""
+        assert!(script.contains("create_or_update_secret \"GOOGLE_OAUTH_CLIENT_ID\" \"\""));
+        assert!(script.contains("create_or_update_secret \"GOOGLE_OAUTH_CLIENT_SECRET\" \"\""));
     }
 }

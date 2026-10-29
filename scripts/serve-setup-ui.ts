@@ -1,5 +1,6 @@
 import http from "node:http";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 
@@ -29,8 +30,9 @@ const server = http.createServer(async (req, res) => {
     req.on("end", () => {
       try {
         const payload = JSON.parse(body);
-        const scriptPath = path.resolve(process.cwd(), ".provision-temp.sh");
-        fs.writeFileSync(scriptPath, payload.script, { mode: 0o755 });
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "alfred-provision-"));
+        const scriptPath = path.join(tmpDir, "provision.sh");
+        fs.writeFileSync(scriptPath, payload.script, { mode: 0o700 });
 
         console.log(`[Alfred Setup Server] Spawning provisioning script with live streaming...`);
 
@@ -56,10 +58,14 @@ const server = http.createServer(async (req, res) => {
           res.write(chunk);
         });
 
-        child.on("close", (code) => {
+        const cleanupTemp = () => {
           try {
-            fs.unlinkSync(scriptPath);
+            fs.rmSync(tmpDir, { recursive: true, force: true });
           } catch {}
+        };
+
+        child.on("close", (code) => {
+          cleanupTemp();
 
           if (code === 0) {
             res.write(`\n[SUCCESS] Alfred deployed successfully! Check https://${payload.projectId}.web.app\n`);
@@ -70,9 +76,7 @@ const server = http.createServer(async (req, res) => {
         });
 
         child.on("error", (err: Error) => {
-          try {
-            fs.unlinkSync(scriptPath);
-          } catch {}
+          cleanupTemp();
           res.write(`\n[ERROR] Failed to execute setup script: ${err.message}\n`);
           res.end();
         });
@@ -124,11 +128,11 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
-server.listen(PORT, "0.0.0.0", () => {
+server.listen(PORT, "127.0.0.1", () => {
   console.log("===================================================================");
   console.log("🦇 Alfred — Interactive Setup-UI (Rust WebAssembly Core)");
   console.log("===================================================================");
-  console.log(`Server listening on http://0.0.0.0:${PORT}`);
+  console.log(`Server listening on http://127.0.0.1:${PORT}`);
   console.log("");
   console.log("👉 In Google Cloud Shell:");
   console.log("   Click 'Web Preview' (top right) -> 'Preview on port 8080'");

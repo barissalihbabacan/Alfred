@@ -261,7 +261,9 @@ function populateReview() {
   if (!wizard) return;
 
   const script = wizard.get_provisioning_script();
-  scriptPreview.textContent = script;
+  if (scriptPreview) {
+    scriptPreview.textContent = script;
+  }
 
   const projectId = inputProjectId.value.trim();
   const allowedEmail = inputAllowedEmail.value.trim();
@@ -344,35 +346,39 @@ async function executeProvisioning() {
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    let isSuccess = false;
+    let fullOutput = "";
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
 
       const chunk = decoder.decode(value, { stream: true });
-      consoleOutput.textContent += chunk;
+      fullOutput += chunk;
+      consoleOutput.textContent = fullOutput;
       consoleOutput.scrollTop = consoleOutput.scrollHeight;
 
-      // Update stage badge based on log keywords
-      if (chunk.includes("Creating it in Google Cloud") || chunk.includes("Create in progress")) {
-        consoleStageText.textContent = "🚀 Creating Google Cloud project...";
-      } else if (chunk.includes("Linking") || chunk.includes("billing account")) {
-        consoleStageText.textContent = "💳 Linking Google Cloud billing account...";
-      } else if (chunk.includes("Enabling required Google Cloud")) {
-        consoleStageText.textContent = "🔑 Enabling Cloud APIs & Firestore...";
-      } else if (chunk.includes("Ensuring Firebase is enabled") || chunk.includes("Adding Firebase resources")) {
-        consoleStageText.textContent = "🔥 Configuring Firebase project...";
-      } else if (chunk.includes("Provisioning Secret Manager vault")) {
-        consoleStageText.textContent = "🛡️ Writing Secret Manager credentials...";
-      } else if (chunk.includes("Deploying to Firebase")) {
+      // Update stage badge based on cumulative output
+      if (fullOutput.includes("Deploying to Firebase")) {
         consoleStageText.textContent = "🚀 Deploying Web App & Cloud Functions...";
-      }
-
-      if (chunk.includes("[SUCCESS]") || chunk.includes("successfully provisioned and deployed")) {
-        isSuccess = true;
+      } else if (fullOutput.includes("Provisioning Secret Manager vault")) {
+        consoleStageText.textContent = "🛡️ Writing Secret Manager credentials...";
+      } else if (fullOutput.includes("Ensuring Firebase is enabled") || fullOutput.includes("Adding Firebase resources")) {
+        consoleStageText.textContent = "🔥 Configuring Firebase project...";
+      } else if (fullOutput.includes("Enabling required Google Cloud")) {
+        consoleStageText.textContent = "🔑 Enabling Cloud APIs & Firestore...";
+      } else if (fullOutput.includes("Linking") || fullOutput.includes("billing account")) {
+        consoleStageText.textContent = "💳 Linking Google Cloud billing account...";
+      } else if (fullOutput.includes("Creating it in Google Cloud") || fullOutput.includes("Create in progress")) {
+        consoleStageText.textContent = "🚀 Creating Google Cloud project...";
       }
     }
+
+    // Flush any remaining decoder stream bytes
+    fullOutput += decoder.decode();
+    consoleOutput.textContent = fullOutput;
+
+    // Check completion status from accumulated stream
+    const isSuccess = fullOutput.includes("[SUCCESS]") || fullOutput.includes("successfully provisioned and deployed");
 
     if (isSuccess) {
       consoleDot.className = "live-dot done";

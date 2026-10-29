@@ -6,6 +6,7 @@ import init, {
   wasm_validate_ollama_url,
   wasm_generate_env,
   wasm_generate_script,
+  wasm_get_summary,
   WasmWizard
 } from "./wasm/alfred_setup_core.js";
 
@@ -17,7 +18,8 @@ const stepPanels = [
   document.getElementById("step-0"),
   document.getElementById("step-1"),
   document.getElementById("step-2"),
-  document.getElementById("step-3")
+  document.getElementById("step-3"),
+  document.getElementById("step-4")
 ];
 const stepNavItems = document.querySelectorAll(".step-item");
 const btnPrev = document.getElementById("btn-prev");
@@ -27,6 +29,8 @@ const footerStatus = document.getElementById("footer-status");
 // Inputs
 const inputProjectId = document.getElementById("project-id");
 const btnGenerateProject = document.getElementById("btn-generate-project");
+const selectBillingAccount = document.getElementById("billing-account");
+const selectFirestoreRegion = document.getElementById("firestore-region");
 const inputAllowedEmail = document.getElementById("allowed-email");
 const inputAllowedUid = document.getElementById("allowed-uid");
 const inputGroqKey = document.getElementById("groq-key");
@@ -53,6 +57,11 @@ const btnDownloadEnv = document.getElementById("btn-download-env");
 const btnExecuteProvision = document.getElementById("btn-execute-provision");
 const executionStatus = document.getElementById("execution-status");
 
+// Post-setup elements
+const linkFirebaseAuth = document.getElementById("link-firebase-auth");
+const linkFirebaseAppCheck = document.getElementById("link-firebase-appcheck");
+const linkDeployedApp = document.getElementById("link-deployed-app");
+
 // Live Terminal Console Elements
 const liveConsoleContainer = document.getElementById("live-console-container");
 const consoleOutput = document.getElementById("console-output");
@@ -69,10 +78,51 @@ async function start() {
     console.log("[Alfred Setup-UI] WebAssembly core initialized successfully.");
     bindEvents();
     renderStep();
+    await loadBillingAccounts();
   } catch (err) {
     console.error("[Alfred Setup-UI] Failed to initialize WASM module:", err);
     footerStatus.textContent = "Error initializing WebAssembly module.";
   }
+}
+
+async function loadBillingAccounts() {
+  if (!selectBillingAccount) return;
+  try {
+    const setupToken = document.querySelector('meta[name="setup-token"]')?.getAttribute("content") || "";
+    const res = await fetch("/api/billing-accounts", {
+      headers: { "X-Setup-Token": setupToken }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.accounts) && data.accounts.length > 0) {
+        selectBillingAccount.innerHTML = `<option value="">⚡ Auto-link first available open billing account</option>`;
+        data.accounts.forEach(acc => {
+          const opt = document.createElement("option");
+          opt.value = acc.id;
+          opt.textContent = `${acc.displayName} (${acc.id})`;
+          selectBillingAccount.appendChild(opt);
+        });
+      }
+    }
+  } catch (err) {
+    console.warn("[Alfred Setup-UI] Could not fetch billing accounts:", err);
+  }
+}
+
+function updatePostSetupLinks(projectId) {
+  const id = projectId || inputProjectId.value.trim() || "your-project";
+  if (linkFirebaseAuth) {
+    linkFirebaseAuth.href = `https://console.firebase.google.com/project/${id}/authentication/providers`;
+  }
+  if (linkFirebaseAppCheck) {
+    linkFirebaseAppCheck.href = `https://console.firebase.google.com/project/${id}/appcheck`;
+  }
+  if (linkDeployedApp) {
+    linkDeployedApp.href = `https://${id}.web.app`;
+  }
+  document.querySelectorAll(".project-domain-preview").forEach(el => {
+    el.textContent = id;
+  });
 }
 
 function bindEvents() {
@@ -84,6 +134,7 @@ function bindEvents() {
       inputProjectId.value = generatedId;
       wizard.set_project_id(generatedId);
       validateField(valProjectId, () => wasm_validate_project_id(generatedId));
+      updatePostSetupLinks(generatedId);
       clearFooterStatus();
     });
   }
@@ -93,8 +144,21 @@ function bindEvents() {
     const val = e.target.value.trim();
     wizard.set_project_id(val);
     validateField(valProjectId, () => wasm_validate_project_id(val));
+    updatePostSetupLinks(val);
     clearFooterStatus();
   });
+
+  if (selectBillingAccount) {
+    selectBillingAccount.addEventListener("change", (e) => {
+      wizard.set_billing_account_id(e.target.value.trim());
+    });
+  }
+
+  if (selectFirestoreRegion) {
+    selectFirestoreRegion.addEventListener("change", (e) => {
+      wizard.set_firestore_region(e.target.value.trim());
+    });
+  }
 
   inputAllowedEmail.addEventListener("input", (e) => {
     const val = e.target.value.trim();
@@ -154,29 +218,28 @@ function bindEvents() {
   inputEvrenKey.addEventListener("input", (e) => {
     const val = e.target.value.trim();
     wizard.set_evren_key(val);
-    if (val.length > 0) {
-      validateField(valEvrenKey, () => wasm_validate_api_key("evren", val));
+    if (!val) {
+      valEvrenKey.className = "validation-message valid";
+      valEvrenKey.textContent = "ℹ️ (Optional) Can be configured later";
     } else {
-      clearValidation(valEvrenKey);
+      validateField(valEvrenKey, () => wasm_validate_api_key("evren", val));
     }
+    clearFooterStatus();
   });
 
   inputOllamaUrl.addEventListener("input", (e) => {
     const val = e.target.value.trim();
     wizard.set_ollama_url(val);
-    if (val) {
-      validateField(valOllamaUrl, () => wasm_validate_ollama_url(val));
+    if (!val) {
+      valOllamaUrl.className = "validation-message valid";
+      valOllamaUrl.textContent = "ℹ️ (Optional) Defaults to http://localhost:11434";
     } else {
-      clearValidation(valOllamaUrl);
+      validateField(valOllamaUrl, () => wasm_validate_ollama_url(val));
     }
+    clearFooterStatus();
   });
 
-  btnPrev.addEventListener("click", () => {
-    if (!wizard) return;
-    wizard.prev_step();
-    renderStep();
-  });
-
+  // Navigation Buttons
   btnNext.addEventListener("click", () => {
     if (!wizard) return;
     try {
@@ -187,21 +250,51 @@ function bindEvents() {
     }
   });
 
-  // Action buttons on step 3
-  btnCopyScript.addEventListener("click", async () => {
+  btnPrev.addEventListener("click", () => {
+    if (!wizard) return;
+    wizard.prev_step();
+    renderStep();
+  });
+
+  // Direct Stepper Nav Clicking
+  stepNavItems.forEach((item) => {
+    item.addEventListener("click", () => {
+      const targetStep = parseInt(item.getAttribute("data-step"), 10);
+      const current = wizard.get_current_step();
+      if (targetStep < current) {
+        while (wizard.get_current_step() > targetStep) {
+          wizard.prev_step();
+        }
+        renderStep();
+      } else if (targetStep > current) {
+        while (wizard.get_current_step() < targetStep) {
+          try {
+            wizard.next_step();
+          } catch {
+            break;
+          }
+        }
+        renderStep();
+      }
+    });
+  });
+
+  // Action Buttons
+  btnCopyScript.addEventListener("click", () => {
     if (!wizard) return;
     const script = wizard.get_provisioning_script();
-    await navigator.clipboard.writeText(script);
-    btnCopyScript.textContent = "✅ Copied to Clipboard!";
-    setTimeout(() => {
-      btnCopyScript.textContent = "📋 Copy Provisioning Script";
-    }, 2000);
+    navigator.clipboard.writeText(script).then(() => {
+      btnCopyScript.textContent = "✓ Copied!";
+      setTimeout(() => {
+        btnCopyScript.textContent = "📋 Copy Provisioning Script";
+      }, 2000);
+    });
   });
 
   btnDownloadEnv.addEventListener("click", () => {
     if (!wizard) return;
     const envContent = wizard.get_env_file();
-    const blob = new Blob([envContent], { type: "text/plain;charset=utf-8" });
+    const blob = new Blob([envContent], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -210,23 +303,24 @@ function bindEvents() {
     URL.revokeObjectURL(url);
   });
 
-  btnExecuteProvision.addEventListener("click", async () => {
-    await executeProvisioning();
+  btnExecuteProvision.addEventListener("click", () => {
+    executeProvisioning();
   });
 }
 
-function validateField(elem, validatorFn) {
+function validateField(elem, validationFn) {
   try {
-    const outcome = validatorFn();
-    if (outcome && typeof outcome === "object" && Array.isArray(outcome.warnings) && outcome.warnings.length > 0) {
+    const outcome = validationFn();
+    const warnings = Array.isArray(outcome?.warnings) ? outcome.warnings : [];
+    if (warnings.length > 0) {
       elem.className = "validation-message warning";
-      elem.textContent = `⚠️ ${outcome.warnings.join(" ")}`;
-      return;
+      elem.textContent = warnings.join("; ");
+    } else {
+      elem.className = "validation-message valid";
+      elem.textContent = "✓ Valid";
     }
-    elem.className = "validation-message valid";
-    elem.textContent = "✓ Valid";
   } catch (err) {
-    elem.className = "validation-message error";
+    elem.className = "validation-message invalid";
     elem.textContent = err.toString();
   }
 }
@@ -247,7 +341,9 @@ function renderStep() {
 
   // Panels
   stepPanels.forEach((panel, idx) => {
-    panel.classList.toggle("active", idx === current);
+    if (panel) {
+      panel.classList.toggle("active", idx === current);
+    }
   });
 
   // Stepper
@@ -259,7 +355,13 @@ function renderStep() {
   // Buttons
   btnPrev.disabled = current === 0;
   if (current === total - 1) {
+    // Step 5: Post-setup checklist
     btnNext.style.display = "none";
+    updatePostSetupLinks();
+  } else if (current === 3) {
+    // Step 4: Review & Deploy
+    btnNext.style.display = "inline-block";
+    btnNext.textContent = "Next: Post-Setup \u2192";
     populateReview();
   } else {
     btnNext.style.display = "inline-block";
@@ -278,6 +380,10 @@ function populateReview() {
   }
 
   const projectId = inputProjectId.value.trim();
+  const region = selectFirestoreRegion?.value || "europe-west1";
+  const billingAcc = selectBillingAccount?.value
+    ? (selectBillingAccount.options[selectBillingAccount.selectedIndex]?.text || selectBillingAccount.value)
+    : "Auto-link first open account";
   const allowedEmail = inputAllowedEmail.value.trim();
   const allowedUid = inputAllowedUid.value.trim();
   const groqKey = inputGroqKey.value.trim();
@@ -298,6 +404,14 @@ function populateReview() {
     <div class="summary-card">
       <div class="summary-label">Target GCP Project</div>
       <div class="summary-value">${escapeHtml(projectId)}</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">Firestore Region</div>
+      <div class="summary-value">${escapeHtml(region)}</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">Billing Account</div>
+      <div class="summary-value">${escapeHtml(billingAcc)}</div>
     </div>
     <div class="summary-card">
       <div class="summary-label">Allowed User</div>
@@ -349,6 +463,8 @@ async function executeProvisioning() {
       body: JSON.stringify({
         config: {
           project_id: projectId,
+          firestore_region: selectFirestoreRegion?.value || "europe-west1",
+          billing_account_id: selectBillingAccount?.value || null,
           allowed_email: inputAllowedEmail.value.trim(),
           allowed_uid: inputAllowedUid.value.trim(),
           groq_api_key: inputGroqKey.value.trim(),
@@ -391,6 +507,10 @@ async function executeProvisioning() {
 
       if (line.includes("Deploying to Firebase")) {
         consoleStageText.textContent = "🚀 Deploying Web App & Cloud Functions...";
+      } else if (line.includes("Building Next.js web application")) {
+        consoleStageText.textContent = "🏗️ Building Next.js 16 Web Application...";
+      } else if (line.includes("Installing dependencies")) {
+        consoleStageText.textContent = "📦 Installing npm dependencies...";
       } else if (line.includes("Provisioning Secret Manager vault")) {
         consoleStageText.textContent = "🛡️ Writing Secret Manager credentials...";
       } else if (line.includes("Ensuring Firebase is enabled") || line.includes("Adding Firebase resources")) {
@@ -437,7 +557,12 @@ async function executeProvisioning() {
       consoleStageText.textContent = "✨ Setup & Deployment Completed!";
       executionStatus.className = "execution-status success";
       const appUrl = resultJson?.url || `https://${escapeHtml(projectId)}.web.app`;
-      executionStatus.innerHTML = `🎉 <strong>Alfred is live!</strong> Open your application: <a href="${escapeHtml(appUrl)}" target="_blank" style="color:var(--gold); text-decoration:underline;">${escapeHtml(appUrl)}</a>`;
+      updatePostSetupLinks(projectId);
+      executionStatus.innerHTML = `🎉 <strong>Alfred is live!</strong> Open your application: <a href="${escapeHtml(appUrl)}" target="_blank" style="color:var(--gold); text-decoration:underline;">${escapeHtml(appUrl)}</a><div style="margin-top:12px;"><button type="button" class="btn btn-gold btn-sm" id="btn-goto-postsetup">View Post-Deployment Checklist &rarr;</button></div>`;
+      document.getElementById("btn-goto-postsetup")?.addEventListener("click", () => {
+        wizard.next_step();
+        renderStep();
+      });
     } else {
       consoleDot.className = "live-dot error";
       consoleStageText.textContent = "⚠️ Deployment encountered an error";

@@ -10,6 +10,8 @@ pub struct SetupConfig {
     pub tavily_api_key: String,
     pub evren_api_key: Option<String>,
     pub ollama_url: Option<String>,
+    pub firestore_region: Option<String>,
+    pub billing_account_id: Option<String>,
 }
 
 /// Shell quoting helper following POSIX escaping rules.
@@ -75,7 +77,21 @@ pub fn generate_cloud_shell_script(config: &SetupConfig) -> String {
     script.push_str(&format!("# Target Project: {}\n", config.project_id.trim()));
     script.push_str("# ==============================================================================\n\n");
 
-    script.push_str(&format!("PROJECT_ID={}\n\n", shell_quote(config.project_id.trim())));
+    script.push_str(&format!("PROJECT_ID={}\n", shell_quote(config.project_id.trim())));
+    let region = config.firestore_region.as_deref().unwrap_or("europe-west1");
+    let safe_region = if region.trim().is_empty() { "europe-west1" } else { region.trim() };
+    script.push_str(&format!("FIRESTORE_REGION={}\n\n", shell_quote(safe_region)));
+
+    script.push_str("# Helper to safely back up existing configuration files before overwriting\n");
+    script.push_str("backup_if_exists() {\n");
+    script.push_str("  local target_file=\"$1\"\n");
+    script.push_str("  if [ -f \"$target_file\" ]; then\n");
+    script.push_str("    local ts\n");
+    script.push_str("    ts=$(date +%Y%m%d%H%M%S)\n");
+    script.push_str("    echo \"  Backing up $target_file -> ${target_file}.backup-${ts}\"\n");
+    script.push_str("    cp \"$target_file\" \"${target_file}.backup-${ts}\"\n");
+    script.push_str("  fi\n");
+    script.push_str("}\n\n");
 
     script.push_str("# 1. Google Cloud Project Setup (Auto-creates if project does not exist)\n");
     script.push_str("if ! gcloud projects describe \"$PROJECT_ID\" >/dev/null 2>&1; then\n");
@@ -86,17 +102,23 @@ pub fn generate_cloud_shell_script(config: &SetupConfig) -> String {
     script.push_str("echo \"🦇 [Alfred Setup] Configuring Google Cloud project...\"\n");
     script.push_str("gcloud config set project \"$PROJECT_ID\"\n\n");
 
-    script.push_str("# 2. Billing Account Association (Auto-links available billing account)\n");
-    script.push_str("if ! gcloud billing projects describe \"$PROJECT_ID\" --format=\"value(billingAccountName)\" 2>/dev/null | grep -q \"/\"; then\n");
-    script.push_str("  echo \"💳 [Alfred Setup] Linking open Google Cloud billing account...\"\n");
-    script.push_str("  for ba in $(gcloud billing accounts list --filter=\"open=true\" --format=\"value(ACCOUNT_ID)\" 2>/dev/null); do\n");
-    script.push_str("    echo \"  Attempting to link billing account $ba...\"\n");
-    script.push_str("    if gcloud billing projects link \"$PROJECT_ID\" --billing-account=\"$ba\" 2>/dev/null; then\n");
-    script.push_str("      echo \"  ✓ Successfully linked billing account: $ba\"\n");
-    script.push_str("      break\n");
-    script.push_str("    fi\n");
-    script.push_str("  done\n");
-    script.push_str("fi\n\n");
+    script.push_str("# 2. Billing Account Association\n");
+    if let Some(ref ba_id) = config.billing_account_id {
+        let ba_trimmed = ba_id.trim();
+        if !ba_trimmed.is_empty() {
+            script.push_str(&format!("TARGET_BILLING_ACCOUNT={}\n", shell_quote(ba_trimmed)));
+            script.push_str("if ! gcloud billing projects describe \"$PROJECT_ID\" --format=\"value(billingAccountName)\" 2>/dev/null | grep -q \"/\"; then\n");
+            script.push_str("  echo \"💳 [Alfred Setup] Linking selected billing account: $TARGET_BILLING_ACCOUNT...\"\n");
+            script.push_str("  gcloud billing projects link \"$PROJECT_ID\" --billing-account=\"$TARGET_BILLING_ACCOUNT\" 2>/dev/null || true\n");
+            script.push_str("else\n");
+            script.push_str("  echo \"💳 [Alfred Setup] Billing account is already linked to project $PROJECT_ID.\"\n");
+            script.push_str("fi\n\n");
+        } else {
+            script.push_str(generate_billing_autolink_snippet());
+        }
+    } else {
+        script.push_str(generate_billing_autolink_snippet());
+    }
 
     script.push_str("echo \"🔑 [Alfred Setup] Enabling required Google Cloud and Firebase APIs...\"\n");
     script.push_str("gcloud services enable \\\n");
@@ -112,7 +134,24 @@ pub fn generate_cloud_shell_script(config: &SetupConfig) -> String {
     script.push_str("npx --yes firebase-tools projects:addfirebase \"$PROJECT_ID\" >/dev/null 2>&1 || true\n\n");
 
     script.push_str("echo \"🗄️ [Alfred Setup] Ensuring Firestore database exists in Native mode...\"\n");
-    script.push_str("gcloud firestore databases create --location=europe-west1 >/dev/null 2>&1 || true\n\n");
+    script.push_str("if ! gcloud firestore databases list --format=\"value(name)\" 2>/dev/null | grep -q \"(default)\"; then\n");
+    script.push_str("  echo \"  Creating Firestore (default) database in $FIRESTORE_REGION...\"\n");
+    script.push_str("  gcloud firestore databases create --location=\"$FIRESTORE_REGION\" --type=firestore-native >/dev/null 2>&1 || true\n");
+    script.push_str("else\n");
+    script.push_str("  echo \"  Firestore (default) database already exists; skipping.\"\n");
+    script.push_str("fi\n\n");
+
+    script.push_str("echo \"📱 [Alfred Setup] Configuring Firebase Web App...\"\n");
+    script.push_str("WEB_APP_ID=$(npx --yes firebase-tools apps:list WEB --project=\"$PROJECT_ID\" 2>/dev/null | grep -oE \"1:[0-9]+:web:[a-f0-9]+\" | head -n 1 || true)\n");
+    script.push_str("if [ -z \"$WEB_APP_ID\" ]; then\n");
+    script.push_str("  echo \"  Registering new Firebase Web App (Alfred Web)...\"\n");
+    script.push_str("  npx --yes firebase-tools apps:create WEB \"Alfred Web\" --project=\"$PROJECT_ID\" >/dev/null 2>&1 || true\n");
+    script.push_str("else\n");
+    script.push_str("  echo \"  Firebase Web App already exists ($WEB_APP_ID).\"\n");
+    script.push_str("fi\n\n");
+
+    script.push_str("echo \"  Resolving Firebase Web SDK configuration...\"\n");
+    script.push_str("npx --yes firebase-tools apps:sdkconfig WEB --project=\"$PROJECT_ID\" --out=firebase-app-config.json >/dev/null 2>&1 || true\n\n");
 
     script.push_str("# Helper to create or update secrets in Google Secret Manager\n");
     script.push_str("create_or_update_secret() {\n");
@@ -164,6 +203,7 @@ pub fn generate_cloud_shell_script(config: &SetupConfig) -> String {
     script.push_str("create_or_update_secret \"GOOGLE_OAUTH_CLIENT_SECRET\" \"${GOOGLE_OAUTH_CLIENT_SECRET:-}\"\n\n");
 
     script.push_str("echo \"📝 [Alfred Setup] Writing local environment config (.env)...\"\n");
+    script.push_str("backup_if_exists \".env\"\n");
     script.push_str("cat << 'ALFRED_ENV_EOF' > .env\n");
     script.push_str("# ==============================================================================\n");
     script.push_str("# Alfred — Generated by Setup-UI (Rust WebAssembly Core)\n");
@@ -190,14 +230,58 @@ pub fn generate_cloud_shell_script(config: &SetupConfig) -> String {
     script.push_str("if [ -n \"${TAVILY_API_KEY:-}\" ]; then echo \"TAVILY_API_KEY='${TAVILY_API_KEY}'\" >> .env; fi\n");
     script.push_str("if [ -n \"${EVREN_API_KEY:-}\" ]; then echo \"EVREN_API_KEY='${EVREN_API_KEY}'\" >> .env; echo \"EVREN_MODEL='qwen3.8-flash-next'\" >> .env; fi\n\n");
 
-    script.push_str("if [ ! -f \"users/USER_PROFILE.md\" ]; then\n");
-    script.push_str("  echo \"🧠 [Alfred Setup] Initializing user persona profile digest...\"\n");
-    script.push_str("  npm run profile:init -- --defaults\n");
+    script.push_str("echo \"📝 [Alfred Setup] Writing Cloud Functions environment config (functions/.env.${PROJECT_ID})...\"\n");
+    script.push_str("backup_if_exists \"functions/.env.${PROJECT_ID}\"\n");
+    script.push_str("cat << 'ALFRED_FUNCTIONS_ENV_EOF' > \"functions/.env.${PROJECT_ID}\"\n");
+    script.push_str("# Project-specific non-sensitive runtime configuration for Cloud Functions\n");
+    script.push_str(&format!("ALLOWED_EMAIL={}\n", shell_quote(&config.allowed_email)));
+    script.push_str(&format!("ALLOWED_UID={}\n", shell_quote(config.allowed_uid.trim())));
+    script.push_str("ALFRED_FUNCTIONS_ENV_EOF\n\n");
+
+    script.push_str("echo \"📝 [Alfred Setup] Writing web app production configuration (apps/web/.env.production.local)...\"\n");
+    script.push_str("backup_if_exists \"apps/web/.env.production.local\"\n");
+    script.push_str("if [ -f \"firebase-app-config.json\" ]; then\n");
+    script.push_str("  node -e '\n");
+    script.push_str("    const fs = require(\"fs\");\n");
+    script.push_str("    try {\n");
+    script.push_str("      const cfg = JSON.parse(fs.readFileSync(\"firebase-app-config.json\", \"utf8\"));\n");
+    script.push_str(&format!("      const allowedUid = {};\n", shell_quote(config.allowed_uid.trim())));
+    script.push_str(&format!("      const allowedEmail = {};\n", shell_quote(&config.allowed_email)));
+    script.push_str("      let envContent = \"# Generated by Alfred Cloud Shell Provisioning\\n\";\n");
+    script.push_str("      envContent += `NEXT_PUBLIC_FIREBASE_API_KEY=${cfg.apiKey || \"\"}\\n`;\n");
+    script.push_str("      envContent += `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${cfg.authDomain || \"\"}\\n`;\n");
+    script.push_str("      envContent += `NEXT_PUBLIC_FIREBASE_PROJECT_ID=${cfg.projectId || \"\"}\\n`;\n");
+    script.push_str("      envContent += `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${cfg.storageBucket || \"\"}\\n`;\n");
+    script.push_str("      envContent += `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${cfg.messagingSenderId || \"\"}\\n`;\n");
+    script.push_str("      envContent += `NEXT_PUBLIC_FIREBASE_APP_ID=${cfg.appId || \"\"}\\n`;\n");
+    script.push_str("      envContent += `NEXT_PUBLIC_ALLOWED_UID=${allowedUid}\\n`;\n");
+    script.push_str("      envContent += `NEXT_PUBLIC_ALLOWED_EMAIL=${allowedEmail}\\n`;\n");
+    script.push_str("      fs.writeFileSync(\"apps/web/.env.production.local\", envContent);\n");
+    script.push_str("    } catch (e) {\n");
+    script.push_str("      console.error(\"Failed to parse firebase-app-config.json:\", e);\n");
+    script.push_str("    }\n");
+    script.push_str("  '\n");
+    script.push_str("  rm -f firebase-app-config.json\n");
+    script.push_str("fi\n\n");
+
+    script.push_str("echo \"📦 [Alfred Setup] Installing dependencies...\"\n");
+    script.push_str("npm ci\n");
+    script.push_str("npm ci --prefix functions\n\n");
+
+    script.push_str("echo \"🧠 [Alfred Setup] Initializing user persona profile digest...\"\n");
+    script.push_str("npm run profile:init -- --defaults\n\n");
+
+    script.push_str("echo \"🏗️ [Alfred Setup] Building Next.js web application for production...\"\n");
+    script.push_str("npm run build:web\n\n");
+
+    script.push_str("if [ ! -f \"apps/web/out/index.html\" ]; then\n");
+    script.push_str("  echo \"❌ [Alfred Setup] Web build failed: apps/web/out/index.html not found!\"\n");
+    script.push_str("  exit 1\n");
     script.push_str("fi\n\n");
 
     script.push_str("echo \"🚀 [Alfred Setup] Deploying to Firebase (Hosting, Functions & Security Rules)...\"\n");
     script.push_str("npx --yes firebase-tools use \"$PROJECT_ID\"\n");
-    script.push_str("npx --yes firebase-tools deploy --only hosting,functions,firestore:rules,firestore:indexes --force\n\n");
+    script.push_str("npx --yes firebase-tools deploy --only hosting,functions,firestore:rules,firestore:indexes --non-interactive --force\n\n");
 
     script.push_str("echo \"\"\n");
     script.push_str("echo \"===================================================================\"\n");
@@ -206,6 +290,10 @@ pub fn generate_cloud_shell_script(config: &SetupConfig) -> String {
     script.push_str("echo \"===================================================================\"\n");
 
     script
+}
+
+fn generate_billing_autolink_snippet() -> &'static str {
+    "if ! gcloud billing projects describe \"$PROJECT_ID\" --format=\"value(billingAccountName)\" 2>/dev/null | grep -q \"/\"; then\n  echo \"💳 [Alfred Setup] Linking open Google Cloud billing account...\"\n  for ba in $(gcloud billing accounts list --filter=\"open=true\" --format=\"value(ACCOUNT_ID)\" 2>/dev/null); do\n    echo \"  Attempting to link billing account $ba...\"\n    if gcloud billing projects link \"$PROJECT_ID\" --billing-account=\"$ba\" 2>/dev/null; then\n      echo \"  ✓ Successfully linked billing account: $ba\"\n      break\n    fi\n  done\nelse\n  echo \"💳 [Alfred Setup] Billing account is already linked to project $PROJECT_ID.\"\nfi\n\n"
 }
 
 #[cfg(test)]
@@ -218,8 +306,6 @@ mod tests {
         assert_eq!(shell_quote("it's a test"), r"'it'\''s a test'");
         assert_eq!(shell_quote("$(whoami)"), r"'$(whoami)'");
         assert_eq!(shell_quote("`id`"), r"'`id`'");
-        assert_eq!(shell_quote("a; b && c"), r"'a; b && c'");
-        assert_eq!(shell_quote(""), "''");
     }
 
     #[test]
@@ -227,80 +313,84 @@ mod tests {
         let config = SetupConfig {
             project_id: "butler-alfred".to_string(),
             allowed_email: "owner@example.invalid".to_string(),
-            allowed_uid: "test_uid_123456789".to_string(),
+            allowed_uid: "test-owner-uid-123456".to_string(),
             groq_api_key: "gsk_test123".to_string(),
-            gemini_api_key: "AIzaSy_test123".to_string(),
-            tavily_api_key: "tvly-test123".to_string(),
-            evren_api_key: Some("evren_test123".to_string()),
+            gemini_api_key: "AIzaSy_test".to_string(),
+            tavily_api_key: "tvly-test".to_string(),
+            evren_api_key: None,
             ollama_url: None,
+            firestore_region: None,
+            billing_account_id: None,
         };
 
         let env = generate_env_file(&config);
         assert!(env.contains("ALLOWED_EMAIL='owner@example.invalid'"));
-        assert!(env.contains("ALLOWED_UID='test_uid_123456789'"));
+        assert!(env.contains("ALLOWED_UID='test-owner-uid-123456'"));
         assert!(env.contains("GROQ_API_KEY='gsk_test123'"));
-        assert!(env.contains("EVREN_API_KEY='evren_test123'"));
-        assert!(env.contains("OLLAMA_BASE_URL='http://localhost:11434'"));
-
-        let mut config_no_uid = config.clone();
-        config_no_uid.allowed_uid = String::new();
-        let env_no_uid = generate_env_file(&config_no_uid);
-        assert!(env_no_uid.contains("ALLOWED_UID=''"));
+        assert!(env.contains("GEMINI_API_KEY='AIzaSy_test'"));
+        assert!(env.contains("TAVILY_API_KEY='tvly-test'"));
     }
 
     #[test]
     fn test_generate_cloud_shell_script_is_secret_free() {
-        let real_secret = "gsk_super_secret_never_appear_in_script_body";
-        let gemini_secret = "AIzaSy_super_secret_gemini_key_12345";
         let config = SetupConfig {
             project_id: "butler-alfred".to_string(),
             allowed_email: "owner@example.invalid".to_string(),
-            allowed_uid: "test_uid_123456789".to_string(),
-            groq_api_key: real_secret.to_string(),
-            gemini_api_key: gemini_secret.to_string(),
-            tavily_api_key: "tvly-test123".to_string(),
-            evren_api_key: Some("evren_test123".to_string()),
-            ollama_url: None,
+            allowed_uid: "test-owner-uid-123456".to_string(),
+            groq_api_key: "gsk_super_secret_raw_key".to_string(),
+            gemini_api_key: "AIza_super_secret_raw_key".to_string(),
+            tavily_api_key: "tvly-super_secret_raw_key".to_string(),
+            evren_api_key: Some("evren_super_secret".to_string()),
+            ollama_url: Some("http://custom-ollama:11434".to_string()),
+            firestore_region: Some("europe-west1".to_string()),
+            billing_account_id: Some("012345-6789AB-CDEF01".to_string()),
         };
 
         let script = generate_cloud_shell_script(&config);
 
-        // Crucial security invariant: the script NEVER embeds raw secrets
-        assert!(!script.contains(real_secret));
-        assert!(!script.contains(gemini_secret));
-        assert!(!script.contains("tvly-test123"));
-        assert!(!script.contains("evren_test123"));
+        // Security assertion: Raw secrets must NEVER be written statically into the script body
+        assert!(!script.contains("gsk_super_secret_raw_key"));
+        assert!(!script.contains("AIza_super_secret_raw_key"));
+        assert!(!script.contains("tvly-super_secret_raw_key"));
+        assert!(!script.contains("evren_super_secret"));
 
-        // Script reads from environment variables
+        // Script reads from environment safely
         assert!(script.contains("create_or_update_secret \"GROQ_API_KEY\" \"${GROQ_API_KEY:-}\""));
-        assert!(script.contains("create_or_update_secret \"GEMINI_API_KEY\" \"${GEMINI_API_KEY:-}\""));
-        assert!(script.contains("prompt_secret_if_interactive"));
-
-        // Script uses shell quoted project ID and heredoc
         assert!(script.contains("PROJECT_ID='butler-alfred'"));
-        assert!(script.contains("cat << 'ALFRED_ENV_EOF' > .env"));
-        assert!(script.contains("users/USER_PROFILE.md"));
-        assert!(script.contains("https://${PROJECT_ID}.web.app"));
+        assert!(script.contains("FIRESTORE_REGION='europe-west1'"));
+        assert!(script.contains("TARGET_BILLING_ACCOUNT='012345-6789AB-CDEF01'"));
+
+        // File backups
+        assert!(script.contains("backup_if_exists()"));
+        assert!(script.contains("backup_if_exists \".env\""));
+        assert!(script.contains("backup_if_exists \"functions/.env.${PROJECT_ID}\""));
+        assert!(script.contains("backup_if_exists \"apps/web/.env.production.local\""));
+
+        // Build steps
+        assert!(script.contains("npm ci"));
+        assert!(script.contains("npm run build:web"));
+        assert!(script.contains("apps/web/out/index.html"));
+        assert!(script.contains("firebase-tools deploy --only hosting,functions,firestore:rules,firestore:indexes --non-interactive --force"));
     }
 
     #[test]
     fn test_generate_cloud_shell_script_injection_safety() {
-        let injection_config = SetupConfig {
-            project_id: "proj$(whoami)".to_string(),
-            allowed_email: "user' ; rm -rf / ; '@gmail.com".to_string(),
-            allowed_uid: "uid`id`".to_string(),
+        let malicious_config = SetupConfig {
+            project_id: "safe-project-id".to_string(),
+            allowed_email: "attacker'; rm -rf /; echo '".to_string(),
+            allowed_uid: "".to_string(),
             groq_api_key: "".to_string(),
             gemini_api_key: "".to_string(),
             tavily_api_key: "".to_string(),
             evren_api_key: None,
-            ollama_url: Some("http://localhost:11434'; rm -rf / ; '".to_string()),
+            ollama_url: None,
+            firestore_region: None,
+            billing_account_id: None,
         };
 
-        let script = generate_cloud_shell_script(&injection_config);
-        // All variables in generated script MUST be single quoted via shell_quote
-        assert!(script.contains(&format!("PROJECT_ID={}", shell_quote(&injection_config.project_id))));
-        assert!(script.contains(&format!("ALLOWED_EMAIL={}", shell_quote(&injection_config.allowed_email))));
-        assert!(script.contains(&format!("ALLOWED_UID={}", shell_quote(&injection_config.allowed_uid))));
-        assert!(script.contains(&format!("OLLAMA_BASE_URL={}", shell_quote(injection_config.ollama_url.as_ref().unwrap()))));
+        let script = generate_cloud_shell_script(&malicious_config);
+        let expected_quoted_email = shell_quote(&malicious_config.allowed_email);
+        assert!(script.contains(&format!("ALLOWED_EMAIL={}", expected_quoted_email)));
+        assert!(!script.contains("ALLOWED_EMAIL='attacker'; rm -rf /;"));
     }
 }

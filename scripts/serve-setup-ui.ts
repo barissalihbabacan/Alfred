@@ -3,9 +3,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
-import { spawn, ChildProcess } from "node:child_process";
+import { spawn, execSync, ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import * as wasmCore from "../setup-ui/wasm/alfred_setup_core.js";
+import { errorMessage } from "../src/core/errors/index.js";
 
 const MIME_TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -28,6 +29,7 @@ export interface SetupWasmModule {
 
 export interface SetupServerDeps {
   spawnImpl?: typeof spawn;
+  execSyncImpl?: typeof execSync;
   wasmModule?: SetupWasmModule;
   sessionToken?: string;
   setupDir?: string;
@@ -45,6 +47,7 @@ function timingSafeEqualStr(a: string, b: string): boolean {
 export function createSetupServer(deps: SetupServerDeps = {}): http.Server {
   const setupDir = deps.setupDir || path.resolve(process.cwd(), "setup-ui");
   const spawnImpl = deps.spawnImpl || spawn;
+  const execSyncImpl = deps.execSyncImpl || execSync;
   const sessionToken = deps.sessionToken || crypto.randomBytes(32).toString("hex");
 
   let wasm: SetupWasmModule;
@@ -97,7 +100,45 @@ export function createSetupServer(deps: SetupServerDeps = {}): http.Server {
         return;
       }
 
-      // 2. Provisioning Endpoint
+      // 2. Billing Accounts Listing
+      if (url.pathname === "/api/billing-accounts") {
+        if (req.method !== "GET") {
+          res.writeHead(405, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Method Not Allowed: GET required" }));
+          return;
+        }
+
+        try {
+          const stdout = execSyncImpl("gcloud billing accounts list --filter=open=true --format=json", {
+            encoding: "utf-8",
+            timeout: 10000,
+            stdio: ["ignore", "pipe", "pipe"]
+          });
+          const rawAccounts: unknown = JSON.parse(stdout || "[]");
+          const accounts = (Array.isArray(rawAccounts) ? rawAccounts : []).map((item: unknown) => {
+            const acc = (item && typeof item === "object") ? item as Record<string, unknown> : {};
+            const rawName = typeof acc.name === "string" ? acc.name : "";
+            const id = rawName.startsWith("billingAccounts/") ? rawName.slice("billingAccounts/".length) : rawName;
+            return {
+              id,
+              name: rawName,
+              displayName: typeof acc.displayName === "string" ? acc.displayName : id,
+              open: Boolean(acc.open)
+            };
+          });
+
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ accounts }));
+        } catch (err: unknown) {
+          const msg = errorMessage(err);
+          console.warn("[Setup Server] Could not list billing accounts via gcloud:", msg);
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ accounts: [], error: msg }));
+        }
+        return;
+      }
+
+      // 3. Provisioning Endpoint
       if (url.pathname === "/api/provision") {
         if (req.method !== "POST") {
           res.writeHead(405, { "Content-Type": "application/json" });
@@ -163,6 +204,12 @@ export function createSetupServer(deps: SetupServerDeps = {}): http.Server {
             const ollamaUrl = typeof configRaw.ollama_url === "string"
               ? configRaw.ollama_url
               : (typeof configRaw.ollamaUrl === "string" ? configRaw.ollamaUrl : null);
+            const firestoreRegion = typeof configRaw.firestore_region === "string"
+              ? configRaw.firestore_region
+              : (typeof configRaw.firestoreRegion === "string" ? configRaw.firestoreRegion : "europe-west1");
+            const billingAccountId = typeof configRaw.billing_account_id === "string"
+              ? configRaw.billing_account_id
+              : (typeof configRaw.billingAccountId === "string" ? configRaw.billingAccountId : null);
 
             // Server-side validation via Rust setup-core
             try {
@@ -195,7 +242,9 @@ export function createSetupServer(deps: SetupServerDeps = {}): http.Server {
               gemini_api_key: geminiKey,
               tavily_api_key: tavilyKey,
               evren_api_key: evrenKey,
-              ollama_url: ollamaUrl
+              ollama_url: ollamaUrl,
+              firestore_region: firestoreRegion,
+              billing_account_id: billingAccountId
             };
 
             // Server securely generates bash script using Rust crate

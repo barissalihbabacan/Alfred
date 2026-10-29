@@ -48,6 +48,19 @@ describe("Setup Wizard Server (serve-setup-ui)", () => {
     return mockChild as unknown as ChildProcess;
   });
 
+  const mockExecSync = vi.fn((cmd: string) => {
+    if (cmd.includes("billing accounts list")) {
+      return JSON.stringify([
+        {
+          name: "billingAccounts/012345-6789AB-CDEF01",
+          displayName: "My Main Billing",
+          open: true
+        }
+      ]);
+    }
+    return "[]";
+  });
+
   beforeEach(async () => {
     lastSpawnArgs = null;
     vi.clearAllMocks();
@@ -55,7 +68,8 @@ describe("Setup Wizard Server (serve-setup-ui)", () => {
     const deps: SetupServerDeps = {
       sessionToken: testToken,
       wasmModule: mockWasm,
-      spawnImpl: mockSpawn as unknown as SetupServerDeps["spawnImpl"]
+      spawnImpl: mockSpawn as unknown as SetupServerDeps["spawnImpl"],
+      execSyncImpl: mockExecSync as unknown as SetupServerDeps["execSyncImpl"]
     };
 
     server = createSetupServer(deps);
@@ -249,5 +263,47 @@ describe("Setup Wizard Server (serve-setup-ui)", () => {
     mockChild.emit("close", 0);
     const firstRes = await firstReq;
     expect(firstRes.status).toBe(200);
+  });
+
+  it("protects /api/billing-accounts with setup token", async () => {
+    const res = await fetch(`${baseUrl}/api/billing-accounts`, {
+      method: "GET"
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("returns open billing accounts from /api/billing-accounts", async () => {
+    const res = await fetch(`${baseUrl}/api/billing-accounts`, {
+      method: "GET",
+      headers: {
+        "X-Setup-Token": testToken
+      }
+    });
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.accounts).toEqual([
+      {
+        id: "012345-6789AB-CDEF01",
+        name: "billingAccounts/012345-6789AB-CDEF01",
+        displayName: "My Main Billing",
+        open: true
+      }
+    ]);
+  });
+
+  it("handles gcloud error in /api/billing-accounts gracefully", async () => {
+    mockExecSync.mockImplementationOnce(() => {
+      throw new Error("gcloud: command not found");
+    });
+    const res = await fetch(`${baseUrl}/api/billing-accounts`, {
+      method: "GET",
+      headers: {
+        "X-Setup-Token": testToken
+      }
+    });
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.accounts).toEqual([]);
+    expect(data.error).toContain("gcloud: command not found");
   });
 });

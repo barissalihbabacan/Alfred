@@ -48,6 +48,11 @@
         <span class="step-num">4</span>
         <span class="step-label">Review &amp; Deploy</span>
       </div>
+      <div class="step-divider"></div>
+      <div class="step-item" data-step="4">
+        <span class="step-num">5</span>
+        <span class="step-label">Post-Setup</span>
+      </div>
     </nav>
 
     <!-- Step Content Cards -->
@@ -67,6 +72,24 @@
           </div>
           <div class="input-hint">6–30 characters, lowercase letters, numbers, and hyphens. If it does not exist, the setup script creates it automatically.</div>
           <div class="validation-message" id="val-project-id"></div>
+        </div>
+
+        <div class="form-group">
+          <label for="billing-account">Google Cloud Billing Account <span class="optional-tag">(Optional)</span></label>
+          <select id="billing-account" class="select-input">
+            <option value="">⚡ Auto-link first available open billing account</option>
+          </select>
+          <div class="input-hint">Choose an open billing account from your Google Cloud organization, or let Alfred link automatically.</div>
+        </div>
+
+        <div class="form-group">
+          <label for="firestore-region">Firestore Native Location (Region)</label>
+          <select id="firestore-region" class="select-input">
+            <option value="europe-west1" selected>europe-west1 (Belgium — Recommended: Low latency for Turkey &amp; Europe)</option>
+            <option value="europe-west3">europe-west3 (Frankfurt, Germany)</option>
+            <option value="us-central1">us-central1 (Iowa, USA)</option>
+          </select>
+          <div class="input-hint">Single-region Firestore native database is cost-effective and optimal for Alfred.</div>
         </div>
 
         <div class="info-box">
@@ -176,6 +199,72 @@
             <div class="console-timer" id="console-timer">00:00</div>
           </div>
           <pre class="console-output" id="console-output">Ready to deploy. Click "🚀 Execute Setup &amp; Deploy Now" to start automated provisioning...</pre>
+        </div>
+      </section>
+
+      <!-- Step 4: Post-Setup Steps -->
+      <section class="step-panel" id="step-4">
+        <h2>5. Post-Deployment Checklist</h2>
+        <p class="step-desc">
+          Alfred has been provisioned! Complete these 3 quick steps to finish configuration.
+        </p>
+
+        <div class="post-setup-list">
+          <!-- Step 1: Google Auth Provider -->
+          <div class="post-setup-item">
+            <div class="post-setup-num">1</div>
+            <div class="post-setup-content">
+              <h3>Enable Google Sign-in Provider in Firebase Console</h3>
+              <p>
+                Firebase Authentication requires the Google provider to be switched on before your first login:
+              </p>
+              <ol class="post-setup-substeps">
+                <li>Open <strong>Authentication &gt; Sign-in method</strong> in your Firebase Console.</li>
+                <li>Click <strong>Google</strong>, toggle <strong>Enable</strong>, select your support email, and click <strong>Save</strong>.</li>
+              </ol>
+              <a id="link-firebase-auth" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-gold">
+                🔗 Open Firebase Auth Providers Page &rarr;
+              </a>
+            </div>
+          </div>
+
+          <!-- Step 2: App Check / reCAPTCHA -->
+          <div class="post-setup-item">
+            <div class="post-setup-num">2</div>
+            <div class="post-setup-content">
+              <h3>App Check &amp; reCAPTCHA Protection (Recommended)</h3>
+              <p>
+                Protect your Cloud Functions against unauthorized callers with Firebase App Check:
+              </p>
+              <ol class="post-setup-substeps">
+                <li>Navigate to <strong>App Check &gt; Apps</strong> in Firebase Console.</li>
+                <li>Register your web app with <strong>reCAPTCHA Enterprise</strong> or <strong>reCAPTCHA v3</strong>.</li>
+                <li>Add your production domains (<code><span class="project-domain-preview"></span>.web.app</code>) to authorized domains.</li>
+              </ol>
+              <a id="link-firebase-appcheck" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-secondary">
+                🛡️ Open Firebase App Check Console &rarr;
+              </a>
+            </div>
+          </div>
+
+          <!-- Step 3: PWA & Notifications -->
+          <div class="post-setup-item">
+            <div class="post-setup-num">3</div>
+            <div class="post-setup-content">
+              <h3>Phone App Installation &amp; Instant Push Notifications (PWA)</h3>
+              <p>
+                Install Alfred as a full-screen app on your phone and enable push notifications for scheduled morning briefings and tasks:
+              </p>
+              <ol class="post-setup-substeps">
+                <li>Open <code>https://<span class="project-domain-preview"></span>.web.app</code> on your phone (Safari or Chrome).</li>
+                <li>Tap <strong>Share &gt; Add to Home Screen</strong> (Safari) or <strong>Install App</strong> (Chrome).</li>
+                <li>Log in with your authorized email and click <strong>Bildirimleri Aç</strong> under Settings.</li>
+              </ol>
+              <a id="link-deployed-app" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-primary">
+                🚀 Launch Alfred Web App &rarr;
+              </a>
+            </div>
+          </div>
         </div>
       </section>
     </div>

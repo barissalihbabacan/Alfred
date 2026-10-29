@@ -53,6 +53,15 @@ pub fn wasm_generate_script(config_js: JsValue) -> Result<String, JsValue> {
 }
 
 #[wasm_bindgen]
+pub fn wasm_get_summary(config_js: JsValue) -> Result<String, JsValue> {
+    let config: SetupConfig = serde_wasm_bindgen::from_value(config_js)
+        .map_err(|e| JsValue::from_str(&format!("Invalid configuration: {}", e)))?;
+    let mut wizard = SetupWizard::new();
+    wizard.config = config;
+    Ok(wizard.get_summary())
+}
+
+#[wasm_bindgen]
 pub struct WasmWizard {
     inner: SetupWizard,
 }
@@ -69,6 +78,26 @@ impl WasmWizard {
     #[wasm_bindgen]
     pub fn set_project_id(&mut self, val: &str) {
         self.inner.config.project_id = val.trim().to_string();
+    }
+
+    #[wasm_bindgen]
+    pub fn set_firestore_region(&mut self, val: &str) {
+        let trimmed = val.trim();
+        self.inner.config.firestore_region = if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        };
+    }
+
+    #[wasm_bindgen]
+    pub fn set_billing_account_id(&mut self, val: &str) {
+        let trimmed = val.trim();
+        self.inner.config.billing_account_id = if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        };
     }
 
     #[wasm_bindgen]
@@ -141,6 +170,11 @@ impl WasmWizard {
     #[wasm_bindgen]
     pub fn prev_step(&mut self) -> usize {
         self.inner.prev_step()
+    }
+
+    #[wasm_bindgen]
+    pub fn get_summary(&self) -> String {
+        self.inner.get_summary()
     }
 
     #[wasm_bindgen]

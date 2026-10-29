@@ -1,108 +1,78 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="480" viewBox="0 0 1200 480" role="img" aria-labelledby="hero-title hero-desc">
-  <title id="hero-title">Alfred — Open-Source Personal AI Butler &amp; Engineering Partner</title>
-  <desc id="hero-desc">On the left: Alfred project identity, self-hosted open-source vision, and tech stack badges; on the right: two live verified interaction examples: reasoned objection to dropping production DB and multi-city timezone resolution.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" role="img" aria-labelledby="title desc">
+  <title id="title">Alfred: your own AI assistant, on your own Firebase</title>
+  <desc id="desc">The name Alfred and its promise on the left, the chat provider chain EVREN to Groq to Gemini, and on the right one real chat turn shown as the server-sent events the browser receives: start, tool_call get_current_time, tool_result, chunk, done, and the reply London 14:03, Tokyo 22:03, Sydney 23:03.</desc>
 
   <defs>
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0E1726"/>
-      <stop offset="100%" stop-color="#080E18"/>
-    </linearGradient>
-    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#E5C77D"/>
-      <stop offset="100%" stop-color="#C9A45C"/>
-    </linearGradient>
+    <radialGradient id="glow" cx="0.78" cy="0.42" r="0.55">
+      <stop offset="0" stop-color="#c5a059" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#c5a059" stop-opacity="0"/>
+    </radialGradient>
   </defs>
 
-  <!-- background -->
-  <rect width="1200" height="480" rx="24" fill="url(#bgGrad)"/>
-  <rect x="52" y="52" width="4" height="376" rx="2" fill="url(#goldGrad)" opacity="0.85"/>
+  <rect width="1200" height="600" rx="28" fill="#171717"/>
+  <rect width="1200" height="600" rx="28" fill="url(#glow)"/>
 
-  <!-- left block: title, vision, badges -->
-  <g id="title-block" transform="translate(80 0)">
-    <!-- terminal prompt tag -->
-    <g transform="translate(0 64)">
-      <rect x="0" y="0" width="28" height="26" rx="6" fill="#16233A" stroke="#C9A45C" stroke-width="1.5"/>
-      <path d="M7 8 L13 13 L7 18" fill="none" stroke="#C9A45C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      <line x1="15" y1="18" x2="21" y2="18" stroke="#C9A45C" stroke-width="2" stroke-linecap="round"/>
-      <text x="38" y="18" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="700" letter-spacing="2" fill="#C9A45C">OPEN-SOURCE · SELF-HOSTED</text>
+  <g id="title-block" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif">
+    <text x="64" y="100" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" letter-spacing="2.5" fill="#c5a059">YOUR OWN CLOUD  ·  SINGLE-USER  ·  MIT</text>
+    <text x="58" y="206" font-size="116" font-weight="700" letter-spacing="-4" fill="#ececec">Alfred</text>
+
+    <text x="64" y="264" font-size="32" font-weight="600" fill="#ececec">Your own AI assistant,</text>
+    <text x="64" y="304" font-size="32" font-weight="600" fill="#ececec">on your own Firebase.</text>
+
+    <text x="64" y="352" font-size="21" fill="#b4b4b4">Remembers what matters, works your calendar,</text>
+    <text x="64" y="382" font-size="21" fill="#b4b4b4">inbox, repos and home server, and keeps</text>
+    <text x="64" y="412" font-size="21" fill="#b4b4b4">answering when a free-tier model gives out.</text>
+
+    <text x="64" y="464" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" letter-spacing="1.5" fill="#8e8e8e">CHAT CHAIN · SWITCHES BEFORE THE FIRST TOKEN</text>
+    <g id="chain" font-size="18" font-weight="600" text-anchor="middle">
+      <rect x="64" y="480" width="104" height="36" rx="18" fill="#212121" stroke="#c5a059" stroke-width="1.5"/>
+      <text x="116" y="504" fill="#e6c887">EVREN</text>
+      <text x="188" y="504" font-weight="400" fill="#737373">→</text>
+      <rect x="208" y="480" width="88" height="36" rx="18" fill="#212121" stroke="#3a3a3a" stroke-width="1.5"/>
+      <text x="252" y="504" fill="#ececec">Groq</text>
+      <text x="316" y="504" font-weight="400" fill="#737373">→</text>
+      <rect x="336" y="480" width="108" height="36" rx="18" fill="#212121" stroke="#3a3a3a" stroke-width="1.5"/>
+      <text x="390" y="504" fill="#ececec">Gemini</text>
     </g>
 
-    <!-- main title -->
-    <text x="0" y="168" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="86" font-weight="800" letter-spacing="-1.5" fill="#F4EFE3">Alfred</text>
-
-    <!-- value proposition -->
-    <g transform="translate(0 208)">
-      <text x="0" y="0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="18" font-weight="500" fill="#F4EFE3">Speaks plainly as a senior engineering partner,</text>
-      <text x="0" y="27" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="18" font-weight="500" fill="#F4EFE3">remembers preferences, and objects to</text>
-      <text x="0" y="54" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="18" font-weight="500" fill="#F4EFE3">risky commands.</text>
-    </g>
-
-    <!-- pills (2x2 grid) -->
-    <g transform="translate(0 304)">
-      <!-- pill 1: TypeScript -->
-      <g transform="translate(0 0)">
-        <rect width="232" height="38" rx="8" fill="#16233A" stroke="#26344D"/>
-        <circle cx="18" cy="19" r="4.5" fill="#3178C6"/>
-        <text x="32" y="24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#C8CEDA">TypeScript 98.8%</text>
-      </g>
-
-      <!-- pill 2: Model Chain (Groq -> Gemini Failover) -->
-      <g transform="translate(244 0)">
-        <rect width="232" height="38" rx="8" fill="#16233A" stroke="#26344D"/>
-        <circle cx="18" cy="19" r="4.5" fill="#C9A45C"/>
-        <text x="32" y="24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#C8CEDA">Groq → Gemini Failover</text>
-      </g>
-
-      <!-- pill 3: Vector Memory -->
-      <g transform="translate(0 48)">
-        <rect width="232" height="38" rx="8" fill="#16233A" stroke="#26344D"/>
-        <circle cx="18" cy="19" r="4.5" fill="#10B981"/>
-        <text x="32" y="24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#C8CEDA">Vector Memory &amp; RAG</text>
-      </g>
-
-      <!-- pill 4: Live Web & Time -->
-      <g transform="translate(244 48)">
-        <rect width="232" height="38" rx="8" fill="#16233A" stroke="#26344D"/>
-        <circle cx="18" cy="19" r="4.5" fill="#F59E0B"/>
-        <text x="32" y="24" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#C8CEDA">Tavily Search &amp; Tools</text>
-      </g>
-    </g>
+    <text x="64" y="556" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#b4b4b4"><tspan fill="#c5a059">tools </tspan>gmail · calendar · tasks · github · web · ssh</text>
   </g>
 
-  <!-- right block: live verification card -->
-  <g id="real-conversation" transform="translate(586 40)">
-    <rect width="562" height="400" rx="18" fill="#16233A" stroke="#26344D"/>
-    
-    <g transform="translate(28 32)">
-      <circle cx="6" cy="6" r="4" fill="#10B981"/>
-      <text x="20" y="10" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" font-weight="600" letter-spacing="1.5" fill="#8A94A6">LIVE VERIFICATION · REAL OUTPUTS</text>
+  <g id="live-turn" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif">
+    <rect x="650" y="56" width="486" height="488" rx="22" fill="#212121" stroke="#2f2f2f" stroke-width="1.5"/>
+    <circle cx="684" cy="87" r="5" fill="#c5a059"/>
+    <text x="698" y="92" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" letter-spacing="1.5" fill="#8e8e8e">ONE TURN, AS THE BROWSER SEES IT</text>
+
+    <rect x="812" y="112" width="300" height="76" rx="18" fill="#2f2f2f"/>
+    <text x="1090" y="143" font-size="19" text-anchor="end" fill="#ececec">What time is it in London,</text>
+    <text x="1090" y="171" font-size="19" text-anchor="end" fill="#ececec">Tokyo, and Sydney?</text>
+
+    <g id="sse-wire" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+      <line x1="694" y1="222" x2="694" y2="424" stroke="#c5a059" stroke-width="2" stroke-opacity="0.55"/>
+      <circle cx="694" cy="226" r="6" fill="#c5a059"/>
+      <text x="714" y="232" font-size="17" fill="#e6c887">start</text>
+      <text x="850" y="232" font-size="16" fill="#8e8e8e">groq · gpt-oss-120b</text>
+
+      <circle cx="694" cy="270" r="6" fill="#c5a059"/>
+      <text x="714" y="276" font-size="17" fill="#e6c887">tool_call</text>
+      <text x="850" y="276" font-size="16" fill="#ececec">get_current_time</text>
+      <text x="714" y="300" font-size="15" fill="#737373">{"cities":["London","Tokyo","Sydney"]}</text>
+
+      <circle cx="694" cy="332" r="6" fill="#c5a059"/>
+      <text x="714" y="338" font-size="17" fill="#e6c887">tool_result</text>
+      <text x="850" y="338" font-size="16" fill="#8e8e8e">3 results</text>
+
+      <circle cx="694" cy="376" r="6" fill="#c5a059"/>
+      <text x="714" y="382" font-size="17" fill="#e6c887">chunk</text>
+      <text x="850" y="382" font-size="16" fill="#8e8e8e">tokens stream in</text>
+
+      <circle cx="694" cy="420" r="6" fill="#10b981"/>
+      <text x="714" y="426" font-size="17" fill="#10b981">done</text>
+      <text x="850" y="426" font-size="16" fill="#8e8e8e">saved, then memory runs</text>
     </g>
 
-    <!-- 1: objection -->
-    <g transform="translate(28 68)">
-      <rect x="200" y="0" width="306" height="38" rx="10" fill="#26344D"/>
-      <text x="353" y="24" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="15" fill="#F4EFE3">Should we drop production DB?</text>
-
-      <rect x="0" y="48" width="3" height="76" rx="1.5" fill="#C9A45C"/>
-      <text x="16" y="68" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" font-weight="600" fill="#F4EFE3">No. Dropping the production database causes</text>
-      <text x="16" y="92" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="15" fill="#C8CEDA">irreversible data loss and outage; take a</text>
-      <text x="16" y="116" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="15" fill="#C8CEDA">verified snapshot backup first.</text>
-    </g>
-
-    <line x1="28" y1="216" x2="534" y2="216" stroke="#26344D" stroke-dasharray="4 4"/>
-
-    <!-- 2: tool calling & time -->
-    <g transform="translate(28 236)">
-      <rect x="150" y="0" width="356" height="38" rx="10" fill="#26344D"/>
-      <text x="328" y="24" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="15" fill="#F4EFE3">What time is it in London, Tokyo, Sydney?</text>
-
-      <rect x="0" y="48" width="506" height="34" rx="6" fill="#0E1726" stroke="#26344D"/>
-      <text x="14" y="70" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" font-weight="600" fill="#C9A45C">get_current_time</text>
-      <text x="180" y="70" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" fill="#8A94A6">["London","Tokyo","Sydney"]</text>
-
-      <rect x="0" y="94" width="3" height="46" rx="1.5" fill="#C9A45C"/>
-      <text x="16" y="114" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" font-weight="600" fill="#F4EFE3">London 14:03, Tokyo 22:03, Sydney 23:03.</text>
-      <text x="16" y="134" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="14" fill="#8A94A6">DST offsets and timezone calculations resolved.</text>
-    </g>
+    <rect x="690" y="456" width="3" height="54" rx="1.5" fill="#c5a059"/>
+    <text x="710" y="478" font-size="19" fill="#ececec">London 14:03, Tokyo 22:03, Sydney 23:03.</text>
+    <text x="710" y="502" font-size="16" fill="#8e8e8e">one tool call · DST resolved</text>
   </g>
 </svg>

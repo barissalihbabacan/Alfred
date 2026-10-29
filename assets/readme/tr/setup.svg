@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
+  <title id="title">Alfred Kurulumu: bir Google hesabından çalışan bir Alfred'e</title>
+  <desc id="desc">Alfred kurulum sihirbazının dört adımı (GCP projesi, hesabın, API anahtarları, deploy) ve yanında canlı kurulum log'u: projeyi oluşturma, faturalandırmayı bağlama, API'leri açma, Firestore'u hazırlama, Secret Manager'ı kurma, deploy ve yeni Alfred'in adresi.</desc>
+
+  <rect width="1200" height="520" rx="28" fill="#0E1726"/>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif">
+    <text x="64" y="66" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" letter-spacing="2" fill="#C9A45C">ALFRED KURULUMU  ·  RUST TERMİNAL SİHİRBAZI  ·  GOOGLE CLOUD SHELL'DE</text>
+    <text x="64" y="122" font-size="40" font-weight="700" letter-spacing="-0.5" fill="#F4EFE3">Bir Google hesabından çalışan bir Alfred'e.</text>
+    <text x="64" y="160" font-size="20" fill="#C8CEDA">Terminalde dört adım. Anahtarlar betiğe değil, Secret Manager'a gider.</text>
+
+    <g id="stepper">
+      <line x1="84" y1="232" x2="84" y2="436" stroke="#26344D" stroke-width="2"/>
+      <g font-size="17" font-weight="700" text-anchor="middle">
+        <circle cx="84" cy="226" r="18" fill="#C9A45C"/><text x="84" y="232" fill="#0E1726">1</text>
+        <circle cx="84" cy="294" r="18" fill="#C9A45C"/><text x="84" y="300" fill="#0E1726">2</text>
+        <circle cx="84" cy="362" r="18" fill="#C9A45C"/><text x="84" y="368" fill="#0E1726">3</text>
+        <circle cx="84" cy="430" r="18" fill="#0E1726" stroke="#C9A45C" stroke-width="2.5"/><text x="84" y="436" fill="#C9A45C">4</text>
+      </g>
+      <text x="120" y="222" font-size="21" font-weight="600" fill="#F4EFE3">GCP projesi</text>
+      <text x="120" y="246" font-size="17" fill="#8A94A6">oluştur ya da seç, faturayı bağla</text>
+      <text x="120" y="290" font-size="21" font-weight="600" fill="#F4EFE3">Hesabın</text>
+      <text x="120" y="314" font-size="17" fill="#8A94A6">giriş yapabilen tek hesap</text>
+      <text x="120" y="358" font-size="21" font-weight="600" fill="#F4EFE3">API anahtarları</text>
+      <text x="120" y="382" font-size="17" fill="#8A94A6">hepsi isteğe bağlı, sonra da eklenir</text>
+      <text x="120" y="426" font-size="21" font-weight="600" fill="#F4EFE3">Deploy</text>
+      <text x="120" y="450" font-size="17" fill="#8A94A6">tek tık, sonra log'u izle</text>
+    </g>
+
+    <g id="console">
+      <rect x="560" y="196" width="576" height="276" rx="18" fill="#0A111E" stroke="#26344D" stroke-width="1.5"/>
+      <circle cx="590" cy="226" r="5" fill="#10B981"/>
+      <text x="604" y="231" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" letter-spacing="1.5" fill="#8A94A6">CANLI KURULUM LOG'U</text>
+      <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16">
+        <text x="588" y="270" fill="#C8CEDA"><tspan fill="#C9A45C">› </tspan>Google Cloud projesi oluşturuluyor</text>
+        <text x="588" y="298" fill="#C8CEDA"><tspan fill="#C9A45C">› </tspan>Faturalandırma hesabı bağlanıyor</text>
+        <text x="588" y="326" fill="#C8CEDA"><tspan fill="#C9A45C">› </tspan>Cloud ve Firebase API'leri açılıyor</text>
+        <text x="588" y="354" fill="#C8CEDA"><tspan fill="#C9A45C">› </tspan>Firestore veritabanı hazırlanıyor</text>
+        <text x="588" y="382" fill="#C8CEDA"><tspan fill="#C9A45C">› </tspan>Secret Manager kasası kuruluyor</text>
+        <text x="588" y="410" fill="#C8CEDA"><tspan fill="#C9A45C">› </tspan>Hosting, Functions ve kurallar deploy</text>
+        <text x="588" y="446" fill="#10B981">✓ Yayında: https://&lt;proje-id&gt;.web.app</text>
+      </g>
+    </g>
+  </g>
+</svg>

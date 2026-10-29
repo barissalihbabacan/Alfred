@@ -1,13 +1,12 @@
 <p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="Alfred: Open-source, self-hosted personal AI butler and software engineering partner.">
+  <img src="./assets/readme/hero.svg" width="100%" alt="Alfred: your own AI assistant, on your own Firebase. Next to the name, one real chat turn as the browser receives it: start, a get_current_time tool call for London, Tokyo and Sydney, the tool result, streamed chunks and done.">
 </p>
 
 <p align="center">
-  <a href="https://github.com/barissalihbabacan/Alfred/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="MIT License"></a>
-  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-98.8%25-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript 98.8%"></a>
-  <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/Node.js-22+-43853D?style=flat-square&logo=node.js&logoColor=white" alt="Node.js 22+"></a>
-  <a href="https://firebase.google.com/"><img src="https://img.shields.io/badge/Firebase-Hosting%20%26%20Functions-FFCA28?style=flat-square&logo=firebase&logoColor=black" alt="Firebase"></a>
-  <a href="#quick-start"><img src="https://img.shields.io/badge/Self--Hosted-Privacy--First-10B981?style=flat-square" alt="Self-Hosted"></a>
+  <a href="https://github.com/barissalihbabacan/Alfred/actions/workflows/ci.yml"><img src="https://github.com/barissalihbabacan/Alfred/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-c5a059?style=flat-square&labelColor=171717" alt="MIT License"></a>
+  <a href="./.nvmrc"><img src="https://img.shields.io/badge/node-22-c5a059?style=flat-square&labelColor=171717" alt="Node.js 22"></a>
+  <a href="https://firebase.google.com/"><img src="https://img.shields.io/badge/runs%20on-your%20Firebase-c5a059?style=flat-square&labelColor=171717" alt="Runs on your own Firebase project"></a>
 </p>
 
 <p align="center">
@@ -15,206 +14,182 @@
 </p>
 
 <p align="center">
-  <a href="#what-alfred-does">What It Does</a> ·
-  <a href="#live-verified-behaviors">Live Proof</a> ·
-  <a href="#how-it-works">Architecture</a> ·
-  <a href="#quick-start">Quick Start</a> ·
-  <a href="#development">Development</a> ·
-  <a href="#documentation">Documentation</a>
+  <a href="#deploy-your-own"><b>Deploy</b></a> ·
+  <a href="#seen-in-production">Proof</a> ·
+  <a href="#what-it-can-do">Capabilities</a> ·
+  <a href="#how-a-turn-works">One turn</a> ·
+  <a href="#architecture">Architecture</a> ·
+  <a href="#engineering-notes">Engineering notes</a>
 </p>
 
----
+**Alfred** is a personal AI assistant for exactly one person, running in that person's own Firebase project. It talks like an experienced colleague, keeps the facts that matter across conversations, works your calendar, inbox, repositories and home server, and keeps answering when a free-tier model runs out of quota by handing the turn to the next provider before the first word reaches you.
 
-**Alfred** is an open-source, single-user, self-hosted **personal AI butler and software engineering partner**. It talks like an experienced peer—concise, technically rigorous, and honest—automatically extracts and retains persistent preferences across conversations, and directly objects to destructive or risky engineering choices (such as dropping production databases or bypassing tests) with reasoned alternatives.
+It is also a complete, production-tested reference for building one: streaming, provider failover, rate-limit policy, long-term memory, auth and alerting, with the measurements behind each decision.
 
-> **Why just Alfred?**  
-> *"Because I love BATMAN and I am BATMAN."* 🦇
-
----
-
-## What Alfred Does
-
-- **Bilingual fluency (English & Turkish).** Responds in whichever language you address it in, with natural conversational cadence and native voice input (microphone) support.
-- **Multi-tier LLM failover chain.** Seamlessly switches across providers before streaming tokens: **Groq (`gpt-oss-120b`) → Gemini (`gemini-3.8-flash`) → Local Ollama** (supports regional national models like TÜBİTAK EVREN LLM as well; see [Türkçe](./README.tr.md)).
-- **Autonomous long-term vector memory.** Silently extracts preferences and durable facts post-turn via an independent classification pipeline, scrubs secrets (API keys, passwords, tokens), embeds vectors via Gemini, and commits atomic deduplications/supersessions to Firestore.
-- **Reasoned objection.** Rejects reckless operations without sycophancy: explains the concrete failure mode and presents a safe, production-grade alternative.
-- **Live web search with factual citations.** Integrates Tavily search with automatic news indexing (`topic: "news"`), prunes stale SEO/clickbait, and embeds clickable markdown links (`[source](url)`) for every factual assertion.
-- **Multi-city timezone engine.** Accurately resolves local time and Daylight Saving Time (DST) offsets for up to six global cities in a single tool call.
-- **Zero hallucinations.** If an external integration (calendar, email, home server) is not connected, it states so plainly instead of fabricating mock data.
-
----
-
-## Live-Verified Behaviors
-
-All core behaviors are pinned in production with real conversation logs and automated regression suites:
-
-| User Input | Alfred's Verified Behavior &amp; Response |
-| :--- | :--- |
-| *Should we drop the production database?* | **Direct Objection**: "No. Dropping the production database causes irreversible data loss and downtime; take a verified snapshot backup first…" |
-| *What time is it in London, Tokyo, and Sydney?* | **Single Tool Call** (`["London","Tokyo","Sydney"]`): "London 14:03, Tokyo 22:03, and Sydney 23:03." |
-| *Remember that I love green apple juice.* | **Autonomous Vector Memory**: `"User loves green apple juice" (user_preference)` |
-| *Beşiktaş transfer news.* | **Tavily Web Search**: Auto-selects the verified news index, prunes stale seasons, and presents clickable citations. |
-
----
-
-## How It Works
+## Deploy your own
 
 <p align="center">
-  <img src="./assets/readme/architecture.svg" width="100%" alt="Alfred End-to-End Architecture Diagram: Next.js frontend, Cloud Functions gateway, EVREN/Groq/Gemini/Ollama failover chain, and background intelligence services.">
+  <a href="https://ssh.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https://github.com/barissalihbabacan/Alfred&cloudshell_image=ghcr.io/barissalihbabacan/alfred-setup&shellonly=true&cloudshell_tutorial=.cloudshell/tutorial.md"><img src="./assets/readme/setup-button.svg" width="320" alt="Launch Alfred Setup (opens in Google Cloud Shell)"></a>
 </p>
 
-1. **Client (Web):** `apps/web` is a Next.js 16 (App Router) frontend statically exported to Firebase Hosting. It authenticates users via Google Sign-In and attaches Firebase App Check attestation tokens to every request.
-2. **Security Gateway:** `functions/index.ts` (Cloud Functions 2nd Gen) serves as the sole backend gateway. It enforces strict dual-layer authorization (`ALLOWED_EMAIL` + `ALLOWED_UID` whitelist) and validates App Check tokens. All API keys live strictly within Google Secret Manager.
-3. **Intelligent Failover Chain:**
-   - **1. Groq** (`gpt-oss-120b`): Ultra-low latency global inference.
-   - **2. Google Gemini** (`gemini-3.8-flash`): Cloud fallback tier.
-   - **3. Local Ollama** (`gemma4:12b`): On-premise private offline fallback.
-   *(Turkish citizens can also enable TÜBİTAK's EVREN LLM with 15M free tokens/day; see [Türkçe README](./README.tr.md)).*
-   *If a provider encounters rate limits (HTTP 429) or timeouts before token streaming begins, the entire turn fails over cleanly to the next provider.*
-4. **Real-Time Streaming (SSE):** Replies stream chunk-by-chunk via Server-Sent Events, surfacing reasoning thoughts, tool calls, and model handovers live in the UI.
+<p align="center">
+  <img src="./assets/readme/setup.svg" width="100%" alt="Alfred Setup: four steps (GCP project, your account, API keys, deploy) next to the live provisioning log that ends with the address of the new Alfred.">
+</p>
 
----
+**Alfred Setup** is a terminal wizard written in Rust. It runs in Google Cloud Shell, so there is nothing to install on your machine. You need a Google account with a billing account (Cloud Functions require Firebase's Blaze plan) and whichever model keys you have; every key is optional and can be added later.
 
-## Quick Start
+1. Click **Launch Alfred Setup**. Cloud Shell opens Alfred's setup image and asks whether to trust it: choose **Trust** (and **Authorize** if asked). The wizard starts in the terminal by itself.
+2. Enter a project ID (or press Ctrl+G for one), pick the billing account and the Firestore region, then your name, your Google account and the API keys you have.
+3. Press **Enter** on the review screen. The live log shows each step, from the project to the deploy.
+4. Finish the console steps the wizard lists at the end, such as enabling Google sign-in, then open `https://<project-id>.web.app`.
 
-### ⚡ 1-Click Launch with Google Cloud Shell & Setup-UI
+The Cloud Shell session is temporary; everything that matters is created in your own Google Cloud project. Press F2 in the wizard to switch between English and Turkish.
 
-No local tools, Node.js, or SDK installations required! You can deploy your personal Alfred instance directly from your browser using Google Cloud Shell and our interactive **Rust + WebAssembly Setup-UI**:
+Alfred is single-user by design: the account you enter is the only one that can sign in.
 
-[![Open in Cloud Shell](https://gstatic.com/cloudsdk/images/open-in-cloudshell.svg)](https://ssh.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https://github.com/barissalihbabacan/Alfred&cloudshell_tutorial=.cloudshell/tutorial.md)
+### Run locally
 
-1. Click **Open in Cloud Shell** above to clone the repository into a pre-configured Google Cloud environment.
-2. Launch the interactive setup wizard in the Cloud Shell terminal:
-   ```bash
-   npm run setup:ui
-   ```
-3. Click **Web Preview &rarr; Preview on port 8080** in the top-right corner of Cloud Shell.
-4. Enter your Project ID, single-user Google account, and API keys. The **Rust + WebAssembly** engine validates all credentials client-side and provisions Google Secret Manager, Firestore, and Firebase Hosting in one click!
-
----
-
-### Local Installation
-
-### Prerequisites
-- **Node.js**: v22+
-- **Firebase CLI**: `npm install -g firebase-tools`
-- **Model API Keys (Any combination)**:
-  - [Groq Console](https://console.groq.com/)
-  - [Google AI Studio (Gemini)](https://aistudio.google.com/)
-  - [Tavily](https://tavily.com/) (For real-time web search)
-  - *(Optional)* [TÜBİTAK BİLGEM EVREN API](https://evren-llmapi.ssyz.org.tr/) (For TR users via e-Devlet)
-
-### 1. Clone & Install Dependencies
+For development you need Node.js 22 (`nvm use`) and the Firebase CLI.
 
 ```bash
 git clone https://github.com/barissalihbabacan/Alfred.git
 cd Alfred
 npm install
+npm run profile:init        # writes users/*.md from templates/ (try --dry-run first)
+cp .env.example .env        # keys for src/, scripts and integration tests
+npm run dev:web             # http://localhost:3000
 ```
 
-### 2. Initialize Your User Profile
-
-Alfred dynamically injects your personal profile (`users/*.md`) into its system prompt. Generate your profile from templates in 60 seconds:
-
-```bash
-npm run profile:init
-```
-
-This interactive generator scaffolds `users/USER_PROFILE.md`, `users/PREFERENCES.md`, and `users/WORKING_STYLE.md` with your name, domain expertise, and engineering values.
-
-### 3. Configure Environment Variables
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` with your authorization whitelist and API keys:
-
-```env
-ALLOWED_EMAIL="owner@example.invalid"
-ALLOWED_UID="your_firebase_auth_uid"
-GROQ_API_KEY="gsk_..."
-GEMINI_API_KEY="AIzaSy..."
-TAVILY_API_KEY="tvly-..."
-# EVREN_API_KEY="evren_..."  # Optional: Turkish national LLM API
-```
-
-### 4. Run Locally
-
-Launch the Next.js web application (`http://localhost:3000`):
-
-```bash
-npm run dev:web
-```
-
-To connect your local UI to a live deployed Cloud Function:
+`npm run dev:web` proxies `/api/**` to the Functions emulator by default. To use a deployed backend instead:
 
 ```bash
 ALFRED_API_ORIGIN=https://<your-project>.web.app/api npm run dev:web
 ```
 
----
+The emulator reads secrets from `functions/.secret.local` and other settings from `functions/.env`. In production, keys come from Secret Manager only (`firebase functions:secrets:set NAME`).
+
+## Seen in production
+
+Replies observed in Alfred's production logs:
+
+| You say | Alfred does |
+| :--- | :--- |
+| *Should we drop the production database?* | **Objects, with a way forward:** "No. Dropping the production database causes irreversible data loss and downtime; take a verified snapshot backup first…" |
+| *What time is it in London, Tokyo, and Sydney?* | **One tool call** for all three cities: "London 14:03, Tokyo 22:03, and Sydney 23:03." |
+| *Remember that I love green apple juice.* | **Stores a durable preference** after the reply: `"User loves green apple juice" (user_preference)` |
+| *Beşiktaş transfer news.* | **Searches the news index**, drops stale seasons and links every source it uses. |
+
+## What it can do
+
+**Talks** in English or Turkish, answering in the language you used. Voice input comes from the browser. Replies render as Markdown, and sources are always links.
+
+**Remembers.** After each reply, a separate classifier extracts durable facts and preferences, never attributing Alfred's own words to you. Anything that looks like a secret is rejected before it is stored. You can review, add and retract memories in the app, and each project workspace has its own isolated memory.
+
+**Acts** through tools that are offered only when they are actually configured, so it never promises something it cannot do:
+
+| Tool | What it does | Needs |
+| :--- | :--- | :--- |
+| `get_current_time` | Local time and offset for several cities in one call, DST-aware | nothing |
+| `web_search` | Tavily search, up to five sources, one search per question | `TAVILY_API_KEY` |
+| `read_url` | Reads a page you link | nothing |
+| `github` | Repository, issues, pull requests, commits, tree and files (read-only) | optional `GITHUB_TOKEN` |
+| `google_calendar` | List, create and delete events | Google connected in the app |
+| `google_tasks` | List, create, complete and delete tasks | Google connected in the app |
+| `gmail` | Search and read mail, create drafts, send | Google connected in the app |
+| `ssh_*` | Disk usage, system info, directory listing, `docker ps`, logs and restart on your home server | home relay daemon |
+
+**Shows up on its own:** a morning briefing runs every day at 09:00 (Europe/Istanbul) and arrives as a push notification on the installed PWA.
+
+## How a turn works
+
+<p align="center">
+  <img src="./assets/readme/turn.svg" width="100%" alt="Timeline of one chat turn: start, thinking, tool_call, tool_result, chunk, done, then memory extraction after done. Until the first chunk, a 429 or an error restarts the whole turn on the next provider (EVREN, Groq, Gemini). After the first chunk the provider is fixed.">
+</p>
+
+- Every reply is a stream of `data: {"type": …}` frames: `start`, `thinking`, `tool_call`, `tool_result`, `chunk`, `rate_limited`, `provider_fallback`, `done`, `error`.
+- Until the first `chunk`, a rate limit or error restarts the **whole turn** on the next provider. Once text is on screen, the provider is fixed, so you never see a reply stitched together from two models.
+- The reply is saved before `done`, so the composer frees up right away. The connection then stays open while memory is extracted, and that step can never change or break the answer you already have.
+
+## Architecture
+
+<p align="center">
+  <img src="./assets/readme/architecture.svg" width="100%" alt="Architecture: the browser reaches the api Cloud Function through Firebase Hosting, and directly for the streaming chat. The function checks the ID token, the owner and App Check, runs the turn, calls the model chain and tools with keys from Secret Manager, stores data in Firestore and sends push notifications. A relay daemon on the home server runs whitelisted commands it picks up from Firestore.">
+</p>
+
+1. **Browser:** `apps/web` is a Next.js 16 static export served by Firebase Hosting. It is an installable PWA with Google sign-in only. Ordinary API calls go through the Hosting rewrite; the chat stream goes straight to the function (see [Engineering notes](#engineering-notes)).
+2. **`api` Cloud Function:** every request needs a valid Firebase ID token for the single allowed owner and an App Check token. The function builds the prompt from a profile digest and retrieved memories, runs the turn with tools, and streams it back.
+3. **Model chain:** EVREN (TÜBİTAK's Turkish LLM, used when a key is set) → Groq `openai/gpt-oss-120b` → Gemini `gemini-3.8-flash`. All keys live in Secret Manager and never reach the browser.
+4. **Firestore** is the source of truth for conversations and long-term memory. Client access is denied by the security rules; only the server writes.
+5. **Home server:** SSH tools never open a port. The function writes a whitelisted command to Firestore, a relay daemon at home claims it, re-validates it, runs it and writes the result back.
+
+## Engineering notes
+
+Each of these came from a measurement or an incident, and most are pinned by a test.
+
+| Problem | What was measured | What Alfred does |
+| :--- | :--- | :--- |
+| Streaming looked frozen | Firebase Hosting buffers `/api/**`: every event of a turn arrived in the same millisecond | The chat request goes directly to the function, which also escapes Hosting's 60 s limit |
+| Free tier is 8,000 tokens/min on Groq | The system prompt is re-sent on every model call | Prompt cut from ~4,360 to ~2,160 tokens; a test fails above 2,400 |
+| Failover multiplied search costs | One question spent 6 web searches across provider restarts | One search session per question: repeats reuse results, and the model gets no tools after a search |
+| 429s mid-conversation | Clamped retries hid Groq's real wait time | Waits the real requested time only if it fits a 25 s turn budget, gives up at once on daily limits |
+| Tool output that looked real | Early SSH tools returned placeholder output | Removed. If an integration is not connected, Alfred says so |
+| Moving a live backend | `functions/` and `src/` had diverged | Merged module by module, each slice checked by differential tests against verbatim copies of the former production code |
+
+## Security model
+
+- Google Sign-In only, a single allowed owner, enforced on the server. The client-side check is only for UX.
+- Every request carries a verified ID token and an App Check token. The user is always the token's UID, never a request field.
+- LLM, search and OAuth keys are bound from Secret Manager; there are none in the repository or the browser.
+- Structured logs record events, providers and timings, but never message text, keys or tokens. Cloud Monitoring alerts are built on those events ([OPERATIONS.md](docs/OPERATIONS.md)).
+- An optional weekly workflow exports Firestore encrypted once you add its secrets; Gitleaks, CodeQL and Dependabot guard the repository.
 
 ## Development
 
-The codebase is engineered with strict type safety (**98.8% TypeScript**) and backed by 968 unit tests:
-
 | Command | Purpose |
 | :--- | :--- |
-| `npm run test:unit` | Executes 968 unit tests across 72 files completely offline with zero mock leaks |
-| `npm run typecheck` | Strict compiler typecheck across `src/` (`tsc --noEmit`) |
-| `npm run typecheck:tests` | Typecheck across `tests/` and `scripts/` (`tsc -p tsconfig.tests.json`) |
-| `npm run lint` | ESLint 9 verification (0 warnings, 0 errors permitted) |
-| `npm run profile:init` | Compiles personalized profile files from Markdown templates |
-| `npm run build:web` | Compiles the Next.js frontend to static files in `apps/web/out` |
-| `npm run build --prefix functions` | Bundles `functions/index.ts` and core dependencies using esbuild |
-| `npm run check:bundle --prefix functions` | Verifies export contracts of the bundled backend |
-| `npm run test:integration:offline` | Runs offline integration tests as required by GitHub Actions CI |
+| `npm run test:unit` | Offline unit suite (70+ files, in-memory stores) |
+| `npm run test:integration:offline` | Integration suite with every service-dependent test skipped, as in CI |
+| `npm run typecheck` · `npm run typecheck:tests` | Strict TypeScript for `src/`, then `tests/` and `scripts/` |
+| `npm run lint` | ESLint 10; every rule is an error, `any` is not allowed |
+| `npm run build:web` | Static export to `apps/web/out` |
+| `npm run build --prefix functions` | Bundles the functions with the shared `src/` modules (esbuild) |
+| `npm run setup` | Starts the setup wizard locally (`-- --demo` walks every screen without deploying) |
+| `npm run relay` | Runs the home relay daemon on your server |
 
----
+CI runs all of them on every pull request, and a push to `main` deploys only when everything is green.
 
-## Project Structure
+<details>
+<summary><b>Repository map</b></summary>
 
 ```text
-Alfred/
-├── apps/
-│   └── web/                   # Next.js 16 App Router (static export frontend)
-├── functions/                 # Firebase Cloud Functions 2nd Gen API (TypeScript)
-│   ├── index.ts               # Cloud Function entrypoint wrapper
-│   ├── api.ts                 # Chat, SSE streaming, and briefing handlers
-│   ├── memory-extraction.ts   # Post-turn autonomous memory extraction pipeline
-│   └── memory-persistence.ts  # Firestore atomic batch vector memory persistence
-├── src/                       # Shared TypeScript core libraries
-│   ├── ai/                    # LLM providers (EVREN, Groq, Gemini, Ollama), tools (Tavily, Time)
-│   ├── alfred/                # Cognitive architecture, memory loop, privacy filters
-│   └── data/                  # Firestore schemas and vector similarity functions
-├── templates/                 # Dynamic templates for user profiles and persona
-├── users/                     # Your active profile sources (compiled into prompt digest)
-└── tests/                     # 968 unit tests and differential regression suites
+apps/web/            Next.js 16 front end (static export, PWA)
+functions/           Cloud Functions: api, alfredCallable, scheduledMorningBriefing
+src/ai/              provider-agnostic LLM layer, fallback chain, tools
+src/alfred/          cognitive (context, memory), control plane, execution plane
+src/data/            Firestore repositories, vector store, embeddings
+scripts/             relay daemon, backups, reindex, profile generator, setup server
+crates/alfred-setup/ Rust terminal setup wizard
+crates/setup-core/   its validators and provisioning script generator
+templates/ · users/  profile templates and the owner's profile (read-only at runtime)
+tests/               unit, integration and differential tests
 ```
 
----
+</details>
 
 ## Documentation
 
-- 🧠 [Assistant & Persona Specification](docs/persona/ALFRED_PERSONA.md): Tone, honesty, objection mechanics, and conciseness rules.
-- 🏛️ [System Architecture](docs/ARCHITECTURE.md): Multi-tier storage, failure domains, and data flows.
-- 🗺️ [Feature Roadmap](docs/FEATURE_ROADMAP.md): Milestones, upcoming capabilities, and operational targets.
-- 💻 [Web Application Architecture](docs/web/ALFRED_PLAYGROUND.md): UI component breakdown, API endpoints, and state machines.
-- 🛡️ [Operations & Runbook](docs/OPERATIONS.md): Cloud Monitoring alerts, rate limit thresholds, and runbooks.
+- [Persona specification](docs/persona/ALFRED_PERSONA.md): tone, honesty, pushback and reply length.
+- [Architecture](docs/ARCHITECTURE.md): storage tiers, invariants and failure domains.
+- [Production internals](docs/PRODUCTION_INTERNALS.md): SSE contract, rate-limit policy, fallback, auth and the functions bundle.
+- [Operations](docs/OPERATIONS.md): alert policies, thresholds and runbook.
+- [Feature roadmap](docs/FEATURE_ROADMAP.md) and the [web app](docs/web/ALFRED_PLAYGROUND.md).
 
----
+## Contributing
 
-## Community & Contributing
-
-We welcome contributions! Please review our community guidelines before submitting a pull request:
-
-- 🤝 [Contributing Guide](CONTRIBUTING.md): Workflow, typecheck requirements, and branch conventions.
-- 📜 [Code of Conduct](CODE_OF_CONDUCT.md): Standards for a respectful and inclusive environment.
-- 🔒 [Security Policy](SECURITY.md): Vulnerability reporting procedures and defense-in-depth model.
-
----
+Read the [contributing guide](CONTRIBUTING.md), the [code of conduct](CODE_OF_CONDUCT.md) and the [security policy](SECURITY.md) before opening a pull request.
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE). © 2026 Barış Salih Babacan.
+[MIT](LICENSE) © 2026 Barış Salih Babacan.
+
+<sub>Why Alfred? *"Because I love BATMAN and I am BATMAN."* 🦇</sub>

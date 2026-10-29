@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" role="img" aria-labelledby="title desc">
+  <title id="title">Alfred mimarisi</title>
+  <desc id="desc">Tarayıcı (Next.js statik çıktı, PWA, Google ile giriş) api Cloud Function'a normal çağrılarda Firebase Hosting üzerinden, akışlı sohbette doğrudan ulaşır. Fonksiyon ID token'ı, izinli kullanıcıyı ve App Check'i doğrular, sohbet turunu çalıştırıp geri akıtır. Secret Manager'daki anahtarlarla EVREN, Groq, Gemini model zincirini ve araçları (Tavily, Google, GitHub) çağırır, konuşmaları ve hafızayı Firestore'da tutar, push bildirimi gönderir. Ev sunucusundaki relay daemon izinli sunucu komutlarını Firestore'dan alır ve sonucu geri yazar.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#737373"/>
+    </marker>
+    <marker id="arrow-gold" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#c5a059"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="700" rx="28" fill="#171717"/>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif">
+    <text x="64" y="64" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" letter-spacing="2" fill="#c5a059">MİMARİ  ·  TEK SAHİP, TEK FIREBASE PROJESİ</text>
+
+    <!-- Browser -->
+    <g id="browser">
+      <rect x="64" y="100" width="260" height="210" rx="18" fill="#212121" stroke="#2f2f2f" stroke-width="1.5"/>
+      <text x="88" y="142" font-size="24" font-weight="600" fill="#ececec">Tarayıcı</text>
+      <text x="88" y="182" font-size="18" fill="#b4b4b4">Next.js statik çıktı</text>
+      <text x="88" y="210" font-size="18" fill="#b4b4b4">PWA ve push</text>
+      <text x="88" y="238" font-size="18" fill="#b4b4b4">yalnızca Google girişi</text>
+      <text x="88" y="284" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#737373">apps/web</text>
+    </g>
+
+    <!-- Browser to api -->
+    <g id="browser-api" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14">
+      <text x="332" y="150" fill="#8e8e8e">/api/**,</text>
+      <text x="332" y="168" fill="#8e8e8e">Hosting'den</text>
+      <line x1="326" y1="182" x2="472" y2="182" stroke="#737373" stroke-width="2" marker-end="url(#arrow)"/>
+      <text x="332" y="232" fill="#c5a059">POST /chat</text>
+      <text x="332" y="250" fill="#c5a059">doğrudan, SSE</text>
+      <line x1="326" y1="264" x2="472" y2="264" stroke="#c5a059" stroke-width="2" marker-end="url(#arrow-gold)"/>
+    </g>
+
+    <!-- api -->
+    <g id="api">
+      <rect x="476" y="100" width="324" height="340" rx="18" fill="#212121" stroke="#c5a059" stroke-opacity="0.7" stroke-width="1.5"/>
+      <text x="500" y="142" font-size="24" font-weight="600" fill="#ececec">Cloud Function <tspan font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" fill="#e6c887">api</tspan></text>
+
+      <rect x="496" y="160" width="284" height="72" rx="12" fill="#2a2a2a"/>
+      <text x="514" y="190" font-size="19" font-weight="600" fill="#ececec"><tspan fill="#c5a059">1 </tspan>Kimlik kapısı</text>
+      <text x="532" y="216" font-size="17" fill="#b4b4b4">ID token · sahip · App Check</text>
+
+      <rect x="496" y="242" width="284" height="72" rx="12" fill="#2a2a2a"/>
+      <text x="514" y="272" font-size="19" font-weight="600" fill="#ececec"><tspan fill="#c5a059">2 </tspan>Sohbet turu</text>
+      <text x="532" y="298" font-size="17" fill="#b4b4b4">prompt · hafıza · araçlar</text>
+
+      <rect x="496" y="324" width="284" height="72" rx="12" fill="#2a2a2a"/>
+      <text x="514" y="354" font-size="19" font-weight="600" fill="#ececec"><tspan fill="#c5a059">3 </tspan>SSE akışı</text>
+      <text x="532" y="380" font-size="17" fill="#b4b4b4">frame'ler sekmeye döner</text>
+
+      <text x="500" y="424" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#737373">+ sabah brifingi, her gün 09:00</text>
+    </g>
+
+    <!-- Right column -->
+    <g id="services">
+      <rect x="900" y="100" width="236" height="96" rx="18" fill="#212121" stroke="#2f2f2f" stroke-width="1.5"/>
+      <text x="922" y="138" font-size="21" font-weight="600" fill="#ececec">Model zinciri</text>
+      <text x="922" y="170" font-size="17" fill="#e6c887">EVREN → Groq → Gemini</text>
+
+      <rect x="900" y="212" width="236" height="96" rx="18" fill="#212121" stroke="#2f2f2f" stroke-width="1.5"/>
+      <text x="922" y="250" font-size="21" font-weight="600" fill="#ececec">Araçlar</text>
+      <text x="922" y="282" font-size="18" fill="#b4b4b4">Tavily · Google · GitHub</text>
+
+      <rect x="900" y="324" width="236" height="96" rx="18" fill="#212121" stroke="#2f2f2f" stroke-width="1.5"/>
+      <text x="922" y="362" font-size="21" font-weight="600" fill="#ececec">Secret Manager</text>
+      <text x="922" y="394" font-size="18" fill="#b4b4b4">tüm API anahtarları</text>
+
+      <line x1="802" y1="148" x2="896" y2="148" stroke="#737373" stroke-width="2" marker-end="url(#arrow)"/>
+      <line x1="802" y1="260" x2="896" y2="260" stroke="#737373" stroke-width="2" marker-end="url(#arrow)"/>
+      <line x1="896" y1="372" x2="802" y2="372" stroke="#737373" stroke-width="2" marker-end="url(#arrow)"/>
+    </g>
+
+    <!-- Firestore -->
+    <g id="firestore">
+      <line x1="638" y1="442" x2="638" y2="496" stroke="#737373" stroke-width="2" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+      <rect x="476" y="500" width="324" height="150" rx="18" fill="#212121" stroke="#2f2f2f" stroke-width="1.5"/>
+      <text x="500" y="540" font-size="24" font-weight="600" fill="#ececec">Firestore</text>
+      <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#b4b4b4">
+        <text x="500" y="574">conversations</text>
+        <text x="500" y="598">memory_vectors</text>
+        <text x="500" y="622">server_commands</text>
+      </g>
+      <text x="776" y="540" font-size="15" text-anchor="end" fill="#737373">istemcilere kapalı</text>
+    </g>
+
+    <!-- Home server -->
+    <g id="home">
+      <rect x="64" y="500" width="260" height="150" rx="18" fill="#212121" stroke="#2f2f2f" stroke-width="1.5"/>
+      <text x="88" y="540" font-size="24" font-weight="600" fill="#ececec">Ev sunucusu</text>
+      <text x="88" y="576" font-size="18" fill="#b4b4b4">relay daemon izinli</text>
+      <text x="88" y="602" font-size="18" fill="#b4b4b4">komutları çalıştırır</text>
+      <text x="88" y="630" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#737373">açık port yok</text>
+      <line x1="326" y1="575" x2="472" y2="575" stroke="#737373" stroke-width="2" stroke-dasharray="6 5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+      <text x="399" y="562" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" text-anchor="middle" fill="#8e8e8e">al · çalıştır</text>
+      <text x="399" y="600" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" text-anchor="middle" fill="#8e8e8e">sonucu yaz</text>
+    </g>
+
+    <!-- Push -->
+    <g id="push">
+      <rect x="900" y="500" width="236" height="150" rx="18" fill="#212121" stroke="#2f2f2f" stroke-width="1.5"/>
+      <text x="922" y="540" font-size="24" font-weight="600" fill="#ececec">Telefonun</text>
+      <text x="922" y="576" font-size="18" fill="#b4b4b4">sabah brifingi için</text>
+      <text x="922" y="602" font-size="18" fill="#b4b4b4">FCM bildirimi</text>
+      <path d="M802 420 C 860 420, 860 560, 896 560" fill="none" stroke="#737373" stroke-width="2" marker-end="url(#arrow)"/>
+    </g>
+  </g>
+</svg>
